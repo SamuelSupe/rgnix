@@ -1,0 +1,216 @@
+{
+  "date": "2026-09-24",
+  "image": "rgnix:0.1.0-qa12",
+  "binary_sha256": "5b24e32f41357556a98bdde74ee90f0eaa3960bea01a644f3d23e7a68bfc4068",
+  "source_sha256": "0f396e02916a9615da6a0d7a0650f067be1f82c251951090b1e229d4e346daa9",
+  "environment": "OrbStack Ubuntu Linux arm64",
+  "production_source_changed": false,
+  "ingress": [
+    {
+      "case": "hostless_root_rule_with_default_backend",
+      "expected_rule_port": 45777,
+      "default_backend_port": 37385,
+      "root": {
+        "status": 200,
+        "upstream_port": 37385
+      },
+      "child": {
+        "status": 200,
+        "upstream_port": 37385
+      },
+      "events": [
+        [
+          "RouteConflict",
+          201
+        ]
+      ]
+    },
+    {
+      "case": "more_specific_control",
+      "matched": {
+        "status": 200,
+        "upstream_port": 45777
+      },
+      "unmatched": {
+        "status": 200,
+        "upstream_port": 37385
+      }
+    },
+    {
+      "case": "service_delete_control",
+      "response": {
+        "status": 503,
+        "upstream_port": null
+      }
+    },
+    {
+      "case": "recreated_service_with_old_owned_slice",
+      "old_service_uid": "uid-2",
+      "new_service_uid": "uid-11",
+      "slice_owner_uid": "uid-2",
+      "response": {
+        "status": 200,
+        "upstream_port": 37385
+      },
+      "expected_without_current_endpoints": 503
+    },
+    {
+      "case": "recreated_service_with_old_and_new_slices",
+      "new_endpoint_port": 45777,
+      "old_endpoint_port": 37385,
+      "responses": [
+        {
+          "status": 200,
+          "upstream_port": 37385
+        },
+        {
+          "status": 200,
+          "upstream_port": 45777
+        },
+        {
+          "status": 200,
+          "upstream_port": 37385
+        },
+        {
+          "status": 200,
+          "upstream_port": 45777
+        },
+        {
+          "status": 200,
+          "upstream_port": 37385
+        },
+        {
+          "status": 200,
+          "upstream_port": 45777
+        }
+      ]
+    }
+  ],
+  "http": {
+    "duplicate_host": {
+      "rgnix": {
+        "status": 400,
+        "body": ""
+      },
+      "nginx": {
+        "status": 400,
+        "body": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    "missing_host": {
+      "rgnix": {
+        "status": 200,
+        "body": "{\"path\": \"/\", \"port\": 39751, \"headers\": {\"Host\": \"app\"}, \"size\": 0, \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}"
+      },
+      "nginx": {
+        "status": 400,
+        "body": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    "empty_host": {
+      "rgnix": {
+        "status": 200,
+        "body": "{\"path\": \"/\", \"port\": 39751, \"headers\": {\"Host\": \"app\"}, \"size\": 0, \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}"
+      },
+      "nginx": {
+        "status": 400,
+        "body": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    "invalid_host": {
+      "rgnix": {
+        "status": 200,
+        "body": "{\"path\": \"/\", \"port\": 39751, \"headers\": {\"Host\": \"app\"}, \"size\": 0, \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}"
+      },
+      "nginx": {
+        "status": 400,
+        "body": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    "userinfo_host": {
+      "rgnix": {
+        "status": 400,
+        "body": ""
+      },
+      "nginx": {
+        "status": 200,
+        "body": "{\"path\": \"/\", \"port\": 39751, \"headers\": {\"Host\": \"app\", \"Connection\": \"close\"}, \"size\": 0, \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}"
+      }
+    },
+    "read_timeout": {
+      "rgnix": 502,
+      "nginx": 504
+    },
+    "query_edit": [
+      {
+        "request": "/a%2Fb?old=1",
+        "without_hook_edit": "/a%2Fb?old=1",
+        "query_only_edit": "/a/b?new=1"
+      },
+      {
+        "request": "/%61?old=1",
+        "without_hook_edit": "/%61?old=1",
+        "query_only_edit": "/a?new=1"
+      },
+      {
+        "request": "/a//b?old=1",
+        "without_hook_edit": "/a//b?old=1",
+        "query_only_edit": "/a/b?new=1"
+      },
+      {
+        "request": "/a/../b?old=1",
+        "without_hook_edit": "/a/../b?old=1",
+        "query_only_edit": "/b?new=1"
+      }
+    ]
+  },
+  "assessment": [
+    {
+      "priority": "P1",
+      "finding": "Ingress defaultBackend overrides an explicit hostless Prefix / rule",
+      "code": "src/ingress/mod.rs:465",
+      "evidence": "ingress[0]",
+      "expected": "Explicit rules take precedence; defaultBackend handles unmatched requests."
+    },
+    {
+      "priority": "P2",
+      "finding": "req.set_query changes original path escaping and normalization",
+      "code": "src/proxy/mod.rs:332",
+      "evidence": "http.query_edit",
+      "expected": "Without an explicit path rewrite or proxy_pass URI, preserve the original path while replacing query."
+    },
+    {
+      "priority": "P2",
+      "finding": "Missing or invalid HTTP/1.1 Host reaches the default backend",
+      "code": "src/proxy/mod.rs:142",
+      "evidence": [
+        "http.missing_host",
+        "http.invalid_host"
+      ],
+      "expected": "Return 400 before routing; preserve valid HTTP/1.0 and unknown-host behavior."
+    },
+    {
+      "priority": "P2",
+      "finding": "Upstream response timeout returns 502 instead of 504",
+      "code": "src/proxy/mod.rs:419",
+      "evidence": "http.read_timeout",
+      "expected": "Distinguish gateway timeout from other upstream failures."
+    }
+  ],
+  "hardening_observation": {
+    "finding": "Recreated Service can route to stale EndpointSlices owned by the previous Service UID",
+    "code": "src/ingress/mod.rs:662",
+    "evidence": [
+      "ingress[3]",
+      "ingress[4]"
+    ],
+    "classification": "Observed isolation risk, not asserted to violate Kubernetes conformance: EndpointSlice API associates by service-name label.",
+    "recommendation": "Consider ignoring a conflicting Service owner UID while retaining support for manually managed slices without such an owner; include owner references in the resource fingerprint if enforcing this."
+  },
+  "references": [
+    "https://kubernetes.io/docs/reference/kubernetes-api/networking/ingress-v1/",
+    "https://kubernetes.io/docs/reference/kubernetes-api/discovery/endpoint-slice-v1/",
+    "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.5"
+  ]
+}

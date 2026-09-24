@@ -1,0 +1,119 @@
+Release "rgnix-qa" has been upgraded. Happy Helming!
+NAME: rgnix-qa
+LAST DEPLOYED: Fri Sep 25 00:13:07 2026
+NAMESPACE: rgnix-qa-20260923
+STATUS: deployed
+REVISION: 16
+DESCRIPTION: Upgrade complete
+TEST SUITE: None
+configmap/blue unchanged
+deployment.apps/blue unchanged
+service/blue unchanged
+configmap/green unchanged
+deployment.apps/green unchanged
+service/green unchanged
+deployment "blue" successfully rolled out
+deployment "green" successfully rolled out
+configmap/routes configured
+secret/qa-tls configured
+ingress.networking.k8s.io/app unchanged
+ingress.networking.k8s.io/ignored unchanged
+PASS Prefix path and named Service port
+PASS Prefix segment boundary
+PASS Exact path and numeric Service port
+PASS Exact path boundary
+PASS IngressClass isolation
+ingress.networking.k8s.io/fallback created
+ingress.networking.k8s.io/wildcard created
+PASS Default backend handles unmatched paths on a known host
+PASS Single-label wildcard host
+PASS Wildcard does not match multiple labels
+ingress.networking.k8s.io/fallback patched
+PASS Hostless root rule overrides its Ingress default backend
+ingress.networking.k8s.io/fallback patched
+PASS Default backend resumes after its explicit rule is removed
+ingress.networking.k8s.io/catchall created
+PASS Hostless rule overrides an earlier default-only Ingress
+PASS Named host route wins over a hostless catchall
+ingress.networking.k8s.io "fallback" deleted
+ingress.networking.k8s.io "wildcard" deleted
+ingress.networking.k8s.io "catchall" deleted
+ingress.networking.k8s.io/conflicting created
+PASS Earlier Ingress wins conflicting route
+PASS route conflict publishes Kubernetes Event
+ingress.networking.k8s.io "conflicting" deleted
+PASS Compiled plugin selects declared canary
+PASS TLS Secret serves SNI host
+secret/qa-tls configured
+PASS TLS certificate rotation
+PASS accepted plugin checkpoint persisted
+configmap/routes patched
+PASS Invalid plugin retains last compiled module
+ingress.networking.k8s.io/app patched
+PASS Invalid plugin retains last accepted route definition
+PASS Rejected route definition is not published
+deployment.apps/rgnix-qa restarted
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 old replicas are pending termination...
+deployment "rgnix-qa" successfully rolled out
+scripts/ingress-e2e.sh: line 141: 38218 Terminated: 15          "${k[@]}" port-forward --address 127.0.0.1 deployment/"$release" :8080 :8443 :9090 > "$work/forward.log" 2>&1
+PASS New replicas restore accepted plugin after invalid update
+PASS New replicas restore accepted routing definition
+ingress.networking.k8s.io/app patched
+deployment.apps/blue scaled
+PASS Endpoint removal applies during invalid plugin update
+deployment.apps/blue scaled
+Waiting for deployment "blue" rollout to finish: 0 of 1 updated replicas are available...
+deployment "blue" successfully rolled out
+PASS Endpoint addition restores backend
+service "blue" deleted
+PASS Service deletion withdraws its endpoints
+service/blue created
+PASS Service recreation restores endpoints
+configmap "routes" deleted
+PASS Deleted plugin disables routes
+configmap/routes created
+PASS Plugin recreation restores route
+secret/qa-tls-fallback created
+ingress.networking.k8s.io/tls-conflicting created
+PASS conflicting TLS owner publishes Kubernetes Event
+secret "qa-tls" deleted
+PASS Deleted TLS Secret blocks conflicting and wildcard fallback
+secret/qa-tls created
+PASS TLS Secret recreation
+PASS recovered TLS owner serves its replacement certificate
+ingress.networking.k8s.io "tls-conflicting" deleted
+secret "qa-tls-fallback" deleted
+service/rgnix-qa patched
+PASS elected leader publishes Service address
+service/rgnix-qa patched (no change)
+PASS withdrawn Service address clears Ingress status
+pod "rgnix-qa-77f75b5f86-vp725" deleted
+PASS Lease leadership transfers after leader termination
+deployment.apps/rgnix-qa restarted
+Waiting for deployment "rgnix-qa" rollout to finish: 0 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "rgnix-qa" rollout to finish: 1 old replicas are pending termination...
+deployment "rgnix-qa" successfully rolled out
+PASS 300 Service requests during rolling upgrade
+scripts/ingress-e2e.sh: line 141: 38897 Terminated: 15          "${k[@]}" port-forward --address 127.0.0.1 deployment/"$release" :8080 :8443 :9090 > "$work/forward.log" 2>&1
+PASS Two-replica rolling upgrade
+PASS replicas publish matching configuration fingerprints
+ingress.networking.k8s.io "app" deleted
+PASS Ingress deletion removes routing
+ingress.networking.k8s.io/app created
+ingress.networking.k8s.io/ignored unchanged
+PASS Restored inspection environment
+Ingress acceptance completed in namespace rgnix-qa-20260923 (resources retained for inspection).
+scripts/ingress-e2e.sh: line 11: 40719 Terminated: 15          "${k[@]}" port-forward --address 127.0.0.1 deployment/"$release" :8080 :8443 :9090 > "$work/forward.log" 2>&1

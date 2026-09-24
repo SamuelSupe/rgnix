@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: routes
+data:
+  main.rgl: |
+    function on_request()
+        if req.header("x-canary") == "1" then
+            return route.proxy("canary:http")
+        end
+        return route.pass()
+    end
+    function on_response()
+        resp.set_header("x-proxy", "rgnix")
+    end
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example
+  annotations:
+    rgnix.io/script: routes/main.rgl
+spec:
+  ingressClassName: rgnix
+  tls:
+    - hosts: [app.example.com]
+      secretName: app-tls
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  name: http
+          - path: /canary
+            pathType: Prefix
+            backend:
+              service:
+                name: canary
+                port:
+                  name: http

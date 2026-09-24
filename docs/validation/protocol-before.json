@@ -1,0 +1,80 @@
+{
+  "websocket_default_limit": {
+    "target_payload_bytes": 2097152,
+    "received_payload_bytes": 983040,
+    "status": "HTTP/1.1 101 Switching Protocols",
+    "error": "[Errno 104] Connection reset by peer"
+  },
+  "websocket_unlimited_control": {
+    "target_payload_bytes": 2097152,
+    "received_payload_bytes": 2097152,
+    "status": "HTTP/1.1 101 Switching Protocols"
+  },
+  "redirects": {
+    "/a%23b": {
+      "rgnix": {
+        "status": 301,
+        "location": "/a#b/",
+        "path": "/a",
+        "query": "",
+        "fragment": "b/"
+      },
+      "nginx": {
+        "status": 301,
+        "location": "http://example.test:42711/a%23b/",
+        "path": "/a%23b/",
+        "query": "",
+        "fragment": ""
+      }
+    },
+    "/a%3Fb?x=1": {
+      "rgnix": {
+        "status": 301,
+        "location": "/a?b/?x=1",
+        "path": "/a",
+        "query": "b/?x=1",
+        "fragment": ""
+      },
+      "nginx": {
+        "status": 301,
+        "location": "http://example.test:42711/a%3Fb/?x=1",
+        "path": "/a%3Fb/",
+        "query": "x=1",
+        "fragment": ""
+      }
+    },
+    "/a%20b": {
+      "rgnix": {
+        "status": 301,
+        "location": "/a b/",
+        "path": "/a b/",
+        "query": "",
+        "fragment": ""
+      },
+      "nginx": {
+        "status": 301,
+        "location": "http://example.test:42711/a%20b/",
+        "path": "/a%20b/",
+        "query": "",
+        "fragment": ""
+      }
+    },
+    "/proxy%23b": {
+      "rgnix": {
+        "status": 301,
+        "location": "/proxy#b/",
+        "path": "/proxy",
+        "query": "",
+        "fragment": "b/"
+      },
+      "nginx": {
+        "status": 301,
+        "location": "http://example.test:42711/proxy%23b/",
+        "path": "/proxy%23b/",
+        "query": "",
+        "fragment": ""
+      }
+    }
+  },
+  "rgnix_log_tail": "[2026-09-24T01:49:27Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting\n[2026-09-24T01:49:27Z INFO  pingora_core::server::bootstrap_services] Bootstrap done\n[2026-09-24T01:49:27Z INFO  pingora_core::server] Server starting\n[2026-09-24T01:49:27Z INFO  pingora_core::server] Starting services in dependency order: [\"BG control\", \"admin\", \"Pingora HTTP Proxy Service\"]\n[2026-09-24T01:49:27Z INFO  pingora_core::server] Starting service: BG control\n[2026-09-24T01:49:27Z INFO  pingora_core::server] Starting service: admin\n[2026-09-24T01:49:27Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service\n[2026-09-24T01:49:27Z ERROR pingora_proxy] Fail to proxy:  HTTPStatus context: Peer: addr: 127.0.0.1:46657, scheme: HTTP, sni: 127.0.0.1 cause:  context: request body too large, status: 413, tries: 1, retry: false, GET /ws, Host: example.test\n[2026-09-24T01:49:27Z WARN  rgnix::proxy] request failed route=server-0:/ws backend=http://127.0.0.1:46657 upstream=Some(127.0.0.1:46657) version=1:  HTTPStatus context: Peer: addr: 127.0.0.1:46657, scheme: HTTP, sni: 127.0.0.1 cause:  context: request body too large\n"
+}

@@ -1,0 +1,25 @@
+replicaCount: 2
+image:
+  repository: rgnix
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+ingressClass: rgnix
+defaultIngressClass: false
+service:
+  type: LoadBalancer
+  loadBalancerClass: ""
+  allocateLoadBalancerNodePorts: true
+  httpPort: 80
+  httpsPort: 443
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "2"
+    memory: 512Mi
+threads: 2
+maxInflight: 1024
+maxPluginInstances: 32
+upstreamMaxFails: 3
+upstreamFailTimeoutSeconds: 10

@@ -1,0 +1,115 @@
+PASS initial configuration is not ready before durable acknowledgement
+PASS accepted configuration is persisted outside the tenant namespace
+PASS pending checkpoint retains the previously served plugin
+PASS fresh replica restores accepted plugin and route
+PASS unrelated and status-only updates do not publish snapshots
+PASS endpoint withdrawal is independent of stalled Event writes
+PASS fresh replica without a usable checkpoint stays unready
+PASS existing replicas continue serving accepted configuration
+PASS a rejected tenant does not withdraw another accepted route
+PASS valid replacement unblocks initial readiness
+PASS Ingress deletion removes routing and its checkpoint
+without-checkpoint.log [2026-09-23T16:21:03Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting
+[2026-09-23T16:21:03Z INFO  pingora_core::server::bootstrap_services] Bootstrap done
+[2026-09-23T16:21:03Z INFO  pingora_core::server] Server starting
+[2026-09-23T16:21:03Z INFO  pingora_core::server] Starting services in dependency order: ["BG control", "admin", "Pingora HTTP Proxy Service", "Pingora HTTP Proxy Service"]
+[2026-09-23T16:21:03Z INFO  pingora_core::server] Starting service: BG control
+[2026-09-23T16:21:03Z INFO  pingora_core::server] Starting service: admin
+[2026-09-23T16:21:03Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:21:03Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:21:03Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:2: unexpected character ?
+[2026-09-23T16:21:03Z WARN  rgnix::ingress::status] Ingress qa/app:UnrecoverablePlugin: no accepted plugin version; route disabled
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=1:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=2:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=2:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=2:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:03Z WARN  rgnix::ingress::status] Ingress qa/app:UnrecoverablePlugin: waiting for durable plugin checkpoint before publication
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=3:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=3:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:04Z WARN  rgnix::ingress::status] Ingress qa/bad:UnrecoverablePlugin: waiting for durable plugin checkpoint before publication
+[2026-09-23T16:21:04Z WARN  rgnix::ingress] Ingress checkpoint persistence: Ok(Err(accepted Ingress checkpoint exceeds 900 KiB))
+[2026-09-23T16:21:04Z WARN  rgnix::ingress::status] Ingress qa/healthy:UnrecoverablePlugin: waiting for durable plugin checkpoint before publication
+cc19e9669059f5ce5b3ff93d9071a65a529"
+127.0.0.1 - - [23/Sep/2026:16:21:03 +0000] "GET /changed HTTP/1.1" 200 279 "-" "-" route="qa/app:example.test:/changed" backend="qa/app:http" upstream="127.0.0.1:36889" config="90712457a76bb0be9c8e491f89b94cc19e9669059f5ce5b3ff93d9071a65a529"
+127.0.0.1 - - [23/Sep/2026:16:21:03 +0000] "GET /changed HTTP/1.1" 200 279 "-" "-" route="qa/app:example.test:/changed" backend="qa/app:http" upstream="127.0.0.1:36889" config="90712457a76bb0be9c8e491f89b94cc19e9669059f5ce5b3ff93d9071a65a529"
+
+second.log [2026-09-23T16:21:02Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting
+[2026-09-23T16:21:02Z INFO  pingora_core::server::bootstrap_services] Bootstrap done
+[2026-09-23T16:21:02Z INFO  pingora_core::server] Server starting
+[2026-09-23T16:21:02Z INFO  pingora_core::server] Starting services in dependency order: ["BG control", "admin", "Pingora HTTP Proxy Service", "Pingora HTTP Proxy Service"]
+[2026-09-23T16:21:02Z INFO  pingora_core::server] Starting service: BG control
+[2026-09-23T16:21:02Z INFO  pingora_core::server] Starting service: admin
+[2026-09-23T16:21:02Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:21:02Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:21:02Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:1: expected function, got invalid
+[2026-09-23T16:21:03Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:2: unexpected character ?
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to proxy:  HTTPStatus context: no ready endpoints, status: 503, tries: 1, retry: false, GET /api, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/api backend=qa/app:http upstream=None version=3:  HTTPStatus context: no ready endpoints
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to proxy:  HTTPStatus context: no ready endpoints, status: 503, tries: 1, retry: false, GET /api, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/api backend=qa/app:http upstream=None version=3:  HTTPStatus context: no ready endpoints
+[2026-09-23T16:21:03Z ERROR pingora_proxy] Fail to proxy:  HTTPStatus context: no ready endpoints, status: 503, tries: 1, retry: false, GET /api, Host: example.test
+[2026-09-23T16:21:03Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/api backend=qa/app:http upstream=None version=3:  HTTPStatus context: no ready endpoints
+[2026-09-23T16:21:04Z WARN  rgnix::ingress] Ingress checkpoint persistence: Ok(Err(accepted Ingress checkpoint exceeds 900 KiB))
+ackend="qa/app:http" upstream="-" config="49e2099914f8113a85af220c87535dae411268d4209e5f9a3992b5c706c0357d"
+127.0.0.1 - - [23/Sep/2026:16:21:03 +0000] "GET /api HTTP/1.1" 503 0 "-" "-" route="qa/app:example.test:/api" backend="qa/app:http" upstream="-" config="49e2099914f8113a85af220c87535dae411268d4209e5f9a3992b5c706c0357d"
+127.0.0.1 - - [23/Sep/2026:16:21:03 +0000] "GET /api HTTP/1.1" 200 275 "-" "-" route="qa/app:example.test:/api" backend="qa/app:http" upstream="127.0.0.1:36889" config="b53aad923d5de9639e80fe656e94876dd75a6701f46ab041d11fa17e0869c7d3"
+
+first.log =None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:05Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:05Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+[2026-09-23T16:21:06Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: healthy.example.test
+[2026-09-23T16:21:06Z WARN  rgnix::proxy] request failed route=qa/healthy:healthy.example.test:/api backend=- upstream=None version=14:  HTTPStatus context: backend unavailable
+127.0.0.1 - - [23/Sep/2026:16:21:06 +0000] "GET /api HTTP/1.1" 503 0 "-" "-" route="qa/healthy:healthy.example.test:/api" backend="-" upstream="-" config="cdb207322061bc03286dda953637ee23e8890f43fb37193362a04b7a9e7a429e"
+
+Traceback (most recent call last):
+  File "/Users/livesite/Documents/ChatGPT/rgnix/scripts/ingress_recovery.py", line 375, in <module>
+    main()
+    ~~~~^^
+  File "/Users/livesite/Documents/ChatGPT/rgnix/scripts/ingress_recovery.py", line 306, in main
+    wait_for(lambda: request(first, "/api", headers={"Host": "healthy.example.test"})[1].get("x-version"), "new", timeout=3)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/livesite/Documents/ChatGPT/rgnix/scripts/integration.py", line 187, in wait_for
+    raise AssertionError(f"timed out waiting for {expected!r}; last={last!r}")
+AssertionError: timed out waiting for 'new'; last=None

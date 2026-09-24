@@ -1,0 +1,105 @@
+compiled /tmp/rgnix-acceptance-623bke8e/routes.rgl -> /tmp/rgnix-acceptance-623bke8e/routes.wasm (1021 bytes)
+configuration valid: 2 listeners, 2 virtual hosts, 8 backends
+PASS static GET
+PASS static HEAD
+PASS static single range
+PASS unsatisfiable range
+PASS conditional GET
+PASS If-Range HTTP date retains partial response
+PASS directory redirect and index
+PASS symlink containment
+PASS path traversal rejection
+PASS proxy_pass URI replacement
+PASS proxy_pass preserves original URI
+PASS IPv6 upstream
+PASS trusted HTTPS upstream
+PASS HTTPS upstream rejects hostname mismatch
+PASS HTTPS upstream rejects untrusted certificate
+PASS Connection cannot remove framing or Host
+PASS inherited response header
+PASS streaming request body
+PASS request body limit
+PASS chunked HTTP body limit
+PASS chunked HTTP body limit before a requested WebSocket upgrade
+PASS compiled request and response hooks
+PASS compiled Wasm artifact loads independently
+PASS static plugin redirect preserves literal percent and rewritten query
+PASS informational responses do not consume the final response hook
+PASS plugin direct response
+PASS fuel limits infinite loops
+PASS response hook failure returns 500 without staged edits
+PASS upstream disconnect never replays POST
+PASS upstream read timeout
+PASS TLS listener
+PASS HTTP/2 negotiation
+PASS SSE first event is streamed
+PASS WebSocket upgrade and bidirectional frames
+PASS WebSocket streams beyond the HTTP body limit (3 MiB)
+PASS WebSocket close frame survives the long stream
+PASS reload keeps in-flight snapshot
+PASS invalid reload retains active configuration
+PASS compiler rejects a flat expression with excessive AST depth
+PASS deep AST reload cannot abort the data plane
+PASS plugin budget rejects excess instances while plain routes work
+PASS inflight budget sheds requests without blocking admin
+PASS completed requests release resource permits
+PASS failed endpoint is excluded without replaying its requests
+PASS excluded endpoint re-enters rotation after cooldown
+PASS metrics are exposed
+PASS client cancellation preserves service
+PASS failed controller is neither healthy nor ready
+48 integration checks passed; .local/acceptance.json
+PASS parity / {}
+PASS parity /plain {}
+PASS parity /plain-more {}
+PASS parity /headers {}
+PASS parity /data.txt {}
+PASS parity /data.txt {'Range': 'bytes=3-5'}
+PASS parity /api/a?x=1 {}
+PASS parity /api/a%20b?x=1 {}
+PASS parity /api/%61%2Fb {}
+PASS parity /api/a%3Fb%25c {}
+PASS parity /raw/%61?x=1 {}
+PASS parity /api {}
+PASS parity /api?x=1 {}
+PASS parity /redirect {}
+PASS parity / {'Host': 'a.b.wild.test'}
+PASS parity /a%23b?x=%23 {}
+PASS parity /a%3Fb?x=1 {}
+PASS parity /a%20b {}
+PASS parity /a%25b {}
+PASS parity /a%252Fb {}
+PASS parity /%E4%B8%AD%E6%96%87 {}
+PASS parity /proxy%23b?x=%3F {}
+PASS parity / {'Host': 'unknown.test'}
+PASS parity / {'Host': 'closed.test'}
+PASS parity / {'Host': 'duplicate.test'}
+PASS parity /error {}
+PASS parity /denied {}
+PASS parity /denied-late {}
+29 NGINX parity scenarios passed
+PASS initial configuration is not ready before durable acknowledgement
+PASS accepted configuration is persisted outside the tenant namespace
+PASS pending checkpoint retains the previously served plugin
+PASS Event API rejection is counted without withdrawing the accepted route
+PASS unchanged failed Event is retried on the periodic report
+PASS Event is delivered after permission recovery without a resource edit
+PASS successfully published Event is deduplicated
+PASS Ingress status API rejection is counted
+PASS Ingress status is retried after permission recovery
+PASS fresh replica restores accepted plugin and route
+PASS unrelated and status-only updates do not publish snapshots
+PASS endpoint withdrawal is independent of stalled Event writes
+PASS fresh replica without a usable checkpoint stays unready
+PASS existing replicas continue serving accepted configuration
+PASS a rejected tenant does not withdraw another accepted route
+PASS valid replacement unblocks initial readiness
+PASS Ingress deletion removes routing and its checkpoint
+PASS oversize checkpoint cannot block another tenant publication
+PASS reject checkpoint cannot block another tenant publication
+PASS stall checkpoint cannot block another tenant publication
+PASS earlier Ingress owns its TLS hostname
+PASS withdrawn TLS claim cannot fall back to duplicate or wildcard certificates
+PASS invalid certificate retains exclusive TLS ownership
+PASS valid replacement restores the owned certificate
+PASS deleting the owning Ingress releases TLS ownership

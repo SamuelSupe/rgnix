@@ -1,0 +1,96 @@
+PASS initial configuration is not ready before durable acknowledgement
+PASS accepted configuration is persisted outside the tenant namespace
+PASS pending checkpoint retains the previously served plugin
+PASS fresh replica restores accepted plugin and route
+PASS unrelated and status-only updates do not publish snapshots
+PASS endpoint withdrawal is independent of stalled Event writes
+PASS fresh replica without a usable checkpoint stays unready
+PASS existing replicas continue serving accepted configuration
+PASS a rejected tenant does not withdraw another accepted route
+PASS valid replacement unblocks initial readiness
+PASS Ingress deletion removes routing and its checkpoint
+PASS earlier Ingress owns its TLS hostname
+without-checkpoint.log [2026-09-23T16:24:13Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting
+[2026-09-23T16:24:13Z INFO  pingora_core::server::bootstrap_services] Bootstrap done
+[2026-09-23T16:24:13Z INFO  pingora_core::server] Server starting
+[2026-09-23T16:24:13Z INFO  pingora_core::server] Starting services in dependency order: ["BG control", "admin", "Pingora HTTP Proxy Service", "Pingora HTTP Proxy Service"]
+[2026-09-23T16:24:13Z INFO  pingora_core::server] Starting service: BG control
+[2026-09-23T16:24:13Z INFO  pingora_core::server] Starting service: admin
+[2026-09-23T16:24:13Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:24:13Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:24:13Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:2: unexpected character ?
+[2026-09-23T16:24:13Z WARN  rgnix::ingress::status] Ingress qa/app:UnrecoverablePlugin: no accepted plugin version; route disabled
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=1:  HTTPStatus context: backend unavailable
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=2:  HTTPStatus context: backend unavailable
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=2:  HTTPStatus context: backend unavailable
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=2:  HTTPStatus context: backend unavailable
+[2026-09-23T16:24:13Z WARN  rgnix::ingress::status] Ingress qa/app:UnrecoverablePlugin: waiting for durable plugin checkpoint before publication
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=3:  HTTPStatus context: backend unavailable
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /changed, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/changed backend=- upstream=None version=3:  HTTPStatus context: backend unavailable
+[2026-09-23T16:24:14Z WARN  rgnix::ingress::status] Ingress qa/tls-owner:InvalidTLS: TLS host disabled: TLS Secret or key missing
+[2026-09-23T16:24:14Z WARN  rgnix::ingress::status] Ingress other/tls-rival:UnavailableBackend: app:http: Service missing
+[2026-09-23T16:24:14Z WARN  rgnix::ingress::status] Ingress other/tls-rival:RouteConflict: route tls.example.test/api is owned by an earlier Ingress
+[2026-09-23T16:24:14Z WARN  rgnix::ingress::status] Ingress other/tls-rival:RouteConflict: route tls.example.test/api is owned by an earlier Ingress
+qa/app:example.test:/changed" backend="qa/app:http" upstream="127.0.0.1:35611" config="b86daa08cb36dc9d0381291f0bba742eb682651438dee933d6b3cf359c587913"
+127.0.0.1 - - [23/Sep/2026:16:24:13 +0000] "GET /changed HTTP/1.1" 200 279 "-" "-" route="qa/app:example.test:/changed" backend="qa/app:http" upstream="127.0.0.1:35611" config="b86daa08cb36dc9d0381291f0bba742eb682651438dee933d6b3cf359c587913"
+
+second.log [2026-09-23T16:24:12Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting
+[2026-09-23T16:24:12Z INFO  pingora_core::server::bootstrap_services] Bootstrap done
+[2026-09-23T16:24:12Z INFO  pingora_core::server] Server starting
+[2026-09-23T16:24:12Z INFO  pingora_core::server] Starting services in dependency order: ["BG control", "admin", "Pingora HTTP Proxy Service", "Pingora HTTP Proxy Service"]
+[2026-09-23T16:24:12Z INFO  pingora_core::server] Starting service: BG control
+[2026-09-23T16:24:12Z INFO  pingora_core::server] Starting service: admin
+[2026-09-23T16:24:12Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:24:12Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:24:12Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:1: expected function, got invalid
+[2026-09-23T16:24:13Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:2: unexpected character ?
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to proxy:  HTTPStatus context: no ready endpoints, status: 503, tries: 1, retry: false, GET /api, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/api backend=qa/app:http upstream=None version=3:  HTTPStatus context: no ready endpoints
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to proxy:  HTTPStatus context: no ready endpoints, status: 503, tries: 1, retry: false, GET /api, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/api backend=qa/app:http upstream=None version=3:  HTTPStatus context: no ready endpoints
+[2026-09-23T16:24:13Z ERROR pingora_proxy] Fail to proxy:  HTTPStatus context: no ready endpoints, status: 503, tries: 1, retry: false, GET /api, Host: example.test
+[2026-09-23T16:24:13Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/api backend=qa/app:http upstream=None version=3:  HTTPStatus context: no ready endpoints
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress status reporting: Err(Elapsed(()))
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress qa/tls-owner:InvalidTLS: TLS host disabled: TLS Secret or key missing
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress other/tls-rival:UnavailableBackend: app:http: Service missing
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress other/tls-rival:RouteConflict: route tls.example.test/api is owned by an earlier Ingress
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress other/tls-rival:RouteConflict: route tls.example.test/api is owned by an earlier Ingress
+
+first.log [2026-09-23T16:24:11Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting
+[2026-09-23T16:24:11Z INFO  pingora_core::server::bootstrap_services] Bootstrap done
+[2026-09-23T16:24:11Z INFO  pingora_core::server] Server starting
+[2026-09-23T16:24:11Z INFO  pingora_core::server] Starting services in dependency order: ["BG control", "admin", "Pingora HTTP Proxy Service", "Pingora HTTP Proxy Service"]
+[2026-09-23T16:24:11Z INFO  pingora_core::server] Starting service: BG control
+[2026-09-23T16:24:11Z INFO  pingora_core::server] Starting service: admin
+[2026-09-23T16:24:11Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:24:11Z INFO  pingora_core::server] Starting service: Pingora HTTP Proxy Service
+[2026-09-23T16:24:11Z WARN  rgnix::ingress::status] Ingress qa/app:UnrecoverablePlugin: waiting for durable plugin checkpoint before publication
+[2026-09-23T16:24:11Z ERROR pingora_proxy] Fail to filter request:  HTTPStatus context: backend unavailable, status: 503, GET /api, Host: example.test
+[2026-09-23T16:24:11Z WARN  rgnix::proxy] request failed route=qa/app:example.test:/api backend=- upstream=None version=1:  HTTPStatus context: backend unavailable
+[2026-09-23T16:24:11Z WARN  rgnix::ingress::status] Ingress qa/app:PendingCheckpoint: waiting for durable plugin checkpoint before publication
+[2026-09-23T16:24:12Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:1: expected function, got invalid
+[2026-09-23T16:24:13Z WARN  rgnix::ingress::status] Ingress qa/app:InvalidPlugin: plugin rejected: 1:2: unexpected character ?
+[2026-09-23T16:24:13Z ERROR pingora_core::services::listening] Downstream handshake error from 127.0.0.1:38802:  TLSHandshakeFailure context: TLS accept() failed: error:0A000076:SSL routines:tls_choose_sigalg:no suitable signature algorithm:ssl/t1_lib.c:4686:
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress status reporting: Err(Elapsed(()))
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress qa/tls-owner:InvalidTLS: TLS host disabled: TLS Secret or key missing
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress other/tls-rival:UnavailableBackend: app:http: Service missing
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress other/tls-rival:RouteConflict: route tls.example.test/api is owned by an earlier Ingress
+[2026-09-23T16:24:18Z WARN  rgnix::ingress::status] Ingress other/tls-rival:RouteConflict: route tls.example.test/api is owned by an earlier Ingress
+config="da1be96fe69982b1070db57220075626067296d434ee1cc7c13a3f3ee34e6da8"
+
+Traceback (most recent call last):
+  File "/Users/livesite/Documents/ChatGPT/rgnix/.local/review2-tls-repro.py", line 375, in <module>
+    main()
+    ~~~~^^
+  File "/Users/livesite/Documents/ChatGPT/rgnix/.local/review2-tls-repro.py", line 343, in main
+    wait_for(lambda: peer("tls.example.test"), None)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/livesite/Documents/ChatGPT/rgnix/scripts/integration.py", line 187, in wait_for
+    raise AssertionError(f"timed out waiting for {expected!r}; last={last!r}")
+AssertionError: timed out waiting for None; last=b'0\x82\x03 0\x82\x02\x08\xa0\x03\x02\x01\x02\x02\x01\x1f0\r\x06\t*\x86H\x86\xf7\r\x01\x01\x0b\x05\x000\x171\x150\x13\x06\x03U\x04\x03\x0c\x0cexample.test0\x1e\x17\r260923162413Z\x17\r260924162413Z0\x171\x150\x13\x06\x03U\x04\x03\x0c\x0cexample.test0\x82\x01"0\r\x06\t*\x86H\x86\xf7\r\x01\x01\x01\x05\x00\x03\x82\x01\x0f\x000\x82\x01\n\x02\x82\x01\x01\x00\x8b\x0fa\xe7\x17\xfdq-\x00\x89\xe45\x8bWd\x07.\xebU\xe5\x86\xc8{l\xa0ldQ3\x1c]!n*\xfa-\xad\xb4\xe89\xb1\xd5pq\xce\xd5\x12Pj\xaa\x87\xceV\x81t\xcc\x8d/)9_\xdc\xf3\x92l\x85\x9e\x91\xf9<d\x7f\xd7\x13H\xb9x\xe9\x97PJ\xddqy\x06t\xc0\xa7\xac\xc9\xef\x0cL\x8b\x8c\xd8\xf6c\xdf\xfb\xdb\xa6Y\xe4`N\xb7\x13D\x9e\r\x05\x1c\xf4\xbd\x81\xae\x8c\xba\x9c\xdb\xd0V\xd5\xd1\xd2\xb03 B\xd2[\xa8\xd6\x81s\xf4\x8a\x8d\x1eM\xa4\x85\x96\xf7\xae\x8d\xd5\xebV)\x9b\xa8V\xfd\xf0H\x87~\x13\x85\x91\xfc*\x9a\x16\x85\xf9\xbc\xe9\xd7\x88\xdf\xf0p\x06\xde\xa0\xab\xa6\xc1u\xf4E\xf3\xf5\x03By\xc3\\\xf8\x9c\xd9\x16\xb1E\xd6\xcc\xd6\x0b\x82\xfa\x9e[\x8a\xa0\r\xfb\xeb,R\x8a\xa1\x12\x8b\xfb\x8e\xa8+1\xc1\x19\xbf\xb7\x0c\x8f$R\xa4\x0f\xa1\xa8C\x16\x89\xe11\xa1\x17\xc1\xa0\x9f.;\xdb?\xb55\xa2\x11\xef\x0e\xa9\x8fY\x02\x03\x01\x00\x01\xa3w0u0\x1d\x06\x03U\x1d\x0e\x04\x16\x04\x14\xd7\x80\x828\xf9X\x8a\xa0;=_\xe7\xbeB\x99\x00\xa2\xa4\xabo0\x1f\x06\x03U\x1d#\x04\x180\x16\x80\x14\xd7\x80\x828\xf9X\x8a\xa0;=_\xe7\xbeB\x99\x00\xa2\xa4\xabo0\x0f\x06\x03U\x1d\x13\x01\x01\xff\x04\x050\x03\x01\x01\xff0"\x06\x03U\x1d\x11\x04\x1b0\x19\x82\x0cexample.test\x82\tlocalhost0\r\x06\t*\x86H\x86\xf7\r\x01\x01\x0b\x05\x00\x03\x82\x01\x01\x009\xac\x08\x06\xa6\x9fp\xc0\x03xh\xff\xc2\x1cM\'\xd4G\xae\xe9;\x8f\xd8\x05\x95~\x97\xa9\xfe\xfc\xe9\x85y]p\x8cYffk}\xe31\x8b\xedL\x10\xea8\xdap\xb2\x01\xbbf\xa2\xd8:\x03_\x18\x9d\xe0\xda_\x8c\xdf=\xea\xa4\n\xa1C\xee~\xa5E\xda\xd9\x04frFd\xca\x16\x7fN\xd1p\x19\x91\xb4\x8a\xe5\xd2\x1bq\xa6!\x02\x0f2\x1a\xcc\xca\xcd\xa1\xd0\xa8\xb1\xc3\xf6C<0 4~\xbf\x19\x85\x10<\x13\xe73A\xc0[\xce\xbe\x1c\x9a)q\xd2\xc9\xdd\xe2\xdd\xc3\x8e\x83\xda\xe0Gyf\x0e\x9e\xc3\xf3x\xcad\xbbUZ4\xcc;y\xc5\x17t Y\xb17\xe3\xc6\x14m\xc91=\xe4w\xd2\xf9\t\x9aKx\xe8/y\xd2\xddsj\xfd\xfdu\x88\'\x8b\x02n\xc7\x8b\xf4\x01\xaf\x1a\x82\x8a\xba\x95\xd0uK\xc6P\xd1\x9c\xbe\xedr \x96\xd4\xa5\x8eMS\xf7\xe8\xd8Kv\xece\x82\xc93\x05\xbc!\x1a\xee\x81\xfevW\xaf\xbe\x04\x81\xcd\x96\x7f\xe3L\xea'

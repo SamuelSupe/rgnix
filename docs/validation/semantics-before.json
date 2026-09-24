@@ -1,0 +1,552 @@
+{
+  "date": "2026-09-24",
+  "image": "rgnix:0.1.0-qa13",
+  "image_digest": "sha256:7fefed79dceb1e430a5fe109517623a30eec6b80ffcf16768bcd6834e418ed82",
+  "binary_sha256": "491edc6b26e6d1ff814a5b4e00657dc837628cb5804875801ebabe636ecd7f35",
+  "source_sha256": "a56ff850f72bd88abd8c27bed699dca101ecb85b4a31ad4f04f2cd0540e6300f",
+  "environment": "OrbStack Ubuntu Linux arm64; NGINX 1.28.0; isolated local Kubernetes API fixture",
+  "production_source_changed": false,
+  "existing_kubernetes_resources_changed": false,
+  "findings": [
+    {
+      "priority": "P1",
+      "finding": "RGL selection of a named HTTPS upstream silently uses its plaintext backend",
+      "trigger": "proxy_pass https://localhost/ plus return route.proxy(\"localhost\")",
+      "actual": "pass uses TLS and returns 200; proxy sends plaintext HTTP including the test Authorization field and returns 502",
+      "code": [
+        "src/config/mod.rs:103",
+        "src/config/mod.rs:341",
+        "src/proxy/mod.rs:241"
+      ],
+      "evidence": "plugin selects the same HTTPS upstream",
+      "recommendation": "Bind script backend aliases to an explicit transport and TLS validation policy; reject ambiguous mappings rather than silently downgrading."
+    },
+    {
+      "priority": "P2",
+      "finding": "Action consistency validation cannot distinguish two decisions of the same kind",
+      "trigger": "local first=route.proxy(\"app\"); local second=route.proxy(\"alternate\"); return first",
+      "actual": "Returns 200 from alternate; returning the earlier action does not select app or raise an inconsistency error",
+      "code": [
+        "src/script/mod.rs:273",
+        "src/script/mod.rs:490"
+      ],
+      "evidence": "return first of two proxy actions",
+      "recommendation": "Give action values a decision identity, or reject a returned action superseded by another decision."
+    },
+    {
+      "priority": "P2",
+      "finding": "A stalled Ingress GET prevents other namespaces from receiving updated status addresses",
+      "trigger": "Delay the first Ingress GET by 8 seconds, then change publish Service address",
+      "actual": "After three stalled GET attempts both Ingress addresses remain 192.0.2.10 instead of 192.0.2.11; Lease renewals and HTTP forwarding continue. Removing the delay restores both addresses.",
+      "code": [
+        "src/ingress/status.rs:45",
+        "src/ingress/status.rs:198"
+      ],
+      "evidence": "slow Ingress GET blocks another namespace status",
+      "recommendation": "Bound concurrent per-Ingress work and isolate each request timeout/error, so each reporting cycle can progress beyond the first stalled object."
+    },
+    {
+      "priority": "P2",
+      "finding": "Automatic trailing-slash redirects use response settings from the wrong location",
+      "trigger": "location /slash/ has add_header X-Scope slash; parent has X-Scope root; request /slash",
+      "actual": "Both return 301, but rgnix emits X-Scope root and NGINX emits X-Scope slash",
+      "code": [
+        "src/proxy/mod.rs:175",
+        "src/proxy/mod.rs:189"
+      ],
+      "evidence": "slash redirect location headers",
+      "recommendation": "Use the matched trailing-slash location for redirect response settings and request context."
+    },
+    {
+      "priority": "P2",
+      "finding": "If-Range date validator accepts nonmatching newer timestamps",
+      "trigger": "File Last-Modified is 2023-11-14; Range bytes=2-4 with If-Range 2024-01-02",
+      "actual": "rgnix returns 206 and 3 bytes; NGINX returns 200 and the full 10-byte file",
+      "code": [
+        "src/proxy/responses.rs:175"
+      ],
+      "evidence": "If-Range different newer timestamp",
+      "recommendation": "Compare If-Range dates for exact equality to Last-Modified instead of using <=.",
+      "reference": "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5"
+    },
+    {
+      "priority": "P2",
+      "finding": "The host variable lacks the selected server-name fallback",
+      "trigger": "HTTP/1.0 without Host, with proxy_set_header Host $host",
+      "actual": "rgnix omits upstream Host and receives 400 from a backend requiring Host; NGINX uses example.test and receives 200",
+      "code": [
+        "src/proxy/mod.rs:637",
+        "src/proxy/mod.rs:350"
+      ],
+      "evidence": "HTTP/1.0 request to an upstream requiring Host",
+      "recommendation": "Resolve $host using the selected virtual host when the incoming request has no authority; keep $http_host as the original field.",
+      "reference": "https://nginx.org/en/docs/http/ngx_http_core_module.html#var_host"
+    }
+  ],
+  "http_observations": [
+    {
+      "case": "slash redirect location headers",
+      "rgnix": {
+        "status": 301,
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": "0",
+          "location": "/slash/",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive"
+        },
+        "body": ""
+      },
+      "nginx": {
+        "status": 301,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/html",
+          "content-length": "169",
+          "location": "http://example.test:51987/slash/",
+          "connection": "keep-alive",
+          "x-scope": "slash"
+        },
+        "body": "<html>\r\n<head><title>301 Moved Permanently</title></head>\r\n<body>\r\n<center><h1>301 Moved Permanently</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    {
+      "case": "HEAD with Range",
+      "rgnix": {
+        "status": 206,
+        "headers": {
+          "content-type": "text/plain",
+          "etag": "\"a-6553f100-0\"",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "3",
+          "content-range": "bytes 2-4/10",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive"
+        },
+        "body": ""
+      },
+      "nginx": {
+        "status": 206,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/plain",
+          "content-length": "3",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "connection": "keep-alive",
+          "etag": "\"6553f100-a\"",
+          "x-scope": "root",
+          "content-range": "bytes 2-4/10"
+        },
+        "body": ""
+      }
+    },
+    {
+      "case": "If-Match mismatch",
+      "rgnix": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/plain",
+          "etag": "\"a-6553f100-0\"",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "10",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive"
+        },
+        "body": "0123456789"
+      },
+      "nginx": {
+        "status": 412,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/html",
+          "content-length": "173",
+          "connection": "keep-alive",
+          "x-scope": "root"
+        },
+        "body": "<html>\r\n<head><title>412 Precondition Failed</title></head>\r\n<body>\r\n<center><h1>412 Precondition Failed</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    {
+      "case": "If-Unmodified-Since stale",
+      "rgnix": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/plain",
+          "etag": "\"a-6553f100-0\"",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "10",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive"
+        },
+        "body": "0123456789"
+      },
+      "nginx": {
+        "status": 412,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/html",
+          "content-length": "173",
+          "connection": "keep-alive",
+          "x-scope": "root"
+        },
+        "body": "<html>\r\n<head><title>412 Precondition Failed</title></head>\r\n<body>\r\n<center><h1>412 Precondition Failed</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    {
+      "case": "If-Range different newer timestamp",
+      "rgnix": {
+        "status": 206,
+        "headers": {
+          "content-type": "text/plain",
+          "etag": "\"a-6553f100-0\"",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "3",
+          "content-range": "bytes 2-4/10",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive"
+        },
+        "body": 234
+      },
+      "nginx": {
+        "status": 200,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/plain",
+          "content-length": "10",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "connection": "keep-alive",
+          "etag": "\"6553f100-a\"",
+          "x-scope": "root",
+          "accept-ranges": "bytes"
+        },
+        "body": "0123456789"
+      }
+    },
+    {
+      "case": "If-Range exact date",
+      "rgnix": {
+        "status": 206,
+        "headers": {
+          "content-type": "text/plain",
+          "etag": "\"a-6553f100-0\"",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "3",
+          "content-range": "bytes 2-4/10",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive"
+        },
+        "body": 234
+      },
+      "nginx": {
+        "status": 206,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/plain",
+          "content-length": "3",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "connection": "keep-alive",
+          "etag": "\"6553f100-a\"",
+          "x-scope": "root",
+          "content-range": "bytes 2-4/10"
+        },
+        "body": 234
+      }
+    },
+    {
+      "case": "hop-by-hop response fields",
+      "rgnix": {
+        "status": 200,
+        "headers": {
+          "server": "BaseHTTP/0.6 Python/3.13.7",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive",
+          "x-internal-hop": "connection-local-marker",
+          "content-length": "2",
+          "x-scope": "root"
+        },
+        "body": "ok"
+      },
+      "nginx": {
+        "status": 200,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-length": "2",
+          "connection": "keep-alive",
+          "x-internal-hop": "connection-local-marker",
+          "x-scope": "root"
+        },
+        "body": "ok"
+      }
+    },
+    {
+      "case": "205 content",
+      "rgnix": {
+        "status": 205,
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": "4",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "keep-alive"
+        },
+        "body": "text"
+      },
+      "nginx": {
+        "status": 205,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/plain",
+          "content-length": "4",
+          "connection": "keep-alive",
+          "x-scope": "root"
+        },
+        "body": "text"
+      }
+    },
+    {
+      "case": "repeated If-None-Match",
+      "rgnix": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/plain",
+          "etag": "\"a-6553f100-0\"",
+          "last-modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "10",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "close"
+        },
+        "body": "0123456789"
+      },
+      "nginx": {
+        "status": 400,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "text/html",
+          "content-length": "157",
+          "connection": "close",
+          "x-scope": "root"
+        },
+        "body": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>nginx/1.28.0</center>\r\n</body>\r\n</html>\r\n"
+      }
+    },
+    {
+      "case": "HTTP/1.0 host variable fallback",
+      "rgnix": {
+        "status": 200,
+        "headers": {
+          "server": "BaseHTTP/0.6 Python/3.13.7",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "application/json",
+          "content-length": "136",
+          "x-scope": "root",
+          "connection": "close"
+        },
+        "body": {
+          "path": "/item",
+          "port": 33269,
+          "headers": {},
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "nginx": {
+        "status": 200,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "application/json",
+          "content-length": "181",
+          "connection": "close",
+          "x-scope": "root"
+        },
+        "body": {
+          "path": "/item",
+          "port": 33269,
+          "headers": {
+            "Host": "example.test",
+            "Connection": "close"
+          },
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "case": "HTTP/1.0 request to an upstream requiring Host",
+      "rgnix": {
+        "status": 400,
+        "headers": {
+          "server": "BaseHTTP/0.6 Python/3.13.7",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-length": "0",
+          "x-scope": "root",
+          "connection": "close"
+        },
+        "body": ""
+      },
+      "nginx": {
+        "status": 200,
+        "headers": {
+          "server": "nginx/1.28.0",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "application/json",
+          "content-length": "190",
+          "connection": "close",
+          "x-scope": "root"
+        },
+        "body": {
+          "path": "/required-host",
+          "port": 33269,
+          "headers": {
+            "Host": "example.test",
+            "Connection": "close"
+          },
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "case": "plugin selects the same HTTPS upstream",
+      "pass": {
+        "status": 200,
+        "headers": {
+          "server": "BaseHTTP/0.6 Python/3.13.7",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "application/json",
+          "content-length": "186",
+          "x-scope": "root",
+          "connection": "keep-alive"
+        },
+        "body": {
+          "path": "/item",
+          "port": 43597,
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Host": "localhost"
+          },
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "proxy": {
+        "status": 502,
+        "headers": {
+          "content-length": "0",
+          "x-scope": "root",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "connection": "close"
+        },
+        "body": ""
+      },
+      "connections": [
+        {
+          "tls": true
+        },
+        {
+          "tls": false,
+          "plaintext": "GET /secure/item HTTP/1.1\r\nAccept-Encoding: identity\r\nHost: localhost\r\nx-select: 1\r\nAuthorization: Bearer audit-placeholder\r\n\r\n"
+        }
+      ]
+    },
+    {
+      "case": "return first of two proxy actions",
+      "expected_port": 33269,
+      "second_port": 41483,
+      "response": {
+        "status": 200,
+        "headers": {
+          "server": "BaseHTTP/0.6 Python/3.13.7",
+          "date": "Thu, 24 Sep 2026 03:28:44 GMT",
+          "content-type": "application/json",
+          "content-length": "194",
+          "x-scope": "root",
+          "connection": "keep-alive"
+        },
+        "body": {
+          "path": "/actions/item",
+          "port": 41483,
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Host": "alternate"
+          },
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    }
+  ],
+  "ingress_observations": [
+    {
+      "case": "slow Ingress GET blocks another namespace status",
+      "stalled_get_attempts": 3,
+      "desired": [
+        {
+          "ip": "192.0.2.11"
+        }
+      ],
+      "first_status": [
+        {
+          "ip": "192.0.2.10"
+        }
+      ],
+      "other_status": [
+        {
+          "ip": "192.0.2.10"
+        }
+      ],
+      "new_lease_writes": 3,
+      "new_report_errors": 2,
+      "other_route_http_status": 200
+    },
+    {
+      "case": "removing GET delay restores both Ingress addresses",
+      "first_status": [
+        {
+          "ip": "192.0.2.11"
+        }
+      ],
+      "other_status": [
+        {
+          "ip": "192.0.2.11"
+        }
+      ]
+    }
+  ],
+  "other_observations": [
+    {
+      "case": "If-Match mismatch / If-Unmodified-Since stale",
+      "classification": "compatibility coverage gap; these precondition headers are not included in the documented static-file header subset"
+    },
+    {
+      "case": "HEAD with Range / 205 content / hop-by-hop response fields",
+      "classification": "same result as the pinned NGINX oracle; not counted as new findings"
+    },
+    {
+      "case": "repeated If-None-Match",
+      "classification": "different handling observed; not included in this confirmed repair list"
+    }
+  ]
+}
