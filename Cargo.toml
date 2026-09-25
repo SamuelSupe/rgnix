@@ -1,10 +1,12 @@
 [package]
 name = "rgnix"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.90"
 description = "A programmable Rust HTTP server and Kubernetes Ingress controller"
 license = "Apache-2.0"
+repository = "https://github.com/SamuelSupe/rgnix"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1"
@@ -15,29 +17,40 @@ cap-std = "3"
 clap = { version = "4", features = ["derive", "env"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 env_logger = "0.11"
+flate2 = { version = "1", default-features = false, features = ["zlib-ng"] }
 futures = "0.3"
 glob = "0.3"
 http = "1"
 httpdate = "1"
+ipnet = { version = "2", features = ["serde"] }
+hickory-resolver = "0.25"
+jsonwebtoken = "9.3"
 k8s-openapi = { version = "0.26", features = ["v1_34"] }
 kube = { version = "2", default-features = false, features = ["client", "runtime", "openssl-tls"] }
 libc = "0.2"
 log = "0.4"
+memchr = "2"
 openssl = "0.10"
+opentelemetry-proto = { version = "0.32", default-features = false, features = ["gen-tonic-messages", "logs", "trace"] }
 percent-encoding = "2"
 pingora = { version = "0.9", features = ["proxy", "openssl"] }
 prometheus = "0.14"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+prost = "0.14"
+rand = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "blocking", "http2"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1", features = ["raw_value"] }
 sha2 = "0.10"
+signal-hook = "0.3"
+tempfile = "3"
 tokio = { version = "1", features = ["full"] }
 url = "2"
 wasm-encoder = "0.239"
 wasmparser = { version = "0.239", default-features = false, features = ["std"] }
 wasmtime = { version = "38", default-features = false, features = ["cranelift", "runtime", "std"] }
 
-[dev-dependencies]
-tempfile = "3"
+[patch.crates-io]
+pingora-core = { path = "vendor/pingora-core" }
 
 [profile.release]
 lto = "thin"

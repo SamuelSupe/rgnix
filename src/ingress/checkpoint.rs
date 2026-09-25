@@ -29,6 +29,10 @@ pub(super) struct Accepted {
     pub plugin_uid: String,
     pub source: String,
     pub spec: IngressSpec,
+    #[serde(default)]
+    pub body_policy: crate::body::BodyPolicy,
+    #[serde(default)]
+    pub policy: BTreeMap<String, String>,
 }
 
 fn digest(value: &str) -> String {
@@ -56,6 +60,8 @@ pub(super) fn restore(
     }
     let accepted: Accepted = serde_json::from_str(data).ok()?;
     (accepted.schema == 1
+        && accepted.body_policy.validate()
+        && super::policy::parse(&accepted.policy).is_ok()
         && accepted.uid == uid
         && accepted.class == options.class
         && accepted.plugin_uid == plugin_uid)
@@ -164,21 +170,31 @@ async fn persist_one(
     };
     if ingress.uid().as_deref() != Some(&accepted.uid)
         || ingress.spec.as_ref() != Some(&accepted.spec)
-        || ingress.annotations().get("rgnix.io/script") != Some(&accepted.reference)
+        || ingress
+            .annotations()
+            .get("rgnix.io/script")
+            .map(String::as_str)
+            .unwrap_or("")
+            != accepted.reference
+        || super::policy::annotations(ingress.annotations()) != accepted.policy
+        || crate::body::BodyPolicy::from_annotations(ingress.annotations()).ok()
+            != Some(accepted.body_policy)
     {
         return Ok(());
     }
-    let Some((map_name, map_key)) = accepted.reference.split_once('/') else {
-        return Ok(());
-    };
-    let source = Api::<ConfigMap>::namespaced(client.clone(), &accepted.namespace)
-        .get_opt(map_name)
-        .await?;
-    if !source.is_some_and(|m| {
-        m.uid().as_deref() == Some(&accepted.plugin_uid)
-            && m.data.as_ref().and_then(|d| d.get(map_key)) == Some(&accepted.source)
-    }) {
-        return Ok(());
+    if !accepted.reference.is_empty() {
+        let Some((map_name, map_key)) = accepted.reference.split_once('/') else {
+            return Ok(());
+        };
+        let source = Api::<ConfigMap>::namespaced(client.clone(), &accepted.namespace)
+            .get_opt(map_name)
+            .await?;
+        if !source.is_some_and(|m| {
+            m.uid().as_deref() == Some(&accepted.plugin_uid)
+                && m.data.as_ref().and_then(|d| d.get(map_key)) == Some(&accepted.source)
+        }) {
+            return Ok(());
+        }
     }
     let key = name(&options.class, &accepted.uid);
     let replacing = previous.is_some();
@@ -200,6 +216,17 @@ async fn persist_one(
 }
 
 async fn prune_one(client: &Client, api: &Api<ConfigMap>, key: &str, map: ConfigMap) -> Result<()> {
+    if let Some(data) = map.data.as_ref().and_then(|d| d.get(DATA))
+        && let Ok(accepted) = serde_json::from_str::<Accepted>(data)
+        && accepted.plugin_uid == "builtin"
+        && let Some(ingress) = Api::<Ingress>::namespaced(client.clone(), &accepted.namespace)
+            .get_opt(&accepted.name)
+            .await?
+        && ingress.uid().as_deref() == Some(&accepted.uid)
+        && !super::policy::annotations(ingress.annotations()).is_empty()
+    {
+        return Ok(());
+    }
     if let Some(data) = map.data.as_ref().and_then(|d| d.get(DATA))
         && let Ok(accepted) = serde_json::from_str::<Accepted>(data)
         && let Some(ingress) = Api::<Ingress>::namespaced(client.clone(), &accepted.namespace)

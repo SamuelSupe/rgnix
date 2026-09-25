@@ -37,6 +37,7 @@ impl Proxy {
             };
             drop(execution);
             ctx.plugin_permit.take();
+            ctx.tenant_plugin.take();
             let edits = result.map_err(|e| {
                 self.shared.telemetry.plugin_errors.inc();
                 log::error!("response plugin: {e:#}");
@@ -49,6 +50,9 @@ impl Proxy {
                     response.remove_header(&key);
                 }
             }
+        }
+        if let Some(cookie) = ctx.affinity_cookie.take() {
+            response.append_header("Set-Cookie", cookie)?;
         }
         Ok(())
     }
@@ -74,6 +78,9 @@ impl Proxy {
             response.insert_header("Location", location)?;
         }
         self.response_headers(&mut response, ctx)?;
+        if let Some(route) = &ctx.route {
+            crate::compression::prepare(session, &response, &route.settings.compression);
+        }
         let head = ctx.request.method == "HEAD";
         let empty = body.is_empty() || head;
         session
@@ -105,14 +112,20 @@ impl Proxy {
         let path = normalize_decoded_path(&path).map_err(|e| error(400, e.to_string()))?;
         let settings = route.settings.clone();
         let open_path = path.clone();
-        let opened = tokio::task::spawn_blocking(move || static_files::open(&settings, &open_path))
-            .await
-            .map_err(|e| error(500, e.to_string()))?
-            .map_err(|e| {
-                log::error!("static file: {e}");
-                error(500, "file access failed")
-            })?;
+        let prefix = route.matcher.path().to_owned();
+        let opened = tokio::task::spawn_blocking(move || {
+            static_files::open_route(&settings, &open_path, &prefix)
+        })
+        .await
+        .map_err(|e| error(500, e.to_string()))?
+        .map_err(|e| {
+            log::error!("static file: {e}");
+            error(500, "file access failed")
+        })?;
         let file = match opened {
+            static_files::Opened::Status(status) => {
+                return self.reply(session, ctx, status, String::new(), None).await;
+            }
             static_files::Opened::Directory => {
                 let query = ctx.edits.query.as_deref().unwrap_or(&ctx.request.query);
                 let query = if query.is_empty() {
@@ -208,6 +221,9 @@ impl Proxy {
             response.insert_header("Content-Range", range)?;
         }
         self.response_headers(&mut response, ctx)?;
+        if let Some(route) = &ctx.route {
+            crate::compression::prepare(session, &response, &route.settings.compression);
+        }
         let empty = ctx.request.method == "HEAD" || status == 304 || length == 0;
         session
             .write_response_header(Box::new(response), empty)

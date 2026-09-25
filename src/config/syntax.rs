@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Directive {
     pub name: String,
     pub args: Vec<String>,

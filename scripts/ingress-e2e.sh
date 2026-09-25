@@ -22,7 +22,7 @@ fi
 helm upgrade --install "$release" charts/rgnix --kube-context "$context" -n "$ns" \
   --set ingressClass="$class" --set service.type=LoadBalancer --set image.pullPolicy=Never \
   --set service.loadBalancerClass=rgnix.io/acceptance --set service.allocateLoadBalancerNodePorts=false \
-  --set image.tag="${RGNIX_IMAGE_TAG:-0.1.0}" --wait --timeout 180s
+  --set image.tag="${RGNIX_IMAGE_TAG:-0.2.0}" --wait --timeout 180s
 "${k[@]}" delete ingress fallback wildcard conflicting --ignore-not-found
 for color in blue green; do
   cat <<EOF | "${k[@]}" apply -f -
@@ -158,6 +158,32 @@ expect() {
   printf 'FAIL %s: expected %s; got %s\n' "$label" "$expected" "$actual" >&2; return 1
 }
 start_forward
+cat <<'EOF' > "$work/main.rgl"
+function on_request()
+    if req.json_string("/tenant") == "vip" or req.body_contains("route=vip;") then
+        return route.proxy("green:http")
+    end
+    return route.pass()
+end
+EOF
+"${k[@]}" create configmap routes --from-file=main.rgl="$work/main.rgl" --dry-run=client -o yaml | "${k[@]}" apply -f -
+"${k[@]}" annotate ingress app rgnix.io/request-body='full 32k' rgnix.io/request-body-timeout=2s --overwrite
+expect 'JSON body selects a declared Service' green --data-binary '{"tenant":"vip","padding":"before-prefix-update"}' http://127.0.0.1:${http_forward}/api
+expect 'JSON body uses the default Service for other values' blue --data-binary '{"tenant":"standard"}' http://127.0.0.1:${http_forward}/api
+"${k[@]}" annotate ingress app rgnix.io/request-body='prefix 16' --overwrite
+# Observe the new policy before sending a body that the previous full policy rejects.
+expect 'Bytes after the prefix cannot select a Service' blue --data-binary '0123456789abcdefroute=vip;' http://127.0.0.1:${http_forward}/api
+{ printf 'route=vip;'; head -c 200000 /dev/zero; } > "$work/upload.bin"
+expect 'Prefix annotation routes a large POST body' green --data-binary "@$work/upload.bin" http://127.0.0.1:${http_forward}/api
+"${k[@]}" annotate ingress app rgnix.io/request-body='prefix 0' --overwrite
+for _ in $(seq 1 100); do
+  "${k[@]}" get events --field-selector involvedObject.name=app,reason=InvalidPlugin -o jsonpath='{range .items[*]}{.message}{"\n"}{end}' | grep -q 'request body inspection size' && break
+  sleep .1
+done
+"${k[@]}" get events --field-selector involvedObject.name=app,reason=InvalidPlugin -o jsonpath='{range .items[*]}{.message}{"\n"}{end}' | grep -q 'request body inspection size'
+expect 'Rejected body policy retains accepted prefix routing' green --data-binary "@$work/upload.bin" http://127.0.0.1:${http_forward}/api
+plugin
+"${k[@]}" annotate ingress app rgnix.io/request-body- rgnix.io/request-body-timeout-
 expect 'Prefix path and named Service port' blue http://127.0.0.1:${http_forward}/api/v1
 expect 'Prefix segment boundary' 404 -o /dev/null -w '%{http_code}' http://127.0.0.1:${http_forward}/apix
 expect 'Exact path and numeric Service port' blue http://127.0.0.1:${http_forward}/exact
@@ -322,7 +348,14 @@ for _ in $(seq 1 100); do
 done
 [[ -z "$("${k[@]}" get ingress app -o jsonpath='{.status.loadBalancer.ingress}')" ]]
 echo 'PASS withdrawn Service address clears Ingress status'
-leader="$("${k[@]}" get lease "$class-leader" -o jsonpath='{.spec.holderIdentity}')"
+# The earlier rollout can remove the old holder before its Lease expires.
+for _ in $(seq 1 240); do
+  leader="$("${k[@]}" get lease "$class-leader" -o jsonpath='{.spec.holderIdentity}')"
+  leader_state="$("${k[@]}" get pod "$leader" -o jsonpath='{.status.phase}:{.metadata.deletionTimestamp}:{.metadata.labels.app\.kubernetes\.io/name}' 2>/dev/null || true)"
+  [[ "$leader_state" == 'Running::rgnix' ]] && break
+  sleep .25
+done
+[[ "$leader_state" == 'Running::rgnix' ]]
 "${k[@]}" delete pod "$leader" --wait=false
 for _ in $(seq 1 180); do
   next_leader="$("${k[@]}" get lease "$class-leader" -o jsonpath='{.spec.holderIdentity}')"

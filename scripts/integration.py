@@ -207,11 +207,109 @@ def wait_for(fn, expected=True, timeout=10):
     raise AssertionError(f"timed out waiting for {expected!r}; last={last!r}")
 
 
-def certificate(directory, serial):
+def certificate(directory, serial, names=("example.test", "localhost")):
     subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-                    "-subj", "/CN=example.test", "-addext", "subjectAltName=DNS:example.test,DNS:localhost",
+                    "-subj", "/CN=" + names[0], "-addext", "subjectAltName=" + ",".join("DNS:" + name for name in names),
                     "-set_serial", str(serial), "-keyout", str(directory / "key.pem"), "-out", str(directory / "cert.pem")],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def exercise_body_routing(port, tls_port, upstream, canary, directory):
+    def upload(path, data, **kwargs):
+        status, headers, body = request(port, path, "POST", body=data, **kwargs)
+        assert status == 200, (status, body)
+        result = json.loads(body)
+        assert result["size"] == len(data) and result["sha256"] == hashlib.sha256(data).hexdigest(), result
+        return result, headers
+
+    result, _ = upload("/body-full/", b'{"tenant":"vip","extra":[1,2,3]}')
+    check("JSON body routes to the selected HTTPS backend without changing bytes", result["port"] == canary)
+    result, _ = upload("/body-full/", b'{"tenant":"standard"}')
+    check("JSON routing is isolated between requests", result["port"] == upstream)
+    for data in (b'{"tenant":"vip"}garbage', b'{"tenant":"vip"', b'{"tenant":42}', b'{"tenant":null}', b''):
+        result, _ = upload("/body-full/", data)
+        assert result["port"] == upstream
+    check("invalid JSON, incomplete JSON and non-string fields do not match", True)
+    result, _ = upload("/body-large/", json.dumps({"tenant": "vip", "padding": "a" * 100000}).encode())
+    check("full inspection can replay bodies larger than Pingora's original 64 KiB buffer", result["port"] == canary)
+    payload = b"route=vip;" + bytes(range(256)) * 4096
+    result, _ = upload("/body-prefix/", payload)
+    check("prefix inspection routes binary uploads and preserves the entire body", result["port"] == canary and result["headers"].get("x-body-state") == "truncated")
+    result, _ = upload("/body-prefix/", b"x" * 32 + b"route=vip;")
+    check("content beyond the configured prefix cannot influence routing", result["port"] == upstream)
+    result, _ = upload("/body-prefix/", b'{"tenant":"vip"}' + b" " * 30)
+    check("a closed JSON object in a truncated prefix is not treated as complete JSON", result["port"] == upstream)
+    result, _ = upload("/body-prefix/", b'{"tenant":"vip"}')
+    check("short prefix-inspected bodies may use JSON routing when fully read", result["port"] == canary)
+    result, _ = upload("/body-prefix/", b"route=vip;" + b"a" * 21 + "中".encode())
+    check("UTF-8 cut at the prefix boundary is nil as text but searchable as bytes", result["port"] == canary and result["headers"].get("x-body-text") == "nil")
+    result, _ = upload("/body-off/", b'{"tenant":"vip"}')
+    check("body inspection remains opt-in", result["port"] == upstream and result["headers"].get("x-body-state") == "off")
+    check("full inspection rejects oversized known-length bodies", request(port, "/body-full/", "POST", body=b"x" * 65537)[0] == 413)
+
+    for chunked in (False, True):
+        payload = b"route=vip;" + bytes(range(256)) * 1024
+        with socket.create_connection(("127.0.0.1", port), timeout=4) as sock:
+            framing = "Transfer-Encoding: chunked" if chunked else f"Content-Length: {len(payload)}"
+            sock.sendall(f"POST /body-wide/ HTTP/1.1\r\nHost: example.test\r\n{framing}\r\n\r\n".encode())
+            for index, piece in enumerate((payload[:7], payload[7:65539], payload[65539:])):
+                sock.sendall((f"{len(piece):x}\r\n".encode() + piece + b"\r\n") if chunked else piece)
+                if index == 0:
+                    time.sleep(.03)
+            if chunked:
+                sock.sendall(b"0\r\n\r\n")
+            response = http.client.HTTPResponse(sock)
+            response.begin()
+            result = json.loads(response.read())
+            assert response.status == 200 and result["port"] == canary and result["size"] == len(payload)
+            assert result["sha256"] == hashlib.sha256(payload).hexdigest()
+            sock.sendall(b"GET /alive HTTP/1.1\r\nHost: example.test\r\nConnection: close\r\n\r\n")
+            following = http.client.HTTPResponse(sock)
+            following.begin()
+            assert following.read() == b"alive"
+    check("fragmented and chunked prefix uploads replay once and keep the next request aligned", True)
+
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as sock:
+        sock.sendall(b"POST /body-full/ HTTP/1.1\r\nHost: example.test\r\nTransfer-Encoding: chunked\r\n\r\n10001\r\n" + b"x" * 65537 + b"\r\n0\r\n\r\n")
+        response = http.client.HTTPResponse(sock)
+        response.begin()
+        check("full inspection rejects oversized chunked bodies before proxying", response.status == 413)
+        response.read()
+    for path, data, status in (("/body-prefix/", b"x" * 32, 200), ("/body-timeout/", b"x", 408)):
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as sock:
+            sock.sendall(f"POST {path} HTTP/1.1\r\nHost: example.test\r\nContent-Length: 100000\r\nX-Stop: yes\r\n\r\n".encode() + data)
+            response = http.client.HTTPResponse(sock)
+            response.begin()
+            assert response.status == status
+            response.read()
+    check("prefix decisions do not wait for the tail; incomplete prefixes have a total timeout", True)
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as sock:
+        payload = b'{"tenant":"vip"}'
+        sock.sendall(f"POST /body-full/ HTTP/1.1\r\nHost: example.test\r\nExpect: 100-continue\r\nContent-Length: {len(payload)}\r\n\r\n".encode())
+        interim = b""
+        while not interim.endswith(b"\r\n\r\n"):
+            interim += sock.recv(1)
+        assert interim.startswith(b"HTTP/1.1 100"), interim
+        sock.sendall(payload)
+        response = http.client.HTTPResponse(sock)
+        response.begin()
+        result = json.loads(response.read())
+        check("Expect 100-continue works before inspection without a second upstream expectation", result["port"] == canary and "expect" not in {k.lower() for k in result["headers"]})
+    for path, payload in (("/body-full/", b'{"tenant":"vip"}'), ("/body-prefix/", b"route=vip;" + bytes(range(256)) * 2048)):
+        output = directory / "h2-body.json"
+        h2 = subprocess.run(["curl", "--noproxy", "*", "-sS", "--http2", "--cacert", str(directory / "cert.pem"),
+            "--resolve", f"example.test:{tls_port}:127.0.0.1", f"https://example.test:{tls_port}{path}",
+            "--data-binary", "@-", "-o", str(output), "-w", "%{http_version}"], input=payload, capture_output=True)
+        assert h2.returncode == 0 and h2.stdout == b"2", h2.stderr
+        result = json.loads(output.read_text())
+        assert result["port"] == canary and result["size"] == len(payload)
+        assert result["sha256"] == hashlib.sha256(payload).hexdigest()
+    check("HTTP/2 full and prefix routing preserve the original body", True)
+    before = COMMITS
+    check("body inspection does not enable upstream POST retries", request(port, "/body-commit/", "POST", body=b"side effect")[0] == 502 and COMMITS == before + 1)
+    with socket.create_connection(("127.0.0.1", port), timeout=2) as cancelled:
+        cancelled.sendall(b"POST /body-full/ HTTP/1.1\r\nHost: example.test\r\nContent-Length: 1000\r\n\r\nx")
+    check("cancelled body inspection leaves the service available", request(port, "/alive")[0] == 200)
 
 
 def main():
@@ -284,6 +382,24 @@ end
 ''')
         wasm = directory / "routes.wasm"
         subprocess.run([binary, "compile", str(plugin), "-o", str(wasm)], check=True)
+        body_plugin = directory / "body.rgl"
+        body_plugin.write_text('''function on_request()
+    if req.body_complete() then req.set_header("x-body-state", "complete")
+    elseif req.body_truncated() then req.set_header("x-body-state", "truncated")
+    else req.set_header("x-body-state", "off") end
+    if req.body() == nil then req.set_header("x-body-text", "nil") end
+    if req.header("x-stop") == "yes" then return resp.reply(200, "prefix ready") end
+    if req.json_string("/tenant") == "vip" or req.body_contains("route=vip;") then
+        return route.proxy("localhost")
+    end
+    return route.pass()
+end''')
+        body_locations = "\n".join(f"location /body-{name}/ {{ rgnix_script {body_plugin}; rgnix_request_body {policy}; {extra} proxy_pass http://app{target}; }}"
+            for name, policy, extra, target in [
+                ("full", "full 64k", "", "/"), ("large", "full 256k", "", "/"),
+                ("prefix", "prefix 32", "", "/"), ("wide", "prefix 96k", "", "/"),
+                ("off", "off", "", "/"), ("timeout", "prefix 32", "rgnix_request_body_timeout 100ms;", "/"),
+                ("commit", "full 64k", "", "/commit")])
         conf = directory / "nginx.conf"
         conf.write_text(f'''events {{}}
 http {{
@@ -298,6 +414,7 @@ http {{
         server_name example.test;
         client_max_body_size 2m;
         add_header X-Inherited yes always;
+        {body_locations}
         location /api/ {{ proxy_pass http://app/base/; proxy_set_header Host $host; }}
         location /raw/ {{ proxy_pass http://app; }}
         location /raw-plugin/ {{ proxy_pass http://app; rgnix_script {plugin}; }}
@@ -323,6 +440,7 @@ http {{
         server_name example.test;
         ssl_certificate {directory / 'cert.pem'};
         ssl_certificate_key {directory / 'key.pem'};
+        {body_locations}
         location / {{ return 200 secure; }}
     }}
 }}''')
@@ -337,6 +455,12 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
         ambiguous.write_text(re.sub(r"rgnix_script [^;]+;", "", ambiguous.read_text()))
         without_plugin = subprocess.run([binary, "check", "-c", str(ambiguous)], capture_output=True, text=True)
         check("script aliases reject upstreams with conflicting transport protocols", rejected.returncode != 0 and without_plugin.returncode == 0)
+        for directive in ("rgnix_request_body prefix 0;", "rgnix_request_body full 257k;", "rgnix_request_body anything 1k;", "rgnix_request_body_timeout 0;"):
+            invalid_body = directory / "invalid-body.conf"
+            invalid_body.write_text(conf.read_text().replace("rgnix_request_body full 64k;", directive))
+            rejected = subprocess.run([binary, "check", "-c", str(invalid_body)], capture_output=True)
+            assert rejected.returncode != 0, directive
+        check("configuration rejects invalid body modes, limits and timeouts", True)
         log_path = directory / "server.log"
         with log_path.open("w") as log:
             process = subprocess.Popen([binary, "serve", "-c", str(conf), "--admin", f"127.0.0.1:{admin}"], stdout=log, stderr=log,
@@ -446,6 +570,22 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 check("TLS listener", request(tls_port, tls=True)[2] == b"secure")
                 h2 = subprocess.run(["curl", "--noproxy", "*", "-sS", "--http2", "--cacert", str(directory / "cert.pem"), "--resolve", f"example.test:{tls_port}:127.0.0.1", f"https://example.test:{tls_port}/", "-o", "/dev/null", "-w", "%{http_version}"], capture_output=True, text=True)
                 check("HTTP/2 negotiation", h2.returncode == 0 and h2.stdout == "2")
+                exercise_body_routing(port, tls_port, upstream, secure_server.server_port, directory)
+                with socket.create_connection(("127.0.0.1", port), timeout=3) as sock:
+                    payload = b'{"tenant":"vip"}'
+                    sock.sendall(f"POST /body-full/ HTTP/1.1\r\nHost: example.test\r\nContent-Length: {len(payload)}\r\n\r\n".encode() + payload[:5])
+                    time.sleep(.1)
+                    original = conf.read_text()
+                    conf.write_text(original.replace("rgnix_request_body full 64k;", "rgnix_request_body off;"))
+                    process.send_signal(signal.SIGHUP)
+                    wait_for(lambda: json.loads(request(port, "/body-full/", "POST", body=payload)[2])["port"], upstream)
+                    sock.sendall(payload[5:])
+                    response = http.client.HTTPResponse(sock)
+                    response.begin()
+                    check("in-flight body inspection retains its policy across reload", json.loads(response.read())["port"] == secure_server.server_port)
+                    conf.write_text(original)
+                    process.send_signal(signal.SIGHUP)
+                    wait_for(lambda: json.loads(request(port, "/body-full/", "POST", body=payload)[2])["port"], secure_server.server_port)
                 conn = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
                 begin = time.monotonic()
                 conn.request("GET", "/events", headers={"Host": "example.test"})

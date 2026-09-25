@@ -1,4 +1,8 @@
+pub mod bundle;
+mod policy;
+mod security;
 mod syntax;
+mod upstream;
 use crate::{model::*, script::Compiler};
 use anyhow::{Context, Result, bail, ensure};
 use std::{
@@ -17,16 +21,30 @@ struct Scope {
     script: Option<PathBuf>,
     cert: Option<PathBuf>,
     key: Option<PathBuf>,
+    upstream_cert: Option<PathBuf>,
+    upstream_key: Option<PathBuf>,
     http2: bool,
     error_log: Option<Arc<crate::logging::ErrorOutput>>,
+    log_rotation: crate::logging::Rotation,
 }
 
 pub fn load(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSnapshot> {
+    load_direct(path, compiler, version)
+}
+fn load_direct(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSnapshot> {
     let absolute = path.canonicalize()?;
     let base = absolute.parent().unwrap();
     let nodes = syntax::load(&absolute)?;
+    load_nodes(&nodes, base, compiler, version)
+}
+fn load_nodes(
+    nodes: &[Directive],
+    base: &Path,
+    compiler: &Compiler,
+    version: u64,
+) -> Result<RuntimeSnapshot> {
     let mut http = None;
-    for node in &nodes {
+    for node in nodes {
         match node.name.as_str() {
             "http" => {
                 ensure!(http.is_none(), "{}: duplicate http", node.source);
@@ -60,48 +78,16 @@ pub fn load(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSna
         }
     }
     result.error_log = scope.error_log.clone();
+    result.log_rotation = scope.log_rotation.clone();
+    result.default_access_log = scope.settings.access_log.clone();
     for n in http.iter().filter(|n| n.name == "upstream") {
-        one(n)?;
-        let mut endpoints = vec![];
-        for server in block(n)? {
-            ensure!(
-                server.name == "server"
-                    && server.children.is_none()
-                    && (1..=2).contains(&server.args.len()),
-                "{}: upstream accepts server address [weight=N]",
-                server.source
-            );
-            let weight = if let Some(w) = server.args.get(1) {
-                w.strip_prefix("weight=")
-                    .context("only weight=N is supported")?
-                    .parse::<u32>()?
-            } else {
-                1
-            };
-            ensure!(
-                weight > 0 && weight <= 65535,
-                "{}: invalid weight",
-                server.source
-            );
-            let address = authority_with_port(&server.args[0], 80);
-            for address in address
-                .to_socket_addrs()
-                .with_context(|| server.source.clone())?
-            {
-                endpoints.push(Endpoint { address, weight });
-            }
-        }
-        ensure!(!endpoints.is_empty(), "{}: empty upstream", n.source);
-        let name = n.args[0].clone();
+        let backend = upstream::load(n).with_context(|| n.source.clone())?;
         ensure!(
-            !result.backends.contains_key(&name),
+            !result.backends.contains_key(&n.args[0]),
             "{}: duplicate upstream",
             n.source
         );
-        result.backends.insert(
-            name.clone(),
-            Arc::new(Backend::new(endpoints, false, name.clone(), name)),
-        );
+        result.backends.insert(n.args[0].clone(), Arc::new(backend));
     }
     let mut listener_map: BTreeMap<SocketAddr, Listener> = BTreeMap::new();
     let mut defaults = BTreeSet::new();
@@ -135,7 +121,7 @@ pub fn load(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSna
             names.push(String::new());
         }
         if listens.is_empty() {
-            listens.push(("0.0.0.0:80".parse()?, false, false));
+            listens.push(("0.0.0.0:80".parse()?, false, false, false));
         }
         let mut routes = vec![];
         for n in children.iter().filter(|n| n.name == "location") {
@@ -207,7 +193,7 @@ pub fn load(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSna
                 server.source
             ),
         };
-        for (address, tls, explicit_default) in listens {
+        for (address, tls, explicit_default, proxy_protocol) in listens {
             if explicit_default {
                 ensure!(
                     defaults.insert(address),
@@ -219,7 +205,18 @@ pub fn load(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSna
                 address,
                 tls,
                 http2: local.http2,
+                proxy_protocol,
+                proxy_trusted: if proxy_protocol {
+                    local.settings.identity.trusted.clone()
+                } else {
+                    vec![]
+                },
             };
+            ensure!(
+                !proxy_protocol || !listener.proxy_trusted.is_empty(),
+                "{}: PROXY protocol requires set_real_ip_from",
+                server.source
+            );
             if let Some(existing) = listener_map.get(&address) {
                 ensure!(
                     existing == &listener,
@@ -247,12 +244,14 @@ pub fn load(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSna
                     .as_ref()
                     .context("TLS listener requires a certificate")?;
                 for name in &names {
+                    certificate.validate_name(name)?;
                     result.certificates.push(TlsHost {
                         listener: address,
                         name: name.clone(),
                         ingress: false,
                         default,
                         certificate: Some(certificate.clone()),
+                        client_auth: local.settings.security.mtls.clone(),
                     });
                 }
             }
@@ -294,17 +293,68 @@ pub fn load(path: &Path, compiler: &Compiler, version: u64) -> Result<RuntimeSna
                 .insert(name.clone(), transports.into_values().next().unwrap());
         }
     }
+    // Health and data connections must use the same identity. A named group can
+    // be used with different CA/SNI/client certificates in different locations.
+    let base_backends = result.backends.clone();
+    for host in &mut result.hosts {
+        for route in &mut host.routes {
+            let route = Arc::make_mut(route);
+            for key in route.allowed_backends.values_mut() {
+                if let Some(backend) = base_backends.get(key)
+                    && backend.options.health.is_some()
+                {
+                    let profile = &route.settings.upstream;
+                    let configured_key = format!("{key}#tls-{:016x}", profile.pool_key());
+                    result
+                        .backends
+                        .entry(configured_key.clone())
+                        .or_insert_with(|| {
+                            let mut configured = backend.transport(
+                                backend.tls,
+                                backend.hostname.clone(),
+                                backend.host_header.clone(),
+                            );
+                            configured.profile = profile.clone();
+                            Arc::new(configured)
+                        });
+                    if let Action::Proxy { backend, .. } = &mut route.action
+                        && backend == key
+                    {
+                        *backend = configured_key.clone();
+                    }
+                    *key = configured_key;
+                }
+            }
+        }
+    }
     result.listeners = listener_map.into_values().collect();
+    result.content_hash = result.fingerprint()?;
+    result.reindex();
     Ok(result)
 }
 
 fn build_route(
     id: String,
     matcher: PathMatch,
-    scope: Scope,
+    mut scope: Scope,
     compiler: &Compiler,
     snapshot: &mut RuntimeSnapshot,
 ) -> Result<Arc<Route>> {
+    ensure!(
+        scope.settings.security.mtls.mode == crate::security::mtls::Mode::Off
+            || scope.settings.security.mtls.store.is_some(),
+        "ssl_verify_client requires ssl_client_certificate"
+    );
+    match (&scope.upstream_cert, &scope.upstream_key) {
+        (Some(cert), Some(key)) => scope.settings.upstream.set_identity(
+            std::fs::read_to_string(cert)?,
+            std::fs::read_to_string(key)?,
+        )?,
+        (None, None) => {}
+        _ => {
+            bail!("proxy_ssl_certificate and proxy_ssl_certificate_key must be configured together")
+        }
+    }
     let mut action = scope.action.unwrap_or(Action::Static);
     if let Action::Proxy { backend, uri } = &mut action {
         let parsed = proxy_url(backend)?;
@@ -328,12 +378,7 @@ fn build_route(
                 "named upstream cannot have an explicit port"
             );
             snapshot.backends.entry(key.clone()).or_insert_with(|| {
-                Arc::new(Backend::new(
-                    group.endpoints.clone(),
-                    parsed.scheme() == "https",
-                    host.clone(),
-                    host.clone(),
-                ))
+                Arc::new(group.transport(parsed.scheme() == "https", host.clone(), host.clone()))
             });
         } else if !snapshot.backends.contains_key(&key) {
             let port = parsed
@@ -346,15 +391,18 @@ fn build_route(
             ensure!(!addresses.is_empty(), "upstream has no resolved addresses");
             let host_header =
                 parsed[url::Position::BeforeHost..url::Position::AfterPort].to_string();
-            snapshot.backends.insert(
-                key.clone(),
-                Arc::new(Backend::new(
-                    addresses,
-                    parsed.scheme() == "https",
-                    host,
-                    host_header,
-                )),
+            let mut resolved = Backend::new(
+                addresses,
+                parsed.scheme() == "https",
+                host.clone(),
+                host_header,
             );
+            resolved.origins.push(crate::backend::Origin {
+                host,
+                port,
+                weight: 1,
+            });
+            snapshot.backends.insert(key.clone(), Arc::new(resolved));
         }
         *backend = key;
     }
@@ -370,6 +418,8 @@ fn build_route(
         .collect();
     Ok(Arc::new(Route {
         id,
+        tenant: None,
+        rollout: None,
         matcher,
         action,
         settings: scope.settings,
@@ -399,6 +449,12 @@ fn proxy_url(value: &str) -> Result<url::Url> {
 }
 
 fn reset_header_inheritance(scope: &mut Scope, nodes: &[Directive]) {
+    if nodes.iter().any(|n| n.name == "set_real_ip_from") {
+        scope.settings.identity.trusted.clear();
+    }
+    if nodes.iter().any(|n| n.name == "allow" || n.name == "deny") {
+        scope.settings.identity.access.clear();
+    }
     if nodes.iter().any(|n| n.name == "proxy_set_header") {
         scope.settings.request_headers.clear();
     }
@@ -424,11 +480,51 @@ fn apply(s: &mut Scope, n: &Directive, base: &Path, context: &str) -> Result<()>
             return Ok(());
         }
         leaf(n)?;
+        if policy::apply(s, n)? || security::apply(s, n, base, context)? {
+            return Ok(());
+        }
         match n.name.as_str() {
             "root" => {
                 one(n)?;
                 ensure!(!n.args[0].contains('$'), "root variables are unsupported");
                 s.settings.root = base.join(&n.args[0]);
+                s.settings.alias = None;
+            }
+            "alias" => {
+                one(n)?;
+                ensure!(
+                    context == "location" && !n.args[0].contains('$'),
+                    "alias requires a literal directory in location"
+                );
+                s.settings.alias = Some(base.join(&n.args[0]));
+            }
+            "try_files" => {
+                ensure!(
+                    (2..=8).contains(&n.args.len()),
+                    "try_files expects 2..8 candidates with an absolute fallback URI or =status"
+                );
+                for (i, v) in n.args.iter().enumerate() {
+                    if i + 1 == n.args.len() && v.starts_with('=') {
+                        let code: u16 = v[1..].parse()?;
+                        ensure!(
+                            (400..=599).contains(&code),
+                            "try_files fallback status must be 400..599"
+                        );
+                    } else {
+                        ensure!(
+                            (v == "$uri"
+                                || v == "$uri/"
+                                || (v.starts_with('/') && !v.contains(['$', '?', '#']))),
+                            "try_files supports $uri, $uri/ and literal absolute paths"
+                        );
+                    }
+                }
+                let last = n.args.last().unwrap();
+                ensure!(
+                    last.starts_with('/') || last.starts_with('='),
+                    "final try_files candidate must be a literal path or =status"
+                );
+                s.settings.try_files = n.args.clone();
             }
             "index" => {
                 ensure!(
@@ -441,6 +537,39 @@ fn apply(s: &mut Scope, n: &Directive, base: &Path, context: &str) -> Result<()>
                 one(n)?;
                 http::HeaderValue::from_str(&n.args[0])?;
                 s.settings.default_type = n.args[0].clone();
+            }
+            "proxy_http_version" => {
+                one(n)?;
+                s.settings.upstream.protocol = crate::upstream::Protocol::parse(&n.args[0])?;
+            }
+            "proxy_ssl_certificate" | "proxy_ssl_certificate_key" => {
+                one(n)?;
+                if n.name == "proxy_ssl_certificate" {
+                    s.upstream_cert = Some(base.join(&n.args[0]));
+                } else {
+                    s.upstream_key = Some(base.join(&n.args[0]));
+                }
+            }
+            "proxy_ssl_name" => {
+                one(n)?;
+                ensure!(
+                    !n.args[0].contains('$') && n.args[0].len() <= 253,
+                    "proxy_ssl_name requires a literal host"
+                );
+                s.settings.upstream.server_name = Some(n.args[0].clone());
+            }
+            "proxy_ssl_trusted_certificate" => {
+                one(n)?;
+                s.settings
+                    .upstream
+                    .set_ca(std::fs::read_to_string(base.join(&n.args[0]))?)?;
+            }
+            "proxy_ssl_verify" | "proxy_ssl_server_name" => {
+                one(n)?;
+                ensure!(
+                    n.args[0] == "on",
+                    "upstream TLS always verifies certificates and hostnames"
+                );
             }
             "proxy_pass" => {
                 one(n)?;
@@ -501,6 +630,15 @@ fn apply(s: &mut Scope, n: &Directive, base: &Path, context: &str) -> Result<()>
                 one(n)?;
                 s.settings.max_body = size(&n.args[0])?;
             }
+            "rgnix_request_body" => {
+                s.settings.body_policy.inspection =
+                    crate::body::Inspection::parse(&n.args.join(" "))?;
+            }
+            "rgnix_request_body_timeout" => {
+                one(n)?;
+                s.settings.body_policy.timeout =
+                    crate::body::BodyPolicy::parse_timeout(&n.args[0])?;
+            }
             "proxy_connect_timeout" => {
                 one(n)?;
                 s.settings.connect_timeout = duration(&n.args[0])?;
@@ -547,14 +685,19 @@ fn apply(s: &mut Scope, n: &Directive, base: &Path, context: &str) -> Result<()>
             "access_log" => {
                 ensure!(
                     (1..=2).contains(&n.args.len())
-                        && n.args.get(1).is_none_or(|v| v == "combined"),
-                    "access_log expects path [combined] or off"
+                        && n.args.get(1).is_none_or(|v| v == "combined" || v == "json"),
+                    "access_log expects path [combined|json] or off"
                 );
+                s.settings.log_policy.json = n.args.get(1).is_some_and(|v| v == "json");
                 s.settings.access_log = if n.args[0] == "off" {
                     None
                 } else {
                     Some(base.join(&n.args[0]))
                 };
+            }
+            "rgnix_log_rotation" => {
+                ensure!(context == "http", "rgnix_log_rotation belongs in http");
+                s.log_rotation = crate::logging::Rotation::parse(&n.args)?;
             }
             "error_log" => {
                 ensure!(
@@ -599,6 +742,7 @@ pub fn validate_variables(value: &str) -> Result<()> {
                     | "args"
                     | "request_method"
                     | "remote_addr"
+                    | "realip_remote_addr"
                     | "proxy_host"
                     | "proxy_add_x_forwarded_for"
             ) || variable.starts_with("http_") && variable.len() > 5,
@@ -643,14 +787,7 @@ fn one(n: &Directive) -> Result<()> {
     );
     Ok(())
 }
-fn authority_with_port(s: &str, default: u16) -> String {
-    if s.parse::<SocketAddr>().is_ok() || (!s.starts_with('[') && s.matches(':').count() == 1) {
-        s.into()
-    } else {
-        format!("{s}:{default}")
-    }
-}
-fn parse_listen(n: &Directive) -> Result<(SocketAddr, bool, bool)> {
+fn parse_listen(n: &Directive) -> Result<(SocketAddr, bool, bool, bool)> {
     leaf(n)?;
     ensure!(!n.args.is_empty(), "{}: missing listen address", n.source);
     let address = if let Ok(port) = n.args[0].parse::<u16>() {
@@ -660,7 +797,7 @@ fn parse_listen(n: &Directive) -> Result<(SocketAddr, bool, bool)> {
     };
     for option in &n.args[1..] {
         ensure!(
-            matches!(option.as_str(), "ssl" | "default_server"),
+            matches!(option.as_str(), "ssl" | "default_server" | "proxy_protocol"),
             "{}: unsupported listen option {option}",
             n.source
         );
@@ -669,9 +806,10 @@ fn parse_listen(n: &Directive) -> Result<(SocketAddr, bool, bool)> {
         address,
         n.args.iter().any(|s| s == "ssl"),
         n.args.iter().any(|s| s == "default_server"),
+        n.args.iter().any(|s| s == "proxy_protocol"),
     ))
 }
-fn size(s: &str) -> Result<u64> {
+pub(crate) fn size(s: &str) -> Result<u64> {
     let (n, multiplier) = match s.as_bytes().last() {
         Some(b'k' | b'K') => (&s[..s.len() - 1], 1024),
         Some(b'm' | b'M') => (&s[..s.len() - 1], 1024 * 1024),
@@ -682,7 +820,7 @@ fn size(s: &str) -> Result<u64> {
         .checked_mul(multiplier)
         .context("size overflow")
 }
-fn duration(s: &str) -> Result<Duration> {
+pub(crate) fn duration(s: &str) -> Result<Duration> {
     let (n, multiplier) = if let Some(n) = s.strip_suffix("ms") {
         (n, 1)
     } else if let Some(n) = s.strip_suffix('s') {

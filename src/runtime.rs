@@ -6,9 +6,7 @@ use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use futures::FutureExt;
 use pingora::{
-    apps::http_app::ServeHttp,
     listeners::{TlsAccept, tls::TlsSettings},
-    protocols::http::ServerSession,
     server::{Server, ShutdownWatch, configuration::ServerConf},
     services::{
         background::{BackgroundService, background_service},
@@ -19,20 +17,39 @@ use pingora::{
 use std::{
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, atomic::Ordering},
+    sync::{Arc, Mutex, atomic::Ordering},
 };
 
 pub struct Shared {
+    pub audit: Arc<crate::audit::Audit>,
     pub snapshot: ArcSwap<RuntimeSnapshot>,
     pub compiler: Arc<Compiler>,
     pub telemetry: Arc<Telemetry>,
     pub requests: Arc<tokio::sync::Semaphore>,
     pub plugins: Arc<tokio::sync::Semaphore>,
+    pub traffic: Arc<crate::traffic::Limiter>,
+    pub tenants: crate::tenancy::Tenants,
+    pub rollouts: crate::rollout::Rollouts,
+    pub mirrors: Arc<tokio::sync::Semaphore>,
+    pub simulations: Arc<tokio::sync::Semaphore>,
+    pub controls: Arc<crate::controls::Controls>,
+    pub metric_results:
+        Mutex<std::collections::BTreeMap<String, (String, bool, std::time::Instant)>>,
+    publication: Mutex<Publication>,
+    pub file_mode: bool,
+    pub(crate) ingress_preview: Mutex<Option<crate::ingress::PreviewInput>>,
+    pub auth_client: reqwest::Client,
     pub upstream_max_fails: usize,
     pub upstream_fail_timeout: std::time::Duration,
 }
 #[derive(Clone, clap::Args)]
 pub struct Limits {
+    /// Administrator-controlled namespace quotas and domains (JSON); automatically reloaded.
+    #[arg(long)]
+    pub tenant_policy_file: Option<PathBuf>,
+    /// Administrator-owned HTTP metric providers for release gates (JSON).
+    #[arg(long)]
+    pub rollout_metrics_file: Option<PathBuf>,
     #[arg(long, default_value_t = 2)]
     pub threads: usize,
     #[arg(long, default_value_t = 1024)]
@@ -49,9 +66,79 @@ pub enum Source {
     Ingress(ingress::Options),
 }
 
+#[derive(Default)]
+struct Publication {
+    previous: std::collections::VecDeque<Arc<RuntimeSnapshot>>,
+    failures: std::collections::VecDeque<String>,
+    durable: Option<crate::history::History>,
+}
 impl Shared {
-    pub fn publish(&self, mut snapshot: RuntimeSnapshot) -> Result<()> {
-        let current = self.snapshot.load();
+    pub(crate) fn preview(&self) -> Self {
+        Self {
+            audit: self.audit.clone(),
+            snapshot: ArcSwap::from(self.snapshot.load_full()),
+            compiler: self.compiler.clone(),
+            telemetry: self.telemetry.clone(),
+            requests: Arc::new(tokio::sync::Semaphore::new(1)),
+            plugins: Arc::new(tokio::sync::Semaphore::new(1)),
+            traffic: Default::default(),
+            tenants: Default::default(),
+            rollouts: Default::default(),
+            mirrors: Arc::new(tokio::sync::Semaphore::new(1)),
+            simulations: Arc::new(tokio::sync::Semaphore::new(1)),
+            controls: self.controls.clone(),
+            metric_results: Mutex::new(Default::default()),
+            publication: Mutex::new(Publication::default()),
+            file_mode: self.file_mode,
+            ingress_preview: Mutex::new(None),
+            auth_client: self.auth_client.clone(),
+            upstream_max_fails: self.upstream_max_fails,
+            upstream_fail_timeout: self.upstream_fail_timeout,
+        }
+    }
+    pub fn history(&self) -> serde_json::Value {
+        let publication = self.publication.lock().unwrap_or_else(|e| e.into_inner());
+        let current = self.snapshot.load_full();
+        serde_json::json!({"current":current.version,"rollback":if self.file_mode {"file snapshots"} else {"change the Kubernetes source resources"},"versions":publication.previous.iter().chain(std::iter::once(&current)).map(|s|serde_json::json!({"version":s.version,"sha256":s.content_hash,"ready":s.ready})).collect::<Vec<_>>(),"durable_versions":publication.durable.as_ref().map(|d|d.versions()),"recent_errors":publication.failures})
+    }
+    pub fn rejected_update(&self, error: &str) {
+        let mut publication = self.publication.lock().unwrap_or_else(|e| e.into_inner());
+        publication
+            .failures
+            .push_back(error.chars().take(2048).collect());
+        while publication.failures.len() > 16 {
+            publication.failures.pop_front();
+        }
+    }
+    pub fn rollback(&self, version: u64) -> Result<()> {
+        ensure!(
+            self.file_mode,
+            "Ingress versions are managed by Kubernetes; update source resources to preserve live withdrawals"
+        );
+        let mut publication = self.publication.lock().unwrap_or_else(|e| e.into_inner());
+        let snapshot = if let Some(durable) = &publication.durable {
+            durable.restore(&self.compiler, version)?
+        } else {
+            (**publication
+                .previous
+                .iter()
+                .find(|s| s.version == version)
+                .context("version is not retained")?)
+            .clone()
+        };
+        self.publish_locked(snapshot, &mut publication)
+    }
+
+    pub fn publish(&self, snapshot: RuntimeSnapshot) -> Result<()> {
+        let mut publication = self.publication.lock().unwrap_or_else(|e| e.into_inner());
+        self.publish_locked(snapshot, &mut publication)
+    }
+    fn publish_locked(
+        &self,
+        mut snapshot: RuntimeSnapshot,
+        publication: &mut Publication,
+    ) -> Result<()> {
+        let current = self.snapshot.load_full();
         ensure!(
             current.listeners == snapshot.listeners,
             "changing listener addresses or TLS/http2 options requires restart"
@@ -59,17 +146,22 @@ impl Shared {
         snapshot.version = current.version + 1;
         for (name, backend) in &mut snapshot.backends {
             if let Some(previous) = current.backends.get(name)
-                && backend.endpoints == previous.endpoints
-                && backend.tls == previous.tls
-                && backend.hostname == previous.hostname
-                && backend.host_header == previous.host_header
+                && backend.same_config(previous)
             {
                 *backend = previous.clone();
             }
         }
         snapshot.content_hash = snapshot.fingerprint()?;
         snapshot.reindex();
+        self.audit
+            .record("control", "publish", snapshot.version, "validated")?;
+        if let Some(durable) = &mut publication.durable {
+            durable.record(&snapshot)?;
+        }
         crate::logging::configure(snapshot.error_log.clone());
+        self.telemetry
+            .files
+            .configure(snapshot.log_rotation.clone());
         self.telemetry.version.set(snapshot.version as i64);
         self.telemetry.config_info.reset();
         self.telemetry
@@ -77,8 +169,20 @@ impl Shared {
             .with_label_values(&[&snapshot.content_hash])
             .set(1);
         let ready = snapshot.ready;
+        publication.previous.push_back(current);
+        while publication.previous.len() > 8 {
+            publication.previous.pop_front();
+        }
         self.snapshot.store(Arc::new(snapshot));
         self.telemetry.reloads.inc();
+        if let Err(e) = self.audit.record(
+            "control",
+            "publish",
+            self.snapshot.load().version,
+            "committed",
+        ) {
+            log::error!("publication audit: {e}");
+        }
         self.telemetry.ready.store(ready, Ordering::Release);
         Ok(())
     }
@@ -94,8 +198,12 @@ impl TlsAccept for Certificates {
             .servername(openssl::ssl::NameType::HOST_NAME)
             .unwrap_or("");
         let snapshot = self.shared.snapshot.load();
-        if let Some(cert) = snapshot.certificate(self.listener, name) {
+        if let Some(host) = snapshot.tls_host(self.listener, name)
+            && let Some(cert) = &host.certificate
+            && cert.valid_time().is_ok()
+        {
             let result = (|| -> Result<()> {
+                host.client_auth.configure(ssl)?;
                 ext::ssl_use_certificate(ssl, &cert.leaf)?;
                 ext::ssl_use_private_key(ssl, &cert.key)?;
                 for chain in &cert.chain {
@@ -108,19 +216,11 @@ impl TlsAccept for Certificates {
             }
         }
     }
-}
-struct Admin(Arc<Telemetry>);
-#[async_trait]
-impl ServeHttp for Admin {
-    async fn response(&self, session: &mut ServerSession) -> http::Response<Vec<u8>> {
-        let (status, body, content_type) = self.0.render(session.req_header().uri.path());
-        session.set_keepalive(None);
-        http::Response::builder()
-            .status(status)
-            .header("Content-Type", content_type)
-            .header("Cache-Control", "no-store")
-            .body(body)
-            .unwrap()
+    async fn handshake_complete_callback(
+        &self,
+        ssl: &SslRef,
+    ) -> Option<Arc<dyn std::any::Any + Send + Sync>> {
+        crate::security::mtls::peer(ssl)
     }
 }
 struct Control {
@@ -146,9 +246,10 @@ impl BackgroundService for Control {
                         signal=hup.recv()=>{
                             if signal.is_none(){break;}
                             let path=path.clone();let compiler=self.shared.compiler.clone();
-                            let result=tokio::task::spawn_blocking(move||config::load(&path,&compiler,0)).await;
-                            let result=result.context("configuration task failed").and_then(|r|r).and_then(|s|self.shared.publish(s));
-                            if let Err(e)=result {self.shared.telemetry.reload_errors.inc();log::error!("configuration rejected; keeping active snapshot: {e:#}");}else{log::info!("configuration reloaded");}
+                            let state=self.shared.clone();
+                            let result=tokio::task::spawn_blocking(move||state.publish(std::sync::Arc::new(config::bundle::Bundle::capture(&path)?).compile(&compiler,0)?)).await;
+                            let result=result.context("configuration task failed").and_then(|r|r);
+                            if let Err(e)=result {self.shared.rejected_update(&format!("{e:#}"));self.shared.telemetry.reload_errors.inc();log::error!("configuration rejected; keeping active snapshot: {e:#}");}else{log::info!("configuration reloaded");}
                         }
                     }
                 }
@@ -182,7 +283,32 @@ pub fn serve(
     source: Source,
     admin: SocketAddr,
     limits: Limits,
+    otlp: crate::otlp::Options,
+    diagnostics: crate::diagnostics::Options,
 ) -> Result<()> {
+    ensure!(
+        diagnostics.admission_listen.is_some() == diagnostics.admission_tls_cert.is_some()
+            && diagnostics.admission_listen.is_some() == diagnostics.admission_tls_key.is_some(),
+        "admission-listen requires admission-tls-cert and admission-tls-key"
+    );
+    ensure!(
+        diagnostics.admission_listen.is_none() || matches!(source, Source::Ingress(_)),
+        "admission requires Ingress mode"
+    );
+    let controls = Arc::new(crate::controls::Controls::new(
+        diagnostics.clone(),
+        limits.clone(),
+    )?);
+    ensure!(
+        diagnostics.history_dir.is_none() || matches!(source, Source::File(_)),
+        "history-dir is only supported in standalone mode"
+    );
+    let audit = Arc::new(crate::audit::Audit::open(
+        diagnostics
+            .admin_audit_file
+            .as_deref()
+            .unwrap_or(std::path::Path::new("/dev/stderr")),
+    )?);
     let threads = limits.threads;
     ensure!(
         limits.upstream_max_fails <= 1000
@@ -200,8 +326,10 @@ pub fn serve(
     );
     snapshot.content_hash = snapshot.fingerprint()?;
     snapshot.reindex();
+    let telemetry = Telemetry::new(otlp)?;
+    crate::logging::install_files(telemetry.files.clone());
     crate::logging::configure(snapshot.error_log.clone());
-    let telemetry = Telemetry::new()?;
+    telemetry.files.configure(snapshot.log_rotation.clone());
     telemetry.version.set(snapshot.version as i64);
     telemetry
         .config_info
@@ -211,12 +339,37 @@ pub fn serve(
         .ready
         .store(matches!(source, Source::File(_)), Ordering::Release);
     let listeners = snapshot.listeners.clone();
+    let file_mode = matches!(source, Source::File(_));
+    let mut publication = Publication::default();
+    if let (Some(directory), Source::File(path)) = (&diagnostics.history_dir, &source) {
+        let mut durable = crate::history::History::open(directory, path)?;
+        durable.record(&snapshot)?;
+        publication.durable = Some(durable);
+    }
     let shared = Arc::new(Shared {
+        audit: audit.clone(),
         snapshot: ArcSwap::from_pointee(snapshot),
         compiler,
-        telemetry,
+        telemetry: telemetry.clone(),
         requests: Arc::new(tokio::sync::Semaphore::new(limits.max_inflight)),
         plugins: Arc::new(tokio::sync::Semaphore::new(limits.max_plugin_instances)),
+        traffic: Arc::new(crate::traffic::Limiter::default()),
+        tenants: Default::default(),
+        rollouts: Default::default(),
+        mirrors: Arc::new(tokio::sync::Semaphore::new(16)),
+        simulations: Arc::new(tokio::sync::Semaphore::new(2)),
+        controls,
+        metric_results: Mutex::new(Default::default()),
+        publication: Mutex::new(publication),
+        file_mode,
+        ingress_preview: Mutex::new(None),
+        auth_client: reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(std::time::Duration::from_secs(3))
+            .timeout(std::time::Duration::from_secs(5))
+            .pool_max_idle_per_host(8)
+            .build()?,
         upstream_max_fails: limits.upstream_max_fails,
         upstream_fail_timeout: std::time::Duration::from_secs(limits.upstream_fail_timeout_secs),
     });
@@ -254,12 +407,70 @@ pub fn serve(
         } else {
             service.add_tcp(&listener.address.to_string());
         }
+        if listener.proxy_protocol {
+            service.endpoints().set_pre_tls_callback(Arc::new(
+                crate::proxy_protocol::ProxyProtocol {
+                    trusted: listener.proxy_trusted.clone(),
+                },
+            ));
+        }
         server.add_service(service);
     }
-    let mut admin_service = Service::new("admin".into(), Admin(shared.telemetry.clone()));
+    let mut admin_service = Service::new(
+        "admin".into(),
+        crate::diagnostics::Admin {
+            shared: shared.clone(),
+            audit,
+        },
+    );
     admin_service.add_tcp(&admin.to_string());
     admin_service.threads = Some(1);
     server.add_service(admin_service);
+    if let Some(address) = diagnostics.admission_listen {
+        let mut admission = Service::new(
+            "admission".into(),
+            crate::admission::Admission {
+                shared: shared.clone(),
+                controller_user: diagnostics.admission_controller_user.clone(),
+            },
+        );
+        admission.add_tls(
+            &address.to_string(),
+            diagnostics
+                .admission_tls_cert
+                .as_ref()
+                .unwrap()
+                .to_str()
+                .context("invalid admission certificate path")?,
+            diagnostics
+                .admission_tls_key
+                .as_ref()
+                .unwrap()
+                .to_str()
+                .context("invalid admission key path")?,
+        )?;
+        server.add_service(admission);
+    }
+    server.add_service(background_service(
+        "upstream-maintenance",
+        crate::maintenance::Maintenance(shared.clone()),
+    ));
+    server.add_service(background_service(
+        "access-policy-watch",
+        crate::controls::Watch(shared.clone()),
+    ));
+    server.add_service(background_service(
+        "rollout-metrics",
+        crate::rollout::metrics::Poller(shared.clone()),
+    ));
     server.add_service(background_service("control", Control { shared, source }));
-    server.run_forever()
+    server.run(pingora::server::RunArgs::default());
+    if let Some(exporter) = &telemetry.otlp {
+        exporter.shutdown();
+    }
+    if let Some(exporter) = &telemetry.traces {
+        exporter.shutdown();
+    }
+    telemetry.files.shutdown();
+    Ok(())
 }

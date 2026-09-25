@@ -1,4 +1,8 @@
+mod preflight;
+pub(crate) use preflight::{PreviewInput, managed, validate};
 mod checkpoint;
+mod policy;
+pub(crate) mod release;
 mod resources;
 mod status;
 use crate::{model::*, runtime::Shared, script::CompiledScript};
@@ -29,18 +33,21 @@ pub const CONTROLLER: &str = "rgnix.io/ingress-controller";
 #[derive(Clone)]
 pub struct Options {
     pub class: String,
+    pub namespaces: Vec<String>,
     pub publish_namespace: String,
     pub publish_service: String,
     pub identity: String,
+    pub identity_policy: crate::identity::IdentityPolicy,
 }
 struct Stores {
-    ingresses: Store<Ingress>,
+    ingresses: Vec<Store<Ingress>>,
     classes: Store<IngressClass>,
-    services: Store<Service>,
-    slices: Store<EndpointSlice>,
-    secrets: Store<Secret>,
-    maps: Store<ConfigMap>,
+    services: Vec<Store<Service>>,
+    slices: Vec<Store<EndpointSlice>>,
+    secrets: Vec<Store<Secret>>,
+    maps: Vec<Store<ConfigMap>>,
 }
+#[derive(Clone)]
 struct Resources {
     ingresses: Vec<Arc<Ingress>>,
     classes: Vec<Arc<IngressClass>>,
@@ -49,7 +56,7 @@ struct Resources {
     secrets: Vec<Arc<Secret>>,
     maps: Vec<Arc<ConfigMap>>,
 }
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct History {
     scripts: BTreeMap<String, Arc<CompiledScript>>,
     routes: BTreeMap<String, IngressSpec>,
@@ -65,7 +72,7 @@ pub(super) struct Diagnostic {
 }
 
 fn observe<K>(
-    client: Client,
+    api: Api<K>,
     changed: watch::Sender<()>,
     mut shutdown: pingora::server::ShutdownWatch,
 ) -> Store<K>
@@ -74,7 +81,7 @@ where
 {
     let (store, writer) = reflector::store::<K>();
     tokio::spawn(async move {
-        let events = watcher(Api::<K>::all(client), watcher::Config::default());
+        let events = watcher(api, watcher::Config::default());
         let events = reflector::reflector(writer, events);
         tokio::pin!(events);
         loop {
@@ -89,26 +96,55 @@ where
     });
     store
 }
+fn observe_namespaced<K>(
+    client: Client,
+    namespaces: &[String],
+    changed: watch::Sender<()>,
+    shutdown: pingora::server::ShutdownWatch,
+) -> Vec<Store<K>>
+where
+    K: Clone
+        + Debug
+        + DeserializeOwned
+        + Resource<DynamicType = (), Scope = k8s_openapi::NamespaceResourceScope>
+        + Send
+        + Sync
+        + 'static,
+{
+    if namespaces.is_empty() {
+        return vec![observe(Api::all(client), changed, shutdown)];
+    }
+    namespaces
+        .iter()
+        .map(|ns| {
+            observe(
+                Api::namespaced(client.clone(), ns),
+                changed.clone(),
+                shutdown.clone(),
+            )
+        })
+        .collect()
+}
 impl Stores {
     async fn ready(&self) -> Result<()> {
         tokio::try_join!(
-            self.ingresses.wait_until_ready(),
+            futures::future::try_join_all(self.ingresses.iter().map(|s| s.wait_until_ready())),
             self.classes.wait_until_ready(),
-            self.services.wait_until_ready(),
-            self.slices.wait_until_ready(),
-            self.secrets.wait_until_ready(),
-            self.maps.wait_until_ready()
+            futures::future::try_join_all(self.services.iter().map(|s| s.wait_until_ready())),
+            futures::future::try_join_all(self.slices.iter().map(|s| s.wait_until_ready())),
+            futures::future::try_join_all(self.secrets.iter().map(|s| s.wait_until_ready())),
+            futures::future::try_join_all(self.maps.iter().map(|s| s.wait_until_ready()))
         )?;
         Ok(())
     }
     fn snapshot(&self) -> Resources {
         Resources {
-            ingresses: self.ingresses.state(),
+            ingresses: self.ingresses.iter().flat_map(|s| s.state()).collect(),
             classes: self.classes.state(),
-            services: self.services.state(),
-            slices: self.slices.state(),
-            secrets: self.secrets.state(),
-            maps: self.maps.state(),
+            services: self.services.iter().flat_map(|s| s.state()).collect(),
+            slices: self.slices.iter().flat_map(|s| s.state()).collect(),
+            secrets: self.secrets.iter().flat_map(|s| s.state()).collect(),
+            maps: self.maps.iter().flat_map(|s| s.state()).collect(),
         }
     }
 }
@@ -120,13 +156,37 @@ pub async fn run(
 ) -> Result<()> {
     let client = Client::try_default().await?;
     let (tx, mut changed) = watch::channel(());
+    let mut with_controller = options.namespaces.clone();
+    if !with_controller.is_empty() && !with_controller.contains(&options.publish_namespace) {
+        with_controller.push(options.publish_namespace.clone());
+    }
     let stores = Stores {
-        ingresses: observe(client.clone(), tx.clone(), shutdown.clone()),
-        classes: observe(client.clone(), tx.clone(), shutdown.clone()),
-        services: observe(client.clone(), tx.clone(), shutdown.clone()),
-        slices: observe(client.clone(), tx.clone(), shutdown.clone()),
-        secrets: observe(client.clone(), tx.clone(), shutdown.clone()),
-        maps: observe(client.clone(), tx, shutdown.clone()),
+        ingresses: observe_namespaced(
+            client.clone(),
+            &options.namespaces,
+            tx.clone(),
+            shutdown.clone(),
+        ),
+        classes: observe(Api::all(client.clone()), tx.clone(), shutdown.clone()),
+        services: observe_namespaced(
+            client.clone(),
+            &with_controller,
+            tx.clone(),
+            shutdown.clone(),
+        ),
+        slices: observe_namespaced(
+            client.clone(),
+            &options.namespaces,
+            tx.clone(),
+            shutdown.clone(),
+        ),
+        secrets: observe_namespaced(
+            client.clone(),
+            &options.namespaces,
+            tx.clone(),
+            shutdown.clone(),
+        ),
+        maps: observe_namespaced(client.clone(), &with_controller, tx, shutdown.clone()),
     };
     tokio::select! {_=shutdown.changed()=>return Ok(()),ready=stores.ready()=>ready?}
     let mut history = History::default();
@@ -142,7 +202,9 @@ pub async fn run(
     let persist_options = options.clone();
     let persist_telemetry = shared.telemetry.clone();
     let mut persist_shutdown = shutdown.clone();
+    let checkpoint_client = client.clone();
     tokio::spawn(async move {
+        let client = checkpoint_client;
         // Wait for a complete initial reconciliation before deleting obsolete checkpoints.
         if accepted_rx.changed().await.is_err() {
             return;
@@ -174,19 +236,61 @@ pub async fn run(
     let mut bootstrapped = false;
     let mut checkpoint_state_sent = false;
     let mut previous_input = None;
+    let mut release_check = std::time::Instant::now() - Duration::from_secs(5);
     loop {
         let mut resources = stores.snapshot();
-        let input = resources.prepare(&options, &history);
-        if previous_input == Some(input) {
-            tokio::select! { _=shutdown.changed()=>return Ok(()), _=changed.changed()=>{} }
+        if release_check.elapsed() >= Duration::from_secs(5) {
+            release::reconcile(&client, &shared, &options, &resources).await;
+            release_check = std::time::Instant::now();
+        }
+        for (owner, uid, revision) in shared.rollouts.pending() {
+            let Some((ns, name)) = owner.split_once('/') else {
+                continue;
+            };
+            if let Some(ingress) = resources.ingresses.iter().find(|i| {
+                i.namespace().as_deref() == Some(ns)
+                    && i.name_any() == name
+                    && i.uid().as_deref() == Some(&uid)
+            }) && ingress.annotations().get("rgnix.io/rolled-back-revision") != Some(&revision)
+                && ingress
+                    .annotations()
+                    .get("rgnix.io/traffic-policy")
+                    .and_then(|v| crate::rollout::Policy::parse(v).ok())
+                    .is_some_and(|p| p.revision == revision)
+            {
+                let patch = serde_json::json!({"metadata":{"resourceVersion":ingress.resource_version(),"annotations":{"rgnix.io/rolled-back-revision":revision}}});
+                let api: Api<Ingress> = Api::namespaced(client.clone(), ns);
+                if let Err(e) = api
+                    .patch(name, &Default::default(), &kube::api::Patch::Merge(&patch))
+                    .await
+                {
+                    log::warn!("persist traffic rollback {owner}: {e}");
+                }
+            }
+        }
+        *shared
+            .ingress_preview
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(PreviewInput {
+            options: options.clone(),
+            resources: resources.clone(),
+            history: history.clone(),
+        });
+        let input = (
+            resources.prepare(&options, &history),
+            shared.controls.active.load().digest.clone(),
+        );
+        if previous_input.as_ref() == Some(&input) {
+            tokio::select! { _=shutdown.changed()=>return Ok(()), _=changed.changed()=>{}, _=tokio::time::sleep(Duration::from_secs(1))=>{} }
             continue;
         }
         previous_input = Some(input);
         let options_copy = options.clone();
         let state = shared.clone();
-        let result =
-            tokio::task::spawn_blocking(move || build(&state, &options_copy, resources, history))
-                .await?;
+        let result = tokio::task::spawn_blocking(move || {
+            build(&state, &options_copy, resources, history, false)
+        })
+        .await?;
         history = result.1;
         let (mut snapshot, diagnostics, selected) = result.0?;
         let cold_invalid = diagnostics
@@ -224,6 +328,7 @@ pub async fn run(
                 return Ok(());
             },
             _=changed.changed()=>{tokio::time::sleep(Duration::from_millis(100)).await;},
+            _=tokio::time::sleep(Duration::from_secs(1))=>{},
         }
     }
 }
@@ -234,9 +339,13 @@ fn build(
     options: &Options,
     mut resources: Resources,
     mut history: History,
+    preview: bool,
 ) -> (Built, History) {
     let result = (|| -> Built {
         let listeners = shared.snapshot.load().listeners.clone();
+        let control_policy = shared.controls.active.load_full();
+        let tenant_policy = control_policy.tenant_policy.as_ref();
+        let mut domain_owners = BTreeMap::new();
         let mut snapshot = RuntimeSnapshot::empty(listeners.clone());
         let mut diagnostics = vec![];
         let mut selected = vec![];
@@ -263,6 +372,7 @@ fn build(
         let mut cert_names = BTreeSet::new();
         let mut uids = BTreeSet::new();
         let mut resolved = BTreeMap::new();
+        let mut namespace_counts = BTreeMap::<String, (usize, usize, BTreeSet<String>)>::new();
         for ingress in &resources.ingresses {
             let Some(spec) = &ingress.spec else { continue };
             if !spec
@@ -274,22 +384,171 @@ fn build(
             }
             selected.push(ingress.clone());
             let ns = ingress.namespace().unwrap_or_default();
+            let quota = tenant_policy.and_then(|p| p.quota(&ns));
+            if tenant_policy.is_some() && quota.is_none() {
+                diagnostics.push(Diagnostic {
+                    ingress: ingress.clone(),
+                    reason: "NamespaceDenied",
+                    message: "namespace is not admitted by administrator policy".into(),
+                });
+                continue;
+            }
+            if let Some(quota) = quota {
+                let resource_uid = ingress.uid().unwrap_or_default();
+                let restored = {
+                    let plugin_uid = ingress
+                        .annotations()
+                        .get("rgnix.io/script")
+                        .and_then(|v| v.split_once('/'))
+                        .and_then(|(name, _)| {
+                            resources.maps.iter().find(|m| {
+                                m.namespace().as_deref() == Some(&ns) && m.name_any() == name
+                            })
+                        })
+                        .and_then(|m| m.uid())
+                        .unwrap_or_else(|| "builtin".into());
+                    checkpoint::restore(&resources, options, &resource_uid, &plugin_uid)
+                };
+                let retained = history
+                    .routes
+                    .get(&resource_uid)
+                    .or_else(|| restored.as_ref().map(|a| &a.spec));
+                let counts = namespace_counts.entry(ns.clone()).or_default();
+                let references: Vec<_> = spec
+                    .default_backend
+                    .iter()
+                    .chain(
+                        spec.rules
+                            .iter()
+                            .flatten()
+                            .flat_map(|r| r.http.iter())
+                            .flat_map(|h| &h.paths)
+                            .map(|p| &p.backend),
+                    )
+                    .collect();
+                let retained_references: Vec<_> = retained
+                    .into_iter()
+                    .flat_map(|s| {
+                        s.default_backend.iter().chain(
+                            s.rules
+                                .iter()
+                                .flatten()
+                                .flat_map(|r| r.http.iter())
+                                .flat_map(|h| &h.paths)
+                                .map(|p| &p.backend),
+                        )
+                    })
+                    .collect();
+                let route_count = references.len().max(retained_references.len());
+                let mut backends = counts.2.clone();
+                for service in retained_references
+                    .iter()
+                    .filter_map(|b| b.service.as_ref())
+                {
+                    backends.insert(backend_alias(service));
+                }
+                for service in references.iter().filter_map(|b| b.service.as_ref()) {
+                    backends.insert(backend_alias(service));
+                }
+                let policy_values = policy::annotations(ingress.annotations());
+                for policy_values in std::iter::once(&policy_values).chain(
+                    history
+                        .accepted
+                        .get(&resource_uid)
+                        .or(restored.as_ref())
+                        .map(|a| &a.policy),
+                ) {
+                    if let Some(traffic) = policy_values
+                        .get("rgnix.io/traffic-policy")
+                        .and_then(|v| crate::rollout::Policy::parse(v).ok())
+                    {
+                        for service in traffic.services() {
+                            backends.insert(service.into());
+                        }
+                    }
+                    if let Some(auth) = policy_values
+                        .get("rgnix.io/auth-service")
+                        .and_then(|v| policy::auth_service(v).ok())
+                    {
+                        backends.insert(backend_alias(&auth.0));
+                    }
+                }
+                let script = ingress
+                    .annotations()
+                    .get("rgnix.io/script")
+                    .and_then(|v| v.split_once('/'))
+                    .and_then(|(name, key)| {
+                        resources
+                            .maps
+                            .iter()
+                            .find(|m| m.namespace().as_deref() == Some(&ns) && m.name_any() == name)
+                            .and_then(|m| m.data.as_ref()?.get(key))
+                    });
+                if counts.0 >= quota.max_ingresses
+                    || counts.1 + route_count > quota.max_routes
+                    || backends.len() > quota.max_backends
+                    || (ingress.annotations().contains_key("rgnix.io/script")
+                        && !quota.allow_scripts)
+                    || script.is_some_and(|s| s.len() > quota.max_script_bytes)
+                {
+                    diagnostics.push(Diagnostic {
+                        ingress: ingress.clone(),
+                        reason: "NamespaceQuota",
+                        message: "namespace ingress/route/backend/script ceiling exceeded".into(),
+                    });
+                    continue;
+                }
+                counts.0 += 1;
+                counts.1 += route_count;
+                counts.2 = backends;
+            }
             let uid = ingress
                 .uid()
                 .unwrap_or_else(|| format!("{ns}/{}", ingress.name_any()));
             uids.insert(uid.clone());
             let mut invalid = false;
             let mut reuse_routes = false;
-            let script = if let Some(reference) = ingress.annotations().get("rgnix.io/script") {
-                let script_source = reference.split_once('/').and_then(|(name, key)| {
-                    resources
-                        .maps
-                        .iter()
-                        .find(|m| m.namespace().as_deref() == Some(&ns) && m.name_any() == name)
-                        .and_then(|m| {
-                            Some((m.data.as_ref()?.get(key)?, m.uid().unwrap_or_default()))
-                        })
+            let policy_values = policy::annotations(ingress.annotations());
+            let route_policy = policy::parse(&policy_values).and_then(|(mut settings, _, _)| {
+                if let Some(value) = policy_values.get("rgnix.io/traffic-policy") {
+                    let traffic = crate::rollout::Policy::parse(value)?;
+                    anyhow::ensure!(
+                        traffic
+                            .metric_gates
+                            .iter()
+                            .all(|name| control_policy.metrics.gates.contains_key(name)),
+                        "traffic policy references an unconfigured metric gate"
+                    );
+                }
+
+                policy::apply_resources(&mut settings, &policy_values, &resources, &ns)?;
+                Ok(settings.body_policy)
+            });
+            let reference = ingress
+                .annotations()
+                .get("rgnix.io/script")
+                .cloned()
+                .or_else(|| {
+                    (!policy_values.is_empty() || history.accepted.contains_key(&uid))
+                        .then(String::new)
                 });
+            let script = if let Some(reference) = reference {
+                let script_source = if reference.is_empty() {
+                    Some((policy::PASS.to_owned(), "builtin".to_owned()))
+                } else {
+                    reference.split_once('/').and_then(|(name, key)| {
+                        resources
+                            .maps
+                            .iter()
+                            .find(|m| m.namespace().as_deref() == Some(&ns) && m.name_any() == name)
+                            .and_then(|m| {
+                                Some((
+                                    m.data.as_ref()?.get(key)?.clone(),
+                                    m.uid().unwrap_or_default(),
+                                ))
+                            })
+                    })
+                };
                 if let Some((source, plugin_uid)) = script_source {
                     if history
                         .accepted
@@ -315,7 +574,11 @@ fn build(
                         history.routes.insert(uid.clone(), accepted.spec.clone());
                         history.accepted.insert(uid.clone(), accepted.clone());
                     }
-                    match shared.compiler.from_bytes(source.as_bytes(), false) {
+                    match route_policy
+                        .as_ref()
+                        .map_err(|e| anyhow::anyhow!("{e:#}"))
+                        .and_then(|_| shared.compiler.from_bytes(source.as_bytes(), false))
+                    {
                         Ok(script) => {
                             let candidate = checkpoint::Accepted {
                                 schema: 1,
@@ -327,10 +590,12 @@ fn build(
                                 plugin_uid,
                                 source: source.clone(),
                                 spec: spec.clone(),
+                                body_policy: *route_policy.as_ref().unwrap(),
+                                policy: policy_values.clone(),
                             };
                             // Publication follows the checkpoint watch acknowledgement. A version
                             // that served traffic is therefore available to replacement replicas.
-                            if durable.as_ref() == Some(&candidate) {
+                            if preview || durable.as_ref() == Some(&candidate) {
                                 history.scripts.insert(uid.clone(), script.clone());
                                 history.accepted.insert(uid.clone(), candidate);
                                 history.proposals.remove(&uid);
@@ -357,7 +622,9 @@ fn build(
                         }
                         Err(e) => {
                             history.proposals.remove(&uid);
-                            shared.telemetry.reload_errors.inc();
+                            if !preview {
+                                shared.telemetry.reload_errors.inc();
+                            }
                             diagnostics.push(Diagnostic {
                                 ingress: ingress.clone(),
                                 reason: "InvalidPlugin",
@@ -401,6 +668,56 @@ fn build(
                 history.revoked.insert(uid.clone());
                 None
             };
+            let script = script.filter(|_| {
+                history
+                    .accepted
+                    .get(&uid)
+                    .is_none_or(|a| !a.reference.is_empty())
+            });
+            let effective_policy = history
+                .accepted
+                .get(&uid)
+                .map(|a| &a.policy)
+                .unwrap_or(&policy_values);
+            let (mut settings, backend_options, backend_tls) =
+                policy::parse(effective_policy).unwrap_or_default();
+            if let Some(accepted) = history.accepted.get(&uid) {
+                settings.body_policy = accepted.body_policy;
+            }
+            if let Err(error) =
+                policy::apply_resources(&mut settings, effective_policy, &resources, &ns)
+            {
+                invalid = true;
+                diagnostics.push(Diagnostic {
+                    ingress: ingress.clone(),
+                    reason: "UnavailablePolicyResource",
+                    message: format!("route disabled: {error:#}"),
+                });
+            }
+            if let Some(quota) = quota {
+                quota.constrain(&mut settings);
+                if history.accepted.get(&uid).is_some_and(|a| {
+                    a.source.len() > quota.max_script_bytes
+                        || (!a.reference.is_empty() && !quota.allow_scripts)
+                }) {
+                    invalid = true;
+                    diagnostics.push(Diagnostic {
+                        ingress: ingress.clone(),
+                        reason: "NamespaceQuota",
+                        message: "retained plugin exceeds administrator ceiling".into(),
+                    });
+                }
+            }
+            let tenant = quota.map(|q| shared.tenants.tenant(&ns, q));
+            settings.identity.trusted = options.identity_policy.trusted.clone();
+            settings.identity.header = options.identity_policy.header.clone();
+            settings.identity.recursive = options.identity_policy.recursive;
+            settings.request_headers = vec![
+                ("Host".into(), "$host".into()),
+                ("X-Forwarded-For".into(), "$remote_addr".into()),
+                ("X-Forwarded-Proto".into(), "$scheme".into()),
+                ("X-Real-IP".into(), "$remote_addr".into()),
+            ];
             let routing = if reuse_routes {
                 history
                     .routes
@@ -410,6 +727,21 @@ fn build(
             } else {
                 spec.clone()
             };
+            let mut domain_spec = routing.clone();
+            domain_spec.tls = spec.tls.clone();
+            if let Err(error) = crate::tenancy::domains::claim(
+                &ns,
+                &domain_spec,
+                tenant_policy.and_then(|p| p.domains.as_ref()),
+                &mut domain_owners,
+            ) {
+                diagnostics.push(Diagnostic {
+                    ingress: ingress.clone(),
+                    reason: "DomainDenied",
+                    message: error.to_string(),
+                });
+                continue;
+            }
             if invalid {
                 history.routes.remove(&uid);
             } else {
@@ -434,12 +766,40 @@ fn build(
                     }
                 }
             }
+            let traffic_policy = effective_policy
+                .get("rgnix.io/traffic-policy")
+                .map(|v| crate::rollout::Policy::parse(v))
+                .transpose()?;
+            if let Some(traffic) = &traffic_policy {
+                if traffic.mirror.is_some() && quota.is_some_and(|q| !q.allow_mirroring) {
+                    invalid = true;
+                    diagnostics.push(Diagnostic {
+                        ingress: ingress.clone(),
+                        reason: "NamespaceQuota",
+                        message: "administrator policy forbids mirroring".into(),
+                    });
+                }
+                for service in traffic.services() {
+                    declared.push(policy::auth_service(&format!("{service}/"))?.0);
+                }
+            }
             let mut allowed = BTreeMap::new();
             for service in &declared {
                 let alias = backend_alias(service);
-                let key = format!("{ns}/{alias}");
+                let key = if effective_policy.is_empty() {
+                    format!("{ns}/{alias}")
+                } else {
+                    format!("{ns}/{}/{}", ingress.name_any(), alias)
+                };
                 let (backend, warning) = resolved.entry(key.clone()).or_insert_with(|| {
-                    let (backend, warning) = resolve_backend(&resources, &ns, service);
+                    let (mut backend, warning) = resolve_backend(&resources, &ns, service);
+                    backend.tls = backend_tls;
+                    backend.options = backend_options.clone();
+                    if let Some(name) = &settings.upstream.server_name {
+                        backend.hostname = name.clone();
+                    }
+                    backend.ca_pem = settings.upstream.ca_pem.clone();
+                    backend.profile = settings.upstream.clone();
                     (Arc::new(backend), warning)
                 });
                 if let Some(message) = warning {
@@ -452,15 +812,44 @@ fn build(
                 snapshot.backends.insert(key.clone(), backend.clone());
                 allowed.insert(alias, key);
             }
-            let settings = Settings {
-                request_headers: vec![
-                    ("Host".into(), "$host".into()),
-                    ("X-Forwarded-For".into(), "$remote_addr".into()),
-                    ("X-Forwarded-Proto".into(), "$scheme".into()),
-                    ("X-Real-IP".into(), "$remote_addr".into()),
-                ],
-                ..Settings::default()
-            };
+            let rollout = traffic_policy.map(|policy| {
+                shared.rollouts.get(
+                    &format!("{ns}/{}", ingress.name_any()),
+                    &uid,
+                    policy,
+                    allowed.clone(),
+                )
+            });
+            if let Some(rollout) = &rollout
+                && let Err(error) = rollout.sync_progress(
+                    ingress
+                        .annotations()
+                        .get(release::PROGRESS)
+                        .map(String::as_str),
+                )
+            {
+                diagnostics.push(Diagnostic {
+                    ingress: ingress.clone(),
+                    reason: "InvalidRolloutProgress",
+                    message: error.to_string(),
+                });
+            }
+            if let Some(rollout) = &rollout
+                && ingress
+                    .annotations()
+                    .get("rgnix.io/rolled-back-revision")
+                    .is_some_and(|r| r == &rollout.policy.revision)
+            {
+                rollout.force_rollback();
+                diagnostics.push(Diagnostic {
+                    ingress: ingress.clone(),
+                    reason: "TrafficRolledBack",
+                    message: format!(
+                        "traffic revision {} uses its fallback backend",
+                        rollout.policy.revision
+                    ),
+                });
+            }
             let mut route_specs = vec![];
             if let Some(backend) = &routing.default_backend {
                 route_specs.push((
@@ -518,6 +907,8 @@ fn build(
                             matcher.path()
                         }
                     ),
+                    tenant: tenant.clone(),
+                    rollout: rollout.clone(),
                     matcher: matcher.clone(),
                     action,
                     settings: settings.clone(),
@@ -584,7 +975,13 @@ fn build(
                     .and_then(|s| s.data.as_ref())
                     .and_then(|data| Some((&data.get("tls.crt")?.0, &data.get("tls.key")?.0)))
                     .context("TLS Secret or key missing")
-                    .and_then(|(cert, key)| Certificate::parse(cert, key));
+                    .and_then(|(cert, key)| {
+                        let certificate = Certificate::parse(cert, key)?;
+                        for (_, name) in &claims {
+                            certificate.validate_name(name)?;
+                        }
+                        Ok(certificate)
+                    });
                 let certificate = match cert {
                     Ok(cert) => Some(Arc::new(cert)),
                     Err(e) => {
@@ -603,10 +1000,14 @@ fn build(
                         ingress: true,
                         default: false,
                         certificate: certificate.clone(),
+                        client_auth: settings.security.mtls.clone(),
                     });
                 }
             }
         }
+        shared
+            .tenants
+            .retain(&namespace_counts.keys().cloned().collect());
         history.scripts.retain(|uid, _| uids.contains(uid));
         history.routes.retain(|uid, _| uids.contains(uid));
         history.accepted.retain(|uid, _| uids.contains(uid));

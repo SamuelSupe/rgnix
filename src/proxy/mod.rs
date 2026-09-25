@@ -1,3 +1,6 @@
+mod body;
+mod mirror;
+pub(crate) mod planning;
 mod responses;
 mod static_files;
 use crate::{
@@ -39,6 +42,19 @@ pub struct Context {
     request_permit: Option<tokio::sync::OwnedSemaphorePermit>,
     plugin_permit: Option<tokio::sync::OwnedSemaphorePermit>,
     upstream_address: Option<SocketAddr>,
+    upstream_lease: Option<crate::backend::Lease>,
+    original_peer: String,
+    scheme: String,
+    claims: BTreeMap<String, String>,
+    traffic_permit: Option<crate::traffic::Permit>,
+    pre_auth_permit: Option<crate::traffic::Permit>,
+    grpc_status: Option<u16>,
+    tenant_request: Option<crate::tenancy::Permit>,
+    tenant_plugin: Option<crate::tenancy::Permit>,
+    trace: Option<crate::otlp::trace::Trace>,
+    affinity_cookie: Option<String>,
+    rollout_stage: usize,
+    mirror: Option<mirror::MirrorRequest>,
 }
 fn error(status: u16, message: impl Into<String>) -> Box<pingora::Error> {
     pingora::Error::explain(pingora::ErrorType::HTTPStatus(status), message.into())
@@ -108,9 +124,39 @@ impl ProxyHttp for Proxy {
             request_permit: None,
             plugin_permit: None,
             upstream_address: None,
+            upstream_lease: None,
+            original_peer: String::new(),
+            scheme: if self.tls { "https" } else { "http" }.into(),
+            claims: BTreeMap::new(),
+            traffic_permit: None,
+            pre_auth_permit: None,
+            grpc_status: None,
+            tenant_request: None,
+            tenant_plugin: None,
+            trace: None,
+            affinity_cookie: None,
+            rollout_stage: 0,
+            mirror: None,
         }
     }
     async fn request_filter(&self, session: &mut Session, ctx: &mut Context) -> Result<bool> {
+        ctx.trace = crate::otlp::trace::Trace::new(
+            &session.req_header().headers,
+            self.shared.telemetry.trace_ratio,
+        );
+        ctx.snapshot = Some(self.shared.snapshot.load_full());
+        ctx.original_uri = session
+            .req_header()
+            .uri
+            .path_and_query()
+            .map_or("/", |p| p.as_str())
+            .to_string();
+        ctx.request.method = session.req_header().method.to_string();
+        ctx.request.remote_addr = session
+            .client_addr()
+            .and_then(|a| a.as_inet())
+            .map(|a| a.ip().to_string())
+            .unwrap_or_default();
         ctx.request_permit = Some(self.shared.requests.clone().try_acquire_owned().map_err(
             |_| {
                 self.shared
@@ -121,8 +167,7 @@ impl ProxyHttp for Proxy {
                 error(503, "in-flight request budget exhausted")
             },
         )?);
-        let snapshot = self.shared.snapshot.load_full();
-        ctx.snapshot = Some(snapshot.clone());
+        let snapshot = ctx.snapshot.as_ref().unwrap().clone();
         let request = session.req_header();
         if request
             .headers
@@ -155,6 +200,7 @@ impl ProxyHttp for Proxy {
             .unwrap_or("/")
             .to_string();
         ctx.request = RequestData {
+            claims: BTreeMap::new(),
             method: request.method.to_string(),
             path: path.clone(),
             query: request.uri.query().unwrap_or("").to_string(),
@@ -165,6 +211,7 @@ impl ProxyHttp for Proxy {
                 .map(|a| a.ip().to_string())
                 .unwrap_or_default(),
             headers: header_map(&request.headers),
+            body: None,
         };
         let Some(mut route) = snapshot.route(self.listener, &host, &path) else {
             return self
@@ -183,6 +230,137 @@ impl ProxyHttp for Proxy {
             }
         }
         ctx.route = Some(route.clone());
+        ctx.original_peer = ctx.request.remote_addr.clone();
+        if let Ok(peer) = ctx.original_peer.parse() {
+            let policy = &route.settings.identity;
+            let proxy = session
+                .digest()
+                .and_then(|d| d.socket_digest.as_ref())
+                .and_then(|d| d.proxy_protocol_addr.get())
+                .and_then(|a| *a)
+                .map(|a| a.ip());
+            let client = policy.resolve(peer, &session.req_header().headers, proxy);
+            ctx.request.remote_addr = client.to_string();
+            ctx.scheme = policy
+                .scheme(peer, &session.req_header().headers, self.tls)
+                .into();
+            if !policy.allows(client) {
+                return Err(error(403, "client address denied"));
+            }
+        }
+        if ctx.scheme != "https"
+            && let Some(port) = route.settings.https_redirect_port
+        {
+            let location = https_redirect(&ctx.request.host, &ctx.original_uri, port);
+            return self
+                .reply(session, ctx, 308, String::new(), Some(location))
+                .await;
+        }
+        let client_certificate = session
+            .digest()
+            .and_then(|d| d.ssl_digest.as_ref())
+            .and_then(|d| d.extension.get::<crate::security::mtls::Peer>());
+        if !route.settings.security.mtls.authorize(client_certificate) {
+            return Err(error(
+                403,
+                "client certificate required or no longer trusted",
+            ));
+        }
+        if let Some(tenant) = &route.tenant {
+            ctx.tenant_request = Some(tenant.acquire(crate::tenancy::Resource::Request).map_err(
+                |s| {
+                    self.shared
+                        .telemetry
+                        .tenant_rejected
+                        .with_label_values(&[tenant.name.as_str(), "request"])
+                        .inc();
+                    error(s, "namespace request quota exhausted")
+                },
+            )?);
+            tenant.rate(&ctx.request).map_err(|s| {
+                self.shared
+                    .telemetry
+                    .tenant_rejected
+                    .with_label_values(&[tenant.name.as_str(), "rate"])
+                    .inc();
+                error(s, "namespace rate quota exhausted")
+            })?;
+        }
+        let traffic = route
+            .tenant
+            .as_ref()
+            .map_or(&self.shared.traffic, |t| &t.traffic);
+        ctx.pre_auth_permit = traffic
+            .acquire(
+                &route.id,
+                &route.settings.traffic.phase(true),
+                &ctx.request,
+                &ctx.claims,
+            )
+            .map_err(|status| {
+                self.shared
+                    .telemetry
+                    .rejected
+                    .with_label_values(&[if status == 429 {
+                        "rate"
+                    } else {
+                        "route_concurrency"
+                    }])
+                    .inc();
+                error(status, "pre-authentication traffic budget exhausted")
+            })?;
+        if let Some(jwt) = &route.settings.security.jwt {
+            let mut tokens = session.req_header().headers.get_all("authorization").iter();
+            let token = tokens
+                .next()
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer "))
+                .filter(|_| tokens.next().is_none())
+                .ok_or_else(|| error(401, "bearer token required"))?;
+            ctx.claims = jwt
+                .verify(token)
+                .map_err(|_| error(401, "invalid bearer token"))?;
+            ctx.request.claims = ctx.claims.clone();
+        }
+        if let Some(auth) = &route.settings.security.external {
+            let _auth_budget = route
+                .tenant
+                .as_ref()
+                .map(|t| t.acquire(crate::tenancy::Resource::Auth))
+                .transpose()
+                .map_err(|s| error(s, "namespace authentication quota exhausted"))?;
+            for name in &auth.response_headers {
+                ctx.request.headers.remove(name);
+                ctx.edits.headers.insert(name.clone(), None);
+            }
+            let headers = auth
+                .authorize(&self.shared.auth_client, &ctx.request, &ctx.original_uri)
+                .await
+                .map_err(|status| error(status, "external authorization rejected"))?;
+            for (name, value) in headers {
+                ctx.request.headers.insert(name.clone(), value.clone());
+                ctx.edits.headers.insert(name, Some(value));
+            }
+        }
+        ctx.traffic_permit = traffic
+            .acquire(
+                &route.id,
+                &route.settings.traffic.phase(false),
+                &ctx.request,
+                &ctx.claims,
+            )
+            .map_err(|status| {
+                self.shared
+                    .telemetry
+                    .rejected
+                    .with_label_values(&[if status == 429 {
+                        "rate"
+                    } else {
+                        "route_concurrency"
+                    }])
+                    .inc();
+                error(status, "route traffic budget exhausted")
+            })?;
         let keepalive = route.settings.keepalive;
         let keepalive_seconds = keepalive
             .as_secs()
@@ -220,8 +398,15 @@ impl ProxyHttp for Proxy {
         {
             return Err(error(413, "request body too large"));
         }
+        ctx.rollout_stage = route.rollout.as_ref().map_or(0, |r| r.stage());
         let action = route.action.clone();
         if let Some(plugin) = &route.script {
+            ctx.tenant_plugin = route
+                .tenant
+                .as_ref()
+                .map(|t| t.acquire(crate::tenancy::Resource::Plugin))
+                .transpose()
+                .map_err(|s| error(s, "namespace plugin quota exhausted"))?;
             ctx.plugin_permit = Some(self.shared.plugins.clone().try_acquire_owned().map_err(
                 |_| {
                     self.shared
@@ -232,15 +417,20 @@ impl ProxyHttp for Proxy {
                     error(503, "plugin instance budget exhausted")
                 },
             )?);
+            let mut plugin_request = ctx.request.clone();
+            plugin_request.body =
+                body::inspect(session, route.settings.body_policy, route.settings.max_body).await?;
             self.shared.telemetry.plugin_calls.inc();
             let result = {
                 let _timer = self.shared.telemetry.plugin_duration.start_timer();
-                plugin.request(ctx.request.clone())
+                plugin.request(plugin_request)
             };
             match result {
                 Ok((execution, outcome)) => {
                     ctx.execution = Some(execution);
-                    ctx.edits = outcome.edits;
+                    ctx.edits.path = outcome.edits.path;
+                    ctx.edits.query = outcome.edits.query;
+                    ctx.edits.headers.extend(outcome.edits.headers);
                     match outcome.decision {
                         script::Decision::Pass => {}
                         script::Decision::Proxy(name) => {
@@ -262,12 +452,23 @@ impl ProxyHttp for Proxy {
                 }
             }
         }
-        if ctx.backend.is_some() {
+        if let Some(backend) = ctx.backend.take() {
+            ctx.backend = Some(
+                route
+                    .rollout
+                    .as_ref()
+                    .map_or_else(|| backend.clone(), |r| r.enforce(backend.clone())),
+            );
             return Ok(false);
         }
         match action {
             Action::Proxy { backend, uri } => {
-                ctx.backend = Some(backend);
+                ctx.backend = Some(
+                    route
+                        .rollout
+                        .as_ref()
+                        .map_or(backend, |r| r.select(&ctx.request)),
+                );
                 ctx.uri = uri;
                 Ok(false)
             }
@@ -293,17 +494,63 @@ impl ProxyHttp for Proxy {
         _session: &mut Session,
         ctx: &mut Context,
     ) -> Result<Box<HttpPeer>> {
+        if let Some(trace) = &mut ctx.trace {
+            trace.upstream_start = Some(crate::otlp::trace::now());
+        }
         let backend = ctx
             .snapshot
             .as_ref()
             .and_then(|s| ctx.backend.as_ref().and_then(|key| s.backends.get(key)))
             .ok_or_else(|| error(503, "backend unavailable"))?;
-        let address = backend
-            .select()
-            .ok_or_else(|| error(503, "no ready endpoints"))?;
+        let key = match &backend.options.balance {
+            crate::backend::Balance::Hash(key) => key.value(&ctx.request, &ctx.claims),
+            crate::backend::Balance::Sticky(name) => {
+                let existing = ctx.request.headers.get("cookie").and_then(|v| {
+                    v.split(';')
+                        .filter_map(|v| v.trim().split_once('='))
+                        .find(|(k, v)| {
+                            k == name && v.len() == 32 && v.bytes().all(|b| b.is_ascii_hexdigit())
+                        })
+                        .map(|(_, v)| v.to_owned())
+                });
+                existing.unwrap_or_else(|| {
+                    let value = format!("{:032x}", rand::random::<u128>());
+                    ctx.affinity_cookie = Some(format!(
+                        "{name}={value}; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax{}",
+                        if ctx.scheme == "https" {
+                            "; Secure"
+                        } else {
+                            ""
+                        }
+                    ));
+                    value
+                })
+            }
+            _ => String::new(),
+        };
+        let lease = backend
+            .select(&key)
+            .ok_or_else(|| error(503, "no ready endpoint or backend budget exhausted"))?;
+        let address = lease.address;
+        ctx.upstream_lease = Some(lease);
         ctx.upstream_address = Some(address);
         let settings = &ctx.route.as_ref().unwrap().settings;
-        let mut peer = HttpPeer::new(address, backend.tls, backend.hostname.clone());
+        let mut peer = HttpPeer::new(
+            address,
+            backend.tls,
+            settings
+                .upstream
+                .server_name
+                .clone()
+                .unwrap_or_else(|| backend.hostname.clone()),
+        );
+        let (max, min) = settings.upstream.protocol.versions();
+        peer.options.set_http_version(max, min);
+        peer.options.ca = settings.upstream.ca.clone();
+        peer.client_cert_key = settings.upstream.identity.clone();
+        // Pingora's reuse key omits the custom CA and ALPN policy. Keep pools
+        // separate so a CA withdrawal cannot reuse a previously trusted socket.
+        peer.group_key = settings.upstream.pool_key();
         peer.options.connection_timeout = Some(settings.connect_timeout);
         peer.options.read_timeout = Some(settings.read_timeout);
         peer.options.write_timeout = Some(settings.write_timeout);
@@ -314,46 +561,31 @@ impl ProxyHttp for Proxy {
     }
     async fn upstream_request_filter(
         &self,
-        _session: &mut Session,
+        session: &mut Session,
         request: &mut RequestHeader,
         ctx: &mut Context,
     ) -> Result<()> {
         let snapshot = ctx.snapshot.as_ref().unwrap();
         let backend = &snapshot.backends[ctx.backend.as_ref().unwrap()];
         let route = ctx.route.as_ref().unwrap();
-        let path = if let Some(path) = &ctx.edits.path {
-            encode_path(path)
-        } else if let Some(uri) = &ctx.uri {
-            let suffix = ctx
-                .request
-                .path
-                .strip_prefix(route.matcher.path())
-                .unwrap_or(&ctx.request.path);
-            format!("{uri}{}", encode_path(suffix))
-        } else if ctx.edits.query.is_some() {
-            ctx.original_uri
-                .split_once('?')
-                .map_or(ctx.original_uri.as_str(), |(path, _)| path)
-                .to_owned()
-        } else {
-            ctx.original_uri.clone()
-        };
-        let rewritten = ctx.edits.path.is_some() || ctx.uri.is_some() || ctx.edits.query.is_some();
-        let target = if rewritten {
-            let query = ctx.edits.query.as_deref().unwrap_or(&ctx.request.query);
-            if !query.is_empty() && !path.contains('?') {
-                format!("{path}?{query}")
-            } else {
-                path
-            }
-        } else {
-            path
-        };
+        let target = planning::outbound_uri(
+            &ctx.original_uri,
+            &ctx.request,
+            &ctx.edits,
+            &route.matcher,
+            ctx.uri.as_deref(),
+        );
         let target: http::Uri = target
             .parse()
             .map_err(|_| error(500, "invalid rewritten URI"))?;
         request.set_uri(target);
         strip_hop_headers(request);
+        if ctx.request.headers.get("te").is_some_and(|v| {
+            v.split(',')
+                .any(|v| v.trim().eq_ignore_ascii_case("trailers"))
+        }) {
+            request.insert_header("TE", "trailers")?;
+        }
         request.insert_header("Host", backend.host_header.as_str())?;
         for (name, value) in &route.settings.request_headers {
             let value = expand(value, ctx, self.tls, &backend.host_header);
@@ -370,6 +602,18 @@ impl ProxyHttp for Proxy {
                 request.remove_header(name);
             }
         }
+        if let Some(trace) = &ctx.trace
+            && trace.enabled
+        {
+            request.insert_header("traceparent", trace.header())?;
+            if request
+                .headers
+                .get("tracestate")
+                .is_some_and(|v| v.len() > 512)
+            {
+                request.remove_header("tracestate");
+            }
+        }
         // Upgrade headers are transport state and cannot be manufactured by a script.
         if ctx
             .request
@@ -380,13 +624,14 @@ impl ProxyHttp for Proxy {
             request.insert_header("Upgrade", "websocket")?;
             request.insert_header("Connection", "upgrade")?;
         }
+        self.prepare_mirror(session, request, ctx);
         Ok(())
     }
     async fn request_body_filter(
         &self,
         session: &mut Session,
         body: &mut Option<Bytes>,
-        _end: bool,
+        end: bool,
         ctx: &mut Context,
     ) -> Result<()> {
         // Pingora also delivers upgraded protocol frames through this hook.
@@ -403,15 +648,48 @@ impl ProxyHttp for Proxy {
         {
             return Err(error(413, "request body too large"));
         }
+        self.mirror_body(body, end, ctx);
         Ok(())
     }
     async fn response_filter(
         &self,
-        _session: &mut Session,
+        session: &mut Session,
         response: &mut ResponseHeader,
         ctx: &mut Context,
     ) -> Result<()> {
-        self.response_headers(response, ctx)
+        if let Some(value) = response.headers.get("grpc-status") {
+            ctx.grpc_status = Some(
+                value
+                    .to_str()
+                    .ok()
+                    .and_then(|v| v.parse::<u16>().ok())
+                    .filter(|v| *v <= 16)
+                    .unwrap_or(2),
+            );
+        }
+        self.response_headers(response, ctx)?;
+        if let Some(route) = &ctx.route {
+            crate::compression::prepare(session, response, &route.settings.compression);
+        }
+        Ok(())
+    }
+    async fn response_trailer_filter(
+        &self,
+        _session: &mut Session,
+        trailers: &mut http::HeaderMap,
+        ctx: &mut Context,
+    ) -> Result<Option<Bytes>> {
+        if let Some(value) = trailers.get("grpc-status") {
+            ctx.grpc_status = Some(
+                value
+                    .to_str()
+                    .ok()
+                    .and_then(|v| v.parse::<u16>().ok())
+                    .filter(|v| *v <= 16)
+                    .unwrap_or(2),
+            );
+        }
+        Ok(None)
     }
     async fn fail_to_proxy(
         &self,
@@ -441,6 +719,14 @@ impl ProxyHttp for Proxy {
         if code > 0 && session.response_written().is_none() {
             let mut response = ResponseHeader::build(code, None).unwrap();
             response.insert_header("Content-Length", "0").unwrap();
+            if code == 429 || code == 503 {
+                response.insert_header("Retry-After", "1").unwrap();
+            }
+            if code == 401 {
+                response
+                    .insert_header("WWW-Authenticate", "Bearer")
+                    .unwrap();
+            }
             if self.response_headers(&mut response, ctx).is_err() {
                 code = 500;
                 // Failed hooks must not be retried or leak their staged changes.
@@ -494,6 +780,56 @@ impl ProxyHttp for Proxy {
             .telemetry
             .duration
             .observe(ctx.started.elapsed().as_secs_f64());
+        let route_id = ctx.route.as_ref().map_or("_unmatched", |r| r.id.as_str());
+        let upstream_failed = e.is_some_and(|e| e.esource() == &pingora::ErrorSource::Upstream);
+        let grpc = ctx
+            .request
+            .headers
+            .get("content-type")
+            .is_some_and(|v| v.starts_with("application/grpc"));
+        let grpc_status = grpc.then(|| {
+            ctx.grpc_status.unwrap_or(match status {
+                401 => 16,
+                403 => 7,
+                429 | 502..=504 => 14,
+                _ => 2,
+            })
+        });
+        if let Some(rollout) = ctx.route.as_ref().and_then(|r| r.rollout.as_ref())
+            && let Some(backend) = &ctx.backend
+            && (e.is_none() || upstream_failed)
+            && rollout.completed(
+                backend,
+                upstream_failed || status >= 500 || grpc_status.is_some_and(|s| s != 0),
+                ctx.started.elapsed(),
+                ctx.rollout_stage,
+            )
+        {
+            self.shared.telemetry.rollbacks.inc();
+            log::warn!(
+                "traffic revision {} rolled back for {}",
+                rollout.policy.revision,
+                rollout.owner
+            );
+        }
+        self.shared.telemetry.completed(
+            route_id,
+            ctx.backend.as_deref(),
+            status,
+            ctx.started.elapsed().as_secs_f64(),
+            upstream_failed || status >= 500 || grpc_status.is_some_and(|s| s != 0),
+            grpc_status,
+        );
+        if let (Some(trace), Some(exporter)) = (&ctx.trace, &self.shared.telemetry.traces) {
+            trace.export(
+                exporter,
+                route_id,
+                &ctx.request.method,
+                (status, grpc_status),
+                ctx.backend.as_deref(),
+                upstream_failed,
+            );
+        }
         if let Some(e) = e {
             if e.esource() == &pingora::ErrorSource::Upstream {
                 self.shared.telemetry.upstream_errors.inc();
@@ -509,45 +845,73 @@ impl ProxyHttp for Proxy {
         if let Some(path) = ctx
             .route
             .as_ref()
-            .and_then(|r| r.settings.access_log.clone())
+            .map(|r| r.settings.access_log.clone())
+            .unwrap_or_else(|| {
+                ctx.snapshot
+                    .as_ref()
+                    .and_then(|s| s.default_access_log.clone())
+            })
         {
-            let escape = |s: &str| {
-                s.replace('\\', "\\\\")
-                    .replace('"', "\\\"")
-                    .replace(['\r', '\n'], " ")
-            };
-            self.shared.telemetry.access(
-                path,
-                format!(
-                    "{} - - [{}] \"{} {} {:?}\" {} {} \"{}\" \"{}\" route=\"{}\" backend=\"{}\" upstream=\"{}\" config=\"{}\"",
-                    ctx.request.remote_addr,
-                    chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
-                        .format("%d/%b/%Y:%H:%M:%S +0000"),
-                    ctx.request.method,
-                    escape(&ctx.original_uri),
-                    session.req_header().version,
+            if let Some(exporter) = &self.shared.telemetry.otlp {
+                exporter.access(crate::otlp::AccessRecord {
+                    trace: ctx.trace.as_ref(),
+                    method: &ctx.request.method,
+                    path: ctx.original_uri.split('?').next().unwrap_or("/"),
+                    host: &ctx.request.host,
+                    client: if ctx
+                        .route
+                        .as_ref()
+                        .is_none_or(|r| r.settings.log_policy.client)
+                    {
+                        &ctx.request.remote_addr
+                    } else {
+                        ""
+                    },
+                    protocol_version: match session.req_header().version {
+                        http::Version::HTTP_09 => "0.9",
+                        http::Version::HTTP_10 => "1.0",
+                        http::Version::HTTP_11 => "1.1",
+                        http::Version::HTTP_2 => "2",
+                        _ => "unknown",
+                    },
+                    tls: self.tls,
                     status,
-                    session.body_bytes_sent(),
-                    escape(
-                        ctx.request
-                            .headers
-                            .get("referer")
-                            .map(String::as_str)
-                            .unwrap_or("-")
-                    ),
-                    escape(
-                        ctx.request
-                            .headers
-                            .get("user-agent")
-                            .map(String::as_str)
-                            .unwrap_or("-")
-                    ),
-                    escape(&ctx.route.as_ref().map_or_else(|| "-".into(), |r| r.id.clone())),
-                    escape(ctx.backend.as_deref().unwrap_or("-")),
-                    ctx.upstream_address.map_or_else(|| "-".into(), |a| a.to_string()),
-                    ctx.snapshot.as_ref().map_or("-", |s| s.content_hash.as_str()),
-                ),
-            );
+                    response_bytes: session.body_bytes_sent(),
+                    duration: ctx.started.elapsed(),
+                    route: ctx.route.as_ref().map_or("-", |r| r.id.as_str()),
+                    backend: ctx.backend.as_deref(),
+                    upstream: ctx.upstream_address,
+                    config_hash: ctx
+                        .snapshot
+                        .as_ref()
+                        .map_or("-", |s| s.content_hash.as_str()),
+                    config_version: ctx.snapshot.as_ref().map_or(0, |s| s.version),
+                    error_source: e.map(|e| match e.esource() {
+                        pingora::ErrorSource::Upstream => "upstream",
+                        pingora::ErrorSource::Downstream => "downstream",
+                        _ => "internal",
+                    }),
+                });
+            }
+            let policy = ctx
+                .route
+                .as_ref()
+                .map(|r| r.settings.log_policy.clone())
+                .unwrap_or_default();
+            let line = policy.render(serde_json::json!({
+                "timestamp": chrono::DateTime::<chrono::Utc>::from(SystemTime::now()).format("%d/%b/%Y:%H:%M:%S +0000").to_string(),
+                "client":ctx.request.remote_addr,"method":ctx.request.method,"uri":ctx.original_uri,
+                "protocol":format!("{:?}",session.req_header().version),"status":status,"bytes":session.body_bytes_sent(),
+                "referer":ctx.request.headers.get("referer").map_or("-",String::as_str),
+                "user_agent":ctx.request.headers.get("user-agent").map_or("-",String::as_str),
+                "route":route_id,"backend":ctx.backend.as_deref().unwrap_or("-"),
+                "upstream":ctx.upstream_address.map_or_else(||"-".into(),|a|a.to_string()),
+                "config":ctx.snapshot.as_ref().map_or("-",|s|s.content_hash.as_str()),
+                "trace_id":ctx.trace.as_ref().map_or_else(||"-".into(),|t|crate::otlp::trace::hex(&t.trace_id)),
+                "span_id":ctx.trace.as_ref().map_or_else(||"-".into(),|t|crate::otlp::trace::hex(&t.span_id)),
+                "grpc_status":grpc_status
+            }));
+            self.shared.telemetry.access(path, line);
         }
     }
 }
@@ -633,51 +997,33 @@ fn strip_hop_headers(request: &mut RequestHeader) {
         request.remove_header(key);
     }
 }
-fn expand(input: &str, ctx: &Context, tls: bool, proxy_host: &str) -> String {
-    let mut output = String::new();
-    let mut rest = input;
-    while let Some(i) = rest.find('$') {
-        output.push_str(&rest[..i]);
-        rest = &rest[i + 1..];
-        let end = rest
-            .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
-            .unwrap_or(rest.len());
-        let key = &rest[..end];
-        let value = match key {
-            "host" if ctx.request.host.is_empty() => ctx.server_name.clone(),
-            "host" => ctx.request.host.clone(),
-            "http_host" => ctx.request.headers.get("host").cloned().unwrap_or_default(),
-            "scheme" => if tls { "https" } else { "http" }.into(),
-            "request_uri" => ctx.original_uri.clone(),
-            "uri" => ctx.edits.path.as_ref().unwrap_or(&ctx.request.path).clone(),
-            "args" => ctx
-                .edits
-                .query
-                .as_ref()
-                .unwrap_or(&ctx.request.query)
-                .clone(),
-            "request_method" => ctx.request.method.clone(),
-            "remote_addr" => ctx.request.remote_addr.clone(),
-            "proxy_host" => proxy_host.into(),
-            "proxy_add_x_forwarded_for" => ctx
-                .request
-                .headers
-                .get("x-forwarded-for")
-                .map(|v| format!("{v}, {}", ctx.request.remote_addr))
-                .unwrap_or_else(|| ctx.request.remote_addr.clone()),
-            _ => key
-                .strip_prefix("http_")
-                .and_then(|s| {
-                    ctx.request
-                        .headers
-                        .get(&s.replace('_', "-").to_ascii_lowercase())
-                })
-                .cloned()
-                .unwrap_or_default(),
-        };
-        output.push_str(&value);
-        rest = &rest[end..];
+fn expand(input: &str, ctx: &Context, _tls: bool, proxy_host: &str) -> String {
+    planning::Variables {
+        request: &ctx.request,
+        edits: &ctx.edits,
+        original_uri: &ctx.original_uri,
+        original_peer: &ctx.original_peer,
+        scheme: &ctx.scheme,
+        server_name: &ctx.server_name,
     }
-    output.push_str(rest);
-    output
+    .expand(input, proxy_host)
+}
+
+pub(crate) fn https_redirect(host: &str, uri: &str, port: u16) -> String {
+    let host = if host.parse::<std::net::Ipv6Addr>().is_ok() {
+        format!("[{host}]")
+    } else {
+        host.to_owned()
+    };
+    let port = if port == 443 {
+        String::new()
+    } else {
+        format!(":{port}")
+    };
+    let path = uri
+        .parse::<http::Uri>()
+        .ok()
+        .and_then(|u| u.path_and_query().map(|p| p.as_str().to_owned()))
+        .unwrap_or_else(|| "/".into());
+    format!("https://{host}{port}{path}")
 }

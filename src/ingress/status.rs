@@ -70,13 +70,13 @@ struct EventKey {
     message: String,
 }
 
-struct Reporter {
+pub(super) struct Reporter {
     client: Client,
     options: Options,
     telemetry: Arc<Telemetry>,
 }
 impl Reporter {
-    fn new(client: Client, options: Options, telemetry: Arc<Telemetry>) -> Self {
+    pub(super) fn new(client: Client, options: Options, telemetry: Arc<Telemetry>) -> Self {
         Self {
             client,
             options,
@@ -148,7 +148,7 @@ impl Reporter {
             }
         }
     }
-    async fn leader(&self) -> Result<bool> {
+    pub(super) async fn leader(&self) -> Result<bool> {
         let api = Api::<Lease>::namespaced(self.client.clone(), &self.options.publish_namespace);
         let name = format!("{}-leader", self.options.class);
         let now = Utc::now();

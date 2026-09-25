@@ -237,13 +237,16 @@ def main():
         config.write_text(json.dumps({"apiVersion": "v1", "kind": "Config", "clusters": [{"name": "mock", "cluster": {"server": f"http://127.0.0.1:{api.server_port}"}}],
             "contexts": [{"name": "mock", "context": {"cluster": "mock", "user": "review"}}], "current-context": "mock", "users": [{"name": "review", "user": {}}]}))
         processes, logs = [], []
+        admin_token = os.urandom(32).hex()
+        (directory / "admin.token").write_text(admin_token)
 
         def start(name, ready=200):
             port, tls, admin = free_port(), free_port(), free_port()
             log = (directory / f"{name}.log").open("w")
             logs.append(log)
             process = subprocess.Popen([binary, "ingress", "--identity", name, "--publish-service", "system/publish",
-                "--http-listen", f"127.0.0.1:{port}", "--https-listen", f"127.0.0.1:{tls}", "--admin", f"127.0.0.1:{admin}"],
+                "--http-listen", f"127.0.0.1:{port}", "--https-listen", f"127.0.0.1:{tls}", "--admin", f"127.0.0.1:{admin}",
+                "--admin-token-file", str(directory / "admin.token")],
                 stdout=log, stderr=log, env={**os.environ, "KUBECONFIG": str(config)})
             processes.append(process)
             wait_for(lambda: request(admin, "/readyz")[0], ready)
@@ -434,7 +437,7 @@ def main():
                 wait_for(lambda: not any(ns == "system" for ns, _ in objects["configmaps"]))
 
             def tls_secret(serial):
-                certificate(directory, serial)
+                certificate(directory, serial, ("tls.example.test", "*.example.test"))
                 return {"type": "kubernetes.io/tls", "data": {
                     "tls.crt": base64.b64encode((directory / "cert.pem").read_bytes()).decode(),
                     "tls.key": base64.b64encode((directory / "key.pem").read_bytes()).decode()}}
@@ -460,11 +463,11 @@ def main():
             rival["spec"]["tls"] = [{"hosts": ["tls.example.test", "*.example.test"], "secretName": "secondary"}]
             publish("ingresses", "tls-rival", rival, namespace="other")
             wait_for(lambda: peer("tls.example.test"), primary_der)
-            wait_for(lambda: peer("other.example.test"), secondary_der)
-            check("earlier Ingress owns its TLS hostname", True)
+            wait_for(lambda: peer("other.example.test"), None)
+            check("earlier namespace owns its TLS hostname and rejects an overlapping wildcard claim", True)
             publish("secrets", "primary", primary, event="DELETED")
             wait_for(lambda: peer("tls.example.test"), None)
-            check("withdrawn TLS claim cannot fall back to duplicate or wildcard certificates", peer("other.example.test") == secondary_der)
+            check("withdrawn TLS claim cannot fall back to an unauthorized namespace certificate", peer("other.example.test") is None)
             invalid = copy.deepcopy(primary)
             invalid["data"]["tls.crt"] = base64.b64encode(b"invalid PEM").decode()
             before = metric(admin, "rgnix_config_version")
@@ -544,6 +547,86 @@ def main():
             publish("endpointslices", "owned-new", replacement_slice)
             wait_for(lambda: routed_port("owned.test"), alternate.server_port)
             check("manually managed slices without a Service owner remain supported", True)
+            publish("services", "body-canary", {"spec": {"ports": [{"name": "http", "port": 80, "targetPort": "http"}]}})
+            body_endpoints = copy.deepcopy(endpoints)
+            body_endpoints["metadata"] = {"labels": {"kubernetes.io/service-name": "body-canary"}}
+            body_endpoints["ports"][0]["port"] = alternate.server_port
+            body_endpoints["endpoints"][0]["conditions"]["ready"] = True
+            body_endpoints = publish("endpointslices", "body-canary", body_endpoints)
+            body_script = '''function on_request()
+if req.json_string("/tenant") == "vip" or req.body_contains("route=vip;") then return route.proxy("body-canary:http") end
+return route.pass() end'''
+            body_plugin = publish("configmaps", "body-routes", {"data": {"main.rgl": body_script}})
+            body_ingress = publish("ingresses", "body", {"metadata": {"annotations": {
+                "rgnix.io/script": "body-routes/main.rgl", "rgnix.io/request-body": "full 64k", "rgnix.io/request-body-timeout": "1s"}},
+                "spec": {"ingressClassName": "rgnix", "rules": [{"host": "body.test", "http": {"paths": [
+                    {"path": "/", "pathType": "Prefix", "backend": {"service": {"name": "app", "port": {"name": "http"}}}},
+                    {"path": "/canary", "pathType": "Prefix", "backend": {"service": {"name": "body-canary", "port": {"name": "http"}}}}]}}]}})
+            def body_route(port=first, data=b'{"tenant":"vip"}'):
+                status, _, response = request(port, "/", "POST", {"Host": "body.test"}, data)
+                if status != 200:
+                    return status
+                value = json.loads(response)
+                assert value["size"] == len(data) and value["sha256"] == hashlib.sha256(data).hexdigest()
+                return value["port"]
+            wait_for(body_route, alternate.server_port)
+            check("Ingress JSON body annotation routes to a declared Service and preserves bytes", True)
+            body_ingress["metadata"]["annotations"]["rgnix.io/request-body"] = "prefix 16"
+            publish("ingresses", "body", body_ingress)
+            large_body = b"route=vip;" + b"x" * 200000
+            wait_for(lambda: body_route(data=large_body), alternate.server_port)
+            check("annotation-only prefix update streams the full upload", True)
+            body_ingress["metadata"]["annotations"]["rgnix.io/request-body"] = "prefix 0"
+            before_errors = metric(admin, "rgnix_reload_errors_total")
+            publish("ingresses", "body", body_ingress)
+            wait_for(lambda: metric(admin, "rgnix_reload_errors_total") > before_errors)
+            check("invalid body policy retains the accepted policy and plugin", body_route(data=large_body) == alternate.server_port)
+            body_replica, _, _ = start("body-recovery")
+            check("fresh replica restores the body policy with its accepted plugin", body_route(body_replica, large_body) == alternate.server_port)
+            body_plugin["data"]["main.rgl"] = "broken plugin"
+            publish("configmaps", "body-routes", body_plugin)
+            body_endpoints["endpoints"][0]["conditions"]["ready"] = False
+            publish("endpointslices", "body-canary", body_endpoints)
+            wait_for(lambda: body_route(data=large_body), 503)
+            check("bad plugin and body policy cannot freeze endpoint withdrawal", True)
+            publish("ingresses", "body", body_ingress, event="DELETED")
+            wait_for(lambda: body_route(data=large_body), 404)
+            check("body-inspected Ingress deletion takes effect despite invalid updates", True)
+            publish("services", "policy-app", {"spec": {"ports": [{"name": "http", "port": 80, "targetPort": "http"}]}})
+            policy_slice = publish("endpointslices", "policy-app", {"metadata": {"labels": {"kubernetes.io/service-name": "policy-app"}},
+                "addressType": "IPv4", "ports": [{"name": "http", "port": upstream.server_port, "protocol": "TCP"}],
+                "endpoints": [{"addresses": ["127.0.0.1"], "conditions": {"ready": True}}]})
+            policy_ingress = publish("ingresses", "policy", {"metadata": {"annotations": {
+                "rgnix.io/client-max-body-size": "4m", "rgnix.io/proxy-read-timeout": "100ms", "rgnix.io/access-log": "off"}},
+                "spec": {"ingressClassName": "rgnix", "rules": [{"host": "policy.test", "http": {"paths": [
+                    {"path": "/", "pathType": "Prefix", "backend": {"service": {"name": "policy-app", "port": {"number": 80}}}}]}}]}})
+            wait_for(lambda: request(first, "/", headers={"Host": "policy.test"})[0], 200)
+            upload = b"x" * (2 * 1024 * 1024)
+            check("Ingress body size policy works without a routing plugin", request(first, "/", "POST", {"Host": "policy.test"}, upload)[0] == 200)
+            check("Ingress route timeout is configurable", request(first, "/slow", headers={"Host": "policy.test"})[0] == 504)
+            policy_ingress["metadata"]["annotations"]["rgnix.io/client-max-body-size"] = "invalid"
+            before_errors = metric(admin, "rgnix_reload_errors_total")
+            publish("ingresses", "policy", policy_ingress)
+            wait_for(lambda: metric(admin, "rgnix_reload_errors_total") > before_errors)
+            check("invalid policy without a plugin retains its accepted configuration", request(first, "/", "POST", {"Host": "policy.test"}, upload)[0] == 200)
+            policy_replica, _, _ = start("policy-recovery")
+            check("new replica restores a policy-only checkpoint", request(policy_replica, "/", "POST", {"Host": "policy.test"}, upload)[0] == 200)
+            policy_slice["endpoints"][0]["conditions"]["ready"] = False
+            publish("endpointslices", "policy-app", policy_slice)
+            wait_for(lambda: request(first, "/", headers={"Host": "policy.test"})[0], 503)
+            check("invalid policy cannot freeze live endpoint withdrawal", True)
+            publish("ingresses", "policy", policy_ingress, event="DELETED")
+            wait_for(lambda: request(first, "/", headers={"Host": "policy.test"})[0], 404)
+            check("deleting policy-only Ingress removes its route", True)
+            candidate = {"apiVersion":"networking.k8s.io/v1","kind":"Ingress","metadata":{"name":"preflight","namespace":"qa"},
+                "spec":{"ingressClassName":"rgnix","rules":[{"host":"preflight.test","http":{"paths":[{"path":"/","pathType":"Prefix","backend":backend("policy-app")}]}}]}}
+            auth = {"Authorization":"Bearer " + admin_token}
+            preview = request(admin, "/v1/validate-ingress", "POST", auth, json.dumps(candidate))
+            check("Ingress preflight warns about unavailable endpoints without publishing a candidate", preview[0] == 200 and json.loads(preview[2])["valid"] and request(first, "/", headers={"Host":"preflight.test"})[0] == 404)
+            before = metric(admin, "rgnix_config_version")
+            publish("ingressclasses", "rgnix", {"spec":{"controller":"other.example/controller"}}, namespace="")
+            wait_for(lambda: metric(admin, "rgnix_config_version") > before)
+            check("Ingress preflight rejects a class reassigned to another controller", request(admin, "/v1/validate-ingress", "POST", auth, json.dumps(candidate))[0] == 400)
         except BaseException:
             for path in directory.glob("*.log"):
                 print(path.name, path.read_text()[-7000:], file=sys.stderr)

@@ -1,0 +1,9 @@
+function on_request()
+    local tier = req.arg("tier")
+    if req.json_int("/priority", 0) >= 10 and req.json_bool("/enabled", false) then
+        if tier == "premium" then
+            return resp.reply(201, "priority request")
+        end
+    end
+    return route.pass()
+end

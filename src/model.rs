@@ -1,22 +1,15 @@
 use crate::script::CompiledScript;
-use anyhow::{Result, bail};
+use anyhow::Result;
 use sha2::{Digest, Sha256};
-use std::{
-    collections::BTreeMap,
-    net::SocketAddr,
-    path::PathBuf,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{Duration, Instant},
-};
+use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
 pub struct Listener {
     pub address: SocketAddr,
     pub tls: bool,
     pub http2: bool,
+    pub proxy_protocol: bool,
+    pub proxy_trusted: Vec<ipnet::IpNet>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -25,92 +18,7 @@ pub struct Endpoint {
     pub weight: u32,
 }
 
-#[derive(Debug)]
-pub struct Backend {
-    pub endpoints: Vec<Endpoint>,
-    pub tls: bool,
-    pub hostname: String,
-    pub host_header: String,
-    cursor: AtomicU64,
-    health: Mutex<Vec<EndpointHealth>>,
-}
-#[derive(Debug, Default)]
-struct EndpointHealth {
-    failures: usize,
-    blocked_until: Option<Instant>,
-}
-
-impl Backend {
-    pub fn new(endpoints: Vec<Endpoint>, tls: bool, hostname: String, host_header: String) -> Self {
-        let health = Mutex::new(
-            (0..endpoints.len())
-                .map(|_| EndpointHealth::default())
-                .collect(),
-        );
-        Self {
-            endpoints,
-            tls,
-            hostname,
-            host_header,
-            cursor: AtomicU64::new(0),
-            health,
-        }
-    }
-    pub fn select(&self) -> Option<SocketAddr> {
-        let now = Instant::now();
-        let mut health = self.health.lock().unwrap_or_else(|e| e.into_inner());
-        for state in health.iter_mut() {
-            if state.blocked_until.is_some_and(|until| until <= now) {
-                *state = EndpointHealth::default();
-            }
-        }
-        let eligible = || {
-            self.endpoints
-                .iter()
-                .zip(health.iter())
-                .filter(|(_, h)| h.blocked_until.is_none())
-                .map(|(e, _)| e)
-        };
-        let total: u64 = eligible().map(|e| u64::from(e.weight)).sum();
-        if total == 0 {
-            return None;
-        }
-        let mut n = self.cursor.fetch_add(1, Ordering::Relaxed) % total;
-        for e in eligible() {
-            if n < u64::from(e.weight) {
-                return Some(e.address);
-            }
-            n -= u64::from(e.weight);
-        }
-        None
-    }
-    pub fn record_result(
-        &self,
-        address: SocketAddr,
-        failed: bool,
-        max_fails: usize,
-        cooldown: Duration,
-    ) -> bool {
-        let Some(index) = self.endpoints.iter().position(|e| e.address == address) else {
-            return false;
-        };
-        let mut health = self.health.lock().unwrap_or_else(|e| e.into_inner());
-        let state = &mut health[index];
-        if !failed {
-            *state = EndpointHealth::default();
-            return false;
-        }
-        if max_fails == 0 {
-            return false;
-        }
-        state.failures = state.failures.saturating_add(1);
-        if state.failures >= max_fails && state.blocked_until.is_none() {
-            state.blocked_until = Some(Instant::now() + cooldown);
-            return true;
-        }
-        false
-    }
-}
+pub use crate::backend::Backend;
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum PathMatch {
@@ -178,11 +86,21 @@ pub struct Settings {
     pub request_headers: Vec<(String, String)>,
     pub response_headers: Vec<AddedHeader>,
     pub max_body: u64,
+    pub body_policy: crate::body::BodyPolicy,
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     pub write_timeout: Duration,
     pub keepalive: Duration,
     pub access_log: Option<PathBuf>,
+    pub log_policy: crate::logging::access::Policy,
+    pub identity: crate::identity::IdentityPolicy,
+    pub traffic: crate::traffic::Policy,
+    pub upstream: crate::upstream::Transport,
+    pub compression: crate::compression::Compression,
+    pub alias: Option<PathBuf>,
+    pub try_files: Vec<String>,
+    pub security: crate::security::Security,
+    pub https_redirect_port: Option<u16>,
 }
 
 impl Default for Settings {
@@ -199,17 +117,30 @@ impl Default for Settings {
             request_headers: vec![],
             response_headers: vec![],
             max_body: 1024 * 1024,
+            body_policy: crate::body::BodyPolicy::default(),
             connect_timeout: Duration::from_secs(60),
             read_timeout: Duration::from_secs(60),
             write_timeout: Duration::from_secs(60),
             keepalive: Duration::from_secs(75),
             access_log: Some(PathBuf::from("/dev/stdout")),
+            log_policy: Default::default(),
+            identity: Default::default(),
+            traffic: Default::default(),
+            upstream: Default::default(),
+            compression: Default::default(),
+            alias: None,
+            try_files: vec![],
+            security: Default::default(),
+            https_redirect_port: None,
         }
     }
 }
 
+#[derive(Clone)]
 pub struct Route {
     pub id: String,
+    pub tenant: Option<Arc<crate::tenancy::Tenant>>,
+    pub rollout: Option<Arc<crate::rollout::State>>,
     pub matcher: PathMatch,
     pub action: Action,
     pub settings: Settings,
@@ -217,6 +148,7 @@ pub struct Route {
     pub allowed_backends: BTreeMap<String, String>,
 }
 
+#[derive(Clone)]
 pub struct VirtualHost {
     pub listener: SocketAddr,
     pub names: Vec<String>,
@@ -231,21 +163,7 @@ pub struct Certificate {
     pub key: openssl::pkey::PKey<openssl::pkey::Private>,
 }
 
-impl Certificate {
-    pub fn parse(cert: &[u8], key: &[u8]) -> Result<Self> {
-        let mut chain = openssl::x509::X509::stack_from_pem(cert)?;
-        if chain.is_empty() {
-            bail!("empty certificate chain");
-        }
-        let leaf = chain.remove(0);
-        let key = openssl::pkey::PKey::private_key_from_pem(key)?;
-        if !leaf.public_key()?.public_eq(&key) {
-            bail!("certificate and private key do not match");
-        }
-        Ok(Self { leaf, chain, key })
-    }
-}
-
+#[derive(Clone)]
 pub struct TlsHost {
     pub listener: SocketAddr,
     pub name: String,
@@ -253,10 +171,13 @@ pub struct TlsHost {
     pub default: bool,
     // An unavailable certificate retains the SNI claim and prevents wildcard/default fallback.
     pub certificate: Option<Arc<Certificate>>,
+    pub client_auth: crate::security::mtls::Policy,
 }
 
+#[derive(Clone)]
 pub struct RuntimeSnapshot {
     pub version: u64,
+    pub source_bundle: Option<Arc<crate::config::bundle::Bundle>>,
     pub ready: bool,
     pub content_hash: String,
     routing: crate::routing::Index,
@@ -265,12 +186,15 @@ pub struct RuntimeSnapshot {
     pub backends: BTreeMap<String, Arc<Backend>>,
     pub certificates: Vec<TlsHost>,
     pub error_log: Option<Arc<crate::logging::ErrorOutput>>,
+    pub log_rotation: crate::logging::Rotation,
+    pub default_access_log: Option<PathBuf>,
 }
 
 impl RuntimeSnapshot {
     pub fn empty(listeners: Vec<Listener>) -> Self {
         Self {
             version: 0,
+            source_bundle: None,
             ready: true,
             content_hash: String::new(),
             routing: crate::routing::Index::default(),
@@ -279,9 +203,14 @@ impl RuntimeSnapshot {
             backends: BTreeMap::new(),
             certificates: vec![],
             error_log: None,
+            log_rotation: crate::logging::Rotation::default(),
+            default_access_log: Some("/dev/stdout".into()),
         }
     }
     pub fn fingerprint(&self) -> Result<String> {
+        if let Some(bundle) = &self.source_bundle {
+            return Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(bundle)?)));
+        }
         let certificates = self
             .certificates
             .iter()
@@ -297,7 +226,12 @@ impl RuntimeSnapshot {
                     None
                 };
                 Ok(serde_json::json!([
-                    c.listener, c.name, c.ingress, c.default, digest,
+                    c.listener,
+                    c.name,
+                    c.ingress,
+                    c.default,
+                    digest,
+                    c.client_auth,
                 ]))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -306,10 +240,13 @@ impl RuntimeSnapshot {
             "hosts": self.hosts.iter().map(|h| serde_json::json!([
                 h.listener, h.names, h.default, h.ingress,
                 h.routes.iter().map(|r| serde_json::json!([r.id, r.matcher, r.action, r.settings,
-                    r.script.as_ref().map(|s| &s.digest), r.allowed_backends])).collect::<Vec<_>>()
+                    r.script.as_ref().map(|s| &s.digest), r.allowed_backends,
+                    r.rollout.as_ref().map(|rollout|&rollout.policy), r.tenant.as_ref().map(|tenant|tenant.quota.load_full())])).collect::<Vec<_>>()
             ])).collect::<Vec<_>>(),
-            "backends": self.backends.iter().map(|(name, b)| serde_json::json!([name, b.endpoints, b.tls, b.hostname, b.host_header])).collect::<Vec<_>>(),
+            "backends": self.backends.iter().map(|(name, b)| serde_json::json!([name, b.endpoints, b.tls, b.hostname, b.host_header, b.options, b.origins, b.ca_pem])).collect::<Vec<_>>(),
             "certificates": certificates,
+            "log_rotation": self.log_rotation,
+            "default_access_log": self.default_access_log,
         });
         Ok(format!(
             "{:x}",
@@ -326,6 +263,10 @@ impl RuntimeSnapshot {
         self.routing.hostless_server_name(&self.hosts, listener)
     }
     pub fn certificate(&self, listener: SocketAddr, host: &str) -> Option<Arc<Certificate>> {
+        self.tls_host(listener, host)
+            .and_then(|c| c.certificate.clone())
+    }
+    pub fn tls_host(&self, listener: SocketAddr, host: &str) -> Option<&TlsHost> {
         self.certificates
             .iter()
             .rev()
@@ -336,7 +277,7 @@ impl RuntimeSnapshot {
                     .map(|rank| (rank, c))
             })
             .max_by_key(|(rank, _)| *rank)
-            .and_then(|(_, c)| c.certificate.clone())
+            .map(|(_, c)| c)
     }
 }
 

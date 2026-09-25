@@ -1,5 +1,6 @@
 mod budget;
 mod codegen;
+mod json;
 mod syntax;
 use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
@@ -33,12 +34,14 @@ pub struct CompiledScript {
 }
 #[derive(Clone, Debug, Default)]
 pub struct RequestData {
+    pub claims: BTreeMap<String, String>,
     pub method: String,
     pub path: String,
     pub query: String,
     pub host: String,
     pub remote_addr: String,
     pub headers: BTreeMap<String, String>,
+    pub body: Option<crate::body::BodyView>,
 }
 #[derive(Clone, Debug, Default)]
 pub struct Edits {
@@ -224,6 +227,12 @@ impl CompiledScript {
             + request.query.len()
             + request.host.len()
             + request.remote_addr.len()
+            + request.body.as_ref().map_or(0, |body| body.bytes.len())
+            + request
+                .claims
+                .iter()
+                .map(|(k, v)| k.len() + v.len() + 64)
+                .sum::<usize>()
             + request
                 .headers
                 .iter()
@@ -393,8 +402,157 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
         .to_owned();
         return caller.data_mut().put(text);
     }
+    if matches!(name, "str.hash" | "req.arg" | "req.cookie") {
+        let bytes = match name {
+            "str.hash" => caller.data().string(args[0])?.len(),
+            "req.arg" => caller
+                .data()
+                .outcome
+                .edits
+                .query
+                .as_ref()
+                .unwrap_or(&caller.data().request.query)
+                .len(),
+            _ => {
+                caller
+                    .data()
+                    .request
+                    .headers
+                    .get("cookie")
+                    .map_or(0, String::len)
+                    + caller
+                        .data()
+                        .outcome
+                        .edits
+                        .headers
+                        .get("cookie")
+                        .and_then(|v| v.as_ref())
+                        .map_or(0, String::len)
+            }
+        };
+        let cost = (bytes / 32) as u64;
+        let fuel = caller.get_fuel()?;
+        ensure!(fuel >= cost, "plugin parsing/hash fuel exhausted");
+        caller.set_fuel(fuel - cost)?;
+    }
+    if matches!(
+        name,
+        "req.body" | "req.body_contains" | "req.json_string" | "req.json_int" | "req.json_bool"
+    ) {
+        let bytes = caller
+            .data()
+            .request
+            .body
+            .as_ref()
+            .map_or(0, |body| body.bytes.len());
+        let passes = if name.starts_with("req.json_") {
+            let pointer = caller.data().string(args[0])?;
+            ensure!(
+                pointer.len() <= 1024 && pointer.bytes().filter(|b| *b == b'/').count() <= 32,
+                "JSON pointer exceeds 1024 bytes or 32 components"
+            );
+            1 + pointer.bytes().filter(|b| *b == b'/').count()
+        } else {
+            1
+        };
+        let cost = (bytes.saturating_mul(passes) / 32) as u64;
+        let fuel = caller.get_fuel()?;
+        ensure!(fuel >= cost, "plugin body inspection fuel exhausted");
+        caller.set_fuel(fuel - cost)?;
+    }
     let host = caller.data_mut();
     match name {
+        "req.body" => {
+            let value = host
+                .request
+                .body
+                .as_ref()
+                .and_then(|b| std::str::from_utf8(&b.bytes).ok())
+                .map(str::to_owned);
+            value.map_or(Ok(0), |v| host.put(v))
+        }
+        "req.body_len" => Ok(host.request.body.as_ref().map_or(0, |b| b.bytes.len()) as i64),
+        "req.body_complete" => Ok(i64::from(
+            host.request.body.as_ref().is_some_and(|b| b.complete),
+        )),
+        "req.body_truncated" => Ok(i64::from(
+            host.request.body.as_ref().is_some_and(|b| !b.complete),
+        )),
+        "req.body_contains" => {
+            let needle = host.string(args[0])?;
+            ensure!(needle.len() <= 8192, "body search pattern exceeds 8 KiB");
+            Ok(i64::from(host.request.body.as_ref().is_some_and(|b| {
+                memchr::memmem::find(&b.bytes, needle.as_bytes()).is_some()
+            })))
+        }
+        "req.json_string" | "req.json_int" | "req.json_bool" => {
+            let fallback = args.get(1).copied().unwrap_or(0);
+            let Some(body) = &host.request.body else {
+                return Ok(fallback);
+            };
+            if !body.complete {
+                return Ok(fallback);
+            }
+            let bytes = body.bytes.clone();
+            // Cover the decoder scratch space and current object key without retaining a DOM.
+            host.charge(bytes.len() * 2 + 1024)?;
+            let Some(value) = json::value_at(&bytes, host.string(args[0])?) else {
+                return Ok(fallback);
+            };
+            match name {
+                "req.json_int" => Ok(serde_json::from_str::<i64>(value.get()).unwrap_or(fallback)),
+                "req.json_bool" => Ok(serde_json::from_str::<bool>(value.get())
+                    .map(i64::from)
+                    .unwrap_or(fallback)),
+                _ => serde_json::from_str::<String>(value.get())
+                    .ok()
+                    .map_or(Ok(0), |v| host.put(v)),
+            }
+        }
+        "req.arg" | "req.cookie" => {
+            let key = host.string(args[0])?;
+            ensure!(
+                key.len() <= 256,
+                "argument or cookie name exceeds 256 bytes"
+            );
+            let value = if name == "req.arg" {
+                let query = host
+                    .outcome
+                    .edits
+                    .query
+                    .as_ref()
+                    .unwrap_or(&host.request.query);
+                url::form_urlencoded::parse(query.as_bytes())
+                    .find(|(k, _)| k == key)
+                    .map(|(_, v)| v.into_owned())
+            } else {
+                let cookie = host
+                    .outcome
+                    .edits
+                    .headers
+                    .get("cookie")
+                    .and_then(|v| v.as_deref())
+                    .or_else(|| {
+                        if host.outcome.edits.headers.contains_key("cookie") {
+                            None
+                        } else {
+                            host.request.headers.get("cookie").map(String::as_str)
+                        }
+                    });
+                cookie.and_then(|v| {
+                    v.split(';')
+                        .filter_map(|part| part.trim().split_once('='))
+                        .find(|(k, _)| *k == key)
+                        .map(|(_, v)| v.to_owned())
+                })
+            };
+            value.map_or(Ok(0), |v| host.put(v))
+        }
+        "str.hash" => {
+            let value = host.string(args[0])?;
+            let hash = Sha256::digest(value.as_bytes());
+            Ok((u64::from_be_bytes(hash[..8].try_into().unwrap()) & i64::MAX as u64) as i64)
+        }
         "req.method" => host.put(host.request.method.clone()),
         "req.path" => host.put(
             host.outcome
@@ -414,6 +572,11 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
         ),
         "req.host" => host.put(host.request.host.clone()),
         "req.remote_addr" => host.put(host.request.remote_addr.clone()),
+        "req.claim" => {
+            let key = host.string(args[0])?;
+            let value = host.request.claims.get(key).cloned();
+            value.map_or(Ok(0), |v| host.put(v))
+        }
         "req.header" | "resp.header" => {
             let key = host.string(args[0])?.to_ascii_lowercase();
             let value = if name == "req.header" {
@@ -544,6 +707,68 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn body_access_is_bounded_and_json_requires_complete_input() -> Result<()> {
+        use crate::body::BodyView;
+        use bytes::Bytes;
+        let compiler = Compiler::new()?;
+        let script = compiler.from_bytes(
+            br#"
+function on_request()
+    if req.json_string("/a~1b/~0key/1") == "vip" then return route.proxy("canary") end
+    if req.body_contains("marker") and req.body() == nil then return resp.reply(201, "binary") end
+    return route.pass()
+end"#,
+            false,
+        )?;
+        let input = br#"{"a/b":{"~key":["regular","vip"]}}"#;
+        let request = |bytes: &[u8], complete| RequestData {
+            body: Some(BodyView {
+                bytes: Bytes::copy_from_slice(bytes),
+                complete,
+            }),
+            ..RequestData::default()
+        };
+        assert!(matches!(
+            script.request(request(input, true))?.1.decision,
+            Decision::Proxy(_)
+        ));
+        assert!(matches!(
+            script.request(request(input, false))?.1.decision,
+            Decision::Pass
+        ));
+        assert!(matches!(
+            script.request(request(b"marker\xff", false))?.1.decision,
+            Decision::Reply(201, _)
+        ));
+        assert!(matches!(
+            script.request(RequestData::default())?.1.decision,
+            Decision::Pass
+        ));
+        for invalid in [
+            br#"{"a/b":{"~key":["regular","vip"]}}garbage"#.as_slice(),
+            br#"{"a/b":{"~key":["regular","vip"]},"a/b":null}"#,
+        ] {
+            assert!(matches!(
+                script.request(request(invalid, true))?.1.decision,
+                Decision::Pass
+            ));
+        }
+        let expensive = compiler.from_bytes(b"function on_request() while true do local match = req.body_contains(\"absent\") end end", false)?;
+        assert!(
+            expensive
+                .request(request(&vec![b'x'; crate::body::MAX_INSPECT_BYTES], false))
+                .is_err()
+        );
+        let allocations = compiler.from_bytes(br#"function on_request() while true do local field = req.json_string("/tenant") end end"#, false)?;
+        assert!(
+            allocations
+                .request(request(br#"{"tenant":"vip"}"#, true))
+                .is_err()
+        );
+        Ok(())
+    }
+
     #[test]
     fn compiled_functions_branches_and_response_hooks() -> Result<()> {
         let compiler = Compiler::new()?;

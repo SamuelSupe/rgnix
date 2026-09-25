@@ -142,6 +142,66 @@ pub const BUILTINS: &[Builtin] = &[
         args: &[String],
         result: String,
     },
+    Builtin {
+        name: "req.body",
+        args: &[],
+        result: String,
+    },
+    Builtin {
+        name: "req.body_len",
+        args: &[],
+        result: Int,
+    },
+    Builtin {
+        name: "req.body_complete",
+        args: &[],
+        result: Bool,
+    },
+    Builtin {
+        name: "req.body_truncated",
+        args: &[],
+        result: Bool,
+    },
+    Builtin {
+        name: "req.body_contains",
+        args: &[String],
+        result: Bool,
+    },
+    Builtin {
+        name: "req.json_string",
+        args: &[String],
+        result: String,
+    },
+    Builtin {
+        name: "req.json_int",
+        args: &[String, Int],
+        result: Int,
+    },
+    Builtin {
+        name: "req.json_bool",
+        args: &[String, Bool],
+        result: Bool,
+    },
+    Builtin {
+        name: "req.claim",
+        args: &[String],
+        result: String,
+    },
+    Builtin {
+        name: "req.arg",
+        args: &[String],
+        result: String,
+    },
+    Builtin {
+        name: "req.cookie",
+        args: &[String],
+        result: String,
+    },
+    Builtin {
+        name: "str.hash",
+        args: &[String],
+        result: Int,
+    },
 ];
 
 pub fn compile(source: &str) -> Result<Vec<u8>> {

@@ -9,11 +9,12 @@ metadata:
   name: {{ .Release.Namespace }}-{{ .Release.Name }}
 rules:
   - apiGroups: [networking.k8s.io]
-    resources: [ingresses, ingressclasses]
+    resources: [ingressclasses]
     verbs: [get, list, watch]
+  {{- if not .Values.watchNamespaces }}
   - apiGroups: [networking.k8s.io]
-    resources: [ingresses/status]
-    verbs: [patch]
+    resources: [ingresses, ingresses/status]
+    verbs: [get, list, watch, patch]
   - apiGroups: [""]
     resources: [services, secrets, configmaps]
     verbs: [get, list, watch]
@@ -23,6 +24,7 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create]
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -36,6 +38,41 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Release.Name }}
     namespace: {{ .Release.Namespace }}
+{{- range .Values.watchNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $.Release.Namespace }}-{{ $.Release.Name }}-watch
+  namespace: {{ . | quote }}
+rules:
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, ingresses/status]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [""]
+    resources: [services, secrets, configmaps]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Release.Namespace }}-{{ $.Release.Name }}-watch
+  namespace: {{ . | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $.Release.Namespace }}-{{ $.Release.Name }}-watch
+subjects:
+  - kind: ServiceAccount
+    name: {{ $.Release.Name }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -47,7 +84,10 @@ rules:
     verbs: [get, create, update]
   - apiGroups: [""]
     resources: [configmaps]
-    verbs: [get, list, create, update, delete]
+    verbs: [get, list, watch, create, update, delete]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -93,7 +133,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ .Release.Name }}
-      terminationGracePeriodSeconds: 40
+      terminationGracePeriodSeconds: 60
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -114,23 +154,99 @@ spec:
           args:
             - ingress
             - --ingress-class={{ .Values.ingressClass }}
+            {{- range .Values.watchNamespaces }}
+            - --watch-namespace={{ . }}
+            {{- end }}
             - --publish-service={{ .Release.Namespace }}/{{ .Release.Name }}
+            {{- if .Values.rolloutMetrics.secret.name }}
+            - --rollout-metrics-file=/etc/rgnix/release-metrics/metrics.json
+            {{- end }}
+            {{- if .Values.admission.enabled }}
+            - --admission-listen=0.0.0.0:9443
+            - --admission-tls-cert=/etc/rgnix/admission/tls.crt
+            - --admission-tls-key=/etc/rgnix/admission/tls.key
+            - --admission-controller-user=system:serviceaccount:{{ .Release.Namespace }}:{{ .Release.Name }}
+            {{- end }}
             - --threads={{ .Values.threads }}
             - --max-inflight={{ .Values.maxInflight }}
             - --max-plugin-instances={{ .Values.maxPluginInstances }}
             - --upstream-max-fails={{ .Values.upstreamMaxFails }}
             - --upstream-fail-timeout-secs={{ .Values.upstreamFailTimeoutSeconds }}
+            - --real-ip-header={{ .Values.forwarding.header }}
+            {{- range .Values.forwarding.trustedProxies }}
+            - --trusted-proxy={{ . }}
+            {{- end }}
+            {{- if .Values.forwarding.recursive }}
+            - --real-ip-recursive
+            {{- end }}
+            {{- if .Values.forwarding.proxyProtocol }}
+            - --proxy-protocol
+            {{- end }}
+            {{- if .Values.admin.usersSecret.name }}
+            - --admin-users-file=/etc/rgnix/admin-users/users.json
+            {{- end }}
+            {{- if .Values.admin.tokenSecret.name }}
+            - --admin-token-file=/etc/rgnix/admin/token
+            {{- end }}
+            {{- if .Values.admin.readTokenSecret.name }}
+            - --admin-read-token-file=/etc/rgnix/admin-read/token
+            {{- end }}
+            {{- if .Values.tenancy.policyConfigMap.name }}
+            - --tenant-policy-file=/etc/rgnix/tenancy/policy.json
+            {{- end }}
           env:
             - name: POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            {{- if or .Values.otlpLogs.endpoint .Values.otlpTraces.endpoint }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.otlpLogs.serviceName | quote }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ printf "k8s.namespace.name=%s,k8s.pod.name=$(POD_NAME)%s" .Release.Namespace (ternary (printf ",%s" .Values.otlpLogs.resourceAttributes) "" (ne .Values.otlpLogs.resourceAttributes "")) | quote }}
+            {{- end }}
+            {{- if .Values.otlpLogs.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: {{ .Values.otlpLogs.endpoint | quote }}
+            {{- if .Values.otlpLogs.headersSecret.name }}
+            - name: OTEL_EXPORTER_OTLP_LOGS_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.otlpLogs.headersSecret.name | quote }}
+                  key: {{ .Values.otlpLogs.headersSecret.key | quote }}
+            {{- end }}
+            {{- if .Values.otlpLogs.caConfigMap.name }}
+            - name: OTEL_EXPORTER_OTLP_LOGS_CERTIFICATE
+              value: /etc/rgnix/otlp-ca/ca.crt
+            {{- end }}
+            {{- end }}
+            {{- if .Values.otlpTraces.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.otlpTraces.endpoint | quote }}
+            - name: RGNIX_TRACE_SAMPLE_RATIO
+              value: {{ .Values.otlpTraces.sampleRatio | quote }}
+            {{- if .Values.otlpTraces.headersSecret.name }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.otlpTraces.headersSecret.name | quote }}
+                  key: {{ .Values.otlpTraces.headersSecret.key | quote }}
+            {{- end }}
+            {{- if .Values.otlpTraces.caConfigMap.name }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE
+              value: /etc/rgnix/trace-ca/ca.crt
+            {{- end }}
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
           ports:
+            {{- if .Values.admission.enabled }}
+            - name: admission
+              containerPort: 9443
+            {{- end }}
             - name: http
               containerPort: 8080
             - name: https
@@ -159,6 +275,113 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sleep", "5"]
+          {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name }}
+          volumeMounts:
+            {{- if .Values.admission.enabled }}
+            - name: admission-tls
+              mountPath: /etc/rgnix/admission
+              readOnly: true
+            {{- end }}
+            {{- if .Values.rolloutMetrics.secret.name }}
+            - name: release-metrics
+              mountPath: /etc/rgnix/release-metrics
+              readOnly: true
+            {{- end }}
+            {{- if .Values.admin.usersSecret.name }}
+            - name: admin-users
+              mountPath: /etc/rgnix/admin-users
+              readOnly: true
+            {{- end }}
+            {{- if .Values.admin.readTokenSecret.name }}
+            - name: admin-read-token
+              mountPath: /etc/rgnix/admin-read
+              readOnly: true
+            {{- end }}
+            {{- if .Values.tenancy.policyConfigMap.name }}
+            - name: tenancy
+              mountPath: /etc/rgnix/tenancy
+              readOnly: true
+            {{- end }}
+            {{- if and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name }}
+            - name: otlp-ca
+              mountPath: /etc/rgnix/otlp-ca
+              readOnly: true
+            {{- end }}
+            {{- if and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name }}
+            - name: trace-ca
+              mountPath: /etc/rgnix/trace-ca
+              readOnly: true
+            {{- end }}
+            {{- if .Values.admin.tokenSecret.name }}
+            - name: admin-token
+              mountPath: /etc/rgnix/admin
+              readOnly: true
+            {{- end }}
+          {{- end }}
+      {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name }}
+      volumes:
+        {{- if .Values.admission.enabled }}
+        - name: admission-tls
+          secret:
+            secretName: {{ required "admission.tlsSecret is required" .Values.admission.tlsSecret | quote }}
+        {{- end }}
+        {{- if .Values.rolloutMetrics.secret.name }}
+        - name: release-metrics
+          secret:
+            secretName: {{ .Values.rolloutMetrics.secret.name | quote }}
+            items:
+              - key: {{ .Values.rolloutMetrics.secret.key | quote }}
+                path: metrics.json
+        {{- end }}
+        {{- if .Values.admin.usersSecret.name }}
+        - name: admin-users
+          secret:
+            secretName: {{ .Values.admin.usersSecret.name | quote }}
+            items:
+              - key: {{ .Values.admin.usersSecret.key | quote }}
+                path: users.json
+        {{- end }}
+        {{- if .Values.admin.readTokenSecret.name }}
+        - name: admin-read-token
+          secret:
+            secretName: {{ .Values.admin.readTokenSecret.name | quote }}
+            items:
+              - key: {{ .Values.admin.readTokenSecret.key | quote }}
+                path: token
+        {{- end }}
+        {{- if .Values.tenancy.policyConfigMap.name }}
+        - name: tenancy
+          configMap:
+            name: {{ .Values.tenancy.policyConfigMap.name | quote }}
+            items:
+              - key: {{ .Values.tenancy.policyConfigMap.key | quote }}
+                path: policy.json
+        {{- end }}
+        {{- if and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name }}
+        - name: otlp-ca
+          configMap:
+            name: {{ .Values.otlpLogs.caConfigMap.name | quote }}
+            items:
+              - key: {{ .Values.otlpLogs.caConfigMap.key | quote }}
+                path: ca.crt
+        {{- end }}
+        {{- if and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name }}
+        - name: trace-ca
+          configMap:
+            name: {{ .Values.otlpTraces.caConfigMap.name | quote }}
+            items:
+              - key: {{ .Values.otlpTraces.caConfigMap.key | quote }}
+                path: ca.crt
+        {{- end }}
+        {{- if .Values.admin.tokenSecret.name }}
+        - name: admin-token
+          secret:
+            secretName: {{ .Values.admin.tokenSecret.name | quote }}
+            items:
+              - key: {{ .Values.admin.tokenSecret.key | quote }}
+                path: token
+        {{- end }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -166,6 +389,9 @@ metadata:
   name: {{ .Release.Name }}
 spec:
   type: {{ .Values.service.type }}
+  {{- if or (eq .Values.service.type "LoadBalancer") (eq .Values.service.type "NodePort") }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
+  {{- end }}
   {{- if eq .Values.service.type "LoadBalancer" }}
   allocateLoadBalancerNodePorts: {{ .Values.service.allocateLoadBalancerNodePorts }}
   {{- if .Values.service.loadBalancerClass }}
@@ -191,3 +417,53 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}
+
+{{- if .Values.admission.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-admission
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: admission
+      port: 443
+      targetPort: admission
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ .Release.Namespace }}-{{ .Release.Name }}
+webhooks:
+  - name: ingress.rgnix.io
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: {{ .Values.admission.failurePolicy }}
+    matchPolicy: Equivalent
+    timeoutSeconds: 10
+    {{- if .Values.watchNamespaces }}
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: {{ .Values.watchNamespaces | toJson }}
+    {{- else }}
+    namespaceSelector:
+      {{- toYaml .Values.admission.namespaceSelector | nindent 6 }}
+    {{- end }}
+    clientConfig:
+      service:
+        namespace: {{ .Release.Namespace }}
+        name: {{ .Release.Name }}-admission
+        path: /admission/ingress
+        port: 443
+      caBundle: {{ required "admission.caBundle is required" .Values.admission.caBundle | quote }}
+    rules:
+      - apiGroups: [networking.k8s.io]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [ingresses]
+        scope: Namespaced
+{{- end }}

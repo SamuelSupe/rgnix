@@ -1,0 +1,36 @@
+# Requires an app:http Service in this namespace.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: application-policy
+  annotations:
+    rgnix.io/client-max-body-size: "4m"
+    rgnix.io/proxy-connect-timeout: "2s"
+    rgnix.io/proxy-read-timeout: "30s"
+    rgnix.io/proxy-send-timeout: "30s"
+    rgnix.io/keepalive-timeout: "60s"
+    rgnix.io/access-log: "on"
+    rgnix.io/limit-rate: "100 burst=200 key=ip"
+    rgnix.io/limit-conn: "20 key=ip"
+    rgnix.io/balance: "least_conn"
+    rgnix.io/backend-max-inflight: "200"
+    rgnix.io/health-path: "/healthz"
+    rgnix.io/compression: "gzip br"
+    # For TLS upstreams, set backend-protocol: HTTPS and reference a CA Secret.
+    # rgnix.io/upstream-server-name: "app.internal.example.com"
+    # rgnix.io/upstream-ca-secret: "app-ca"  # key: ca.crt
+    # rgnix.io/jwt-secret: "application-jwks"  # key: jwks.json
+    # rgnix.io/jwt-issuer: "https://issuer.example.com"
+    # rgnix.io/jwt-audience: "application"
+spec:
+  ingressClassName: rgnix
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port: {name: http}

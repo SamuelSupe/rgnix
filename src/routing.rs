@@ -1,18 +1,18 @@
 use crate::model::{PathMatch, Route, VirtualHost};
 use std::{collections::BTreeMap, net::SocketAddr, sync::Arc};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Index {
     listeners: BTreeMap<SocketAddr, Hosts>,
     paths: Vec<Paths>,
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Hosts {
     exact: BTreeMap<String, usize>,
     wildcard: BTreeMap<String, usize>,
     default: Option<usize>,
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Paths {
     exact: BTreeMap<String, Arc<Route>>,
     nginx: BTreeMap<String, Arc<Route>>,

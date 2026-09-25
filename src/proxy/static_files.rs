@@ -14,6 +14,49 @@ pub enum Opened {
     Directory,
     NotFound,
     Forbidden,
+    Status(u16),
+}
+
+pub fn open_route(settings: &Settings, path: &str, prefix: &str) -> io::Result<Opened> {
+    let mut effective = settings.clone();
+    let mut mapped = path.to_owned();
+    if let Some(alias) = &settings.alias {
+        let Some(suffix) = path.strip_prefix(prefix) else {
+            return Ok(Opened::Forbidden);
+        };
+        if alias.is_file() {
+            if !suffix.is_empty() {
+                return Ok(Opened::NotFound);
+            }
+            effective.root = alias.parent().unwrap_or(Path::new(".")).into();
+            mapped = format!("/{}", alias.file_name().unwrap().to_string_lossy());
+        } else {
+            effective.root = alias.clone();
+            mapped = format!("/{}", suffix.trim_start_matches('/'));
+        }
+    }
+    if settings.try_files.is_empty() {
+        return open(&effective, &mapped);
+    }
+    for (i, candidate) in settings.try_files.iter().enumerate() {
+        let final_candidate = i + 1 == settings.try_files.len();
+        if final_candidate && let Some(code) = candidate.strip_prefix('=') {
+            return Ok(Opened::Status(code.parse().unwrap_or(404)));
+        }
+        let candidate = match candidate.as_str() {
+            "$uri" => mapped.clone(),
+            "$uri/" => format!("{}/", mapped.trim_end_matches('/')),
+            _ => candidate.clone(),
+        };
+        let candidate = super::normalize_decoded_path(&candidate)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+        match open(&effective, &candidate)? {
+            Opened::NotFound | Opened::Directory if !final_candidate => continue,
+            Opened::Forbidden if !final_candidate && candidate.ends_with('/') => continue,
+            result => return Ok(result),
+        }
+    }
+    Ok(Opened::NotFound)
 }
 
 pub fn open(settings: &Settings, path: &str) -> io::Result<Opened> {

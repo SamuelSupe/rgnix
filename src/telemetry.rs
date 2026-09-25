@@ -1,20 +1,25 @@
 use anyhow::Result;
 use prometheus::{
-    Encoder, Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry, TextEncoder,
+    Encoder, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    TextEncoder,
 };
 use std::{
-    collections::HashMap,
-    fs::OpenOptions,
-    io::Write,
     path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::{SyncSender, sync_channel},
     },
 };
 
 pub struct Telemetry {
+    pub otlp: Option<crate::otlp::Exporter>,
+    pub traces: Option<crate::otlp::Exporter>,
+    pub trace_ratio: Option<f64>,
+    route_requests: IntCounterVec,
+    grpc_requests: IntCounterVec,
+    route_duration: HistogramVec,
+    backend_requests: IntCounterVec,
+    labels: std::sync::Mutex<std::collections::BTreeSet<String>>,
     pub healthy: AtomicBool,
     pub ready: AtomicBool,
     pub registry: Registry,
@@ -35,11 +40,101 @@ pub struct Telemetry {
     pub config_info: IntGaugeVec,
     pub rejected: IntCounterVec,
     pub upstream_ejections: IntCounter,
-    log: SyncSender<(PathBuf, String)>,
+    pub rollbacks: IntCounter,
+    pub mirror_results: IntCounterVec,
+    pub tenant_rejected: IntCounterVec,
+    pub files: Arc<crate::logging::FileLogs>,
+    pub certificate_expiry: IntGaugeVec,
+    pub certificate_valid: IntGaugeVec,
+    pub control_reloads: IntCounter,
+    pub control_reload_errors: IntCounter,
 }
 impl Telemetry {
-    pub fn new() -> Result<Arc<Self>> {
+    pub fn new(otlp: crate::otlp::Options) -> Result<Arc<Self>> {
         let registry = Registry::new();
+        let certificate_expiry = IntGaugeVec::new(
+            prometheus::Opts::new(
+                "rgnix_certificate_expiry_timestamp_seconds",
+                "Certificate expiration time",
+            ),
+            &["listener", "host"],
+        )?;
+        let certificate_valid = IntGaugeVec::new(
+            prometheus::Opts::new(
+                "rgnix_certificate_valid",
+                "Certificate time and hostname validity",
+            ),
+            &["listener", "host"],
+        )?;
+        registry.register(Box::new(certificate_expiry.clone()))?;
+        registry.register(Box::new(certificate_valid.clone()))?;
+        let control_reloads = IntCounter::new(
+            "rgnix_control_reloads_total",
+            "Access and tenant policy updates",
+        )?;
+        let control_reload_errors = IntCounter::new(
+            "rgnix_control_reload_errors_total",
+            "Rejected access and tenant policy updates",
+        )?;
+        registry.register(Box::new(control_reloads.clone()))?;
+        registry.register(Box::new(control_reload_errors.clone()))?;
+        anyhow::ensure!(
+            otlp.trace_sample_ratio.is_finite() && (0.0..=1.0).contains(&otlp.trace_sample_ratio),
+            "trace sample ratio must be 0..1"
+        );
+        let traces = crate::otlp::Exporter::start_traces(otlp.clone(), &registry)?;
+        let trace_ratio = traces.as_ref().map(|_| otlp.trace_sample_ratio);
+        let otlp = crate::otlp::Exporter::start(otlp, &registry)?;
+        let grpc_requests = IntCounterVec::new(
+            prometheus::Opts::new(
+                "rgnix_grpc_requests_total",
+                "Completed RPCs by route and gRPC status",
+            ),
+            &["route", "grpc_status"],
+        )?;
+        registry.register(Box::new(grpc_requests.clone()))?;
+        let route_requests = IntCounterVec::new(
+            prometheus::Opts::new(
+                "rgnix_route_requests_total",
+                "Completed requests by configured route",
+            ),
+            &["route", "status_class"],
+        )?;
+        let route_duration = HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rgnix_route_request_seconds",
+                "Request duration by configured route",
+            ),
+            &["route"],
+        )?;
+        let backend_requests = IntCounterVec::new(
+            prometheus::Opts::new(
+                "rgnix_backend_requests_total",
+                "Completed requests by configured backend",
+            ),
+            &["backend", "result"],
+        )?;
+        registry.register(Box::new(route_requests.clone()))?;
+        registry.register(Box::new(route_duration.clone()))?;
+        registry.register(Box::new(backend_requests.clone()))?;
+        let tenant_rejected = IntCounterVec::new(
+            prometheus::Opts::new(
+                "rgnix_namespace_rejections_total",
+                "Requests rejected by namespace budgets",
+            ),
+            &["namespace", "resource"],
+        )?;
+        registry.register(Box::new(tenant_rejected.clone()))?;
+        let rollbacks = IntCounter::new(
+            "rgnix_traffic_rollbacks_total",
+            "Automatic traffic rollbacks",
+        )?;
+        let mirror_results = IntCounterVec::new(
+            prometheus::Opts::new("rgnix_mirror_requests_total", "Mirror outcomes"),
+            &["result"],
+        )?;
+        registry.register(Box::new(rollbacks.clone()))?;
+        registry.register(Box::new(mirror_results.clone()))?;
         let upstream_ejections = IntCounter::new(
             "rgnix_upstream_ejections_total",
             "Endpoints excluded after repeated transport failures",
@@ -92,7 +187,7 @@ impl Telemetry {
         let version = IntGauge::new("rgnix_config_version", "Current configuration version")?;
         let dropped_logs = IntCounter::new(
             "rgnix_access_logs_dropped_total",
-            "Access log queue overflow",
+            "Access records dropped by queue overflow or file I/O failure",
         )?;
         let config_degraded = IntGauge::new(
             "rgnix_config_diagnostics",
@@ -128,35 +223,20 @@ impl Telemetry {
             registry.register(Box::new(counter.clone()))?;
         }
         registry.register(Box::new(version.clone()))?;
-        let (tx, rx) = sync_channel::<(PathBuf, String)>(4096);
-        std::thread::Builder::new()
-            .name("access-log".into())
-            .spawn(move || {
-                let mut files = HashMap::new();
-                while let Ok((path, line)) = rx.recv() {
-                    if files.len() > 128 {
-                        files.clear();
-                    }
-                    if !files.contains_key(&path) {
-                        match OpenOptions::new().create(true).append(true).open(&path) {
-                            Ok(file) => {
-                                files.insert(path.clone(), file);
-                            }
-                            Err(e) => {
-                                log::error!("access log {}: {e}", path.display());
-                                continue;
-                            }
-                        }
-                    }
-                    if let Some(file) = files.get_mut(&path)
-                        && let Err(e) = writeln!(file, "{line}")
-                    {
-                        log::error!("access log: {e}");
-                        files.remove(&path);
-                    }
-                }
-            })?;
+        let files = crate::logging::FileLogs::start(&registry, dropped_logs.clone())?;
         Ok(Arc::new(Self {
+            certificate_expiry,
+            certificate_valid,
+            control_reloads,
+            control_reload_errors,
+            otlp,
+            traces,
+            trace_ratio,
+            route_requests,
+            grpc_requests,
+            route_duration,
+            backend_requests,
+            labels: Default::default(),
             healthy: AtomicBool::new(true),
             ready: AtomicBool::new(false),
             registry,
@@ -177,12 +257,51 @@ impl Telemetry {
             config_info,
             rejected,
             upstream_ejections,
-            log: tx,
+            rollbacks,
+            mirror_results,
+            tenant_rejected,
+            files,
         }))
     }
     pub fn access(&self, path: PathBuf, line: String) {
-        if self.log.try_send((path, line)).is_err() {
-            self.dropped_logs.inc();
+        self.files.access(path, line);
+    }
+    pub fn completed(
+        &self,
+        route: &str,
+        backend: Option<&str>,
+        status: u16,
+        seconds: f64,
+        failed: bool,
+        grpc_status: Option<u16>,
+    ) {
+        let label = |kind: &str, value: &str| {
+            let mut labels = self.labels.lock().unwrap_or_else(|e| e.into_inner());
+            let key = format!("{kind}:{value}");
+            if labels.contains(&key) || labels.len() < 2048 {
+                labels.insert(key);
+                value.to_owned()
+            } else {
+                "_overflow".into()
+            }
+        };
+        let route = label("route", route);
+        if let Some(code) = grpc_status {
+            self.grpc_requests
+                .with_label_values(&[&route, &code.to_string()])
+                .inc();
+        }
+        self.route_requests
+            .with_label_values(&[&route, &format!("{}xx", status / 100)])
+            .inc();
+        self.route_duration
+            .with_label_values(&[&route])
+            .observe(seconds);
+        if let Some(backend) = backend {
+            let backend = label("backend", backend);
+            self.backend_requests
+                .with_label_values(&[backend.as_str(), if failed { "error" } else { "ok" }])
+                .inc();
         }
     }
     pub fn render(&self, path: &str) -> (u16, Vec<u8>, &'static str) {

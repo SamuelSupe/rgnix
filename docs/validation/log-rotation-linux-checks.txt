@@ -1,0 +1,246 @@
+   Compiling rgnix v0.1.0 (/Users/livesite/Documents/ChatGPT/rgnix)
+    Finished `test` profile [unoptimized] target(s) in 2.21s
+     Running unittests src/lib.rs (/tmp/rgnix-target/debug/deps/rgnix-0ce7ad271f56c914)
+
+running 6 tests
+test model::tests::prefix_and_wildcard_boundaries_are_source_specific ... ok
+test proxy::static_files::tests::capability_root_blocks_symlink_escape_and_ranges_are_bounded ... ok
+test script::tests::compiler_rejects_recursion_and_runtime_bounds_loops ... ok
+test script::tests::budgets_cover_host_allocations_and_imported_wasm_memory ... ok
+test script::tests::compiled_functions_branches_and_response_hooks ... ok
+test script::tests::body_access_is_bounded_and_json_requires_complete_input ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (/tmp/rgnix-target/debug/deps/rgnix-d9726d67465bf600)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rgnix
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `dev` profile [unoptimized] target(s) in 0.07s
+compiled /tmp/rgnix-acceptance-fc72w_wg/routes.rgl -> /tmp/rgnix-acceptance-fc72w_wg/routes.wasm (1367 bytes)
+configuration valid: 2 listeners, 2 virtual hosts, 8 backends
+PASS script aliases reject upstreams with conflicting transport protocols
+PASS configuration rejects invalid body modes, limits and timeouts
+PASS static GET
+PASS static HEAD
+PASS static single range
+PASS unsatisfiable range
+PASS conditional GET
+PASS If-Range HTTP date retains partial response
+PASS directory redirect and index
+PASS symlink containment
+PASS contained symlink still serves a regular file
+PASS FIFO files and indexes cannot exhaust the static file pool
+PASS path traversal rejection
+PASS proxy_pass URI replacement
+PASS proxy_pass preserves original URI
+PASS IPv6 upstream
+PASS trusted HTTPS upstream
+PASS HTTPS upstream rejects hostname mismatch
+PASS HTTPS upstream rejects untrusted certificate
+PASS Connection cannot remove framing or Host
+PASS inherited response header
+PASS streaming request body
+PASS valid chunked request keeps its connection reusable
+PASS TE plus Content-Length cannot re-enable connection reuse
+PASS HTTP/1.0 without keep-alive closes after the response
+PASS request body limit
+PASS chunked HTTP body limit
+PASS chunked HTTP body limit before a requested WebSocket upgrade
+PASS compiled request and response hooks
+PASS query-only edits preserve raw paths and can clear the query
+PASS query edits retain proxy URI replacement and explicit path rewrites
+PASS compiled Wasm artifact loads independently
+PASS static plugin redirect preserves literal percent and rewritten query
+PASS informational responses do not consume the final response hook
+PASS plugin direct response
+PASS superseded plugin decisions fail instead of selecting another backend
+PASS script backend alias preserves HTTPS and forwarded headers
+PASS script HTTPS backend still verifies certificates
+PASS fuel limits infinite loops
+PASS response hook failure returns 500 without staged edits
+PASS upstream disconnect never replays POST
+PASS upstream read timeout returns 504
+PASS TLS listener
+PASS HTTP/2 negotiation
+PASS JSON body routes to the selected HTTPS backend without changing bytes
+PASS JSON routing is isolated between requests
+PASS invalid JSON, incomplete JSON and non-string fields do not match
+PASS full inspection can replay bodies larger than Pingora's original 64 KiB buffer
+PASS prefix inspection routes binary uploads and preserves the entire body
+PASS content beyond the configured prefix cannot influence routing
+PASS a closed JSON object in a truncated prefix is not treated as complete JSON
+PASS short prefix-inspected bodies may use JSON routing when fully read
+PASS UTF-8 cut at the prefix boundary is nil as text but searchable as bytes
+PASS body inspection remains opt-in
+PASS full inspection rejects oversized known-length bodies
+PASS fragmented and chunked prefix uploads replay once and keep the next request aligned
+PASS full inspection rejects oversized chunked bodies before proxying
+PASS prefix decisions do not wait for the tail; incomplete prefixes have a total timeout
+PASS Expect 100-continue works before inspection without a second upstream expectation
+PASS HTTP/2 full and prefix routing preserve the original body
+PASS body inspection does not enable upstream POST retries
+PASS cancelled body inspection leaves the service available
+PASS in-flight body inspection retains its policy across reload
+PASS SSE first event is streamed
+PASS WebSocket upgrade and bidirectional frames
+PASS WebSocket streams beyond the HTTP body limit (3 MiB)
+PASS WebSocket close frame survives the long stream
+PASS reload keeps in-flight snapshot
+PASS invalid reload retains active configuration
+PASS compiler rejects a flat expression with excessive AST depth
+PASS deep AST reload cannot abort the data plane
+PASS plugin budget rejects excess instances while plain routes work
+PASS inflight budget sheds requests without blocking admin
+PASS completed requests release resource permits
+PASS failed endpoint is excluded without replaying its requests
+PASS excluded endpoint re-enters rotation after cooldown
+PASS metrics are exposed
+PASS client cancellation preserves service
+PASS failed controller is neither healthy nor ready
+79 integration checks passed; .local/acceptance.json
+PASS initial configuration is not ready before durable acknowledgement
+PASS accepted configuration is persisted outside the tenant namespace
+PASS pending checkpoint retains the previously served plugin
+PASS Event API rejection is counted without withdrawing the accepted route
+PASS unchanged failed Event is retried on the periodic report
+PASS Event is delivered after permission recovery without a resource edit
+PASS successfully published Event is deduplicated
+PASS Ingress status API rejection is counted
+PASS Ingress status is retried after permission recovery
+PASS stalled Events cannot block Ingress address updates
+PASS Lease renews while Event timeouts remain observable
+PASS stalled Ingress reads cannot starve another namespace status
+PASS status batches renew the Lease while progressing past stalled entries
+PASS an Ingress read rejection does not cancel other status updates
+PASS failed Ingress status catches up after API recovery
+PASS fresh replica restores accepted plugin and route
+PASS unrelated and status-only updates do not publish snapshots
+PASS endpoint withdrawal is independent of stalled Event writes
+PASS fresh replica without a usable checkpoint stays unready
+PASS existing replicas continue serving accepted configuration
+PASS a rejected tenant does not withdraw another accepted route
+PASS valid replacement unblocks initial readiness
+PASS Ingress deletion removes routing and its checkpoint
+PASS oversize checkpoint cannot block another tenant publication
+PASS reject checkpoint cannot block another tenant publication
+PASS stall checkpoint cannot block another tenant publication
+PASS earlier Ingress owns its TLS hostname
+PASS withdrawn TLS claim cannot fall back to duplicate or wildcard certificates
+PASS invalid certificate retains exclusive TLS ownership
+PASS valid replacement restores the owned certificate
+PASS deleting the owning Ingress releases TLS ownership
+PASS hostless root rule takes precedence over its default backend
+PASS explicit root rule overrides an older Ingress default backend
+PASS default backend applies only after explicit paths miss
+PASS recreated Service rejects slices owned by its previous UID
+PASS owner-only EndpointSlice updates restore a matching Service
+PASS stale and current slices never mix after Service recreation
+PASS Service owner name must agree with the slice label
+PASS manually managed slices without a Service owner remain supported
+PASS Ingress JSON body annotation routes to a declared Service and preserves bytes
+PASS annotation-only prefix update streams the full upload
+PASS invalid body policy retains the accepted policy and plugin
+PASS fresh replica restores the body policy with its accepted plugin
+PASS bad plugin and body policy cannot freeze endpoint withdrawal
+PASS body-inspected Ingress deletion takes effect despite invalid updates
+PASS application response is unchanged
+PASS standard endpoint suffix and protobuf content type
+PASS signal auth headers override generic and decode escaped values
+PASS structured access and resource attributes are exported
+PASS query body auth cookies and disabled route stay out of OTLP
+PASS local access logging remains enabled
+PASS SIGHUP access_log off also disables OTLP
+PASS transient 503 retries identical batch
+PASS disconnected exporter retries identical batch
+PASS permanent 400 is not retried
+PASS authentication failure is not retried
+PASS non-retryable 500 is not retried
+PASS redirect is not followed
+PASS malformed success is counted as failure
+PASS oversized response is rejected
+PASS HTML success is not mistaken for OTLP success
+PASS partial rejection is counted without replay
+PASS Retry-After obeys total export deadline
+PASS full export queue does not block requests
+PASS queue memory and loss are bounded and visible
+PASS collector timeout drains as counted drops
+PASS TLS trust=True host=localhost accepted=True
+PASS TLS trust=False host=localhost accepted=False
+PASS TLS trust=True host=127.0.0.1 accepted=False
+PASS shutdown flushes an unfinished batch
+PASS SIGTERM drains in-flight requests before flushing their logs
+PASS stalled collector cannot extend shutdown indefinitely
+PASS explicit exporter disable preserves local logs
+PASS invalid exporter config is rejected without leaking credentials
+PASS invalid exporter config is rejected without leaking credentials
+PASS invalid exporter config is rejected without leaking credentials
+PASS invalid exporter config is rejected without leaking credentials
+{
+  "passed": 32,
+  "checks": [
+    "application response is unchanged",
+    "standard endpoint suffix and protobuf content type",
+    "signal auth headers override generic and decode escaped values",
+    "structured access and resource attributes are exported",
+    "query body auth cookies and disabled route stay out of OTLP",
+    "local access logging remains enabled",
+    "SIGHUP access_log off also disables OTLP",
+    "transient 503 retries identical batch",
+    "disconnected exporter retries identical batch",
+    "permanent 400 is not retried",
+    "authentication failure is not retried",
+    "non-retryable 500 is not retried",
+    "redirect is not followed",
+    "malformed success is counted as failure",
+    "oversized response is rejected",
+    "HTML success is not mistaken for OTLP success",
+    "partial rejection is counted without replay",
+    "Retry-After obeys total export deadline",
+    "full export queue does not block requests",
+    "queue memory and loss are bounded and visible",
+    "collector timeout drains as counted drops",
+    "TLS trust=True host=localhost accepted=True",
+    "TLS trust=False host=localhost accepted=False",
+    "TLS trust=True host=127.0.0.1 accepted=False",
+    "shutdown flushes an unfinished batch",
+    "SIGTERM drains in-flight requests before flushing their logs",
+    "stalled collector cannot extend shutdown indefinitely",
+    "explicit exporter disable preserves local logs",
+    "invalid exporter config is rejected without leaking credentials",
+    "invalid exporter config is rejected without leaking credentials",
+    "invalid exporter config is rejected without leaking credentials",
+    "invalid exporter config is rejected without leaking credentials"
+  ]
+}
+PASS concurrent size rotation preserves each complete access record once
+PASS rotated files are valid gzip with the configured size bound
+PASS single oversized records remain intact and file mode is preserved
+PASS retention is bounded after a policy reload without deleting unrelated files
+PASS invalid reload preserves the working rotation policy
+PASS rotation can be disabled by SIGHUP
+PASS time rotation splits records at the next occupied UTC interval
+PASS access and error logs sharing one file rotate through the same writer
+PASS shutdown drains queued local log records
+PASS rotation failure preserves the active file and reports I/O errors
+PASS rotation resumes after directory permissions are repaired
+PASS symlink log destinations are written without renaming or pruning the target
+PASS inherited stdout/stderr work when filesystem permissions forbid reopening
+PASS USR1 reopens access and error files without restarting the server
+PASS valid SIGHUP also reopens local log files
+PASS failed reopen keeps the old descriptor writable and reports the error
+PASS reopen recovers after the filesystem is repaired
+PASS real logrotate rename/create/USR1 with delayed compression works
+PASS full local log queue drops records instead of blocking HTTP
+PASS USR1 is not lost when the record queue is full
+20 log rotation checks passed; .local/log-rotation.json
+    Checking rgnix v0.1.0 (/Users/livesite/Documents/ChatGPT/rgnix)
+    Finished `dev` profile [unoptimized] target(s) in 0.70s

@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends cmake pkg-confi
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
+COPY vendor ./vendor
 COPY src ./src
 RUN --mount=type=secret,id=build_ca \
     --mount=type=cache,target=/usr/local/cargo/registry \

@@ -1,0 +1,120 @@
+{
+  "recorded_at": "2026-09-25T07:41:25.814229+00:00",
+  "release_tag": "v0.2.0",
+  "platform": "linux/arm64",
+  "source_sha256": "45c6c7800856977d137a6b880eeabc94ee36aea766b10ab4b4177526604a4dac",
+  "source_digest_definition": "Sort pathlib.Path entries by path components: Cargo.toml, Cargo.lock, all src and vendor files. Hash each relative POSIX path + NUL + raw contents in order.",
+  "cargo_lock_sha256": "69fa50df71fbf9ab9873fd60b046dc55b5ac1674a36fc68d4f57594592fc668e",
+  "comparison_to_governance_qa4": {
+    "baseline_source_sha256": "33c04a68b5856b0a1c732a5326e69f25b8ae67e54533d4e68bea3127a6a34416",
+    "changes": "Only the rgnix package version (0.1.0 to 0.2.0) in Cargo.toml/Cargo.lock, plus repository and readme metadata in Cargo.toml. All src and vendor files are byte-identical. Reversing those metadata changes reproduces the recorded qa4 digest."
+  },
+  "image": {
+    "tag": "rgnix:0.2.0",
+    "id": "sha256:e29993526ad375e23b5b27e8907bca95a433b4d0382143c93d668c296b0cb4df",
+    "architecture": "arm64",
+    "user": "10101:10101",
+    "published_to_registry": false
+  },
+  "binary": {
+    "version": "rgnix 0.2.0",
+    "sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886",
+    "builder": "Dockerfile rust:1.98-bookworm (Rust 1.98.0)",
+    "architecture": "AArch64 ELF",
+    "minimum_glibc": "2.34",
+    "needed_libraries": [
+      "libgcc_s.so.1",
+      "libm.so.6",
+      "libc.so.6"
+    ]
+  },
+  "helm_chart": {
+    "version": "0.2.0",
+    "asset": "rgnix-0.2.0.tgz",
+    "sha256": "75e93282cb0f345b36c21d2a2d1452ec62ebd3e4edea13d5caa1fc1ba1cd9830",
+    "lint": "passed",
+    "rendering": [
+      "default",
+      "namespace watches + named users + metric provider + TLS admission"
+    ]
+  },
+  "validation": {
+    "http": {
+      "passed": 79,
+      "record": "release-0.2.0-http.json",
+      "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+    },
+    "features": {
+      "passed": 89,
+      "record": "release-0.2.0-features.json",
+      "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+    },
+    "recovery": {
+      "passed": 53,
+      "record": "release-0.2.0-recovery.json",
+      "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+    },
+    "nginx": {
+      "passed": 46,
+      "record": "release-0.2.0-nginx.json",
+      "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+    },
+    "otlp": {
+      "passed": 32,
+      "record": "release-0.2.0-otlp.json",
+      "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+    },
+    "log-rotation": {
+      "passed": 20,
+      "record": "release-0.2.0-log-rotation.json",
+      "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+    },
+    "upgrade": {
+      "passed": 9,
+      "record": "release-0.2.0-upgrade.json",
+      "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+    }
+  },
+  "rust_checks": {
+    "tests_passed": 7,
+    "fmt": "passed",
+    "clippy": "passed with -D warnings",
+    "toolchain": "Rust 1.90.0; OrbStack Ubuntu arm64",
+    "record": "release-0.2.0-rust-checks.txt"
+  },
+  "kubernetes": {
+    "context": "orbstack",
+    "server": "v1.35.6+orb1",
+    "pods": [
+      {
+        "namespace": "rgnix-governance-final-20260925",
+        "pod": "rgnix-qa-cbd49cb9d-b8l29",
+        "ready": true,
+        "image": "rgnix:0.2.0",
+        "image_id": "docker-pullable://rgnix@sha256:e29993526ad375e23b5b27e8907bca95a433b4d0382143c93d668c296b0cb4df",
+        "version": "rgnix 0.2.0",
+        "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+      },
+      {
+        "namespace": "rgnix-governance-final-20260925",
+        "pod": "rgnix-qa-cbd49cb9d-xz7qb",
+        "ready": true,
+        "image": "rgnix:0.2.0",
+        "image_id": "docker-pullable://rgnix@sha256:e29993526ad375e23b5b27e8907bca95a433b4d0382143c93d668c296b0cb4df",
+        "version": "rgnix 0.2.0",
+        "binary_sha256": "c7627936d9b3482e9642f8c09eddec101268d2313aa8ee292847c84d25e1e886"
+      }
+    ],
+    "upgrade_probe": "docs/validation/governance-upgrade-probe.py with image/tag 0.1.0-governance-qa4 replaced by 0.2.0 and output redirected to .local/release/v0.2.0/upgrade.json; other logic unchanged",
+    "probe_sha256": "d9d75f679f999230fe8530f09a0244961313ba7f15dbe3d15d9b31dcd03ba89b",
+    "full_lifecycle_suite_rerun": false,
+    "full_governance_suite_rerun": false
+  },
+  "not_validated": [
+    "Linux amd64 runtime",
+    "multiple Kubernetes nodes",
+    "cloud load balancer",
+    "long-duration load or adversarial tenant capacity",
+    "public registry image"
+  ]
+}

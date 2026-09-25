@@ -1,0 +1,124 @@
+{
+  "recorded_at": "2026-09-25T07:19:11.772124+00:00",
+  "base_commit": "109affd869001bf6bf6853248c9a31c63cc33f10",
+  "uncommitted": true,
+  "github_release_updated": false,
+  "final_image": "rgnix:0.1.0-governance-qa4",
+  "source_sha256": "33c04a68b5856b0a1c732a5326e69f25b8ae67e54533d4e68bea3127a6a34416",
+  "source_digest_definition": "sorted Cargo.toml, Cargo.lock, all src and vendor files; relative path + NUL + contents",
+  "cargo_lock_sha256": "692ae809e5de7daa45702f971b93c3bcde69fb7e9a48db8e91c2ad51fd8d5b64",
+  "images": {
+    "0.1.0-governance-qa2": {
+      "image_id": "sha256:fb0499518dbc38bb6521dc7ee8006fcc38fbc9a32cbcce8139f2483c52b1c9b5",
+      "platform": "linux/arm64",
+      "user": "10101:10101",
+      "binary_sha256": "dba4251540cd634adb8de370738f79a916e1342898627e2b0031ceb7f508f641"
+    },
+    "0.1.0-governance-qa3": {
+      "image_id": "sha256:ef9187ab4121a6126e9a5aa843170e52c602fec9ab685888b000d17862b212e9",
+      "platform": "linux/arm64",
+      "user": "10101:10101",
+      "binary_sha256": "d57fac1a423217d321819197f41fc1e5c0bd300e61216f89df860180293c219a"
+    },
+    "0.1.0-governance-qa4": {
+      "image_id": "sha256:2d9220f0984265be866fdd2f25a0ee95ccc6b43acb3bee227a7b9bd5c09bdc9e",
+      "platform": "linux/arm64",
+      "user": "10101:10101",
+      "binary_sha256": "4ef54a568c5ddcdf5314dcb57a38df18a4c32cc72f88f69d16850d5014a0fdaf"
+    }
+  },
+  "qa2_source_sha256": "7644034cc732b374996fd1ee4a089ff4223f29977efbf240bd435a05600c0104",
+  "qa2_to_qa3_production_delta": "Only src/ingress/preflight.rs: reject an IngressClass whose spec.controller no longer belongs to rgnix. Verified by source digest after removing that guard; covered by recovery and real-cluster upgrade probes. Other production files are byte-identical.",
+  "validation": {
+    "http": {
+      "passed": 79,
+      "image": "rgnix:0.1.0-governance-qa2",
+      "record": "governance-http.json"
+    },
+    "features": {
+      "passed": 89,
+      "image": "rgnix:0.1.0-governance-qa2",
+      "record": "governance-features.json"
+    },
+    "nginx": {
+      "passed": 46,
+      "image": "rgnix:0.1.0-governance-qa2",
+      "record": "governance-nginx.json"
+    },
+    "kubernetes": {
+      "passed": 65,
+      "image": "rgnix:0.1.0-governance-qa2",
+      "record": "governance-kubernetes.json"
+    },
+    "recovery": {
+      "passed": 53,
+      "image": "rgnix:0.1.0-governance-qa3",
+      "record": "governance-recovery.json"
+    },
+    "otlp": {
+      "passed": 32,
+      "image": "rgnix:0.1.0-governance-qa3",
+      "record": "governance-otlp.json"
+    },
+    "log-rotation": {
+      "passed": 20,
+      "image": "rgnix:0.1.0-governance-qa3",
+      "record": "governance-log-rotation.json"
+    },
+    "upgrade": {
+      "passed": 9,
+      "image": "rgnix:0.1.0-governance-qa4",
+      "record": "governance-upgrade.json"
+    },
+    "kubernetes_base": {
+      "passed": 46,
+      "rolling_requests": 300,
+      "image": "rgnix:0.1.0-governance-qa2",
+      "record": "governance-kubernetes-base.txt"
+    },
+    "rust": {
+      "passed": 7,
+      "toolchain": "rustc 1.90.0; OrbStack Ubuntu arm64",
+      "fmt": "passed",
+      "clippy": "passed with -D warnings"
+    }
+  },
+  "kubernetes": {
+    "context": "orbstack",
+    "server_version": "v1.35.6+orb1",
+    "pods": [
+      {
+        "namespace": "rgnix-governance-final-20260925",
+        "pod": "rgnix-qa-7d85688db7-2dcjx",
+        "image": "rgnix:0.1.0-governance-qa4",
+        "image_id": "docker-pullable://rgnix@sha256:2d9220f0984265be866fdd2f25a0ee95ccc6b43acb3bee227a7b9bd5c09bdc9e",
+        "binary_sha256": "4ef54a568c5ddcdf5314dcb57a38df18a4c32cc72f88f69d16850d5014a0fdaf",
+        "ready": true
+      },
+      {
+        "namespace": "rgnix-governance-final-20260925",
+        "pod": "rgnix-qa-7d85688db7-vzwdc",
+        "image": "rgnix:0.1.0-governance-qa4",
+        "image_id": "docker-pullable://rgnix@sha256:2d9220f0984265be866fdd2f25a0ee95ccc6b43acb3bee227a7b9bd5c09bdc9e",
+        "binary_sha256": "4ef54a568c5ddcdf5314dcb57a38df18a4c32cc72f88f69d16850d5014a0fdaf",
+        "ready": true
+      }
+    ]
+  },
+  "qa3_source_sha256": "b1ebcc8d6467d5c57e726b9266d5be3ad81c16be8fcd4201b06fc4d553e5ec1b",
+  "qa3_to_qa4_production_delta": "Only src/ingress/preflight.rs: admission ignores a Class owned by another controller while explicit management preflight still rejects it. Reversing this change reproduces the qa3 source digest; other production files are byte-identical. Covered by the real-cluster upgrade probe.",
+  "scripts_at_recording": {
+    "benchmark.py": "e6a8606281427e34e6d44c3f575445a5870091c6cc8f4c254cd155860070e624",
+    "check.sh": "c5514437b1dc98c00499d0b9df3b390e9dc5c47b7e86e4023d4fadff6e26c5ab",
+    "ingress-e2e.sh": "931f904f3430666aae30c7d2df0767aeb6d27723747733e3377e1074e9540d5f",
+    "ingress_recovery.py": "d63722b222a7dd3e351ac6bc0431ceeedce7bdd21d2b352b0b9f0d5068389d3c",
+    "integration.py": "d4d26059e710cb55b21f789d96d78c285ddf5b98decc0e2342cd71a91525cf8f",
+    "log_rotation.py": "ce61325c74f4be7dcc213fc43f0a55b36cca955b5b79039d8c3e78a9a564261b",
+    "nginx_parity.py": "348d69bc393c20238e46027ecc2ced7e968b9cc8435053a71c816f45ebed97c3",
+    "otlp-collector-e2e.sh": "1bdb9201c7b9b1320fdbdf45b5d48acbc1bc92bba8247d4f810288f8bc75cf29",
+    "otlp_integration.py": "b3a20e42cfc0bd6b2ac0ff933cc6bdbafc041aab61c92079ac264167348782e4",
+    "product_features.py": "77351506ac28affb23772f3c980d6e88bb37309e8b287b463d6247a0fcff2130",
+    "product_kubernetes.py": "31a489568c8c0ea021e66f3d8609174f0f0d1a44310b91abbe3b0addaee2e47f"
+  },
+  "scripts_note": "Current reproducible scripts. The three final IngressClass cases in product_kubernetes.py were added after the 65-case run and exercised in the qa4 upgrade probe; the full expanded Kubernetes script was not rerun."
+}

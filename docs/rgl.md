@@ -36,7 +36,7 @@ end
 | 整数 | 有符号 i64；十进制；`+ - * / %` 与比较。加减乘按 Wasm 二进制补码回绕；整数除法朝零截断；除零和除法溢出 trap |
 | 布尔 | `true/false`；`and/or/not`，短路求值；条件必须是布尔，不使用 Lua 的隐式真假转换 |
 | 字符串 | UTF-8，单/双引号，`\n \r \t \\ \" \'` 转义；`..` 拼接；无自动数字转字符串 |
-| 可空字符串 | 缺失请求/响应头为 `nil`，可用 `== nil`、`~= nil` 检查；`local x = nil` 无法推导具体类型，拒绝；非空字符串变量可赋 nil |
+| 可空字符串 | 缺失请求/响应头、不可用的请求体文本或 JSON 字符串字段为 `nil`，可用 `== nil`、`~= nil` 检查；`local x = nil` 无法推导具体类型，拒绝；非空字符串变量可赋 nil |
 | Action | `route.pass/proxy` 或 `resp.reply` 的结果，只用于请求阶段路由决策 |
 | Void | 无返回值函数；`on_response` 必须无返回值 |
 
@@ -44,7 +44,7 @@ end
 
 ## 请求阶段 API
 
-路由匹配后调用 `on_request()`。API 返回字符串或整数；以下 `string?` 表示可空字符串。
+路由匹配后调用 `on_request()`。以下 `string?` 表示可空字符串。
 
 | API | 返回值/作用 |
 |---|---|
@@ -52,8 +52,17 @@ end
 | `req.path()` | 已解码、规范化的请求路径，或本钩子暂存的新路径 |
 | `req.query()` | 原始或修改后的 query，不带 `?` |
 | `req.host()` | 请求 authority 的小写主机部分，不带端口 |
-| `req.remote_addr()` | 直接客户端 IP；不自动信任 X-Forwarded-For |
+| `req.remote_addr()` | 可信代理策略解析的客户端 IP；默认不信任转发头 |
 | `req.header(name)` | `string?`，名称大小写不敏感；可读本钩子已暂存的修改 |
+| `req.body()` / `req.body_len()` | 请求体可见视图的 UTF-8 字符串（未开启或非 UTF-8 为 nil）/ 字节数 |
+| `req.body_complete()` / `req.body_truncated()` | 视图已确认完整 / 可能省略尾部；关闭时均为 false |
+| `req.body_contains(pattern)` | 对可见字节搜索，支持非 UTF-8 请求体；模式最多 8 KiB |
+| `req.json_string(pointer)` | 完整 JSON 的字符串字段，缺失/非字符串/无效或截断 JSON 为 nil |
+| `req.json_int(pointer, fallback)` | 完整 JSON 中可表示为 i64 的整数；缺失、非整数或无效/截断 JSON 返回 fallback，不自动转换字符串或浮点数 |
+| `req.json_bool(pointer, fallback)` | 完整 JSON 布尔字段，否则返回布尔 fallback |
+| `req.arg(name)` | 首个匹配的 query 参数，按 form 规则解码（含 `+`）；缺失为 nil，读取插件修改后的 query |
+| `req.cookie(name)` | 首个同名 Cookie 的原始值，缺失为 nil；读取插件修改后的 Cookie 头 |
+| `req.claim(name)` | JWT 认证后已验证的标量 claim，缺失为 nil；数值/布尔转字符串，对象/数组不暴露 |
 | `req.set_path(path)` | 已解码的绝对路径，最多 8 KiB，不带 query；字面 `%` 保留，转发和目录重定向时按路径编码；不重新匹配 location |
 | `req.set_query(query)` | 原始 query，最多 8 KiB；调用者负责 query 转义，空字符串清空；未改写路径且 proxy_pass 不带 URI 时，保留原始路径字节，不重新规范化 |
 | `req.set_header(name, value)` | 修改请求头，值最多 8 KiB，要求合法 HTTP 头 |
@@ -79,15 +88,18 @@ end
 | `resp.set_header(name, value)` | 修改响应头，限制同请求头 |
 | `resp.remove_header(name)` | 删除响应头 |
 
-RGL 不开放请求体和响应体的读取、缓冲或改写；大请求及响应维持流式传输。协议解析失败或在路由/插件之前生成的错误响应不保证运行响应钩子。
+请求体读取需显式开启 `rgnix_request_body full SIZE` 或 `prefix SIZE`，最多 256 KiB；默认关闭。预读发生在请求钩子前；响应钩子可读取同一视图，不继续读取客户端。截断只影响插件视图，完整请求体仍原样转发。不开放请求体修改和响应体读取/修改。详见[请求体路由、限制与 Ingress 注解](request-body.md)。协议解析失败或在路由/插件之前生成的错误响应不保证运行响应钩子。
 
-字符串函数：`str.concat(a,b)`、`str.eq(a,b)`（允许 nil 比较）、`str.starts_with(a,b)`、`str.contains(a,b)`、`str.len(a)`（UTF-8 字节数）、`str.lower(a)`（ASCII 小写）。除了相等比较，nil 传给字符串操作会 trap，先做非空判断。
+字符串函数：`str.concat(a,b)`、`str.eq(a,b)`（允许 nil 比较）、`str.starts_with(a,b)`、`str.contains(a,b)`、`str.len(a)`（UTF-8 字节数）、`str.lower(a)`（ASCII 小写）、`str.hash(a)`（SHA-256 前 8 字节的大端整数，清除符号位，跨进程稳定）。除了相等比较，nil 传给字符串操作会 trap，先做非空判断。hash 不是签名或身份验证；认证由 [JWT/外部认证策略](product-features.md#jwt外部认证及客户端证书)完成。
+
+typed JSON getter 同样要求完整有效 JSON，截断前缀不能当成完整文档；query/cookie/hash 扫描按输入长度扣 fuel。示例见 [typed-body.rgl](../examples/typed-body.rgl)，可用 `rgnix simulate` 离线执行路由和插件。
 
 ## 隔离与原子提交
 
 | 限制 | 默认值 |
 |---|---|
 | 每个钩子 Wasm fuel | 100,000；每次宿主调用额外扣 100 |
+| 请求体访问 | 默认关闭；扫描/JSON 查询额外按每 32 字节每次遍历扣 1 fuel；JSON 临时预算和视图计入宿主额度 |
 | Wasm 线性内存 | 8 MiB，最多 1 个 memory，禁止 table |
 | Wasm 栈 | 256 KiB |
 | 宿主数据 | 每请求累计 1 MiB，包含请求/响应元数据、句柄字符串和暂存修改 |

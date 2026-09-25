@@ -1,16 +1,18 @@
 replicaCount: 2
 image:
   repository: rgnix
-  tag: "0.1.0"
+  tag: "0.2.0"
   pullPolicy: IfNotPresent
 ingressClass: rgnix
 defaultIngressClass: false
+watchNamespaces: []
 service:
   type: LoadBalancer
   loadBalancerClass: ""
   allocateLoadBalancerNodePorts: true
   httpPort: 80
   httpsPort: 443
+  externalTrafficPolicy: Cluster
 resources:
   requests:
     cpu: 100m
@@ -23,3 +25,56 @@ maxInflight: 1024
 maxPluginInstances: 32
 upstreamMaxFails: 3
 upstreamFailTimeoutSeconds: 10
+
+forwarding:
+  trustedProxies: []
+  header: x-forwarded-for
+  recursive: false
+  proxyProtocol: false
+tenancy:
+  policyConfigMap:
+    name: ""
+    key: policy.json
+admin:
+  usersSecret:
+    name: ""
+    key: users.json
+  readTokenSecret:
+    name: ""
+    key: token
+  tokenSecret:
+    name: ""
+    key: token
+otlpTraces:
+  endpoint: ""
+  sampleRatio: 0.1
+  headersSecret:
+    name: ""
+    key: headers
+  caConfigMap:
+    name: ""
+    key: ca.crt
+
+# Empty endpoint keeps OTLP access-log export disabled. The URL includes /v1/logs.
+otlpLogs:
+  endpoint: ""
+  serviceName: rgnix
+  resourceAttributes: ""
+  headersSecret:
+    name: ""
+    key: headers
+  # Optional PEM CA bundle from a ConfigMap; system trust remains enabled.
+  caConfigMap:
+    name: ""
+    key: ca.crt
+
+rolloutMetrics:
+  secret:
+    name: ""
+    key: metrics.json
+admission:
+  enabled: false
+  tlsSecret: ""
+  caBundle: ""
+  failurePolicy: Fail
+  namespaceSelector: {}

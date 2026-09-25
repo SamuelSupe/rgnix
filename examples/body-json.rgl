@@ -1,0 +1,6 @@
+function on_request()
+    if req.json_string("/tenant") == "vip" then
+        return route.proxy("canary")
+    end
+    return route.pass()
+end

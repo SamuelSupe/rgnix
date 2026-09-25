@@ -1,0 +1,183 @@
+PASS trusted XFF resolves the last untrusted hop and retains socket peer
+PASS untrusted forwarding headers do not change client identity
+PASS malformed trusted forwarding chain falls back to socket peer
+PASS Forwarded supports quoted IPv6 with ports
+PASS CIDR rules apply to resolved client identity
+PASS rate bucket enforces burst and isolates tenants
+PASS route concurrency rejects excess requests
+PASS concurrency permit releases after completion
+PASS backend concurrency covers the upstream request lifetime
+PASS least connections selects a different idle endpoint
+PASS cookie hash affinity is stable across connections
+PASS managed affinity issues a cookie and preserves the chosen backend
+PASS active health excludes an unhealthy HTTP endpoint
+PASS compiled RGL reads typed JSON, decoded args and cookies
+PASS typed JSON getters use fallbacks for wrong types
+PASS JWT verifies signatures and makes claims available to RGL
+PASS JWT rejects missing, wrong audience, expired and tampered tokens
+PASS external auth replaces spoofed identity headers
+PASS external auth fails closed on deny and service failure
+PASS alias maps the matched prefix to its directory
+PASS SPA fallback serves the shell within its root
+PASS gzip transforms streamed responses and adjusts framing
+PASS Brotli negotiation produces a valid stream
+PASS compression respects quality weights and explicit wildcard exclusions
+PASS request no-transform prevents response compression
+PASS compression preserves range representation boundaries
+PASS PROXY v1 is consumed before HTTP and preserves original peer
+PASS PROXY v2 accepts bounded IPv6 TCP addresses
+PASS mTLS accepts a client issued by the configured CA
+PASS mTLS rejects an anonymous TLS client
+PASS admin diagnostics require a token
+PASS effective configuration and backend state are inspectable
+PASS route explain reports the selected prefix
+PASS authenticated rollback republishes an immutable file version
+PASS rollback increments configuration version
+PASS CA rotation also rejects old clients on reused TLS connections
+PASS offline simulation executes the compiled plugin
+PASS metrics distinguish configured routes and backends
+PASS gRPC h2c upstream returns data before client request EOF
+PASS gRPC bidirectional stream and trailers survive proxying
+PASS HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule
+PASS gRPC failure status survives proxy trailers
+PASS gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200
+PASS OTLP marks both server and client spans as failed for gRPC errors
+PASS OTLP exports linked server and client spans
+PASS traceparent propagates the upstream client span identity
+PASS OTLP access logs correlate with the server span
+PASS local access logs include trace and span IDs
+PASS parent sampling decisions are preserved without exporting unsampled spans
+PASS pre-routing rejected requests are logged
+PASS trace payload excludes query and credential content
+PASS HTTPS upstream validates a private CA and explicit server name
+PASS upstream pool cannot reuse a connection across different CA policies
+PASS PROXY identity is consumed before the TLS handshake
+PASS remote HTTPS JWKS authenticates a signed token
+PASS remote JWKS rotation takes effect without config reload and revokes old keys
+PASS upstream CA reload prevents reuse of previously trusted connections
+PASS archived configuration compilation preserves original include diagnostics
+PASS HTTPS health probes reuse route SNI and private CA
+PASS mTLS health probes accept traditional PEM private keys
+PASS upstream mTLS presents client identity and isolates anonymous pools
+PASS pre-auth rate admission protects the auth service
+PASS JSON local logs redact URI and Referer query credentials
+PASS local log client suppression is applied
+PASS read-only admin can inspect but cannot roll back
+PASS management simulation includes pre-auth rate budgets
+PASS simulation verifies actual JWT signatures and claims
+PASS durable publication captures plugin dependencies
+PASS rollback restores the archived plugin and configuration
+PASS restart restores committed rollback despite broken or missing source files
+PASS durable history preserves version identity across restart
+PASS historical versions remain usable after restart
+PASS management audit records denied and committed changes without tokens
+PASS durable history protects private assets with owner-only permissions
+PASS TLS configuration rejects certificates for a different hostname
+PASS TLS configuration rejects expired certificates
+PASS Named management identities authenticate independently
+PASS Namespace-scoped identity cannot inspect standalone routes or history
+PASS Scoped identity cannot simulate an unauthorized route
+PASS Candidate preflight reports changes without publishing
+PASS Preflight rejects a stale base version
+PASS CLI configuration diff agrees with management preflight
+PASS Simulation reports the actual proxy_pass URI replacement
+PASS Outgoing simulation keeps configured private header values redacted
+PASS Certificate diagnostics expose hostname validity and expiration
+PASS Legacy management token rotates without restarting the process
+PASS Invalid identity updates retain the last valid authorization policy
+PASS Removing a named identity revokes it without restart
+PASS Management audit identifies the named operator without recording credentials
+{
+  "passed": 89,
+  "checks": [
+    "trusted XFF resolves the last untrusted hop and retains socket peer",
+    "untrusted forwarding headers do not change client identity",
+    "malformed trusted forwarding chain falls back to socket peer",
+    "Forwarded supports quoted IPv6 with ports",
+    "CIDR rules apply to resolved client identity",
+    "rate bucket enforces burst and isolates tenants",
+    "route concurrency rejects excess requests",
+    "concurrency permit releases after completion",
+    "backend concurrency covers the upstream request lifetime",
+    "least connections selects a different idle endpoint",
+    "cookie hash affinity is stable across connections",
+    "managed affinity issues a cookie and preserves the chosen backend",
+    "active health excludes an unhealthy HTTP endpoint",
+    "compiled RGL reads typed JSON, decoded args and cookies",
+    "typed JSON getters use fallbacks for wrong types",
+    "JWT verifies signatures and makes claims available to RGL",
+    "JWT rejects missing, wrong audience, expired and tampered tokens",
+    "external auth replaces spoofed identity headers",
+    "external auth fails closed on deny and service failure",
+    "alias maps the matched prefix to its directory",
+    "SPA fallback serves the shell within its root",
+    "gzip transforms streamed responses and adjusts framing",
+    "Brotli negotiation produces a valid stream",
+    "compression respects quality weights and explicit wildcard exclusions",
+    "request no-transform prevents response compression",
+    "compression preserves range representation boundaries",
+    "PROXY v1 is consumed before HTTP and preserves original peer",
+    "PROXY v2 accepts bounded IPv6 TCP addresses",
+    "mTLS accepts a client issued by the configured CA",
+    "mTLS rejects an anonymous TLS client",
+    "admin diagnostics require a token",
+    "effective configuration and backend state are inspectable",
+    "route explain reports the selected prefix",
+    "authenticated rollback republishes an immutable file version",
+    "rollback increments configuration version",
+    "CA rotation also rejects old clients on reused TLS connections",
+    "offline simulation executes the compiled plugin",
+    "metrics distinguish configured routes and backends",
+    "gRPC h2c upstream returns data before client request EOF",
+    "gRPC bidirectional stream and trailers survive proxying",
+    "HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule",
+    "gRPC failure status survives proxy trailers",
+    "gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200",
+    "OTLP marks both server and client spans as failed for gRPC errors",
+    "OTLP exports linked server and client spans",
+    "traceparent propagates the upstream client span identity",
+    "OTLP access logs correlate with the server span",
+    "local access logs include trace and span IDs",
+    "parent sampling decisions are preserved without exporting unsampled spans",
+    "pre-routing rejected requests are logged",
+    "trace payload excludes query and credential content",
+    "HTTPS upstream validates a private CA and explicit server name",
+    "upstream pool cannot reuse a connection across different CA policies",
+    "PROXY identity is consumed before the TLS handshake",
+    "remote HTTPS JWKS authenticates a signed token",
+    "remote JWKS rotation takes effect without config reload and revokes old keys",
+    "upstream CA reload prevents reuse of previously trusted connections",
+    "archived configuration compilation preserves original include diagnostics",
+    "HTTPS health probes reuse route SNI and private CA",
+    "mTLS health probes accept traditional PEM private keys",
+    "upstream mTLS presents client identity and isolates anonymous pools",
+    "pre-auth rate admission protects the auth service",
+    "JSON local logs redact URI and Referer query credentials",
+    "local log client suppression is applied",
+    "read-only admin can inspect but cannot roll back",
+    "management simulation includes pre-auth rate budgets",
+    "simulation verifies actual JWT signatures and claims",
+    "durable publication captures plugin dependencies",
+    "rollback restores the archived plugin and configuration",
+    "restart restores committed rollback despite broken or missing source files",
+    "durable history preserves version identity across restart",
+    "historical versions remain usable after restart",
+    "management audit records denied and committed changes without tokens",
+    "durable history protects private assets with owner-only permissions",
+    "TLS configuration rejects certificates for a different hostname",
+    "TLS configuration rejects expired certificates",
+    "Named management identities authenticate independently",
+    "Namespace-scoped identity cannot inspect standalone routes or history",
+    "Scoped identity cannot simulate an unauthorized route",
+    "Candidate preflight reports changes without publishing",
+    "Preflight rejects a stale base version",
+    "CLI configuration diff agrees with management preflight",
+    "Simulation reports the actual proxy_pass URI replacement",
+    "Outgoing simulation keeps configured private header values redacted",
+    "Certificate diagnostics expose hostname validity and expiration",
+    "Legacy management token rotates without restarting the process",
+    "Invalid identity updates retain the last valid authorization policy",
+    "Removing a named identity revokes it without restart",
+    "Management audit identifies the named operator without recording credentials"
+  ]
+}

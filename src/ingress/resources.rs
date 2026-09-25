@@ -46,6 +46,21 @@ impl Resources {
                     }
                 }
             }
+            let policies = super::policy::annotations(ingress.annotations());
+            for values in
+                std::iter::once(&policies).chain(history.accepted.get(&uid).map(|a| &a.policy))
+            {
+                super::policy::dependencies(values, &ns, &mut services, &mut secrets);
+            }
+            if ingress.annotations().get("rgnix.io/script").is_none()
+                && (!policies.is_empty() || history.accepted.contains_key(&uid))
+            {
+                if let Some(accepted) = super::checkpoint::restore(self, options, &uid, "builtin") {
+                    service_dependencies(&accepted.spec, &ns, &mut services);
+                    super::policy::dependencies(&accepted.policy, &ns, &mut services, &mut secrets);
+                }
+                checkpoints.insert(super::checkpoint::name(&options.class, &uid));
+            }
             if let Some((name, _)) = ingress
                 .annotations()
                 .get("rgnix.io/script")
@@ -65,6 +80,12 @@ impl Resources {
                         && accepted.name == ingress.name_any()
                     {
                         service_dependencies(&accepted.spec, &accepted.namespace, &mut services);
+                        super::policy::dependencies(
+                            &accepted.policy,
+                            &accepted.namespace,
+                            &mut services,
+                            &mut secrets,
+                        );
                     }
                     checkpoints.insert(super::checkpoint::name(&options.class, &uid));
                 }
@@ -93,7 +114,7 @@ impl Resources {
         // Status, resourceVersion and unrelated resources must not trigger recompilation/publication.
         let value = json!({
             "class": self.classes.iter().map(|c| json!([c.uid(), c.spec, c.annotations().get("ingressclass.kubernetes.io/is-default-class")])).collect::<Vec<_>>(),
-            "ingresses": self.ingresses.iter().map(|i| json!([i.uid(), i.namespace(), i.name_any(), i.creation_timestamp(), i.spec, i.annotations().get("rgnix.io/script")])).collect::<Vec<_>>(),
+            "ingresses": self.ingresses.iter().map(|i| json!([i.uid(), i.namespace(), i.name_any(), i.creation_timestamp(), i.spec, i.annotations().get("rgnix.io/script"), i.annotations().get("rgnix.io/rolled-back-revision"), i.annotations().get(super::release::PROGRESS), super::policy::annotations(i.annotations())])).collect::<Vec<_>>(),
             "services": self.services.iter().map(|s| json!([s.namespace(), s.name_any(), s.uid(), s.spec])).collect::<Vec<_>>(),
             "slices": self.slices.iter().map(|s| json!([s.namespace(), s.name_any(), s.address_type, s.endpoints, s.ports, s.labels().get("kubernetes.io/service-name"), s.owner_references()])).collect::<Vec<_>>(),
             "secrets": self.secrets.iter().map(|s| json!([s.namespace(), s.name_any(), s.data])).collect::<Vec<_>>(),
