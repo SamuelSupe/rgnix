@@ -1,0 +1,70 @@
+groups:
+  - name: rgnix
+    rules:
+      - alert: RgnixNotReady
+        expr: rgnix_ready == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} is not ready'
+          description: 'Inspect /readyz, controller logs and configuration diagnostics.'
+      - alert: RgnixHighErrorRate
+        expr: |
+          sum by (job, instance) (rate(rgnix_requests_total{status=~"5.."}[5m]))
+          / sum by (job, instance) (rate(rgnix_requests_total[5m])) > 0.05
+          and on (job, instance) sum by (job, instance) (increase(rgnix_requests_total[5m])) >= 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} has over 5% HTTP errors'
+      - alert: RgnixBudgetPressure
+        expr: rgnix_budget_in_use / rgnix_budget_limit > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} {{ $labels.budget }} budget is over 80% occupied'
+      - alert: RgnixBackendUnavailable
+        expr: rgnix_backend_endpoints{state="eligible"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} has no eligible endpoint for {{ $labels.backend }}'
+      - alert: RgnixConfigurationRejected
+        expr: increase(rgnix_reload_errors_total[5m]) > 0 or increase(rgnix_control_reload_errors_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} rejected a configuration or policy update'
+      - alert: RgnixWatchUnhealthy
+        expr: |
+          sum without (state) (rgnix_ingress_watch_streams{state="healthy"})
+          < sum without (state) (rgnix_ingress_watch_streams{state="configured"})
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} has an unhealthy {{ $labels.kind }} watch'
+      - alert: RgnixCertificateExpiring
+        expr: rgnix_certificate_expiry_timestamp_seconds - time() < 7 * 86400
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix certificate for {{ $labels.host }} expires in less than 7 days'
+      - alert: RgnixAccessLogsDropped
+        expr: increase(rgnix_access_logs_dropped_total[5m]) > 0 or increase(rgnix_otlp_logs_dropped_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} dropped access logs'
+      - alert: RgnixMetricsTruncated
+        expr: rgnix_metrics_omitted > 0 or increase(rgnix_metric_label_overflow_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} reached its metric cardinality limit'

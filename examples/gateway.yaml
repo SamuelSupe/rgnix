@@ -1,0 +1,28 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app
+  namespace: edge
+spec:
+  parentRefs:
+    - name: edge
+  hostnames:
+    - app.example.test
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: stable
+          port: 80
+          weight: 90
+        - name: canary
+          port: 80
+          weight: 10
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: X-Gateway
+                value: rgnix
