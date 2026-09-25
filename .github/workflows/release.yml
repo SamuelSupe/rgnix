@@ -31,19 +31,26 @@ jobs:
           toolchain: 1.98.0
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Native dependencies
-        run: apt-get update && apt-get install -y cmake pkg-config libssl-dev openssl python3-grpcio python3-brotli logrotate redis-server
+        run: |
+          apt-get update && apt-get install -y cmake pkg-config libssl-dev openssl python3-grpcio python3-brotli logrotate redis-server
+          useradd --create-home --uid 10001 rgnix-ci
+          chown -R rgnix-ci:rgnix-ci "$GITHUB_WORKSPACE" "$CARGO_HOME"
       - name: Validate version and complete behavioral gates
         env:
           RELEASE_REF: ${{ github.ref_name }}
           RELEASE_REF_TYPE: ${{ github.ref_type }}
         run: |
+          runuser -u rgnix-ci -- env PATH="$PATH" CARGO_HOME="$CARGO_HOME" RUSTUP_HOME="$RUSTUP_HOME" bash -euo pipefail <<'CHECKS'
           python3 scripts/release_version.py
           python3 scripts/release_version.py --notes > /dev/null
           bash scripts/check.sh
           cargo clippy --locked --all-targets -j 2 -- -D warnings
           cargo build --release --locked -j 2
           test "$(target/release/rgnix --version)" = "rgnix $(python3 scripts/release_version.py)"
+          CHECKS
       - name: Package native executable
         env:
           ARCH: ${{ matrix.arch }}
@@ -69,7 +76,12 @@ jobs:
         if: always()
         with:
           name: native-validation-${{ matrix.arch }}
-          path: .local/*results.json
+          include-hidden-files: true
+          path: |
+            .local/acceptance.json
+            .local/ingress-recovery.json
+            .local/log-rotation.json
+            .local/global-rate-results.json
 
   gateway:
     needs: native

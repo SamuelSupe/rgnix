@@ -5,7 +5,7 @@ Starting with v0.3.0, the `Release` workflow builds native Linux amd64/arm64 arc
 ## Gates and artifacts
 
 1. Native Linux amd64 and arm64 runners build inside Rust 1.98 / Debian bookworm containers, avoiding a newer build-host glibc requirement in the Debian runtime.
-2. Both run formatting, Clippy, unit tests and socket/controller/logging/migration regression suites with locked dependencies.
+2. Both run formatting, Clippy, unit tests and socket/controller/logging/migration regression suites with locked dependencies as an unprivileged user, so filesystem-permission fault checks exercise the non-root runtime contract.
 3. The amd64 binary runs the Gateway API Kubernetes/TLS/gRPC behavioral harness in Kind with SHA256-verified v1.6.1 CRDs.
 4. Only after these gates pass, assemble the native binaries into an amd64/arm64 image with BuildKit SBOM and provenance, sign the published digest using Sigstore OIDC, package a chart pointing to the versioned GHCR image, and generate archive SHA256 checksums.
 5. Publish image, OCI chart and GitHub release assets. GitHub artifact attestations cover the binary archives, chart and checksum file. Versions with major zero or a prerelease suffix are GitHub prereleases.

@@ -228,7 +228,12 @@ def main():
         def do_PATCH(self): self.mutate("PATCH")
         def do_DELETE(self): self.mutate("DELETE")
 
-    api = http.server.ThreadingHTTPServer(("127.0.0.1", 0), API)
+    # Three replicas keep watches open and issue concurrent checkpoint requests.
+    # The stdlib's five-connection backlog can inject TCP retransmission delays.
+    api = http.server.ThreadingHTTPServer(("127.0.0.1", 0), API, bind_and_activate=False)
+    api.request_queue_size = 128
+    api.server_bind()
+    api.server_activate()
     api.daemon_threads = True
     threading.Thread(target=api.serve_forever, daemon=True).start()
     with tempfile.TemporaryDirectory(prefix="rgnix-recovery-") as temp:
