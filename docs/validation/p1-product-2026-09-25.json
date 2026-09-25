@@ -1,0 +1,908 @@
+{
+  "source_tree_sha256": "4a2319389e6fe275fb981ebffb5fd6bbb22776fcd783099d8f7f6396fc0acb89",
+  "source_hash_scope": "Cargo.toml, Cargo.lock, src/**/*.rs, vendor/**/*.rs, vendor/**/Cargo.toml; relative path NUL content NUL, sorted",
+  "source_files": 183,
+  "public_head": "538ef3d59bae45766b0b2c3aa0fdf176949ac899",
+  "working_tree_uncommitted": true,
+  "image": "rgnix:p1-complete-20260925",
+  "image_id": "sha256:632a5276f4d9a4a9a7641cee1d3ceb691d8d1c30b87a33feb0e5efeeb4c160b0",
+  "environment": {
+    "runtime": "OrbStack Linux arm64",
+    "rustc": "1.90.0",
+    "image_builder": "Rust 1.98 Debian bookworm",
+    "kubernetes": "v1.35.6+orb1",
+    "redis": "8.0.2",
+    "helm": "4.2.0",
+    "gateway_crds": "v1.6.1"
+  },
+  "checks": {
+    "http": {
+      "passed": 82,
+      "checks": [
+        "script aliases reject upstreams with conflicting transport protocols",
+        "configuration rejects invalid body modes, limits and timeouts",
+        "static GET",
+        "static HEAD",
+        "static single range",
+        "unsatisfiable range",
+        "conditional GET",
+        "If-Range HTTP date retains partial response",
+        "directory redirect and index",
+        "symlink containment",
+        "contained symlink still serves a regular file",
+        "FIFO files and indexes cannot exhaust the static file pool",
+        "path traversal rejection",
+        "proxy_pass URI replacement",
+        "proxy_pass preserves original URI",
+        "IPv6 upstream",
+        "trusted HTTPS upstream",
+        "HTTPS upstream rejects hostname mismatch",
+        "HTTPS upstream rejects untrusted certificate",
+        "Connection cannot remove framing or Host",
+        "inherited response header",
+        "streaming request body",
+        "valid chunked request keeps its connection reusable",
+        "TE plus Content-Length cannot re-enable connection reuse",
+        "HTTP/1.0 without keep-alive closes after the response",
+        "request body limit",
+        "chunked HTTP body limit",
+        "chunked HTTP body limit before a requested WebSocket upgrade",
+        "compiled request and response hooks",
+        "query-only edits preserve raw paths and can clear the query",
+        "query edits retain proxy URI replacement and explicit path rewrites",
+        "compiled Wasm artifact loads independently",
+        "static plugin redirect preserves literal percent and rewritten query",
+        "informational responses do not consume the final response hook",
+        "plugin direct response",
+        "superseded plugin decisions fail instead of selecting another backend",
+        "script backend alias preserves HTTPS and forwarded headers",
+        "script HTTPS backend still verifies certificates",
+        "fuel limits infinite loops",
+        "response hook failure returns 500 without staged edits",
+        "upstream disconnect never replays POST",
+        "upstream read timeout returns 504",
+        "TLS listener",
+        "HTTP/2 negotiation",
+        "JSON body routes to the selected HTTPS backend without changing bytes",
+        "JSON routing is isolated between requests",
+        "invalid JSON, incomplete JSON and non-string fields do not match",
+        "full inspection can replay bodies larger than Pingora's original 64 KiB buffer",
+        "prefix inspection routes binary uploads and preserves the entire body",
+        "body byte metrics count prefix replay once and inspection only includes the prefix",
+        "content beyond the configured prefix cannot influence routing",
+        "a closed JSON object in a truncated prefix is not treated as complete JSON",
+        "short prefix-inspected bodies may use JSON routing when fully read",
+        "UTF-8 cut at the prefix boundary is nil as text but searchable as bytes",
+        "body inspection remains opt-in",
+        "full inspection rejects oversized known-length bodies",
+        "fragmented and chunked prefix uploads replay once and keep the next request aligned",
+        "full inspection rejects oversized chunked bodies before proxying",
+        "prefix decisions do not wait for the tail; incomplete prefixes have a total timeout",
+        "Expect 100-continue works before inspection without a second upstream expectation",
+        "HTTP/2 full and prefix routing preserve the original body",
+        "body inspection does not enable upstream POST retries",
+        "cancelled body inspection leaves the service available",
+        "in-flight body inspection retains its policy across reload",
+        "SSE first event is streamed",
+        "WebSocket upgrade and bidirectional frames",
+        "WebSocket streams beyond the HTTP body limit (3 MiB)",
+        "WebSocket close frame survives the long stream",
+        "reload keeps in-flight snapshot",
+        "invalid reload retains active configuration",
+        "compiler rejects a flat expression with excessive AST depth",
+        "deep AST reload cannot abort the data plane",
+        "plugin budget rejects excess instances while plain routes work",
+        "inflight budget sheds requests without blocking admin",
+        "live gauges show occupied process, plugin and backend permits",
+        "completed requests release resource permits",
+        "live metrics release permits after requests finish",
+        "failed endpoint is excluded without replaying its requests",
+        "excluded endpoint re-enters rotation after cooldown",
+        "metrics are exposed",
+        "client cancellation preserves service",
+        "failed controller is neither healthy nor ready"
+      ]
+    },
+    "recovery": {
+      "passed": 57,
+      "checks": [
+        "initial configuration is not ready before durable acknowledgement",
+        "accepted configuration is persisted outside the tenant namespace",
+        "controller metrics expose synchronized watches and cached resources",
+        "follower metrics report Lease contention without claiming leadership",
+        "watch failure and resynchronization are observable without losing ready routes",
+        "pending checkpoint retains the previously served plugin",
+        "Event API rejection is counted without withdrawing the accepted route",
+        "unchanged failed Event is retried on the periodic report",
+        "Event is delivered after permission recovery without a resource edit",
+        "successfully published Event is deduplicated",
+        "Ingress status API rejection is counted",
+        "Ingress status is retried after permission recovery",
+        "successful Lease claims are observable on the leader",
+        "stalled Events cannot block Ingress address updates",
+        "Lease renews while Event timeouts remain observable",
+        "stalled Ingress reads cannot starve another namespace status",
+        "status batches renew the Lease while progressing past stalled entries",
+        "an Ingress read rejection does not cancel other status updates",
+        "failed Ingress status catches up after API recovery",
+        "fresh replica restores accepted plugin and route",
+        "unrelated and status-only updates do not publish snapshots",
+        "endpoint withdrawal is independent of stalled Event writes",
+        "fresh replica without a usable checkpoint stays unready",
+        "existing replicas continue serving accepted configuration",
+        "a rejected tenant does not withdraw another accepted route",
+        "valid replacement unblocks initial readiness",
+        "Ingress deletion removes routing and its checkpoint",
+        "oversize checkpoint cannot block another tenant publication",
+        "reject checkpoint cannot block another tenant publication",
+        "stall checkpoint cannot block another tenant publication",
+        "earlier namespace owns its TLS hostname and rejects an overlapping wildcard claim",
+        "withdrawn TLS claim cannot fall back to an unauthorized namespace certificate",
+        "invalid certificate retains exclusive TLS ownership",
+        "valid replacement restores the owned certificate",
+        "deleting the owning Ingress releases TLS ownership",
+        "hostless root rule takes precedence over its default backend",
+        "explicit root rule overrides an older Ingress default backend",
+        "default backend applies only after explicit paths miss",
+        "recreated Service rejects slices owned by its previous UID",
+        "owner-only EndpointSlice updates restore a matching Service",
+        "stale and current slices never mix after Service recreation",
+        "Service owner name must agree with the slice label",
+        "manually managed slices without a Service owner remain supported",
+        "Ingress JSON body annotation routes to a declared Service and preserves bytes",
+        "annotation-only prefix update streams the full upload",
+        "invalid body policy retains the accepted policy and plugin",
+        "fresh replica restores the body policy with its accepted plugin",
+        "bad plugin and body policy cannot freeze endpoint withdrawal",
+        "body-inspected Ingress deletion takes effect despite invalid updates",
+        "Ingress body size policy works without a routing plugin",
+        "Ingress route timeout is configurable",
+        "invalid policy without a plugin retains its accepted configuration",
+        "new replica restores a policy-only checkpoint",
+        "invalid policy cannot freeze live endpoint withdrawal",
+        "deleting policy-only Ingress removes its route",
+        "Ingress preflight warns about unavailable endpoints without publishing a candidate",
+        "Ingress preflight rejects a class reassigned to another controller"
+      ]
+    },
+    "log_rotation": {
+      "passed": 20,
+      "checks": [
+        "concurrent size rotation preserves each complete access record once",
+        "rotated files are valid gzip with the configured size bound",
+        "single oversized records remain intact and file mode is preserved",
+        "retention is bounded after a policy reload without deleting unrelated files",
+        "invalid reload preserves the working rotation policy",
+        "rotation can be disabled by SIGHUP",
+        "time rotation splits records at the next occupied UTC interval",
+        "access and error logs sharing one file rotate through the same writer",
+        "shutdown drains queued local log records",
+        "rotation failure preserves the active file and reports I/O errors",
+        "rotation resumes after directory permissions are repaired",
+        "symlink log destinations are written without renaming or pruning the target",
+        "inherited stdout/stderr work when filesystem permissions forbid reopening",
+        "USR1 reopens access and error files without restarting the server",
+        "valid SIGHUP also reopens local log files",
+        "failed reopen keeps the old descriptor writable and reports the error",
+        "reopen recovers after the filesystem is repaired",
+        "real logrotate rename/create/USR1 with delayed compression works",
+        "full local log queue drops records instead of blocking HTTP",
+        "USR1 is not lost when the record queue is full"
+      ]
+    },
+    "product": {
+      "passed": 111,
+      "checks": [
+        "trusted XFF resolves the last untrusted hop and retains socket peer",
+        "untrusted forwarding headers do not change client identity",
+        "malformed trusted forwarding chain falls back to socket peer",
+        "Forwarded supports quoted IPv6 with ports",
+        "CIDR rules apply to resolved client identity",
+        "rate bucket enforces burst and isolates tenants",
+        "route concurrency rejects excess requests",
+        "concurrency permit releases after completion",
+        "backend metrics expose concurrency occupancy and its configured limit",
+        "backend concurrency covers the upstream request lifetime",
+        "least connections selects a different idle endpoint",
+        "cookie hash affinity is stable across connections",
+        "managed affinity issues a cookie and preserves the chosen backend",
+        "active health excludes an unhealthy HTTP endpoint",
+        "backend metrics distinguish total, eligible and unready endpoints",
+        "compiled RGL reads typed JSON, decoded args and cookies",
+        "typed JSON getters use fallbacks for wrong types",
+        "JWT verifies signatures and makes claims available to RGL",
+        "JWT rejects missing, wrong audience, expired and tampered tokens",
+        "external auth replaces spoofed identity headers",
+        "external auth fails closed on deny and service failure",
+        "alias maps the matched prefix to its directory",
+        "SPA fallback serves the shell within its root",
+        "gzip transforms streamed responses and adjusts framing",
+        "Brotli negotiation produces a valid stream",
+        "compression respects quality weights and explicit wildcard exclusions",
+        "request no-transform prevents response compression",
+        "compression preserves range representation boundaries",
+        "PROXY v1 is consumed before HTTP and preserves original peer",
+        "PROXY v2 accepts bounded IPv6 TCP addresses",
+        "mTLS accepts a client issued by the configured CA",
+        "mTLS rejects an anonymous TLS client",
+        "admin diagnostics require a token",
+        "effective configuration and backend state are inspectable",
+        "route explain reports the selected prefix",
+        "authenticated rollback republishes an immutable file version",
+        "rollback increments configuration version",
+        "CA rotation also rejects old clients on reused TLS connections",
+        "offline simulation executes the compiled plugin",
+        "metrics distinguish configured routes and backends",
+        "metrics expose upstream phases, pool reuse and response bytes",
+        "metrics expose active config and successful update timing",
+        "Linux metrics expose real process memory, file descriptors and threads",
+        "removed backends disappear from current-state metrics while historical counters remain",
+        "gRPC h2c upstream returns data before client request EOF",
+        "gRPC bidirectional stream and trailers survive proxying",
+        "HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule",
+        "gRPC failure status survives proxy trailers",
+        "gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200",
+        "OTLP marks both server and client spans as failed for gRPC errors",
+        "OTLP exports linked server and client spans",
+        "traceparent propagates the upstream client span identity",
+        "tracestate reaches the backend and both OTLP spans",
+        "span flags identify remote server parents and local client parents",
+        "proxy client span timestamps are contained by the server span",
+        "OTLP access logs correlate with the server span",
+        "local access logs include trace, parent and outbound span IDs",
+        "parent sampling decisions are preserved without exporting unsampled spans",
+        "pre-routing rejected requests are logged",
+        "trace payload excludes query and credential content",
+        "future traceparent versions preserve the trace while forwarding supported fields",
+        "invalid tracestate is dropped without breaking a valid traceparent",
+        "oversized tracestate retains whole vendor entries within the propagation limit",
+        "multiple tracestate headers preserve vendor order and ignore empty members",
+        "route header edits cannot detach propagation from the recorded spans",
+        "external authorization creates a distinct child span and propagates W3C context",
+        "HTTP 401 marks the client span as error and leaves server status unset",
+        "two proxy hops form one trace with four linked spans and forward the last client ID",
+        "both hops OTLP and JSON access logs correlate with their own server spans",
+        "duplicate parents start a new trace and cannot retain old tracestate",
+        "unsampled W3C context and correlated logs survive both proxy hops",
+        "invalid versions, zero IDs and malformed context start clean traces",
+        "disabled tracing preserves incoming sampling in correlated OTLP logs",
+        "HTTPS upstream validates a private CA and explicit server name",
+        "upstream pool cannot reuse a connection across different CA policies",
+        "PROXY identity is consumed before the TLS handshake",
+        "remote HTTPS JWKS authenticates a signed token",
+        "remote JWKS rotation takes effect without config reload and revokes old keys",
+        "upstream CA reload prevents reuse of previously trusted connections",
+        "archived configuration compilation preserves original include diagnostics",
+        "HTTPS health probes reuse route SNI and private CA",
+        "mTLS health probes accept traditional PEM private keys",
+        "upstream mTLS presents client identity and isolates anonymous pools",
+        "pre-auth rate admission protects the auth service",
+        "JSON local logs redact URI and Referer query credentials",
+        "local log client suppression is applied",
+        "read-only admin can inspect but cannot roll back",
+        "management simulation includes pre-auth rate budgets",
+        "simulation verifies actual JWT signatures and claims",
+        "durable publication captures plugin dependencies",
+        "rollback restores the archived plugin and configuration",
+        "restart restores committed rollback despite broken or missing source files",
+        "durable history preserves version identity across restart",
+        "historical versions remain usable after restart",
+        "management audit records denied and committed changes without tokens",
+        "durable history protects private assets with owner-only permissions",
+        "TLS configuration rejects certificates for a different hostname",
+        "TLS configuration rejects expired certificates",
+        "Named management identities authenticate independently",
+        "Namespace-scoped identity cannot inspect standalone routes or history",
+        "Scoped identity cannot simulate an unauthorized route",
+        "Candidate preflight reports changes without publishing",
+        "Preflight rejects a stale base version",
+        "CLI configuration diff agrees with management preflight",
+        "Simulation reports the actual proxy_pass URI replacement",
+        "Outgoing simulation keeps configured private header values redacted",
+        "Certificate diagnostics expose hostname validity and expiration",
+        "Legacy management token rotates without restarting the process",
+        "Invalid identity updates retain the last valid authorization policy",
+        "Removing a named identity revokes it without restart",
+        "Management audit identifies the named operator without recording credentials"
+      ]
+    },
+    "shared_rate": [
+      "Two processes share one token bucket instead of doubling burst",
+      "Shared buckets isolate request identities",
+      "Deployment scopes isolate identical routes and identities",
+      "Atomic concurrent debit across processes bounds accepted requests",
+      "Shared limiter exports bounded outcome and latency metrics",
+      "Unavailable coordinator fails closed by default",
+      "Explicit open mode bypasses only the shared rate gate",
+      "Explicit local mode retains per-process rate protection",
+      "Routes without a rate gate remain available during Redis outage",
+      "Coordinator recovery reconnects without a process restart",
+      "Invalid hot configuration retains the accepted coordinator",
+      "Coordinator credentials stay out of logs and metrics"
+    ],
+    "gateway": {
+      "namespace": "rgnix-p1-qa-20260925",
+      "peer_namespace": "rgnix-p1-qa-20260925-peer",
+      "image": "rgnix:p1-complete-20260925",
+      "checks": [
+        {
+          "name": "Gateway status reflects published generation",
+          "passed": true
+        },
+        {
+          "name": "Service backend and Host preservation",
+          "passed": true
+        },
+        {
+          "name": "HTTPRoute status",
+          "passed": true
+        },
+        {
+          "name": "Method, header and query match",
+          "passed": true
+        },
+        {
+          "name": "Predicate mismatch falls through",
+          "passed": true
+        },
+        {
+          "name": "Duplicate header matching uses the first value",
+          "passed": true
+        },
+        {
+          "name": "PathPrefix matches path segments",
+          "passed": true
+        },
+        {
+          "name": "Rewrite and literal request/response header modifiers",
+          "passed": true
+        },
+        {
+          "name": "Redirect preserves suffix/query and scheme default port",
+          "passed": true
+        },
+        {
+          "name": "Weighted route accepted",
+          "passed": true
+        },
+        {
+          "name": "Service weights independent of endpoint counts",
+          "passed": true,
+          "counts": {
+            "a": 262,
+            "b": 38
+          }
+        },
+        {
+          "name": "Cross-namespace backend denied without ReferenceGrant",
+          "passed": true
+        },
+        {
+          "name": "ReferenceGrant permits Service",
+          "passed": true
+        },
+        {
+          "name": "ReferenceGrant withdrawal revokes traffic",
+          "passed": true
+        },
+        {
+          "name": "RGL selects an explicitly declared backend",
+          "passed": true
+        },
+        {
+          "name": "Gateway accepted plugin is durably checkpointed",
+          "passed": true
+        },
+        {
+          "name": "Invalid plugin retains previous valid code",
+          "passed": true
+        },
+        {
+          "name": "New replica 1 restores checkpoint while source is invalid",
+          "passed": true
+        },
+        {
+          "name": "New replica 2 restores checkpoint while source is invalid",
+          "passed": true
+        },
+        {
+          "name": "Endpoint withdrawal still applies during plugin failure",
+          "passed": true
+        },
+        {
+          "name": "Endpoint restoration",
+          "passed": true
+        },
+        {
+          "name": "Recreated ConfigMap cannot inherit old checkpoint code",
+          "passed": true
+        },
+        {
+          "name": "Revoked checkpoint is pruned",
+          "passed": true
+        },
+        {
+          "name": "Route deletion takes effect",
+          "passed": true
+        },
+        {
+          "name": "Unsupported expressions reported in status",
+          "passed": true
+        },
+        {
+          "name": "AllowedRoutes admits another namespace",
+          "passed": true
+        },
+        {
+          "name": "AllowedRoutes revocation removes foreign routes",
+          "passed": true
+        },
+        {
+          "name": "Namespace selector admits matching labels",
+          "passed": true
+        },
+        {
+          "name": "Cross-namespace method routing",
+          "passed": true
+        },
+        {
+          "name": "Namespace reader simulates an authorized Gateway route",
+          "passed": true
+        },
+        {
+          "name": "Simulation cannot cross tenant boundaries by changing method",
+          "passed": true
+        },
+        {
+          "name": "Gateway JWT rejects missing credentials",
+          "passed": true
+        },
+        {
+          "name": "Gateway JWT validates the declared issuer and audience",
+          "passed": true
+        },
+        {
+          "name": "JWT Secret withdrawal cannot fall through to a public prefix",
+          "passed": true
+        },
+        {
+          "name": "Gateway external auth denies unapproved requests",
+          "passed": true
+        },
+        {
+          "name": "Gateway external auth replaces spoofed identity headers",
+          "passed": true
+        },
+        {
+          "name": "Gateway rate policy accepted",
+          "passed": true
+        },
+        {
+          "name": "Replica serves shared-rate policy",
+          "passed": true
+        },
+        {
+          "name": "Replica serves shared-rate policy",
+          "passed": true
+        },
+        {
+          "name": "Gateway rate budget is shared across replicas",
+          "passed": true
+        },
+        {
+          "name": "Gateway persists the initial rollout stage",
+          "passed": true
+        },
+        {
+          "name": "Gateway staged 90/10 Service split",
+          "passed": true,
+          "counts": {
+            "a": 90,
+            "b": 10
+          }
+        },
+        {
+          "name": "Gateway mirror reaches its declared Service",
+          "passed": true
+        },
+        {
+          "name": "Gateway approval advances persisted stage",
+          "passed": true
+        },
+        {
+          "name": "Gateway stage weights change request routing",
+          "passed": true
+        },
+        {
+          "name": "Gateway stage and approval survive both replicas restarting",
+          "passed": true
+        },
+        {
+          "name": "Gateway explicit rollback routes to its stable backend",
+          "passed": true
+        },
+        {
+          "name": "Business rollout initially uses HTTP-successful candidate",
+          "passed": true
+        },
+        {
+          "name": "Sustained external business failure persists automatic rollback",
+          "passed": true
+        },
+        {
+          "name": "Business rollback survives restart on replica 1",
+          "passed": true
+        },
+        {
+          "name": "Business rollback survives restart on replica 2",
+          "passed": true
+        },
+        {
+          "name": "Gateway rollout cannot select an undeclared Service",
+          "passed": true
+        },
+        {
+          "name": "HTTPS Service requires a usable TLS transport policy",
+          "passed": true
+        },
+        {
+          "name": "BackendTLSPolicy validates private CA and hostname",
+          "passed": true
+        },
+        {
+          "name": "BackendTLS hostname mismatch rejects upstream connection",
+          "passed": true
+        },
+        {
+          "name": "Corrected BackendTLS hostname restores traffic",
+          "passed": true
+        },
+        {
+          "name": "Backend CA rotation invalidates previously trusted upstream pools",
+          "passed": true
+        },
+        {
+          "name": "Restored backend CA restores traffic",
+          "passed": true
+        },
+        {
+          "name": "Backend CA withdrawal fails closed with policy status",
+          "passed": true
+        },
+        {
+          "name": "Cross-namespace TLS Secret requires ReferenceGrant",
+          "passed": true
+        },
+        {
+          "name": "HTTPS SNI certificate and route",
+          "passed": true
+        },
+        {
+          "name": "TLS Secret rotates without restarting the data plane",
+          "passed": true
+        },
+        {
+          "name": "TLS Secret deletion revokes the SNI certificate",
+          "passed": true
+        },
+        {
+          "name": "GRPCRoute status",
+          "passed": true
+        },
+        {
+          "name": "gRPC HTTP/2 unary, trailers and bidirectional stream",
+          "passed": true
+        },
+        {
+          "name": "HTTPRoute initially uses the declared HTTP/1 backend protocol",
+          "passed": true
+        },
+        {
+          "name": "HTTPRoute honors Service h2c application protocol",
+          "passed": true
+        },
+        {
+          "name": "Unsupported HTTPS backend cannot be downgraded to plaintext",
+          "passed": true
+        },
+        {
+          "name": "Replica 1 loads administrator namespace quota",
+          "passed": true
+        },
+        {
+          "name": "Replica 2 loads administrator namespace quota",
+          "passed": true
+        },
+        {
+          "name": "Namespace total request quota is shared across replicas",
+          "passed": true
+        },
+        {
+          "name": "Exhausted tenant does not consume another namespace budget",
+          "passed": true
+        },
+        {
+          "name": "Two-replica rolling restart",
+          "passed": true
+        }
+      ],
+      "scope": "Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"
+    },
+    "otlp": {
+      "passed": 32,
+      "checks": [
+        "application response is unchanged",
+        "standard endpoint suffix and protobuf content type",
+        "signal auth headers override generic and decode escaped values",
+        "structured access and resource attributes are exported",
+        "query body auth cookies and disabled route stay out of OTLP",
+        "local access logging remains enabled with credential redaction",
+        "SIGHUP access_log off also disables OTLP",
+        "transient 503 retries identical batch",
+        "disconnected exporter retries identical batch",
+        "permanent 400 is not retried",
+        "authentication failure is not retried",
+        "non-retryable 500 is not retried",
+        "redirect is not followed",
+        "malformed success is counted as failure",
+        "oversized response is rejected",
+        "HTML success is not mistaken for OTLP success",
+        "partial rejection is counted without replay",
+        "Retry-After obeys total export deadline",
+        "full export queue does not block requests",
+        "queue memory and loss are bounded and visible",
+        "collector timeout drains as counted drops",
+        "TLS trust=True host=localhost accepted=True",
+        "TLS trust=False host=localhost accepted=False",
+        "TLS trust=True host=127.0.0.1 accepted=False",
+        "shutdown flushes an unfinished batch",
+        "SIGTERM drains in-flight requests before flushing their logs",
+        "stalled collector cannot extend shutdown indefinitely",
+        "explicit exporter disable preserves local logs",
+        "invalid exporter config is rejected without leaking credentials",
+        "invalid exporter config is rejected without leaking credentials",
+        "invalid exporter config is rejected without leaking credentials",
+        "invalid exporter config is rejected without leaking credentials"
+      ]
+    },
+    "migration": {
+      "passed": 10,
+      "checks": [
+        "process-model differences require an explicit choice",
+        "candidate preserves the original default root across directories",
+        "generated NGINX candidate loads",
+        "request comparison detects changed responses",
+        "unsupported directives are inventoried together",
+        "unresolved named Service ports block conversion",
+        "multi-document YAML converts with Service port resolution",
+        "unmapped authentication is never silently dropped",
+        "wildcard conversion cannot widen hostname access",
+        "default backend overlap cannot silently change fallback precedence"
+      ]
+    },
+    "rust": {
+      "passed": 12,
+      "command": "cargo test --locked -j 2",
+      "regressions": [
+        "fresh sustained failure on HTTP-successful candidate",
+        "unavailable provider behavior",
+        "stale or reconfigured observations"
+      ]
+    },
+    "static": {
+      "cargo_fmt": true,
+      "clippy_all_targets_D_warnings": true,
+      "helm_lint": true,
+      "scoped_helm_render": true,
+      "git_diff_check": true,
+      "python_syntax": true
+    },
+    "ingress_base": {
+      "passed": 46,
+      "checks": [
+        "JSON body selects a declared Service",
+        "JSON body uses the default Service for other values",
+        "Bytes after the prefix cannot select a Service",
+        "Prefix annotation routes a large POST body",
+        "Rejected body policy retains accepted prefix routing",
+        "Prefix path and named Service port",
+        "Prefix segment boundary",
+        "Exact path and numeric Service port",
+        "Exact path boundary",
+        "IngressClass isolation",
+        "Default backend handles unmatched paths on a known host",
+        "Single-label wildcard host",
+        "Wildcard does not match multiple labels",
+        "Hostless root rule overrides its Ingress default backend",
+        "Default backend resumes after its explicit rule is removed",
+        "Hostless rule overrides an earlier default-only Ingress",
+        "Named host route wins over a hostless catchall",
+        "Earlier Ingress wins conflicting route",
+        "route conflict publishes Kubernetes Event",
+        "Compiled plugin selects declared canary",
+        "TLS Secret serves SNI host",
+        "TLS certificate rotation",
+        "accepted plugin checkpoint persisted",
+        "Invalid plugin retains last compiled module",
+        "Invalid plugin retains last accepted route definition",
+        "Rejected route definition is not published",
+        "New replicas restore accepted plugin after invalid update",
+        "New replicas restore accepted routing definition",
+        "Endpoint removal applies during invalid plugin update",
+        "Endpoint addition restores backend",
+        "Service deletion withdraws its endpoints",
+        "Service recreation restores endpoints",
+        "Deleted plugin disables routes",
+        "Plugin recreation restores route",
+        "conflicting TLS owner publishes Kubernetes Event",
+        "Deleted TLS Secret blocks conflicting and wildcard fallback",
+        "TLS Secret recreation",
+        "recovered TLS owner serves its replacement certificate",
+        "elected leader publishes Service address",
+        "withdrawn Service address clears Ingress status",
+        "Lease leadership transfers after leader termination",
+        "300 Service requests during rolling upgrade",
+        "Two-replica rolling upgrade",
+        "replicas publish matching configuration fingerprints",
+        "Ingress deletion removes routing",
+        "Restored inspection environment"
+      ],
+      "image": "rgnix:p1-verified-20260925"
+    },
+    "ingress_policies": {
+      "namespace": "rgnix-p1-ingress-20260925",
+      "context": "orbstack",
+      "image": "rgnix:p1-complete-20260925",
+      "passed": 70,
+      "checks": [
+        "Kubernetes policy allows a 2 MiB POST without a plugin",
+        "Kubernetes per-Ingress upstream timeout is enforced",
+        "Helm trusted proxy settings control forwarded identity",
+        "Helm admin token enables protected diagnostics",
+        "Ingress rejects snapshot rollback in favor of source resources",
+        "Ingress rate annotation enforces an isolated request bucket",
+        "Ingress compression streams a valid gzip representation",
+        "Ingress HTTPS verifies its Service certificate with a Secret CA",
+        "Ingress CA rotation rejects pooled connections under old trust",
+        "Ingress CA Secret deletion withdraws the protected route",
+        "Ingress CA Secret restoration restores verified forwarding",
+        "Ingress JWT Secret authenticates and rejects anonymous callers",
+        "JWT Secret withdrawal takes effect while its policy is retained",
+        "Ingress external auth replaces an untrusted identity header",
+        "External auth Service revocation fails closed",
+        "Ingress client CA Secret enables mutual TLS",
+        "Invalid policy retains its accepted body limit without a script",
+        "Restarted replica restores policy-only checkpoint: rgnix-qa-58585695cb-hsfw8",
+        "Restarted replica restores policy-only checkpoint: rgnix-qa-58585695cb-zbzc2",
+        "Invalid policy cannot freeze Kubernetes endpoint withdrawal",
+        "Deleting a policy-only Ingress removes its recovered route",
+        "Declarative Service traffic split follows 90/10 weights",
+        "Mirror sends the complete bounded body independently",
+        "Oversized mirror bodies are skipped without truncating primary requests",
+        "Slow mirrors do not delay primary responses",
+        "Candidate errors trigger durable Ingress rollback metadata",
+        "Both replicas adopt the persisted fallback",
+        "Automatic rollback survives controller restart",
+        "Configuration fingerprint includes traffic weights and rollback policy",
+        "Configured p95 latency threshold also rolls back a new revision",
+        "External auth fails over across ready EndpointSlice addresses",
+        "Administrator body ceiling overrides an unlimited application policy",
+        "Administrator timeout ceiling is reflected in effective configuration",
+        "Namespace inflight exhaustion leaves another namespace available",
+        "Namespace permits release after the held requests finish",
+        "Namespace configuration quota rejects additional Ingress routes",
+        "Limiter key exhaustion is isolated by namespace",
+        "Namespace policy projection reloads quotas without replacing controller pods",
+        "Persisted fallback overrides an explicit RGL backend on replica rgnix-qa-6cfbc6b87c-p9slz",
+        "Persisted fallback overrides an explicit RGL backend on replica rgnix-qa-6cfbc6b87c-wqrzh",
+        "A different namespace cannot acquire a longer path on an owned hostname",
+        "Scoped Helm RBAC permits selected namespaces and denies unrelated Secrets",
+        "Named namespace identity sees only its own effective routes",
+        "Namespace writer cannot operate another tenant rollout",
+        "Explicit administrator domain grants allow the authorized namespace",
+        "Admission rejects a cross-namespace domain claim before persistence",
+        "Ingress preflight returns a candidate diff without publishing",
+        "API server dry-run accepts valid policies and rejects invalid ones",
+        "Admission protects controller-owned rollout progress from tenant edits",
+        "Stable cohort routing chooses the same Service across replicas",
+        "Stage approval rejects stale stage numbers",
+        "Stage can be paused and approved through the audited writer API",
+        "Paused rollout preserves its current weights",
+        "Resume accepts the current persisted revision",
+        "Failing external metric gate prevents stage promotion",
+        "Metric diagnostics explain a fresh failed gate without exposing its endpoint",
+        "Hot metric provider update permits approved healthy stage advancement",
+        "Both replicas adopt the persisted stage weights",
+        "Stage and pending approval survive controller restart",
+        "Final stage accepts explicit approval",
+        "Successful final observation marks the rollout promoted",
+        "Ingress simulation exposes effective rollout backend and final URI",
+        "Business metric failures roll back HTTP-successful Ingress candidates",
+        "External-metric rollback persists across all Ingress replica restarts",
+        "Ingress HTTPS redirect preserves the path and query before authentication",
+        "Projected identity revocation takes effect without pod restart",
+        "Management preflight rejects a Class reassigned to another controller",
+        "Admission does not impose rgnix policies on a foreign controller Class",
+        "Restoring the Class restores persisted stage routing",
+        "Trace-only Helm export is decoded by a real OpenTelemetry Collector"
+      ]
+    }
+  },
+  "binary_sha256": "f3976ee667f787fe876f42d46d5a0d8b5e1b1b895238d7461abb2386529aa428",
+  "native_binary_sha256": "f0f69c4e02eed943b1119200479faa22b158cf9edf419476987448adcbceb3ce",
+  "boundaries": [
+    "Linux arm64 validation only; no native amd64 runtime run",
+    "Gateway API upstream conformance not run",
+    "Redis server TLS, Sentinel/Cluster failover and high-load soak not exercised",
+    "Gateway checkpoints are asynchronous; only persisted records survive a crash",
+    "No Git commit, GitHub publication or tagged release in this task"
+  ],
+  "completed_at": "2026-09-25T12:54:39.758223+00:00",
+  "pods": {
+    "rgnix-p1-qa-20260925": [
+      {
+        "name": "gateway-8f76cc85d-cml4g",
+        "uid": "28afe77c-1538-44c3-b201-a9c2ea919606",
+        "status": [
+          {
+            "name": "rgnix",
+            "ready": true,
+            "restartCount": 0,
+            "imageID": "docker-pullable://rgnix@sha256:632a5276f4d9a4a9a7641cee1d3ceb691d8d1c30b87a33feb0e5efeeb4c160b0"
+          }
+        ]
+      },
+      {
+        "name": "gateway-8f76cc85d-wt2jl",
+        "uid": "a9945443-e3d8-423f-b9ba-00207ca0d774",
+        "status": [
+          {
+            "name": "rgnix",
+            "ready": true,
+            "restartCount": 0,
+            "imageID": "docker-pullable://rgnix@sha256:632a5276f4d9a4a9a7641cee1d3ceb691d8d1c30b87a33feb0e5efeeb4c160b0"
+          }
+        ]
+      }
+    ],
+    "rgnix-p1-ingress-20260925": [
+      {
+        "name": "rgnix-qa-5d685bb9bc-8ttvc",
+        "uid": "2109c4b1-0327-49fe-a98e-6a5dcc4dcaa6",
+        "status": [
+          {
+            "name": "rgnix",
+            "ready": true,
+            "restartCount": 0,
+            "imageID": "docker-pullable://rgnix@sha256:632a5276f4d9a4a9a7641cee1d3ceb691d8d1c30b87a33feb0e5efeeb4c160b0"
+          }
+        ]
+      },
+      {
+        "name": "rgnix-qa-5d685bb9bc-vblnj",
+        "uid": "5ff373c0-c4e0-4e63-9cd0-be7989c2a03d",
+        "status": [
+          {
+            "name": "rgnix",
+            "ready": true,
+            "restartCount": 0,
+            "imageID": "docker-pullable://rgnix@sha256:632a5276f4d9a4a9a7641cee1d3ceb691d8d1c30b87a33feb0e5efeeb4c160b0"
+          }
+        ]
+      }
+    ]
+  },
+  "test_files_sha256": {
+    "scripts/gateway_e2e.py": "21fa758a04b06ea7731943ba771403c4ce7dcc112c58caea816f20e34eca1903",
+    "scripts/global_rate_limit.py": "cc84f2327fb0763b567c160e1348ea2f0a5fa8874051335bb92a33170c78bea3",
+    "scripts/product_kubernetes.py": "660616d5662fa69e789f4b208da725fc4aee5a29e1e140fe10dc22bd2f3d175d",
+    "scripts/check.sh": "8e7ffc9b4919783e9142353a32d8e61a23c50e5d3da01d58e4950dd38f4d0ec8"
+  },
+  "native_validation_note": "Full scripts/check.sh passed before the final Gateway auth-dependency rejection guard; cargo fmt, all-target clippy, 12 Rust tests and build passed after it. Final-image Gateway and Ingress-policy suites passed. Ingress base used the earlier image identified in its check entry.",
+  "iteration_notes": [
+    "Fixed Gateway checkpoints retained after ConfigMap recreation and verified removal",
+    "Added Gateway auth dependency rejection guard and verified no fallback to public prefix",
+    "Adjusted repeatable TLS fixture restart, explicit test-domain grant and asynchronous publication wait; final suites passed"
+  ],
+  "gateway_crd_sha256": "24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73"
+}

@@ -34,7 +34,7 @@ rgnix_log_fields timestamp method uri status bytes route backend trace_id;
 
 每个命名空间独立计数和分配限流表。耗尽一个命名空间的预算不会占用其他命名空间的独立额度。拒绝的配置产生 `NamespaceQuota` / `NamespaceDenied` Event，`/v1/routes` 展示生效上限和活动数量。
 
-省略 `default` 时，只接纳 `namespaces` 显式列出的命名空间。显式命名空间条目替换 default 条目，缺失字段使用内置默认值。请求和插件并发上限必须小于进程总上限。预算按控制器进程计数，不是跨副本的分布式计费配额；需要独立 CPU/内存或更强信任隔离时，应使用不同控制器部署、IngressClass 和 Kubernetes 资源限制。
+省略 `default` 时，只接纳 `namespaces` 显式列出的命名空间。显式命名空间条目替换 default 条目，缺失字段使用内置默认值。请求和插件并发上限必须小于进程总上限。可选 [Redis 协调器](shared-rate-limits.md) 支持跨副本请求速率预算；并发及资源预算仍按进程计数，需要独立 CPU/内存或更强信任隔离时，应使用不同控制器部署、IngressClass 和 Kubernetes 资源限制。
 
 ## 声明式灰度、镜像和回退
 

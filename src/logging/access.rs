@@ -54,6 +54,9 @@ impl Policy {
                     "config",
                     "trace_id",
                     "span_id",
+                    "parent_span_id",
+                    "upstream_span_id",
+                    "trace_sampled",
                     "grpc_status"
                 ]
                 .contains(&f.as_str())),
@@ -127,7 +130,7 @@ impl Policy {
                 .collect()
         };
         format!(
-            "{} - - [{}] \"{} {} {}\" {} {} \"{}\" \"{}\" route=\"{}\" backend=\"{}\" upstream=\"{}\" config=\"{}\" trace_id=\"{}\" span_id=\"{}\"",
+            "{} - - [{}] \"{} {} {}\" {} {} \"{}\" \"{}\" route=\"{}\" backend=\"{}\" upstream=\"{}\" config=\"{}\" trace_id=\"{}\" span_id=\"{}\" parent_span_id=\"{}\" upstream_span_id=\"{}\" trace_sampled={}",
             text("client"),
             text("timestamp"),
             text("method"),
@@ -142,7 +145,10 @@ impl Policy {
             text("upstream"),
             text("config"),
             text("trace_id"),
-            text("span_id")
+            text("span_id"),
+            text("parent_span_id"),
+            text("upstream_span_id"),
+            text("trace_sampled")
         )
     }
 }

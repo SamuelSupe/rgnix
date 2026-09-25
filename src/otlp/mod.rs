@@ -1,4 +1,5 @@
 mod config;
+mod propagation;
 mod record;
 pub mod trace;
 pub use config::Options;

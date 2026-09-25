@@ -44,10 +44,15 @@ receivers:
 exporters:
   debug:
     verbosity: detailed
+    sampling_initial: 100
+    sampling_thereafter: 1
 service:
   extensions: [bearertokenauth, health_check]
   pipelines:
     logs:
+      receivers: [otlp]
+      exporters: [debug]
+    traces:
       receivers: [otlp]
       exporters: [debug]
 EOF
@@ -97,10 +102,14 @@ EOF
 "${k[@]}" rollout status deployment/collector --timeout=120s
 helm upgrade --install rgnix-otlp charts/rgnix --kube-context "$context" -n "$ns" \
   --set ingressClass="$ns" --set service.type=ClusterIP --set image.pullPolicy=Never \
-  --set image.tag="${RGNIX_IMAGE_TAG:-0.2.0}" \
+  --set "watchNamespaces[0]=$ns" \
+  --set image.tag="${RGNIX_IMAGE_TAG:-0.3.0}" \
   --set otlpLogs.endpoint="https://collector.$ns.svc:4318/v1/logs" \
   --set otlpLogs.serviceName=rgnix-ingress-qa \
   --set otlpLogs.headersSecret.name=otlp-auth --set otlpLogs.caConfigMap.name=otlp-ca \
+  --set otlpTraces.endpoint="https://collector.$ns.svc:4318/v1/traces" \
+  --set otlpTraces.sampleRatio=0 \
+  --set otlpTraces.headersSecret.name=otlp-auth --set otlpTraces.caConfigMap.name=otlp-ca \
   --wait --timeout=120s
 # Repeated runs rotate the test CA; exporters load their trust bundle at startup.
 "${k[@]}" rollout restart deployment/rgnix-otlp
@@ -137,7 +146,9 @@ for pod in $pods; do
   admin_port="$(sed -n 's/.*127\.0\.0\.1:\([0-9]*\) -> 9090/\1/p' "$work/forward.log" | head -1)"
   [[ -n "$http_port" && -n "$admin_port" ]]
   for _ in {1..80}; do
-    code="$(curl -sS -o "$work/body" -w '%{http_code}' -H 'Host: access.example.test' "http://127.0.0.1:$http_port/?credential=query-private")"
+    code="$(curl -sS -o "$work/body" -w '%{http_code}' -H 'Host: access.example.test' \
+      -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' \
+      -H 'tracestate: qa=collector' "http://127.0.0.1:$http_port/?credential=query-private")"
     if [[ "$code" == 200 ]]; then break; fi
     sleep 0.1
   done
@@ -145,11 +156,13 @@ for pod in $pods; do
   echo "PASS Ingress request on $pod"
   for _ in {1..80}; do
     curl -fsS "http://127.0.0.1:$admin_port/metrics" > "$work/metrics"
-    if grep -Eq '^rgnix_otlp_logs_exported_total [1-9][0-9]*$' "$work/metrics"; then break; fi
+    if grep -Eq '^rgnix_otlp_logs_exported_total [1-9][0-9]*$' "$work/metrics" && \
+      grep -Eq '^rgnix_otlp_traces_exported_total ([2-9]|[1-9][0-9]+)$' "$work/metrics"; then break; fi
     sleep 0.1
   done
   grep -Eq '^rgnix_otlp_logs_exported_total [1-9][0-9]*$' "$work/metrics"
-  echo "PASS Collector acknowledged authenticated HTTPS logs from $pod"
+  grep -Eq '^rgnix_otlp_traces_exported_total ([2-9]|[1-9][0-9]+)$' "$work/metrics"
+  echo "PASS Collector acknowledged authenticated HTTPS logs and traces from $pod"
   kill "$forward_pid" 2>/dev/null || true
   wait "$forward_pid" 2>/dev/null || true
   forward_pid=""
@@ -161,6 +174,11 @@ done
 for pod in $pods; do grep -Fq "k8s.pod.name: Str($pod)" "$work/decoded.log"; done
 ! grep -Fq 'query-private' "$work/decoded.log"
 echo 'PASS Real Collector decoded resource, HTTP, backend, duration and config fields from both replicas; query excluded'
+sed -E 's/[[:blank:]]+:/:/g' "$work/decoded.log" > "$work/trace-fields.log"
+for field in 'Trace ID: 4bf92f3577b34da6a3ce929d0e0e4736' 'Parent ID: 00f067aa0ba902b7' 'TraceState: qa=collector' 'Kind: Server' 'Kind: Client' 'rgnix.parent_span_id: Str(00f067aa0ba902b7)' 'rgnix.upstream.span_id:'; do
+  grep -Fq "$field" "$work/trace-fields.log" || { cat "$work/decoded.log"; echo "Missing trace field: $field" >&2; exit 1; }
+done
+echo 'PASS Real Collector decoded server/client spans, W3C parent/state and correlated access logs'
 if [[ -n "${RGNIX_OTLP_EVIDENCE_DIR:-}" ]]; then
   mkdir -p "$RGNIX_OTLP_EVIDENCE_DIR"
   cp "$work/decoded.log" "$RGNIX_OTLP_EVIDENCE_DIR/otlp-collector-decoded.txt"

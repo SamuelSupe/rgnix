@@ -1,6 +1,225 @@
 use anyhow::{Result, ensure};
-use serde::Deserialize;
-use std::{collections::BTreeMap, path::Path};
+use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, path::Path, time::Instant};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rollback {
+    pub consecutive_failures: u32,
+    pub failure_seconds: u64,
+    #[serde(default)]
+    pub unavailable: Unavailable,
+}
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Unavailable {
+    #[default]
+    Pause,
+    Rollback,
+}
+impl Rollback {
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            (1..=120).contains(&self.consecutive_failures) && self.failure_seconds <= 3600,
+            "metric rollback requires 1..120 failures and at most 3600 failure seconds"
+        );
+        Ok(())
+    }
+}
+pub struct Observation {
+    pub digest: String,
+    pub passed: Option<bool>,
+    pub checked: Instant,
+}
+impl Observation {
+    pub fn fresh(&self, digest: &str) -> bool {
+        self.digest == digest && self.checked.elapsed().as_secs() <= 60
+    }
+    pub fn passed(&self, digest: &str) -> bool {
+        self.fresh(digest) && self.passed == Some(true)
+    }
+}
+#[derive(Default)]
+pub(super) struct Failures {
+    digest: String,
+    stage: usize,
+    gates: BTreeMap<String, (Instant, Instant, u32)>,
+}
+impl super::State {
+    pub fn evaluate_metrics(&self, digest: &str, results: &BTreeMap<String, Observation>) -> bool {
+        let Some(rule) = &self.policy.metric_rollback else {
+            return false;
+        };
+        let stage = self.stage();
+        let mut failures = self
+            .metric_failures
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if failures.digest != digest || failures.stage != stage {
+            *failures = Failures {
+                digest: digest.into(),
+                stage,
+                ..Default::default()
+            };
+        }
+        for name in &self.policy.metric_gates {
+            let Some(result) = results.get(name).filter(|r| r.fresh(digest)) else {
+                failures.gates.remove(name);
+                continue;
+            };
+            let failing = result.passed == Some(false)
+                || (result.passed.is_none() && matches!(rule.unavailable, Unavailable::Rollback));
+            if !failing {
+                failures.gates.remove(name);
+                continue;
+            }
+            let entry =
+                failures
+                    .gates
+                    .entry(name.clone())
+                    .or_insert((result.checked, result.checked, 1));
+            if result.checked > entry.1 {
+                // A gap in provider observations cannot count as continuous failure.
+                if result.checked.duration_since(entry.1).as_secs() > 60 {
+                    *entry = (result.checked, result.checked, 1);
+                } else {
+                    entry.1 = result.checked;
+                    entry.2 = entry.2.saturating_add(1);
+                }
+            }
+            if entry.2 >= rule.consecutive_failures
+                && entry.1.duration_since(entry.0).as_secs() >= rule.failure_seconds
+            {
+                let mut window = self.window.lock().unwrap_or_else(|e| e.into_inner());
+                if !window.rolled_back {
+                    window.rolled_back = true;
+                    window.reason = format!(
+                        "external metric {name} {}",
+                        if result.passed.is_none() {
+                            "unavailable"
+                        } else {
+                            "threshold"
+                        }
+                    );
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{sync::Arc, time::Duration};
+
+    fn state(unavailable: &str) -> Arc<crate::rollout::State> {
+        let policy = crate::rollout::Policy::parse(&serde_json::json!({
+            "revision":"business-1", "backends":[{"service":"stable:80","weight":10},{"service":"canary:80","weight":90}],
+            "rollback":{"fallback":"stable:80","min_requests":100,"error_percent":50,"window_seconds":60},
+            "metric_gates":["orders"],
+            "metric_rollback":{"consecutive_failures":2,"failure_seconds":2,"unavailable":unavailable}
+        }).to_string()).unwrap();
+        crate::rollout::Rollouts::default().get(
+            "ns/app",
+            "uid",
+            policy,
+            BTreeMap::from([
+                ("stable:80".into(), "stable".into()),
+                ("canary:80".into(), "canary".into()),
+            ]),
+        )
+    }
+    fn observe(
+        state: &crate::rollout::State,
+        digest: &str,
+        passed: Option<bool>,
+        checked: Instant,
+    ) -> bool {
+        state.evaluate_metrics(
+            "current",
+            &BTreeMap::from([(
+                "orders".into(),
+                Observation {
+                    digest: digest.into(),
+                    passed,
+                    checked,
+                },
+            )]),
+        )
+    }
+    #[test]
+    fn sustained_business_failure_resets_on_recovery_and_rolls_back_http_success() {
+        let state = state("pause");
+        let start = Instant::now() - Duration::from_secs(10);
+        state.completed("canary", false, Duration::from_millis(1), 0);
+        assert!(!observe(&state, "current", Some(false), start));
+        assert!(!observe(&state, "current", Some(false), start));
+        assert!(!observe(
+            &state,
+            "current",
+            Some(true),
+            start + Duration::from_secs(2)
+        ));
+        assert!(!observe(
+            &state,
+            "current",
+            Some(false),
+            start + Duration::from_secs(4)
+        ));
+        assert!(observe(
+            &state,
+            "current",
+            Some(false),
+            start + Duration::from_secs(6)
+        ));
+        assert_eq!(state.select(&Default::default()), "stable");
+        assert!(!observe(
+            &state,
+            "current",
+            Some(false),
+            start + Duration::from_secs(8)
+        ));
+    }
+    #[test]
+    fn unavailable_provider_requires_explicit_rollback_policy() {
+        let start = Instant::now() - Duration::from_secs(4);
+        for mode in ["pause", "rollback"] {
+            let state = state(mode);
+            assert!(!observe(&state, "current", None, start));
+            assert_eq!(
+                observe(&state, "current", None, start + Duration::from_secs(3)),
+                mode == "rollback"
+            );
+        }
+    }
+    #[test]
+    fn stale_or_reconfigured_observations_cannot_trigger_rollback() {
+        let state = state("rollback");
+        let now = Instant::now();
+        assert!(!observe(
+            &state,
+            "current",
+            Some(false),
+            now - Duration::from_secs(90)
+        ));
+        assert!(!observe(
+            &state,
+            "current",
+            Some(false),
+            now - Duration::from_secs(5)
+        ));
+        assert!(!observe(
+            &state,
+            "old-provider",
+            Some(false),
+            now - Duration::from_secs(3)
+        ));
+        assert!(!observe(&state, "current", Some(false), now));
+        assert!(!state.rolled_back());
+    }
+}
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -66,10 +285,8 @@ impl Metrics {
         }
         Ok(metrics)
     }
-    pub async fn evaluate(&self, name: &str, client: &reqwest::Client) -> bool {
-        let Some(gate) = self.gates.get(name) else {
-            return false;
-        };
+    pub async fn evaluate(&self, name: &str, client: &reqwest::Client) -> Option<bool> {
+        let gate = self.gates.get(name)?;
         let result = async {
             let mut request = client
                 .get(&gate.url)
@@ -98,14 +315,13 @@ impl Metrics {
                         .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                 })
                 .ok_or_else(|| anyhow::anyhow!("metric value missing"))?;
+            ensure!(value.is_finite(), "metric value must be finite");
             Ok::<_, anyhow::Error>(
-                value.is_finite()
-                    && gate.min.is_none_or(|min| value >= min)
-                    && gate.max.is_none_or(|max| value <= max),
+                gate.min.is_none_or(|min| value >= min) && gate.max.is_none_or(|max| value <= max),
             )
         }
         .await;
-        result.unwrap_or(false)
+        result.ok()
     }
 }
 
@@ -121,10 +337,10 @@ pub fn diagnostic<'a>(
         .lock()
         .unwrap_or_else(|e| e.into_inner());
     serde_json::json!(names.into_iter().map(|name| {
-        let result = results.get(name).filter(|(digest, _, _)| digest == &controls.digest);
-        let age = result.map(|(_, _, at)| at.elapsed().as_secs());
-        let passed = result.is_some_and(|(_, pass, _)| *pass) && age.is_some_and(|age| age <= 60);
-        (name, serde_json::json!({"passed":passed,"checked_seconds_ago":age,"fresh":age.is_some_and(|age|age<=60)}))
+        let result = results.get(name).filter(|r| r.digest == controls.digest);
+        let age = result.map(|r| r.checked.elapsed().as_secs());
+        let passed = result.is_some_and(|r| r.passed(&controls.digest));
+        (name, serde_json::json!({"passed":passed,"available":result.is_some_and(|r|r.passed.is_some()),"checked_seconds_ago":age,"fresh":age.is_some_and(|age|age<=60)}))
     }).collect::<BTreeMap<_, _>>())
 }
 #[async_trait::async_trait]
@@ -157,7 +373,11 @@ impl pingora::services::background::BackgroundService for Poller {
                     .unwrap_or_else(|e| e.into_inner())
                     .insert(
                         name,
-                        (state.digest.clone(), passed, std::time::Instant::now()),
+                        Observation {
+                            digest: state.digest.clone(),
+                            passed,
+                            checked: Instant::now(),
+                        },
                     );
             }
             self.0
@@ -165,6 +385,21 @@ impl pingora::services::background::BackgroundService for Poller {
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .retain(|name, _| state.metrics.gates.contains_key(name));
+            let results = self
+                .0
+                .metric_results
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            for rollout in self.0.rollouts.active() {
+                if rollout.evaluate_metrics(&state.digest, &results) {
+                    self.0.telemetry.rollbacks.inc();
+                    log::warn!(
+                        "external metric triggered rollback for {} revision {}",
+                        rollout.owner,
+                        rollout.policy.revision
+                    );
+                }
+            }
         }
     }
 }

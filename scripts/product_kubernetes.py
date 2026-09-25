@@ -50,7 +50,7 @@ server.serve_forever()
 def main():
     namespace = sys.argv[1]
     context = sys.argv[2] if len(sys.argv) > 2 else "orbstack"
-    tag = os.environ.get("RGNIX_IMAGE_TAG", "0.2.0")
+    tag = os.environ.get("RGNIX_IMAGE_TAG", "0.3.0")
     kube = ["kubectl", "--context", context, "-n", namespace]
     forwards = []
 
@@ -131,6 +131,7 @@ def main():
             labels = json.loads(k("get", "namespace", namespace, "-o", "json"))["metadata"].get("labels", {})
             if labels.get("rgnix-qa") != "true":
                 raise RuntimeError("run ingress-e2e.sh first in a dedicated rgnix-qa=true namespace")
+            k("delete","ingress","staged","business","canary","forced-fallback","--ignore-not-found")
             certificates(root)
             secret("policy-tls", **{"tls.crt": root / "server.crt", "tls.key": root / "server.key"})
             secret("policy-ca", **{"ca.crt": root / "ca.crt"})
@@ -461,7 +462,7 @@ server.count=0;server.last={};server.serve_forever()
                     for tls in obj["spec"].get("tls",[]):
                         for host in tls.get("hosts",[]):domains.setdefault(host,[ns])
                     if obj["spec"].get("defaultBackend"):domains.setdefault("",[ns])
-            domains.update({"staged.product.test":[namespace],"preflight.product.test":[namespace],"granted.product.test":[tenant]})
+            domains.update({"business.product.test":[namespace],"staged.product.test":[namespace],"preflight.product.test":[namespace],"granted.product.test":[tenant]})
             tenant_policy["domains"]=domains
             apply("ConfigMap","namespace-policy",data={"policy.json":json.dumps(tenant_policy)})
             read_token="tenant-reader-"+os.urandom(32).hex()
@@ -469,6 +470,7 @@ server.count=0;server.last={};server.serve_forever()
             users={"users":[{"name":"tenant-reader","role":"reader","namespaces":[tenant],"token_sha256":hashlib.sha256(read_token.encode()).hexdigest()},{"name":"tenant-operator","role":"writer","namespaces":[tenant],"token_sha256":hashlib.sha256(write_token.encode()).hexdigest()}]}
             (root/"users.json").write_text(json.dumps(users));secret("governance-users",**{"users.json":root/"users.json"})
             metrics={"gates":{"qa-gate":{"url":f"http://stable.{namespace}.svc/stats","pointer":"/count","max":0}}}
+            metrics["gates"]["business-fail"]={"url":f"http://stable.{namespace}.svc/stats","pointer":"/count","max":-1}
             (root/"metrics.json").write_text(json.dumps(metrics));secret("governance-metrics",**{"metrics.json":root/"metrics.json"})
             admission_host=f"rgnix-qa-admission.{namespace}.svc"
             run("openssl","req","-new","-newkey","rsa:2048","-nodes","-subj","/CN="+admission_host,"-keyout",str(root/"admission.key"),"-out",str(root/"admission.csr"))
@@ -557,6 +559,22 @@ server.count=0;server.last={};server.serve_forever()
             status,_,body=request("","/v1/simulate",method="POST",body=json.dumps(simulation),admin=True,headers=admin_auth)
             plan=json.loads(body).get("outbound",{})
             check("Ingress simulation exposes effective rollout backend and final URI",status==200 and "candidate" in plan.get("backend","") and plan.get("uri")=="/preview?q=1" and plan.get("io_executed") is False)
+
+            business=json.loads(json.dumps(staged));business.pop("steps");business.pop("cohort")
+            business.update(revision="business-v1",metric_gates=["business-fail"],metric_rollback={"consecutive_failures":2,"failure_seconds":4})
+            business["backends"]=[{"service":"stable:http","weight":0},{"service":"candidate:http","weight":100}]
+            ingress("business",{"traffic-policy":json.dumps(business)})
+            def business_role():
+                status,_,body=request("business")
+                return json.loads(body).get("role") if status==200 else None
+            wait(business_role,"candidate")
+            wait(lambda:json.loads(k("get","ingress","business","-o","json"))["metadata"]["annotations"].get("rgnix.io/rolled-back-revision"),"business-v1",60)
+            check("Business metric failures roll back HTTP-successful Ingress candidates",business_role()=="stable")
+            k("rollout","restart","deployment/rgnix-qa");k("rollout","status","deployment/rgnix-qa","--timeout=180s")
+            for pod in pods():
+                ports=forward(pod,root)
+                wait(business_role,"stable")
+            check("External-metric rollback persists across all Ingress replica restarts",True)
 
             ingress("mtls",{"client-ca-secret":"policy-ca","verify-client":"on","ssl-redirect":"true"},tls=True)
             wait(lambda:request("", "/secure?q=1",headers={"Host":"example.test"})[0],308)

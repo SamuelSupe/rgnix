@@ -67,12 +67,13 @@ Chart 自动附加 `k8s.namespace.name` 与 `k8s.pod.name`。每个副本导出�
 | `rgnix.upstream.name` / `.address` | 选定后端与实际连接地址；本地响应不包含 |
 | `rgnix.config.version` / `.sha256` | 该请求持有的配置版本与摘要 |
 | `rgnix.error.source` | 有传输/处理错误时为 upstream/downstream/internal |
+| `rgnix.parent_span_id` / `rgnix.upstream.span_id` | 开启 traces 后的父 span 与主后端 client span ID；没有对应 span 时省略 |
 
 成功请求 INFO、HTTP 4xx WARN、HTTP 5xx 或处理错误 ERROR。导出与本地访问日志相同的请求，包括路由前拒绝和未匹配请求（使用 http 级策略）；独立管理端口不导出。`access_log off` 同时关闭该路由的本地与 OTLP 日志，并保留原有继承规则。只需要 OTLP 时，独立模式可使用 `access_log /dev/null;`。
 
-有效的 W3C traceparent 提供 trace_id/span_id 关联；显式启用 OTLP traces 后，日志关联代理 server span，上游请求带 client span 上下文。trace 导出拥有独立采样和有界队列，访问日志 off 不关闭 traces，见[配置与数据边界](product-features.md#可观测性)。
+有效的 W3C traceparent 提供 trace_id/span_id 关联；显式启用 OTLP traces 后，日志关联代理 server span，后端请求带 client span 上下文及有效的 tracestate。无有效父级时创建新根 trace。LogRecord 的原生 trace_id/span_id/flags 支持平台日志与链路关联。trace 导出拥有独立采样和有界队列，访问日志 off 不关闭 traces，见[链路与日志关联](tracing.md)。
 
-不导出请求/响应 Body、query、任意 HTTP headers、Cookie、Authorization、Referer 或 User-Agent，也不从客户端生成或推断 trace/span。路径本身和 IP 仍可能包含业务数据。字符串按 UTF-8 边界截断：路径最多 4096 字节，其余字段 1024 字节。截断只影响日志。
+OTLP 日志不导出请求/响应 Body、query、任意 HTTP headers、Cookie、Authorization、Referer 或 User-Agent。路径本身和 IP 仍可能包含业务数据。字符串按 UTF-8 边界截断：路径最多 4096 字节，其余字段 1024 字节。截断只影响日志。
 
 ## 缓冲、失败与终止
 
@@ -86,9 +87,9 @@ Chart 自动附加 `k8s.namespace.name` 与 `k8s.pod.name`。每个副本导出�
 | `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` | 256 | 1–512 条，不得超过队列容量 |
 | `OTEL_BLRP_SCHEDULE_DELAY` | 1000 | 一批从首条开始的最大等待，1–60000 毫秒 |
 | `OTEL_LOGS_EXPORTER` | otlp（有 endpoint 时） | none 关闭 |
-| `OTEL_SDK_DISABLED` | false | true 关闭访问日志导出 |
+| `OTEL_SDK_DISABLED` | false | true 关闭 OTLP 日志和 traces 导出 |
 
-这是 rgnix 的访问日志 exporter，支持上述环境变量子集，不会同时导出 traces/metrics，也不实现所有 OpenTelemetry SDK 配置。
+日志与 traces exporter 可分别或同时启用，使用独立队列。指标通过 Prometheus `/metrics` 暴露。支持上述环境变量子集，不实现所有 OpenTelemetry SDK 配置。
 
 请求线程只构造有上限的记录并尝试入队，不等待网络。独立线程批量发送；单条最多 16 KiB 编码负载、单批最多 1 MiB，接收响应最多 64 KiB。队列容量限制记录数，Rust 对象开销另计。Collector 不可用不会影响健康/就绪状态。
 

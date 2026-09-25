@@ -1,0 +1,9 @@
+# Both binaries are built and tested on native Linux runners before image assembly.
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+ARG TARGETARCH
+COPY dist/linux-${TARGETARCH}/rgnix /usr/local/bin/rgnix
+USER 10101:10101
+EXPOSE 8080 8443 9090
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/usr/local/bin/rgnix"]

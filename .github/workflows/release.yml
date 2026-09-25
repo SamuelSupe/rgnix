@@ -1,0 +1,225 @@
+name: Release
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: rust:1.98-bookworm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Native dependencies
+        run: apt-get update && apt-get install -y cmake pkg-config libssl-dev openssl python3-grpcio python3-brotli logrotate redis-server
+      - name: Validate version and complete behavioral gates
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          python3 scripts/release_version.py
+          python3 scripts/release_version.py --notes > /dev/null
+          bash scripts/check.sh
+          cargo clippy --locked --all-targets -j 2 -- -D warnings
+          cargo build --release --locked -j 2
+          test "$(target/release/rgnix --version)" = "rgnix $(python3 scripts/release_version.py)"
+      - name: Package native executable
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          version=$(python3 scripts/release_version.py)
+          mkdir -p "dist/linux-$ARCH" packages
+          cp target/release/rgnix "dist/linux-$ARCH/rgnix"
+          package="rgnix-$version-linux-$ARCH"
+          mkdir "packages/$package"
+          cp target/release/rgnix LICENSE README.md README.zh-CN.md CHANGELOG.md SECURITY.md "packages/$package/"
+          cp -R examples docs "packages/$package/"
+          readelf -h -d --version-info target/release/rgnix > "packages/$package/ELF-INFO.txt"
+          tar -C packages -czf "packages/$package.tar.gz" "$package"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/linux-${{ matrix.arch }}/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.arch }}
+          path: packages/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-validation-${{ matrix.arch }}
+          path: .local/*results.json
+
+  gateway:
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          path: dist/linux-amd64
+      - uses: azure/setup-helm@v4
+      - uses: helm/kind-action@v1
+        with:
+          version: v0.30.0
+          node_image: kindest/node:v1.34.0
+          cluster_name: rgnix
+      - name: Install pinned standard CRDs
+        run: |
+          curl -fL https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml -o /tmp/gateway-api.yaml
+          echo '24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73  /tmp/gateway-api.yaml' | sha256sum -c -
+          kubectl apply --server-side -f /tmp/gateway-api.yaml
+      - name: Load native executable and test origin
+        run: |
+          chmod +x dist/linux-amd64/rgnix
+          docker build -f Dockerfile.release -t rgnix:gateway-ci .
+          docker build -f scripts/fixtures/gateway-grpc.Dockerfile -t rgnix:gateway-grpc-fixture .
+          kind load docker-image rgnix:gateway-ci rgnix:gateway-grpc-fixture --name rgnix
+      - name: Gateway resource, TLS and gRPC behavior
+        run: python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-release-qa --image rgnix:gateway-ci --output gateway-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gateway-validation
+          path: gateway-results.json
+
+  distribution:
+    needs: [native, gateway]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: linux-*
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: packages
+          merge-multiple: true
+      - name: Release metadata
+        id: metadata
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          chmod +x dist/linux-*/rgnix
+          echo "version=$(python3 scripts/release_version.py)" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Refuse to replace an existing release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          existing=$(gh api --paginate "repos/$REPOSITORY/releases?per_page=100" --jq '.[].tag_name')
+          if grep -Fxq "v$VERSION" <<< "$existing"; then
+            echo "Release v$VERSION already exists; publish a new version." >&2
+            exit 1
+          fi
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.ref_type == 'tag'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assemble native multi-platform image with SBOM and provenance
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.release
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.metadata.outputs.image }}:${{ steps.metadata.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.metadata.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+          sbom: true
+          provenance: mode=max
+      - uses: sigstore/cosign-installer@v3
+        if: github.ref_type == 'tag'
+      - name: Sign image digest
+        if: github.ref_type == 'tag'
+        env:
+          IMAGE: ${{ steps.metadata.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
+      - uses: azure/setup-helm@v4
+      - name: Package chart and checksums
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+          IMAGE: ${{ steps.metadata.outputs.image }}
+        run: |
+          python3 scripts/release_version.py --prepare-chart "$IMAGE" "$VERSION"
+          helm lint charts/rgnix
+          helm template qa charts/rgnix --set mode=gateway > /dev/null
+          helm package charts/rgnix --destination packages
+          cd packages
+          sha256sum *.tar.gz *.tgz > SHA256SUMS
+      - name: Publish OCI chart
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_USER: ${{ github.actor }}
+          IMAGE: ${{ steps.metadata.outputs.image }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GH_USER" --password-stdin
+          helm push "packages/rgnix-$VERSION.tgz" "oci://$IMAGE/charts"
+      - uses: actions/attest-build-provenance@v3
+        if: github.ref_type == 'tag'
+        with:
+          subject-path: packages/*
+      - name: Create immutable-version prerelease or release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+          IMAGE: ${{ steps.metadata.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          python3 scripts/release_version.py --notes > packages/RELEASE.md
+          printf '\nImage: `%s@%s`\n' "$IMAGE" "$DIGEST" >> packages/RELEASE.md
+          args=()
+          if [[ "$VERSION" == 0.* || "$VERSION" == *-* ]]; then args+=(--prerelease); fi
+          gh release create "v$VERSION" packages/*.tar.gz packages/*.tgz packages/SHA256SUMS --verify-tag --title "rgnix $VERSION" --notes-file packages/RELEASE.md "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: packages/

@@ -18,6 +18,7 @@ pub struct State {
     pub tenant_policy: Option<crate::tenancy::Policy>,
     pub digest: String,
     pub metrics: crate::rollout::metrics::Metrics,
+    pub global_rate: Option<Arc<crate::traffic::global::Global>>,
 }
 pub struct Controls {
     pub active: ArcSwap<State>,
@@ -47,6 +48,7 @@ impl Controls {
             &options.admin_users_file,
             &limits.tenant_policy_file,
             &limits.rollout_metrics_file,
+            &limits.global_rate_limit_file,
         ]
         .into_iter()
         .flatten()
@@ -79,12 +81,18 @@ impl Controls {
         }
         let metrics =
             crate::rollout::metrics::Metrics::load(limits.rollout_metrics_file.as_deref())?;
+        let global_rate = limits
+            .global_rate_limit_file
+            .as_deref()
+            .map(crate::traffic::global::Global::load)
+            .transpose()?;
         ensure!(
             digest == Self::digest(options, limits)?,
             "control files changed during validation; retrying"
         );
         Ok(State {
             metrics,
+            global_rate,
             credentials,
             tenant_policy,
             digest,

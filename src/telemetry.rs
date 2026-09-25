@@ -1,3 +1,6 @@
+mod controller;
+mod runtime;
+pub(crate) mod traffic;
 use anyhow::Result;
 use prometheus::{
     Encoder, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
@@ -12,6 +15,10 @@ use std::{
 };
 
 pub struct Telemetry {
+    pub traffic: traffic::Traffic,
+    pub controller: controller::Controller,
+    pub config_updated: prometheus::Gauge,
+    pub config_update_seconds: HistogramVec,
     pub otlp: Option<crate::otlp::Exporter>,
     pub traces: Option<crate::otlp::Exporter>,
     pub trace_ratio: Option<f64>,
@@ -42,7 +49,8 @@ pub struct Telemetry {
     pub upstream_ejections: IntCounter,
     pub rollbacks: IntCounter,
     pub mirror_results: IntCounterVec,
-    pub tenant_rejected: IntCounterVec,
+    tenant_rejected: IntCounterVec,
+    label_overflow: IntCounterVec,
     pub files: Arc<crate::logging::FileLogs>,
     pub certificate_expiry: IntGaugeVec,
     pub certificate_valid: IntGaugeVec,
@@ -52,6 +60,29 @@ pub struct Telemetry {
 impl Telemetry {
     pub fn new(otlp: crate::otlp::Options) -> Result<Arc<Self>> {
         let registry = Registry::new();
+        #[cfg(target_os = "linux")]
+        registry.register(Box::new(
+            prometheus::process_collector::ProcessCollector::for_self(),
+        ))?;
+        let traffic = traffic::Traffic::new(&registry)?;
+        let controller = controller::Controller::new(&registry)?;
+        let config_updated = prometheus::register_gauge_with_registry!(
+            "rgnix_config_last_success_timestamp_seconds",
+            "Last successful snapshot publication, including standalone startup",
+            registry
+        )?;
+        let config_update_seconds = prometheus::register_histogram_vec_with_registry!(
+            "rgnix_config_update_seconds",
+            "Configuration build and publication duration",
+            &["source", "result"],
+            registry
+        )?;
+        let label_overflow = prometheus::register_int_counter_vec_with_registry!(
+            "rgnix_metric_label_overflow_total",
+            "Metric observations assigned to the overflow label",
+            &["kind"],
+            registry
+        )?;
         let certificate_expiry = IntGaugeVec::new(
             prometheus::Opts::new(
                 "rgnix_certificate_expiry_timestamp_seconds",
@@ -225,6 +256,11 @@ impl Telemetry {
         registry.register(Box::new(version.clone()))?;
         let files = crate::logging::FileLogs::start(&registry, dropped_logs.clone())?;
         Ok(Arc::new(Self {
+            traffic,
+            controller,
+            config_updated,
+            config_update_seconds,
+            label_overflow,
             certificate_expiry,
             certificate_valid,
             control_reloads,
@@ -266,6 +302,33 @@ impl Telemetry {
     pub fn access(&self, path: PathBuf, line: String) {
         self.files.access(path, line);
     }
+    pub(crate) fn label(&self, kind: &str, value: &str) -> String {
+        let mut labels = self.labels.lock().unwrap_or_else(|e| e.into_inner());
+        let key = format!("{kind}:{value}");
+        if labels.contains(&key) || labels.len() < 2048 {
+            labels.insert(key);
+            value.to_owned()
+        } else {
+            self.label_overflow.with_label_values(&[kind]).inc();
+            "_overflow".into()
+        }
+    }
+    pub(crate) fn namespace_rejected(&self, namespace: &str, resource: &str) {
+        let namespace = self.label("namespace", namespace);
+        self.tenant_rejected
+            .with_label_values(&[namespace.as_str(), resource])
+            .inc();
+    }
+    pub(crate) fn observe_runtime(
+        shared: &Arc<crate::runtime::Shared>,
+        limits: &crate::runtime::Limits,
+    ) -> Result<()> {
+        shared
+            .telemetry
+            .registry
+            .register(Box::new(runtime::RuntimeCollector::new(shared, limits)?))?;
+        Ok(())
+    }
     pub fn completed(
         &self,
         route: &str,
@@ -275,17 +338,7 @@ impl Telemetry {
         failed: bool,
         grpc_status: Option<u16>,
     ) {
-        let label = |kind: &str, value: &str| {
-            let mut labels = self.labels.lock().unwrap_or_else(|e| e.into_inner());
-            let key = format!("{kind}:{value}");
-            if labels.contains(&key) || labels.len() < 2048 {
-                labels.insert(key);
-                value.to_owned()
-            } else {
-                "_overflow".into()
-            }
-        };
-        let route = label("route", route);
+        let route = self.label("route", route);
         if let Some(code) = grpc_status {
             self.grpc_requests
                 .with_label_values(&[&route, &code.to_string()])
@@ -298,7 +351,7 @@ impl Telemetry {
             .with_label_values(&[&route])
             .observe(seconds);
         if let Some(backend) = backend {
-            let backend = label("backend", backend);
+            let backend = self.label("backend", backend);
             self.backend_requests
                 .with_label_values(&[backend.as_str(), if failed { "error" } else { "ok" }])
                 .inc();

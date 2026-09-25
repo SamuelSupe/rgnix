@@ -34,7 +34,7 @@ pub struct Shared {
     pub simulations: Arc<tokio::sync::Semaphore>,
     pub controls: Arc<crate::controls::Controls>,
     pub metric_results:
-        Mutex<std::collections::BTreeMap<String, (String, bool, std::time::Instant)>>,
+        Mutex<std::collections::BTreeMap<String, crate::rollout::metrics::Observation>>,
     publication: Mutex<Publication>,
     pub file_mode: bool,
     pub(crate) ingress_preview: Mutex<Option<crate::ingress::PreviewInput>>,
@@ -50,6 +50,9 @@ pub struct Limits {
     /// Administrator-owned HTTP metric providers for release gates (JSON).
     #[arg(long)]
     pub rollout_metrics_file: Option<PathBuf>,
+    /// Optional administrator Redis coordinator for shared route and namespace request rates.
+    #[arg(long)]
+    pub global_rate_limit_file: Option<PathBuf>,
     #[arg(long, default_value_t = 2)]
     pub threads: usize,
     #[arg(long, default_value_t = 1024)]
@@ -64,6 +67,7 @@ pub struct Limits {
 pub enum Source {
     File(PathBuf),
     Ingress(ingress::Options),
+    Gateway(crate::gateway::Options),
 }
 
 #[derive(Default)]
@@ -175,6 +179,9 @@ impl Shared {
         }
         self.snapshot.store(Arc::new(snapshot));
         self.telemetry.reloads.inc();
+        self.telemetry
+            .config_updated
+            .set(k8s_openapi::chrono::Utc::now().timestamp() as f64);
         if let Err(e) = self.audit.record(
             "control",
             "publish",
@@ -247,8 +254,10 @@ impl BackgroundService for Control {
                             if signal.is_none(){break;}
                             let path=path.clone();let compiler=self.shared.compiler.clone();
                             let state=self.shared.clone();
+                            let started=std::time::Instant::now();
                             let result=tokio::task::spawn_blocking(move||state.publish(std::sync::Arc::new(config::bundle::Bundle::capture(&path)?).compile(&compiler,0)?)).await;
                             let result=result.context("configuration task failed").and_then(|r|r);
+                            self.shared.telemetry.config_update_seconds.with_label_values(&["file",if result.is_ok(){"success"}else{"error"}]).observe(started.elapsed().as_secs_f64());
                             if let Err(e)=result {self.shared.rejected_update(&format!("{e:#}"));self.shared.telemetry.reload_errors.inc();log::error!("configuration rejected; keeping active snapshot: {e:#}");}else{log::info!("configuration reloaded");}
                         }
                     }
@@ -265,6 +274,23 @@ impl BackgroundService for Control {
                 let result = result.unwrap_or_else(|_| Err(anyhow::anyhow!("controller panicked")));
                 if let Err(e) = result {
                     log::error!("Ingress controller stopped: {e:#}");
+                    self.shared.telemetry.ready.store(false, Ordering::Release);
+                    self.shared
+                        .telemetry
+                        .healthy
+                        .store(false, Ordering::Release);
+                }
+            }
+            Source::Gateway(options) => {
+                let result = std::panic::AssertUnwindSafe(crate::gateway::run(
+                    self.shared.clone(),
+                    options.clone(),
+                    shutdown.clone(),
+                ))
+                .catch_unwind()
+                .await;
+                if !matches!(result, Ok(Ok(()))) {
+                    log::error!("Gateway controller stopped: {result:?}");
                     self.shared.telemetry.ready.store(false, Ordering::Release);
                     self.shared
                         .telemetry
@@ -340,6 +366,11 @@ pub fn serve(
         .store(matches!(source, Source::File(_)), Ordering::Release);
     let listeners = snapshot.listeners.clone();
     let file_mode = matches!(source, Source::File(_));
+    if file_mode {
+        telemetry
+            .config_updated
+            .set(k8s_openapi::chrono::Utc::now().timestamp() as f64);
+    }
     let mut publication = Publication::default();
     if let (Some(directory), Source::File(path)) = (&diagnostics.history_dir, &source) {
         let mut durable = crate::history::History::open(directory, path)?;
@@ -373,6 +404,7 @@ pub fn serve(
         upstream_max_fails: limits.upstream_max_fails,
         upstream_fail_timeout: std::time::Duration::from_secs(limits.upstream_fail_timeout_secs),
     });
+    Telemetry::observe_runtime(&shared, &limits)?;
     let conf = ServerConf {
         threads,
         daemon: false,
@@ -394,6 +426,11 @@ pub fn serve(
                 tls: listener.tls,
             },
         );
+        if !listener.tls && listener.http2 {
+            let mut options = pingora::apps::HttpServerOptions::default();
+            options.h2c = true;
+            service.app_logic_mut().unwrap().server_options = Some(options);
+        }
         if listener.tls {
             let mut tls = TlsSettings::with_callbacks(Box::new(Certificates {
                 shared: shared.clone(),

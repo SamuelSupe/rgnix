@@ -148,9 +148,15 @@ impl Principal {
             return view;
         }
         view.source_bundle = None;
+        let gateway_mode = view.gateway.is_some();
         for host in &mut view.hosts {
             host.routes
-                .retain(|route| host.ingress && self.route(route));
+                .retain(|route| (host.ingress || gateway_mode) && self.route(route));
+        }
+        if let Some(gateway) = &mut view.gateway {
+            for listener in &mut gateway.listeners {
+                listener.entries.retain(|entry| self.route(&entry.route));
+            }
         }
         view.hosts.retain(|h| !h.routes.is_empty());
         let backends: BTreeSet<_> = view

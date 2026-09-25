@@ -32,6 +32,14 @@ def check(name, condition):
     print("PASS", name, flush=True)
 
 
+def metric_value(text, name, **labels):
+    sample = name
+    if labels:
+        sample += "{" + ",".join(f"{key}={json.dumps(value)}" for key, value in sorted(labels.items())) + "}"
+    match = re.search(r"^" + re.escape(sample) + r" ([^\n]+)$", text, re.M)
+    return float(match[1]) if match else 0
+
+
 class Upstream(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -171,10 +179,14 @@ location / {{ proxy_pass http://app; }}
                     assert HELD_PLAIN_ENTERED.wait(3)
                     wait_for(lambda: request(port, "/")[0], 503)
                     check("inflight budget sheds requests without blocking admin", request(admin, "/healthz")[0] == 200)
+                    metrics = request(admin, "/metrics")[2].decode()
+                    check("live gauges show occupied process, plugin and backend permits", metric_value(metrics, "rgnix_budget_in_use", budget="inflight") == 2 and metric_value(metrics, "rgnix_budget_limit", budget="inflight") == 2 and metric_value(metrics, "rgnix_budget_in_use", budget="plugin") == 1 and metric_value(metrics, "rgnix_backend_inflight", backend="app") == 2)
                 finally:
                     HELD_RELEASE.set()
                 assert first.result()[0] == 200 and second.result()[0] == 200
             check("completed requests release resource permits", request(port, "/plugin/")[0] == 200)
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
+            check("live metrics release permits after requests finish", metric_value(request(admin, "/metrics")[2].decode(), "rgnix_backend_inflight", backend="app") == 0)
             statuses = [request(port, "/balanced")[0] for _ in range(8)]
             check("failed endpoint is excluded without replaying its requests", statuses.count(502) == 3 and statuses[-3:] == [200] * 3)
             recovered = http.server.ThreadingHTTPServer(("127.0.0.1", unavailable), Upstream)
@@ -214,7 +226,7 @@ def certificate(directory, serial, names=("example.test", "localhost")):
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def exercise_body_routing(port, tls_port, upstream, canary, directory):
+def exercise_body_routing(port, tls_port, upstream, canary, directory, admin):
     def upload(path, data, **kwargs):
         status, headers, body = request(port, path, "POST", body=data, **kwargs)
         assert status == 200, (status, body)
@@ -233,8 +245,12 @@ def exercise_body_routing(port, tls_port, upstream, canary, directory):
     result, _ = upload("/body-large/", json.dumps({"tenant": "vip", "padding": "a" * 100000}).encode())
     check("full inspection can replay bodies larger than Pingora's original 64 KiB buffer", result["port"] == canary)
     payload = b"route=vip;" + bytes(range(256)) * 4096
+    before = metric_value(request(admin, "/metrics")[2].decode(), "rgnix_request_body_bytes_total")
     result, _ = upload("/body-prefix/", payload)
     check("prefix inspection routes binary uploads and preserves the entire body", result["port"] == canary and result["headers"].get("x-body-state") == "truncated")
+    wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_request_body_bytes_total"), before + len(payload))
+    metrics = request(admin, "/metrics")[2].decode()
+    check("body byte metrics count prefix replay once and inspection only includes the prefix", metric_value(metrics, "rgnix_body_inspected_bytes_total", mode="prefix") == 32 and metric_value(metrics, "rgnix_body_inspection_seconds_count", mode="prefix", result="truncated") == 1)
     result, _ = upload("/body-prefix/", b"x" * 32 + b"route=vip;")
     check("content beyond the configured prefix cannot influence routing", result["port"] == upstream)
     result, _ = upload("/body-prefix/", b'{"tenant":"vip"}' + b" " * 30)
@@ -570,7 +586,7 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 check("TLS listener", request(tls_port, tls=True)[2] == b"secure")
                 h2 = subprocess.run(["curl", "--noproxy", "*", "-sS", "--http2", "--cacert", str(directory / "cert.pem"), "--resolve", f"example.test:{tls_port}:127.0.0.1", f"https://example.test:{tls_port}/", "-o", "/dev/null", "-w", "%{http_version}"], capture_output=True, text=True)
                 check("HTTP/2 negotiation", h2.returncode == 0 and h2.stdout == "2")
-                exercise_body_routing(port, tls_port, upstream, secure_server.server_port, directory)
+                exercise_body_routing(port, tls_port, upstream, secure_server.server_port, directory, admin)
                 with socket.create_connection(("127.0.0.1", port), timeout=3) as sock:
                     payload = b'{"tenant":"vip"}'
                     sock.sendall(f"POST /body-full/ HTTP/1.1\r\nHost: example.test\r\nContent-Length: {len(payload)}\r\n\r\n".encode() + payload[:5])

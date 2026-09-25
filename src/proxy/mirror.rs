@@ -5,6 +5,7 @@ pub(super) struct MirrorRequest {
     header: RequestHeader,
     body: BytesMut,
     limit: usize,
+    trace: Option<crate::otlp::trace::ClientSpan>,
     _global: tokio::sync::OwnedSemaphorePermit,
     _tenant: Option<crate::tenancy::Permit>,
 }
@@ -47,6 +48,14 @@ impl Proxy {
             .map(|t| t.acquire(crate::tenancy::Resource::Mirror))
             .transpose();
         if skip || global.is_err() || tenant.is_err() {
+            if !skip
+                && let Some(namespace) = &route.tenant
+                && tenant.is_err()
+            {
+                self.shared
+                    .telemetry
+                    .namespace_rejected(&namespace.name, "mirror");
+            }
             self.shared
                 .telemetry
                 .mirror_results
@@ -58,6 +67,10 @@ impl Proxy {
             header: header.clone(),
             body: BytesMut::new(),
             limit: policy.max_body_bytes,
+            trace: ctx
+                .trace
+                .as_ref()
+                .map(|t| t.client(ctx.request.method.as_str(), &policy.service, "mirror")),
             _global: global.unwrap(),
             _tenant: tenant.unwrap(),
         });
@@ -86,7 +99,7 @@ impl Proxy {
         }
     }
     fn send_mirror(&self, ctx: &mut Context) {
-        let Some(mirror) = ctx.mirror.take() else {
+        let Some(mut mirror) = ctx.mirror.take() else {
             return;
         };
         let route = ctx.route.as_ref().unwrap().clone();
@@ -97,12 +110,15 @@ impl Proxy {
                 let rollout = route.rollout.as_ref().unwrap();
                 let policy = rollout.policy.mirror.as_ref().unwrap();
                 let backend = &snapshot.backends[&rollout.backends[&policy.service]];
+                let transport = if route.settings.gateway.is_some() {
+                    &backend.profile
+                } else {
+                    &route.settings.upstream
+                };
                 let lease = backend
                     .select("")
                     .ok_or_else(|| anyhow::anyhow!("mirror unavailable"))?;
-                let name = route
-                    .settings
-                    .upstream
+                let name = transport
                     .server_name
                     .as_deref()
                     .unwrap_or(&backend.hostname);
@@ -121,14 +137,12 @@ impl Proxy {
                     if backend.tls { "https" } else { "http" },
                     lease.address.port()
                 );
-                let mut builder = route
-                    .settings
-                    .upstream
+                let mut builder = transport
                     .client_builder()?
                     .resolve(name, lease.address)
                     .timeout(std::time::Duration::from_millis(policy.timeout_ms))
                     .pool_max_idle_per_host(0);
-                if route.settings.upstream.protocol == crate::upstream::Protocol::Http2 {
+                if transport.protocol == crate::upstream::Protocol::Http2 {
                     builder = builder.http2_prior_knowledge();
                 }
                 let client = builder.build()?;
@@ -144,7 +158,10 @@ impl Proxy {
                 ] {
                     headers.remove(name);
                 }
-                client
+                if let Some(span) = &mirror.trace {
+                    span.inject(&mut headers);
+                }
+                let response = client
                     .request(mirror.header.method.clone(), url)
                     .headers(headers)
                     .header("Host", &backend.host_header)
@@ -152,9 +169,15 @@ impl Proxy {
                     .body(mirror.body.to_vec())
                     .send()
                     .await?;
+                if let Some(span) = &mut mirror.trace {
+                    span.status = Some(response.status().as_u16());
+                }
                 anyhow::Ok(())
             }
             .await;
+            if let (Some(span), Some(exporter)) = (&mirror.trace, &telemetry.traces) {
+                span.export(exporter, result.is_err().then_some("mirror_request"), None);
+            }
             telemetry
                 .mirror_results
                 .with_label_values(&[if result.is_ok() { "sent" } else { "error" }])

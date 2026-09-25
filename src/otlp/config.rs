@@ -92,11 +92,11 @@ impl Options {
         );
         ensure!(
             signal_variable("PROTOCOL")?.is_none_or(|v| v == "http/protobuf"),
-            "OTLP access logs support only http/protobuf; use a Collector for other transports"
+            "OTLP {name} supports only http/protobuf; use a Collector for other transports"
         );
         let timeout = Duration::from_millis(number(
             signal_variable("TIMEOUT")?,
-            "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
+            &format!("OTEL_EXPORTER_OTLP_{upper}_TIMEOUT"),
             5000,
             1,
             30000,
@@ -163,14 +163,14 @@ impl Options {
         }
         let capacity = number(
             variable(&format!("{batch_prefix}_MAX_QUEUE_SIZE"))?,
-            "OTEL_BLRP_MAX_QUEUE_SIZE",
+            &format!("{batch_prefix}_MAX_QUEUE_SIZE"),
             2048,
             1,
             16384,
         )?;
         let batch_size = number(
             variable(&format!("{batch_prefix}_MAX_EXPORT_BATCH_SIZE"))?,
-            "OTEL_BLRP_MAX_EXPORT_BATCH_SIZE",
+            &format!("{batch_prefix}_MAX_EXPORT_BATCH_SIZE"),
             256,
             1,
             512,
@@ -181,7 +181,7 @@ impl Options {
         );
         let interval = Duration::from_millis(number(
             variable(&format!("{batch_prefix}_SCHEDULE_DELAY"))?,
-            "OTEL_BLRP_SCHEDULE_DELAY",
+            &format!("{batch_prefix}_SCHEDULE_DELAY"),
             1000,
             1,
             60000,

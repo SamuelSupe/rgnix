@@ -25,7 +25,7 @@
 
 Helm `watchNamespaces: [payments, shop]` 同时生成限定范围的 Role/RoleBinding 并设置重复的 `--watch-namespace` 参数。列表为空时保持集群范围。发布 Service 和检查点所在 namespace 额外需要 Service/ConfigMap watch；IngressClass 是集群资源。namespace 必须先存在，变更 watch 范围需要滚动更新。
 
-命名空间配额仍按控制器进程计数。CPU、内存和全局预算属于进程共享资源；需要硬隔离时，使用独立 Deployment、IngressClass、namespace watch 列表与 Kubernetes requests/limits。
+可选 [Redis 协调器](shared-rate-limits.md) 将请求速率与命名空间总速率按 scope 跨副本计数；并发等资源配额仍按控制器进程计数。CPU、内存和全局预算属于进程共享资源；需要硬隔离时，使用独立 Deployment、IngressClass、namespace watch 列表与 Kubernetes requests/limits。
 
 ## 具名管理身份与热更新
 
@@ -94,7 +94,16 @@ Content-Type: application/json
 }}}
 ```
 
-支持 HTTP(S) JSON 数值或数值字符串，JSON pointer 定位数据，`min`/`max` 为包含边界。上限 128 个 provider、每发布 8 个 gate。后台每约 5 秒检查，单次 2 秒、响应 64 KiB、并发 8；HTTPS 使用系统信任，不跟随重定向、不使用环境代理。缺失、超时、解析失败或超过 60 秒的旧结果均阻止阶段推进，不当成通过。指标通过时仍需满足本地健康、时间与审批条件。外部门禁负责阻止推进，自动回退继续由本地错误率/p95 规则触发。
+支持 HTTP(S) JSON 数值或数值字符串，JSON pointer 定位数据，`min`/`max` 为包含边界。上限 128 个 provider、每发布 8 个 gate。后台每约 5 秒检查，单次 2 秒、响应 64 KiB、并发 8；HTTPS 使用系统信任，不跟随重定向、不使用环境代理。缺失、超时、解析失败或超过 60 秒的旧结果均阻止阶段推进，不当成通过。指标通过时仍需满足本地健康、时间与审批条件。默认外部门禁只阻止推进。当前源码可在 traffic-policy 中显式配置 `metric_rollback`，让业务指标连续失败触发稳定后端回退，即使候选请求持续返回 HTTP 200。该扩展尚未包含在已发布 v0.2.0 中。
+
+```json
+{
+  "metric_gates": ["checkout-error-ratio"],
+  "metric_rollback": {"consecutive_failures":3,"failure_seconds":15,"unavailable":"pause"}
+}
+```
+
+要求已配置 rollback fallback；可以配合 steps，也可以单独保护普通分流。失败次数（1..120）与持续秒数（0..3600）必须同时满足；只计不同的、新鲜的观测。成功观测、阶段或控制配置变化会清空失败序列。`unavailable: pause` 为默认值，指标服务超时/错误只阻止推进；显式 `rollback` 则将这些不可用观测按失败计算。未知 provider 或过期结果不构成连续失败证据。单个 gate 满足门槛即回退。回退先作用于本地请求，再以 UID、完整策略和 resourceVersion 校验持久化 `rgnix.io/rolled-back-revision`，其他副本通过 watch 收敛，跨重启恢复；新 revision 才启动新发布。短暂传播窗口内副本可能不同步。Gateway 模式同样适用，管理命令可用 kind 区分同名资源。
 
 ## 候选变更预检与 Kubernetes 准入
 

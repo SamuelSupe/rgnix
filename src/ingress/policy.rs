@@ -4,9 +4,9 @@ use anyhow::{Context, Result, bail, ensure};
 use kube::ResourceExt;
 use std::{collections::BTreeMap, time::Duration};
 
-pub(super) const PASS: &str = "function on_request() return route.pass() end";
+pub(crate) const PASS: &str = "function on_request() return route.pass() end";
 
-pub(super) fn annotations(values: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+pub(crate) fn annotations(values: &BTreeMap<String, String>) -> BTreeMap<String, String> {
     values
         .iter()
         .filter(|(k, _)| {
@@ -18,7 +18,7 @@ pub(super) fn annotations(values: &BTreeMap<String, String>) -> BTreeMap<String,
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect()
 }
-pub(super) fn parse(
+pub(crate) fn parse(
     values: &BTreeMap<String, String>,
 ) -> Result<(Settings, backend::Options, bool)> {
     let mut settings = Settings {
@@ -300,7 +300,7 @@ pub(super) fn parse(
     Ok((settings, upstream, tls))
 }
 
-pub(super) fn apply_resources(
+pub(crate) fn apply_resources(
     settings: &mut Settings,
     values: &BTreeMap<String, String>,
     resources: &Resources,
@@ -373,7 +373,7 @@ pub(super) fn apply_resources(
     }
     Ok(())
 }
-pub(super) fn auth_service(
+pub(crate) fn auth_service(
     value: &str,
 ) -> Result<(
     k8s_openapi::api::networking::v1::IngressServiceBackend,
@@ -413,7 +413,7 @@ pub(super) fn auth_service(
         format!("/{path}"),
     ))
 }
-pub(super) fn dependencies(
+pub(crate) fn dependencies(
     values: &BTreeMap<String, String>,
     namespace: &str,
     services: &mut std::collections::BTreeSet<(String, String)>,
@@ -444,7 +444,7 @@ pub(super) fn dependencies(
         services.insert((namespace.into(), backend.name));
     }
 }
-pub(super) fn secret<'a>(
+pub(crate) fn secret<'a>(
     resources: &'a Resources,
     namespace: &str,
     name: &str,
@@ -458,7 +458,7 @@ pub(super) fn secret<'a>(
         .map(|v| v.0.as_slice())
         .with_context(|| format!("Secret {namespace}/{name} key {key} unavailable"))
 }
-pub(super) fn valid_name(value: &str) -> bool {
+pub(crate) fn valid_name(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 253
         && value

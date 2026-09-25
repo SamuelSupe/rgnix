@@ -16,6 +16,7 @@ pub enum Operation {
 #[serde(deny_unknown_fields)]
 pub struct Command {
     pub owner: String,
+    pub kind: Option<String>,
     pub revision: String,
     pub operation: Operation,
     pub stage: Option<usize>,
@@ -29,21 +30,30 @@ fn initial(state: &crate::rollout::State) -> Progress {
     }
 }
 pub async fn command(shared: &Shared, command: Command) -> Result<()> {
-    let state = shared
+    let states: Vec<_> = shared
         .rollouts
         .active()
         .into_iter()
-        .find(|s| s.owner == command.owner && s.policy.revision == command.revision)
-        .context("active rollout revision not found")?;
+        .filter(|s| {
+            s.owner == command.owner
+                && s.policy.revision == command.revision
+                && command.kind.as_ref().is_none_or(|kind| kind == &s.kind)
+        })
+        .collect();
+    ensure!(
+        states.len() == 1,
+        "rollout revision not found or ambiguous; specify kind"
+    );
+    let state = &states[0];
     let (namespace, name) = command
         .owner
         .split_once('/')
         .context("owner must be namespace/name")?;
-    let api: Api<Ingress> = Api::namespaced(Client::try_default().await?, namespace);
+    let api = api(Client::try_default().await?, namespace, &state.kind)?;
     let current = tokio::time::timeout(Duration::from_secs(5), api.get(name)).await??;
     ensure!(
         current.uid().as_deref() == Some(&state.uid),
-        "Ingress owner changed"
+        "rollout owner changed"
     );
     let policy = current
         .annotations()
@@ -60,7 +70,7 @@ pub async fn command(shared: &Shared, command: Command) -> Result<()> {
         .map(|v| serde_json::from_str::<Progress>(v))
         .transpose()?
         .filter(|p| p.policy_hash == state.policy_hash())
-        .unwrap_or_else(|| initial(&state));
+        .unwrap_or_else(|| initial(state));
     let (key, value) = match command.operation {
         Operation::Rollback => {
             ensure!(
@@ -104,100 +114,129 @@ pub async fn command(shared: &Shared, command: Command) -> Result<()> {
     Ok(())
 }
 
+fn api(client: Client, namespace: &str, kind: &str) -> Result<Api<kube::core::DynamicObject>> {
+    let group = match kind {
+        "Ingress" => "networking.k8s.io",
+        "HTTPRoute" | "GRPCRoute" => "gateway.networking.k8s.io",
+        _ => anyhow::bail!("unsupported rollout resource kind"),
+    };
+    let resource =
+        kube::core::ApiResource::from_gvk(&kube::core::GroupVersionKind::gvk(group, "v1", kind));
+    Ok(Api::namespaced_with(client, namespace, &resource))
+}
+
+pub(crate) async fn reconcile_object(
+    client: &Client,
+    shared: &Shared,
+    kind: &str,
+    current: &kube::core::DynamicObject,
+    leader: bool,
+) -> Result<()> {
+    let namespace = current.namespace().unwrap_or_default();
+    let name = current.name_any();
+    let policy = current
+        .annotations()
+        .get("rgnix.io/traffic-policy")
+        .and_then(|v| crate::rollout::Policy::parse(v).ok());
+    let Some(policy) = policy else {
+        return Ok(());
+    };
+    let Some(state) = shared.rollouts.active().into_iter().find(|state| {
+        state.kind == kind
+            && state.owner == format!("{namespace}/{name}")
+            && current.uid().as_deref() == Some(&state.uid)
+            && serde_json::to_value(&state.policy).ok() == serde_json::to_value(&policy).ok()
+    }) else {
+        return Ok(());
+    };
+    let (key, value, outcome) = if state.rolled_back() {
+        if current.annotations().get("rgnix.io/rolled-back-revision") == Some(&policy.revision) {
+            return Ok(());
+        }
+        (
+            "rgnix.io/rolled-back-revision",
+            policy.revision,
+            "rolled-back",
+        )
+    } else {
+        if !leader || policy.steps.is_empty() {
+            return Ok(());
+        }
+        state.sync_progress(current.annotations().get(PROGRESS).map(String::as_str))?;
+        let controls = shared.controls.active.load_full();
+        let gates_pass = {
+            let results = shared
+                .metric_results
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            policy.metric_gates.iter().all(|name| {
+                results
+                    .get(name)
+                    .is_some_and(|r| r.passed(&controls.digest))
+            })
+        };
+        let Some(next) =
+            state.next_progress(k8s_openapi::chrono::Utc::now().timestamp(), gates_pass)
+        else {
+            return Ok(());
+        };
+        (
+            PROGRESS,
+            serde_json::to_string(&next)?,
+            if next.promoted {
+                "promoted"
+            } else {
+                "stage-published"
+            },
+        )
+    };
+    let patch = serde_json::json!({"metadata":{"resourceVersion":current.resource_version(),"annotations":{key:value}}});
+    tokio::time::timeout(
+        Duration::from_secs(3),
+        api(client.clone(), &namespace, kind)?.patch(
+            &name,
+            &Default::default(),
+            &kube::api::Patch::Merge(&patch),
+        ),
+    )
+    .await??;
+    let _ = shared.audit.record(
+        "control",
+        &format!("rollout/{kind}/{}", state.owner),
+        shared.snapshot.load().version,
+        outcome,
+    );
+    Ok(())
+}
+
 pub(super) async fn reconcile(
     client: &Client,
     shared: &Shared,
     options: &Options,
     resources: &Resources,
 ) {
-    let states: Vec<_> = shared
-        .rollouts
-        .active()
-        .into_iter()
-        .filter(|s| !s.policy.steps.is_empty())
-        .collect();
-    if states.is_empty() {
+    if shared.rollouts.active().is_empty() {
         return;
     }
     let reporter =
         super::status::Reporter::new(client.clone(), options.clone(), shared.telemetry.clone());
-    if !matches!(
-        tokio::time::timeout(Duration::from_secs(3), reporter.leader()).await,
-        Ok(Ok(true))
-    ) {
-        return;
-    }
-    let controls = shared.controls.active.load_full();
-    for state in states {
-        let Some((namespace, name)) = state.owner.split_once('/') else {
-            continue;
-        };
-        let Some(current) = resources.ingresses.iter().find(|i| {
-            i.namespace().as_deref() == Some(namespace)
-                && i.name_any() == name
-                && i.uid().as_deref() == Some(&state.uid)
-        }) else {
-            continue;
-        };
-        let matches_policy = current
-            .annotations()
-            .get("rgnix.io/traffic-policy")
-            .and_then(|v| crate::rollout::Policy::parse(v).ok())
-            .is_some_and(|p| {
-                serde_json::to_value(p).ok() == serde_json::to_value(&state.policy).ok()
-            });
-        if !matches_policy {
-            continue;
-        }
-        if state
-            .sync_progress(current.annotations().get(PROGRESS).map(String::as_str))
-            .is_err()
-        {
-            continue;
-        }
-        let gates_pass = {
-            let results = shared
-                .metric_results
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
-            state.policy.metric_gates.iter().all(|name| {
-                results.get(name).is_some_and(|(digest, pass, at)| {
-                    digest == &controls.digest && *pass && at.elapsed().as_secs() <= 60
-                })
-            })
-        };
-        let Some(next) =
-            state.next_progress(k8s_openapi::chrono::Utc::now().timestamp(), gates_pass)
-        else {
-            continue;
-        };
-        let Ok(value) = serde_json::to_string(&next) else {
-            continue;
-        };
-        let patch = serde_json::json!({"metadata":{"resourceVersion":current.resource_version(),"annotations":{PROGRESS:value}}});
-        let api: Api<Ingress> = Api::namespaced(client.clone(), namespace);
-        match tokio::time::timeout(
-            Duration::from_secs(3),
-            api.patch(name, &Default::default(), &kube::api::Patch::Merge(&patch)),
-        )
-        .await
-        {
-            Ok(Ok(_)) => {
-                let _ = shared.audit.record(
-                    "control",
-                    &format!("rollout/{}", state.owner),
-                    shared.snapshot.load().version,
-                    if next.promoted {
-                        "promoted"
-                    } else {
-                        "stage-published"
-                    },
-                );
+    let leader = matches!(reporter.leader(Duration::from_secs(3)).await, Ok(true));
+    let mut renewed = std::time::Instant::now();
+    for ingress in &resources.ingresses {
+        if renewed.elapsed() >= Duration::from_secs(10) {
+            if !matches!(reporter.leader(Duration::from_secs(3)).await, Ok(true)) {
+                break;
             }
-            error => log::warn!(
-                "rollout progress {} was not published: {error:?}",
-                state.owner
-            ),
+            renewed = std::time::Instant::now();
+        }
+        let current = serde_json::to_value(ingress).and_then(serde_json::from_value);
+        if let Ok(current) = current
+            && let Err(error) = reconcile_object(client, shared, "Ingress", &current, leader).await
+        {
+            log::warn!(
+                "rollout progress {} was not published: {error:#}",
+                ingress.name_any()
+            );
         }
     }
 }

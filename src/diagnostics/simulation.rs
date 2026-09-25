@@ -30,6 +30,31 @@ pub struct Simulation {
     #[serde(default)]
     pub hold_permits: bool,
 }
+impl Simulation {
+    pub(crate) fn routing_request(&self) -> Result<RequestData> {
+        let (path, query) = self.path.split_once('?').unwrap_or((&self.path, ""));
+        http::Method::from_bytes(self.method.as_bytes())?;
+        let mut headers = BTreeMap::new();
+        for (name, value) in &self.headers {
+            let name = http::header::HeaderName::from_bytes(name.as_bytes())?;
+            http::HeaderValue::from_str(value)?;
+            headers.insert(name.as_str().into(), value.clone());
+        }
+        if !headers.contains_key("host") && !self.host.is_empty() {
+            http::HeaderValue::from_str(&self.host)?;
+            headers.insert("host".into(), self.host.clone());
+        }
+        Ok(RequestData {
+            method: self.method.clone(),
+            host: self.host.clone(),
+            path: crate::proxy::normalized_path(path)?,
+            query: query.into(),
+            headers,
+            remote_addr: self.client.clone(),
+            ..Default::default()
+        })
+    }
+}
 fn default_method() -> String {
     "GET".into()
 }
@@ -54,11 +79,8 @@ pub async fn simulate(
         .listener
         .or_else(|| snapshot.listeners.first().map(|l| l.address))
         .ok_or_else(|| anyhow::anyhow!("missing listener"))?;
-    let (raw_path, query) = input.path.split_once('?').unwrap_or((&input.path, ""));
-    let path = crate::proxy::normalized_path(raw_path)?;
-    let Some(route) = snapshot.route(listener, &input.host, &path) else {
-        return Ok(json!({"status":404,"matched":false}));
-    };
+    let mut request = input.routing_request()?;
+    let path = request.path.clone();
     let peer = input.client.parse()?;
     let mut headers = http::HeaderMap::new();
     for (name, value) in &input.headers {
@@ -70,20 +92,15 @@ pub async fn simulate(
     if !headers.contains_key("host") && !input.host.is_empty() {
         headers.insert("host", http::HeaderValue::from_str(&input.host)?);
     }
-    let client = route.settings.identity.resolve(peer, &headers, None);
-    let mut request = RequestData {
-        claims: BTreeMap::new(),
-        method: input.method.clone(),
-        path: path.clone(),
-        query: query.into(),
-        host: input.host.clone(),
-        remote_addr: client.to_string(),
-        headers: headers
-            .iter()
-            .map(|(k, v)| Ok((k.as_str().to_owned(), v.to_str()?.to_owned())))
-            .collect::<Result<_>>()?,
-        body: None,
+    request.headers = headers
+        .iter()
+        .map(|(k, v)| Ok((k.as_str().to_owned(), v.to_str()?.to_owned())))
+        .collect::<Result<_>>()?;
+    let Some(route) = snapshot.route_request(listener, &request) else {
+        return Ok(json!({"status":404,"matched":false}));
     };
+    let client = route.settings.identity.resolve(peer, &headers, None);
+    request.remote_addr = client.to_string();
     let certificate = input
         .client_certificate
         .as_ref()
@@ -175,7 +192,8 @@ pub async fn simulate(
                     run.headers.remove(name);
                 }
                 let identity = if live_auth {
-                    auth.authorize(&auth_client, &run, &input.path).await?
+                    auth.authorize(&auth_client, &run, &input.path, None, None)
+                        .await?
                 } else if let Some(fixture) = &input.external_auth {
                     match fixture.status {
                         200..=299 => {}
@@ -288,9 +306,12 @@ pub async fn simulate(
         results.push(result);
         request.claims.clear();
     }
-    Ok(if input.repeat == 1 {
+    let mut output = if input.repeat == 1 {
         results.remove(0)
     } else {
         json!({"results":results,"repeat":input.repeat,"hold_permits":input.hold_permits})
-    })
+    };
+    output["rate_limit_scope"] = json!("isolated_simulation");
+    output["shared_quota_checked"] = json!(false);
+    Ok(output)
 }

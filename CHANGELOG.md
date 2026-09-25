@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.0 — 2026-09-25 · Preview
+
+Gateway API, shared request-rate quotas, durable recovery and business-metric rollback. This preview adds native Linux amd64/arm64 release archives, a versioned GHCR image and an OCI Helm chart. See the [release notes](docs/releases/v0.3.0.md) for installation, upgrade boundaries and validation.
+
+### Gateway and governance
+
+- Persist Gateway last-good plugins in controller-namespace checkpoints, binding Gateway/Route/ConfigMap UIDs and preserving live revocation checks; remove checkpoints for deleted or recreated sources.
+- Apply JWT, external auth, rate limits, mirrors and staged rollout controls to Gateway routes; support BackendTLSPolicy trust/hostname validation with connection-pool isolation. Failed authentication policy dependencies cannot fall through to a public route.
+- Add optional Redis-coordinated route and namespace request rates, bounded admission queries, explicit closed/open/local failure modes, hot Secret configuration and metrics.
+- Add sustained external business-metric rollback with configurable treatment of unavailable providers, durable rollback annotations and replica/restart recovery.
+
+- Add a pre-provisioned Gateway API mode with HTTPRoute/GRPCRoute matching, Service weights, request/response header modifiers, redirects/rewrites, ReferenceGrant enforcement, namespace attachment rules and live TLS/EndpointSlice updates. Conformance certification and infrastructure provisioning are not claimed.
+- Add conservative NGINX assessment/candidate generation, Ingress-to-Gateway conversion and offline request-sample comparison commands.
+### Observability
+
+- Add upstream phase latency and connection reuse, request-body traffic and inspection, backend and tenant budget usage, controller watch/Lease state, rollout gates and Linux CPU/RSS/FD metrics with bounded labels.
+- Add a dedicated Helm metrics Service, optional ServiceMonitor and Prometheus alert examples.
+- Validate and propagate W3C traceparent/tracestate, create distinct backend/auth/mirror child spans, and correlate local and OTLP access logs with the server span.
+
+### Distribution
+
+- Add native amd64/arm64 release gates, Kubernetes Gateway regression checks, GHCR multi-platform images, SBOM/provenance, keyless image signatures, OCI charts and attested release archives.
+- Keep version metadata, chart image defaults, release notes and checksums aligned; retain earlier release assets unchanged.
+
 ## 0.2.0 — 2026-09-25 · Preview
 
 Request-body routing, observability, traffic policies, multi-tenant governance and staged releases. The release includes a Linux arm64 binary archive, a Helm chart and SHA-256 checksums. See the [release validation](docs/validation-release-0.2.0.md) for exact artifact identity and test coverage. No public registry image is included.

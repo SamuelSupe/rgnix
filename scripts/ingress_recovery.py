@@ -17,7 +17,7 @@ import tempfile
 import threading
 import time
 from urllib.parse import urlsplit, parse_qs
-from integration import Upstream, certificate, free_port, request, wait_for
+from integration import Upstream, certificate, free_port, request, wait_for, metric_value
 
 
 def main():
@@ -271,6 +271,18 @@ def main():
             wait_for(lambda: request(first, "/api")[1].get("x-version"), "old")
             wait_for(lambda: any(ns == "system" for ns, _ in objects["configmaps"]))
             check("accepted configuration is persisted outside the tenant namespace", True)
+            metrics = request(admin, "/metrics")[2].decode()
+            Path(".local/metrics-controller.prom").write_text(metrics)
+            check("controller metrics expose synchronized watches and cached resources", all(metric_value(metrics, "rgnix_ingress_watch_streams", kind=kind, state=state) == 1 for _, kind in versions.values() for state in ("configured", "synchronized", "healthy")) and metric_value(metrics, "rgnix_ingress_cached_resources", kind="Ingress") == 1 and metric_value(metrics, "rgnix_ingress_selected_resources") == 1)
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_ingress_lease_attempts_total", result="contended") > 0)
+            check("follower metrics report Lease contention without claiming leadership", metric(admin, "rgnix_ingress_leader") == 0)
+            with lock:
+                for observed, pending in listeners:
+                    if observed == "ingresses":
+                        pending.put({"type": "ERROR", "object": {"apiVersion": "v1", "kind": "Status", "status": "Failure", "code": 410, "reason": "Expired", "message": "metrics recovery fixture"}})
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_ingress_watch_errors_total", kind="Ingress") > 0)
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_ingress_watch_events_total", kind="Ingress", event="init_done") > 1)
+            check("watch failure and resynchronization are observable without losing ready routes", request(first, "/api")[0] == 200 and metric_value(request(admin, "/metrics")[2].decode(), "rgnix_ingress_watch_streams", kind="Ingress", state="healthy") == 1)
             checkpoint_release.clear()
             checkpoint_started.clear()
             script = script.replace('"old"', '"new"')
@@ -305,6 +317,8 @@ def main():
             reject_status = False
             wait_for(lambda: objects["ingresses"][("qa", "app")].get("status", {}).get("loadBalancer", {}).get("ingress") == [{"ip": "192.0.2.10"}], timeout=12)
             check("Ingress status is retried after permission recovery", True)
+            metrics = request(admin, "/metrics")[2].decode()
+            check("successful Lease claims are observable on the leader", metric_value(metrics, "rgnix_ingress_leader") == 1 and metric_value(metrics, "rgnix_ingress_lease_attempts_total", result="acquired") > 0)
             report_delay = 8
             report_started.clear()
             plugin["data"]["main.rgl"] = "?"

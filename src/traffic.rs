@@ -1,3 +1,4 @@
+pub(crate) mod global;
 use crate::script::RequestData;
 use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
@@ -143,6 +144,12 @@ impl Default for Limiter {
     }
 }
 impl Limiter {
+    pub(crate) fn observation(&self) -> (usize, usize) {
+        (
+            self.buckets.lock().unwrap_or_else(|e| e.into_inner()).len(),
+            self.capacity.load(std::sync::atomic::Ordering::Relaxed),
+        )
+    }
     pub fn set_capacity(&self, value: usize) {
         self.capacity
             .store(value, std::sync::atomic::Ordering::Relaxed);

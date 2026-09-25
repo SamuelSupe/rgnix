@@ -47,7 +47,7 @@ rgnix_limit_rate 100 burst=200 key=ip;
 rgnix_limit_conn 20 key=header:x-tenant;
 ```
 
-两条指令支持 H/S/L、覆盖继承，`off` 禁用。rate 是每秒请求数，使用令牌桶，burst 默认等于 rate。conn 限制同时进行的请求/流，不是 TCP socket 数。key 支持 `route`、`ip`、`header:NAME`、`cookie:NAME`、`jwt:CLAIM`，默认 ip。缺失 key 归入同一空值桶。速率、burst 和并发值均为 1..1,000,000。
+可选 [Redis 协调器](shared-rate-limits.md) 将速率限制扩展到多个副本；并发限制仍按进程执行。两条指令支持 H/S/L、覆盖继承，`off` 禁用。rate 是每秒请求数，使用令牌桶，burst 默认等于 rate。conn 限制同时进行的请求/流，不是 TCP socket 数。key 支持 `route`、`ip`、`header:NAME`、`cookie:NAME`、`jwt:CLAIM`，默认 ip。缺失 key 归入同一空值桶。速率、burst 和并发值均为 1..1,000,000。
 
 配额按路由、策略和 key 隔离，**每个进程独立计数**；两个副本不是一个分布式配额。使用 header/cookie 作为租户标识时，标识的真实性由应用或外部认证决定；JWT key 使用已验证的 claim。认证在预算与插件前执行，插件修改不会追溯改变预算 key。
 
@@ -194,10 +194,12 @@ rgnix serve -c nginx.conf \
 
 trace 支持 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT/HEADERS/CERTIFICATE/TIMEOUT/PROTOCOL`；信号变量优先于通用 OTLP 变量。通过完整 traces endpoint 或 `OTEL_TRACES_EXPORTER=otlp` 显式开启，`OTEL_TRACES_EXPORTER=none` 禁用。使用 `OTEL_BSP_MAX_QUEUE_SIZE/MAX_EXPORT_BATCH_SIZE/SCHEDULE_DELAY` 配置有界批量导出，默认和访问日志队列相同，独立队列/失败计数，不阻塞请求。只有 http/protobuf；共享访问日志导出的 TLS、重试及部分拒绝处理，退出最多等待 5s。
 
-父级 W3C traceparent 的采样位优先；无父级时按 ratio（0..1，默认 0.1）决定采样。每个请求包含 server span，有上游则增加 client span，并把 client span 的 traceparent 转发到上游。access log 的 trace_id/span_id 对应 server span，本地文件也记录这两个字段。未启用 trace 导出时仍可从有效传入 traceparent 关联日志。trace 不采集 Body、query、Cookie、Authorization 或任意请求头。
+父级 W3C traceparent 的采样位优先；无父级时按 ratio（0..1，默认 0.1）决定采样。每个请求包含 server span，主后端、外部鉴权及流量镜像各有独立 client span。向后端注入对应 client span 的 traceparent 和有效 tracestate，支持跨代理继续父子链。本地日志记录 trace_id/span_id、parent_span_id、upstream_span_id 和 trace_sampled；OTLP 日志以原生字段关联 server span。未启用 traces 时仍可关联有效传入上下文。trace 不采集 Body、query、Cookie、Authorization 或任意业务头；传播头校验、采样及日志语义见[链路指南](tracing.md)。
 
 `rgnix_otlp_traces_exported_total/dropped_total/export_errors_total/retries_total/partial_success_total/pending` 与 logs 指标对应。访问日志 off 不关闭单独启用的 trace。Helm 提供 `otlpTraces.*`、`admin.tokenSecret` 和可信代理配置。
 
-原定后续范围保持不变：Gateway API、响应缓存、HTTP/3、完整 Lua/NGINX 兼容、正则和嵌套 location、rewrite/map/if、分布式限流。
+源码已加入预置数据面的 [Gateway API](gateway-api.md)、[迁移工具](migration.md)和[正式发行流水线](releases.md)。Gateway 预览支持 GatewayClass、Gateway、HTTPRoute、GRPCRoute 和 ReferenceGrant；尚未获得上游 conformance 认证，具体不支持的字段和进程内插件历史限制见兼容说明。
+
+后续范围仍包括响应缓存、HTTP/3、完整 Lua/NGINX 兼容、正则和嵌套 location、rewrite/map/if、分布式限流，以及 Gateway 基础设施自动置备和其余策略能力。
 
 命名空间配额、Service 灰度、镜像、自动回退、管理角色和日志字段策略参见[平台策略及变更管理](platform-policies.zh-CN.md)。

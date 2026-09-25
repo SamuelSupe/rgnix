@@ -53,6 +53,8 @@ impl External {
         client: &reqwest::Client,
         request: &crate::script::RequestData,
         uri: &str,
+        trace: Option<&crate::otlp::trace::Trace>,
+        exporter: Option<&crate::otlp::Exporter>,
     ) -> std::result::Result<BTreeMap<String, String>, u16> {
         let attempts = self.endpoints.len().clamp(1, 3);
         let deadline = tokio::time::Instant::now() + self.timeout;
@@ -67,6 +69,7 @@ impl External {
                 url.set_port(Some(lease.address.port()))
                     .map_err(|_| 503u16)?;
             }
+            let mut span = trace.map(|t| t.client("GET", url.host_str().unwrap_or("auth"), "auth"));
             let mut check = client
                 .get(url)
                 .timeout(self.timeout)
@@ -82,7 +85,24 @@ impl External {
                     check = check.header(name, value);
                 }
             }
+            if let Some(span) = &span {
+                let mut headers = http::HeaderMap::new();
+                span.inject(&mut headers);
+                check = check.headers(headers);
+            }
             let result = tokio::time::timeout_at(deadline, check.send()).await;
+            if let (Some(span), Some(exporter)) = (&mut span, exporter) {
+                let error = match &result {
+                    Ok(Ok(response)) => {
+                        span.status = Some(response.status().as_u16());
+                        None
+                    }
+                    Ok(Err(e)) if e.is_timeout() => Some("request_timeout"),
+                    Err(_) => Some("request_timeout"),
+                    _ => Some("connect"),
+                };
+                span.export(exporter, error, None);
+            }
             let response = match result {
                 Ok(Ok(response)) => response,
                 _ => {

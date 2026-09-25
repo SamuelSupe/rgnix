@@ -39,6 +39,19 @@ impl Preview<'_> {
                     .map_or_else(|| backend.clone(), |r| r.enforce(backend.clone())),
                 None,
             )
+        } else if let Some(policy) = &self.route.settings.gateway {
+            if let Some((status, location)) =
+                policy.location(self.request, &self.route.matcher, self.scheme == "https")
+            {
+                return Ok(json!({"kind":"redirect", "status":status, "location":location}));
+            }
+            let Some(backend) = self.route.rollout.as_ref().map_or_else(
+                || policy.select_at(self.sample),
+                |r| Some(r.select_at(self.request, self.sample)),
+            ) else {
+                return Ok(json!({"kind":"unavailable","status":500}));
+            };
+            (backend, None)
         } else {
             match &self.route.action {
                 Action::Proxy { backend, uri } => (
@@ -61,10 +74,22 @@ impl Preview<'_> {
                 Action::Unavailable => return Ok(json!({"kind":"unavailable","status":503})),
             }
         };
+        let mut edits = self.edits.clone();
+        if edits.path.is_none()
+            && let Some(path) = self
+                .route
+                .settings
+                .gateway
+                .as_ref()
+                .and_then(|p| p.rewrite.as_ref())
+                .and_then(|r| r.path.as_ref())
+        {
+            edits.path = Some(path.apply(&self.request.path, &self.route.matcher));
+        }
         let target = outbound_uri(
             self.original_uri,
             self.request,
-            self.edits,
+            &edits,
             &self.route.matcher,
             uri,
         );
@@ -98,7 +123,38 @@ impl Preview<'_> {
         }) {
             headers.insert("te".into(), "trailers".into());
         }
-        headers.insert("host".into(), upstream.host_header.clone());
+        if let Some(policy) = &self.route.settings.gateway {
+            let host = policy
+                .rewrite
+                .as_ref()
+                .and_then(|r| r.hostname.as_ref())
+                .unwrap_or(&self.request.host);
+            headers.entry("host".into()).or_insert_with(|| host.clone());
+            if policy
+                .rewrite
+                .as_ref()
+                .is_some_and(|r| r.hostname.is_some())
+            {
+                headers.insert("host".into(), host.clone());
+            }
+            for name in &policy.request_headers.remove {
+                headers.remove(&name.to_ascii_lowercase());
+            }
+            for h in &policy.request_headers.set {
+                headers.insert(h.name.to_ascii_lowercase(), h.value.clone());
+            }
+            for h in &policy.request_headers.add {
+                headers
+                    .entry(h.name.to_ascii_lowercase())
+                    .and_modify(|v| {
+                        v.push_str(", ");
+                        v.push_str(&h.value);
+                    })
+                    .or_insert_with(|| h.value.clone());
+            }
+        } else {
+            headers.insert("host".into(), upstream.host_header.clone());
+        }
         for (name, value) in &self.route.settings.request_headers {
             let value = variables.expand(value, &upstream.host_header);
             if value.is_empty() {

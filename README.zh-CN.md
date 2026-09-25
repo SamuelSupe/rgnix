@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/readme-hero.svg" alt="rgnix — 内置编译式路由语言的 Rust HTTP Server 与 Kubernetes Ingress" width="100%">
+  <img src="docs/assets/readme-hero.svg" alt="rgnix — 内置编译式路由语言的 Rust HTTP Server、Ingress 与 Gateway API" width="100%">
 </p>
 
 <p align="center"><strong>NGINX 风格配置 · Lua 风格路由 · 编译执行</strong></p>
@@ -16,11 +16,13 @@
   <a href="#快速运行">快速运行</a> · <a href="#编程式路由">路由插件</a> · <a href="#kubernetes-ingress">Kubernetes</a> · <a href="#日志与可观测性">可观测性</a> · <a href="#实际验证">实际验证</a>
 </p>
 
-**rgnix** 将 HTTP 服务、反向代理和 Kubernetes Ingress controller 放进一个 Rust 二进制。数据面基于 [Pingora](https://github.com/cloudflare/pingora) 与 OpenSSL；内置 Lua 风格语言 **RGL → WebAssembly → Wasmtime/Cranelift 机器码**，在加载配置时完成编译。
+**rgnix** 将 HTTP 服务、反向代理和 Kubernetes Ingress/Gateway API controller 放进一个 Rust 二进制。数据面基于 [Pingora](https://github.com/cloudflare/pingora) 与 OpenSSL；内置 Lua 风格语言 **RGL → WebAssembly → Wasmtime/Cranelift 机器码**，在加载配置时完成编译。
 
-> **v0.2.0 预览版**新增请求体路由、OTLP 日志与链路、本地日志轮转、流量与认证策略、多租户治理和分阶段灰度发布。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.2.0) · [更新记录](CHANGELOG.md)。运行验收覆盖 Linux arm64，部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
+> **v0.3.0 预览版**新增 Gateway API、持久化插件恢复、跨副本速率配额、业务指标回退，以及更完整的运维指标和 W3C 链路。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.3.0) · [发布说明](docs/releases/v0.3.0.md) · [更新记录](CHANGELOG.md)。部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
 
 ## 主要能力
+
+**0.3 新增：**[Gateway API](docs/gateway-api.md)、[共享限流](docs/shared-rate-limits.md)、[迁移工具](docs/migration.md)及 Linux amd64/arm64 原生产物。Gateway 采用预置数据面，尚未取得上游 conformance 认证。
 
 | 领域 | 已实现能力 |
 | :--- | :--- |
@@ -30,34 +32,45 @@
 | **流量与安全** | 可信真实 IP、PROXY v1/v2、CIDR ACL、JWT/JWKS、外部认证、客户端/上游 mTLS、限流与并发预算 |
 | **后端调度** | 加权轮询、最少连接、加权哈希、黏性 Cookie、主动/被动健康检查、DNS TTL 更新 |
 | **静态文件与 TLS** | root/alias、索引、条件请求、单段 Range、受限 SPA fallback、gzip/Brotli、SNI 证书热更新与到期指标 |
-| **Kubernetes** | 标准 Ingress、EndpointSlice IPv4/IPv6、HTTP/HTTPS 后端、TLS Secret、ConfigMap 插件、持久恢复 |
+| **Kubernetes** | 标准 Ingress 与持久恢复；Gateway/HTTPRoute/GRPCRoute 预览、Service 权重、ReferenceGrant、EndpointSlice 与 TLS Secret 热更新 |
 | **多租户治理** | 管理员配额与域名授权、限定 namespace 的 watch/RBAC、具名读写身份与操作审计 |
-| **发布管理** | Service 权重、受限镜像流量、稳定分组、分阶段灰度、审批、指标门禁、错误率/时延自动回退 |
+| **发布管理** | Service 权重、受限镜像流量、稳定分组、分阶段灰度、审批、指标门禁、错误率/时延及业务指标自动回退 |
 | **运维** | OTLP 日志/链路、本地日志轮转、Prometheus 指标、模拟、配置 diff/预检、可选准入 Webhook、持久化历史回退 |
 
 ## 快速运行
 
-### 下载 Linux arm64 版本
+### 下载 Linux amd64 或 arm64 版本
 
-从 [v0.2.0 Release](https://github.com/SamuelSupe/rgnix/releases/tag/v0.2.0) 下载 **rgnix-0.2.0-linux-arm64.tar.gz** 与 **SHA256SUMS**。同一 Release 还提供 Helm Chart；下面只校验已下载的二进制包：
+从 [v0.3.0 Release](https://github.com/SamuelSupe/rgnix/releases/tag/v0.3.0) 下载对应架构的压缩包与 **SHA256SUMS**。以下为 amd64，AArch64 请设置 `arch=arm64`：
 
 ```sh
-grep ' rgnix-0.2.0-linux-arm64.tar.gz$' SHA256SUMS | sha256sum -c -
-tar -xzf rgnix-0.2.0-linux-arm64.tar.gz
-cd rgnix-0.2.0-linux-arm64
+arch=amd64
+archive="rgnix-0.3.0-linux-$arch.tar.gz"
+curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.3.0/$archive"
+curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.3.0/SHA256SUMS
+grep " $archive\$" SHA256SUMS | sha256sum -c -
+tar -xzf "$archive"
+cd "rgnix-0.3.0-linux-$arch"
 ./rgnix check -c examples/nginx.conf
 ./rgnix serve -c examples/nginx.conf
 ```
 
-另开终端执行 `curl http://localhost:8080/health`，或访问 `http://localhost:8080/`。下载包适用于基于 glibc 的 Linux，详见[运行依赖](docs/install-binary.md)。示例 `/api/` 需要自行启动 **9001–9003** 端口上的应用上游；相对路径以主配置文件目录为基准。
+另开终端执行 `curl http://localhost:8080/health`。静态首页可以直接访问；`/api/` 需要自行启动 **9001–9003** 端口上的应用上游。查看 [Linux 运行依赖](docs/install-binary.md)。相对路径以主配置文件目录为基准。
 
-### 从源码或 Docker 构建
+### 容器或源码运行
 
-在 Linux 上使用 **Rust 1.90+**。依赖锁定在 `Cargo.lock`，Docker 与 CI 使用 Rust 1.98.0。
+非 root 镜像包含 **linux/amd64 与 linux/arm64** 原生二进制：
 
 ```sh
-git clone --branch v0.2.0 https://github.com/SamuelSupe/rgnix.git
+git clone --branch v0.3.0 https://github.com/SamuelSupe/rgnix.git
 cd rgnix
+docker run --rm -p 8080:8080 -v "$PWD/examples:/etc/rgnix:ro" \
+  ghcr.io/samuelsupe/rgnix:0.3.0 serve -c /etc/rgnix/nginx.conf
+```
+
+源码构建在 Linux 上使用 **Rust 1.90+**；依赖由 `Cargo.lock` 锁定，Docker 与 CI 使用 Rust 1.98.0：
+
+```sh
 # Debian / Ubuntu；Rust 需单独安装。
 sudo apt-get update
 sudo apt-get install -y build-essential cmake pkg-config libssl-dev
@@ -65,12 +78,7 @@ cargo build --release --locked
 ./target/release/rgnix serve -c examples/nginx.conf
 ```
 
-```sh
-docker build -t rgnix:0.2.0 .
-docker run --rm -p 8080:8080 -v "$PWD/examples:/etc/rgnix:ro" rgnix:0.2.0 serve -c /etc/rgnix/nginx.conf
-```
-
-镜像以非 root 用户运行。**本次发布不提供公共 registry 镜像，需自行构建。** [部署文档](docs/deployment.md)提供 linux/amd64 与 linux/arm64 镜像构建配置。
+[镜像签名、校验和与产物证明](docs/releases.md) · [部署文档](docs/deployment.md)。
 
 ## 编程式路由
 
@@ -121,12 +129,11 @@ end
 
 ## Kubernetes Ingress
 
-构建镜像并推送到集群可以拉取的仓库：
+安装带版本的 OCI Chart：
 
 ```sh
-docker build -t YOUR_REGISTRY/rgnix:0.2.0 .
-docker push YOUR_REGISTRY/rgnix:0.2.0
-helm upgrade --install rgnix charts/rgnix --namespace rgnix-system --create-namespace --set image.repository=YOUR_REGISTRY/rgnix --set image.tag=0.2.0
+helm upgrade --install rgnix oci://ghcr.io/samuelsupe/rgnix/charts/rgnix \
+  --version 0.3.0 --namespace rgnix-system --create-namespace
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
 
@@ -136,6 +143,12 @@ Chart 默认部署**两个副本**，包含 IngressClass、RBAC、Service、探�
 - 使用就绪且未终止的 IPv4/IPv6 端点；无端点返回 503。通过 [Ingress 策略](examples/ingress-policies.yaml)配置 HTTPS/私有 CA 和 HTTP/2。
 - 通过 `rgnix.io/script: routes/main.rgl` 引用同 namespace 的 ConfigMap 插件；脚本仅能选择当前 Ingress 声明的后端。
 - 在控制器 namespace 的 ConfigMap 中保存已接受配置。坏插件更新保留上一有效版本，资源删除和端点撤销仍然生效。
+
+### Gateway API
+
+安装固定版本的标准 CRD 后，选择 Helm `mode=gateway`。每个 Deployment 绑定一个 Gateway，HTTPRoute、GRPCRoute 共用代理与插件内核；JWT/外部认证、BackendTLSPolicy、Service 权重、镜像和灰度控制遵循[字段与策略支持范围](docs/gateway-api.md)。
+
+有效插件源码与路由策略存入绑定 UID 的 ConfigMap 检查点。当前源码无效时，新副本可恢复上一有效版本；权限、端点、Secret 和资源删除继续实时生效。检查点为异步持久化。[Gateway 示例](examples/gateway.yaml) · [迁移评估](docs/migration.md)。
 
 ### 租户边界与分阶段发布
 
@@ -152,19 +165,24 @@ metadata:
                    {"service":"checkout-canary:http","weight":10}]}
 ```
 
-[完整灰度示例](examples/ingress-rollout.yaml)包含稳定分组、流量镜像、阶段权重、审批及错误率/p95 回退。外部 JSON 指标门禁在指标异常或不可用时阻止推进；本地错误率/时延规则触发自动回退。发布进度跨控制器重启保留。文件 diff、候选预检和可选 TLS 准入 Webhook 在发布前校验变更。
+[完整灰度示例](examples/ingress-rollout.yaml)包含稳定分组、流量镜像、阶段权重、审批及错误率/p95 回退。外部 JSON 指标门禁在指标异常或不可用时阻止推进；`metric_rollback` 还可在持续失败后触发持久化回退，与本地错误率/时延回退配合使用。发布进度跨控制器重启保留。文件 diff、候选预检和可选 TLS 准入 Webhook 在发布前校验变更。
 
-**配额按进程计数**，不提供跨副本精确配额或独立 cgroup。硬 CPU/内存隔离应使用独立控制器 Deployment/IngressClass、限定 watch 与 Kubernetes 资源限制。
+**请求速率可跨副本计数**，通过可选 [Redis 协调器](docs/shared-rate-limits.md) 实现；并发与资源预算继续按进程执行。硬 CPU/内存隔离应使用独立控制器 Deployment/IngressClass、限定 watch 与 Kubernetes 资源限制。
 
 ## 日志与可观测性
 
-将访问日志发送到 OpenTelemetry Collector 或支持 OTLP/HTTP protobuf 的第三方平台：
+将访问日志与 span 同时发送到 OpenTelemetry Collector 或支持 OTLP/HTTP protobuf 的第三方平台：
 
 ```sh
-OTEL_SERVICE_NAME=rgnix-edge OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://collector:4318/v1/logs rgnix serve -c examples/nginx.conf
+OTEL_SERVICE_NAME=rgnix-edge rgnix serve -c examples/nginx.conf \
+  --otlp-logs-endpoint http://collector:4318/v1/logs \
+  --otlp-traces-endpoint http://collector:4318/v1/traces \
+  --trace-sample-ratio 0.1
 ```
 
-支持认证头、HTTPS/私有 CA、后台有界队列、丢弃指标及退出刷新。可选 server/client traces 与访问日志关联。Ingress 使用同一 exporter，并支持从 Helm Secret 读取凭证。[OTLP 指南](docs/otlp.md)。
+支持认证头、HTTPS/私有 CA、后台有界队列、丢弃指标及退出刷新。继承并向后端传递 W3C `traceparent`、`tracestate`；业务后端、外部鉴权与镜像请求各有独立子 span。本地及 OTLP 访问日志关联 server span。Ingress 使用同一 exporter，并支持从 Helm Secret 读取凭证。[日志导出](docs/otlp.md) · [链路传播与采样](docs/tracing.md)。
+
+传播、鉴权/镜像子 span 与日志关联的运行证据见[链路验证记录](docs/validation-tracing-2026-09-25.md)。
 
 本地日志可以按大小或 UTC 时间轮转，设置保留份数与 gzip：
 
@@ -181,6 +199,8 @@ http {
 
 独立管理端口提供 `/healthz`、`/readyz` 和 `/metrics`，这些接口无需认证，应部署在受保护的管理网络。`/v1/*` 管理接口需要 token，可用于查看配置、解释路由、模拟、发布控制和历史回退。[运维与指标](docs/deployment.md)。
 
+运维指标覆盖上游分阶段耗时/连接复用、body 流量/预读、后端与租户预算占用、watch/Lease 状态、发布门禁及 Linux CPU/RSS/FD 指标。Helm 提供独立 metrics Service 和可选 ServiceMonitor，配套[指标目录与抓取说明](docs/metrics.md)、[Prometheus 告警规则](examples/prometheus-alerts.yaml)。
+
 ## CLI 与运行架构
 
 ```text
@@ -192,6 +212,10 @@ rgnix diff -c candidate.conf --against nginx.conf
 rgnix explain -c nginx.conf --host example.com --path /api
 rgnix simulate -c nginx.conf --request request.json
 rgnix ingress --ingress-class rgnix --publish-service namespace/service
+rgnix gateway --gateway namespace/name --publish-service namespace/service
+rgnix migrate nginx -c nginx.conf
+rgnix migrate ingress -f ingress-and-services.yaml -o gateway.yaml
+rgnix migrate compare --before old.conf --after new.conf --requests requests.json
 ```
 
 `check` 完成配置、DNS、证书和插件校验，不启动监听；`compile` 输出可移植 Wasm。**SIGHUP** 热更新独立服务的路由、脚本、证书和日志策略；**SIGTERM** 优雅终止。监听参数和工作线程变化需要重启。
@@ -214,25 +238,26 @@ flowchart LR
 
 ## 实际验证
 
-**v0.2.0 发布二进制**在 **OrbStack Linux arm64** 通过下表 HTTP、策略、恢复、日志及 NGINX 回归，以及 9 项真实 Kubernetes 升级检查。两个就绪 Pod 的二进制与下载包一致。[发布证据与摘要](docs/validation-release-0.2.0.md)。本地验收与 GitHub Actions 徽章分别记录。
+[发布流程](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml)在原生 **amd64 与 arm64** 上执行 Rust/行为回归、Clippy 和 release 构建，再使用 amd64 产物执行真实 Kubernetes Gateway/TLS/gRPC 检查，全部通过后才发布。见[发布说明与校验方法](docs/releases/v0.3.0.md)。
 
-| v0.2.0 发布检查 | 结果 |
+发布前在 **OrbStack Linux arm64** 上记录的验收结果：
+
+| 套件 | 通过数 |
 | :--- | ---: |
-| Rust 测试 / fmt / Clippy | **7/7**，检查通过 |
-| HTTP / TLS / 流式传输 / 插件 | **79/79** |
-| 独立模式产品策略 | **89/89** |
-| NGINX 1.28.0 对照 | **46/46** |
-| Kubernetes API 故障 / 恢复 | **53/53** |
-| OTLP / 文件轮转 | **32/32**、**20/20** |
-| 真实 Kubernetes 升级、准入与 Class 检查 | **9/9** |
+| Kubernetes Gateway / Ingress 策略 | **73 / 70** |
+| 跨进程共享速率 | **12** |
+| HTTP / 独立模式产品行为 | **82 / 111** |
+| 控制器恢复 / 迁移工具 | **57 / 10** |
+| OTLP / 本地日志轮转 | **32 / 20** |
+| Rust 单元与边界测试 | **12** |
 
-此前完整 Kubernetes 生命周期 **46/46**、治理 **65/65** 与滚动请求 **300/300** 的结果保留在[治理记录](docs/validation-governance.md)，并注明对应 QA 产物。本次仅修改生产包版本与元数据，未重跑这些更广的真实集群套件。
+[P1 验证记录](docs/validation-p1-product-2026-09-25.md)说明实际二进制与最后一次 Gateway 拒绝保护的回归顺序。此前的[链路](docs/validation-tracing-2026-09-25.md)、[指标](docs/validation-metrics-2026-09-25.md)和 [v0.2.0 发布](docs/validation-release-0.2.0.md)记录作为历史证据保留。
 
-**尚未验证：** amd64 运行、多节点、云 LoadBalancer、长期压测和恶意租户容量极限。双架构构建配置不代表两种架构具有相同的运行验收覆盖；已有性能数据属于历史测量，不是 v0.2 的容量保证。
+**验收范围之外：**上游 Gateway conformance 认证、多节点故障、云 LoadBalancer、长期压测、恶意租户容量极限，以及 Redis Sentinel/Cluster 故障转移。历史性能数据不构成容量保证。
 
 ## 范围与文档
 
-rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则及嵌套 location、`rewrite/map/if`、响应缓存、HTTP/3、Gateway API、ingress-nginx 注解、分布式限流或自动业务请求重试。不支持的配置会给出诊断。
+rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则及嵌套 location、`rewrite/map/if`、响应缓存、HTTP/3、ingress-nginx 注解或自动业务请求重试。Gateway API 的范围见[独立兼容说明](docs/gateway-api.md)。不支持的配置会给出诊断。
 
 | 文档 | 内容 |
 | :--- | :--- |
@@ -241,8 +266,10 @@ rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则�
 | [流量策略](docs/product-features.md) | 认证、调度、静态文件、压缩和链路 |
 | [治理](docs/governance.md) · [平台策略](docs/platform-policies.zh-CN.md) | 域名、配额、身份、灰度、预检、准入与回退 |
 | [部署运维](docs/deployment.md) | Helm、TLS、恢复、指标与终止 |
+| [Gateway API](docs/gateway-api.md) · [迁移工具](docs/migration.md) | 资源与字段范围、迁移评估及候选配置 |
+| [发行流程](docs/releases.md) · [安全报告](SECURITY.md) | 构建门禁、签名产物、版本与报告渠道 |
 | [OTLP](docs/otlp.md) · [文件日志](docs/log-rotation.md) | 导出、轮转与投递边界 |
-| [验证记录](docs/validation-release-0.2.0.md) · [参与开发](CONTRIBUTING.md) | 运行证据、复现方法与开发检查 |
+| [验证记录](docs/validation-p1-product-2026-09-25.md) · [参与开发](CONTRIBUTING.md) | 运行证据、复现方法与开发检查 |
 
 ## 许可证
 

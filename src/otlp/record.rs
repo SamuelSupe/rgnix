@@ -65,6 +65,19 @@ impl AccessRecord<'_> {
         if let Some(source) = self.error_source {
             attributes.push(string_attribute("rgnix.error.source", source));
         }
+        if let Some(trace) = self.trace {
+            if trace.enabled && trace.parent != [0; 8] {
+                attributes.push(string_attribute(
+                    "rgnix.parent_span_id",
+                    &super::trace::hex(&trace.parent),
+                ));
+            }
+            if trace.enabled
+                && let Some(client) = &trace.upstream
+            {
+                attributes.push(string_attribute("rgnix.upstream.span_id", &client.id()));
+            }
+        }
         let severity = if self.status >= 500 || self.error_source.is_some() {
             SeverityNumber::Error
         } else if self.status >= 400 {

@@ -18,6 +18,9 @@ impl Proxy {
         }
         ctx.status = response.status.as_u16();
         if let Some(route) = &ctx.route {
+            if let Some(policy) = &route.settings.gateway {
+                policy.response_headers.response(response)?;
+            }
             for header in &route.settings.response_headers {
                 if header.always
                     || [200, 201, 204, 206, 301, 302, 303, 304, 307, 308].contains(&ctx.status)

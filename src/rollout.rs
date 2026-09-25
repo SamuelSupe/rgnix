@@ -47,6 +47,8 @@ pub struct Policy {
     pub cohort: Option<String>,
     #[serde(default)]
     pub metric_gates: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metric_rollback: Option<metrics::Rollback>,
 }
 impl Policy {
     pub fn parse(value: &str) -> Result<Self> {
@@ -95,9 +97,18 @@ impl Policy {
             "at most 16 rollout stages and 8 metric gates"
         );
         ensure!(
-            policy.metric_gates.is_empty() || !policy.steps.is_empty(),
-            "metric gates require rollout steps"
+            policy.metric_gates.is_empty()
+                || !policy.steps.is_empty()
+                || policy.metric_rollback.is_some(),
+            "metric gates require rollout steps or metric rollback"
         );
+        if let Some(rule) = &policy.metric_rollback {
+            ensure!(
+                policy.rollback.is_some() && !policy.metric_gates.is_empty(),
+                "metric rollback requires metric gates and a rollback fallback"
+            );
+            rule.validate()?;
+        }
         for step in &policy.steps {
             ensure!(
                 policy.rollback.is_some(),
@@ -132,12 +143,14 @@ pub struct Rollouts {
 }
 pub struct State {
     pub policy: Policy,
+    pub kind: String,
     pub owner: String,
     pub uid: String,
     pub backends: BTreeMap<String, String>,
     cursor: AtomicU64,
     window: Mutex<Window>,
     progress: Mutex<Progress>,
+    metric_failures: Mutex<metrics::Failures>,
 }
 #[derive(Default)]
 struct Window {
@@ -154,20 +167,6 @@ impl Rollouts {
             .cloned()
             .collect()
     }
-    pub fn pending(&self) -> Vec<(String, String, String)> {
-        self.states
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .values()
-            .filter(|s| {
-                s.window
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .rolled_back
-            })
-            .map(|s| (s.owner.clone(), s.uid.clone(), s.policy.revision.clone()))
-            .collect()
-    }
     pub fn get(
         &self,
         owner: &str,
@@ -175,10 +174,20 @@ impl Rollouts {
         policy: Policy,
         backends: BTreeMap<String, String>,
     ) -> Arc<State> {
+        self.get_for("Ingress", owner, uid, policy, backends)
+    }
+    pub fn get_for(
+        &self,
+        kind: &str,
+        owner: &str,
+        uid: &str,
+        policy: Policy,
+        backends: BTreeMap<String, String>,
+    ) -> Arc<State> {
         use sha2::{Digest, Sha256};
         let key = format!(
-            "{owner}:{uid}:{:x}",
-            Sha256::digest(serde_json::to_vec(&policy).unwrap())
+            "{kind}:{owner}:{uid}:{:x}",
+            Sha256::digest(serde_json::to_vec(&(&policy, &backends)).unwrap())
         );
         let mut states = self.states.lock().unwrap_or_else(|e| e.into_inner());
         states.retain(|k, v| k == &key || Arc::strong_count(v) > 1);
@@ -186,6 +195,7 @@ impl Rollouts {
             .entry(key)
             .or_insert_with(|| {
                 Arc::new(State {
+                    kind: kind.into(),
                     owner: owner.into(),
                     uid: uid.into(),
                     policy,
@@ -193,12 +203,19 @@ impl Rollouts {
                     cursor: AtomicU64::new(0),
                     window: Mutex::new(Window::default()),
                     progress: Mutex::new(Progress::default()),
+                    metric_failures: Mutex::new(Default::default()),
                 })
             })
             .clone()
     }
 }
 impl State {
+    pub(crate) fn rolled_back(&self) -> bool {
+        self.window
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .rolled_back
+    }
     pub fn enforce(&self, backend: String) -> String {
         let window = self.window.lock().unwrap_or_else(|e| e.into_inner());
         if window.rolled_back {
@@ -312,7 +329,7 @@ impl State {
     }
     pub fn diagnostic(&self) -> serde_json::Value {
         let w = self.window.lock().unwrap_or_else(|e| e.into_inner());
-        let mut result = serde_json::json!({"policy":self.policy,"rolled_back":w.rolled_back,"reason":w.reason,"samples":w.samples.len()});
+        let mut result = serde_json::json!({"kind":self.kind,"policy":self.policy,"rolled_back":w.rolled_back,"reason":w.reason,"samples":w.samples.len()});
         drop(w);
         result["release"] = self.progress_diagnostic();
         result

@@ -1,26 +1,28 @@
-# Linux arm64 binary
+# Linux amd64 and arm64 binaries
 
-The v0.2.0 preview archive contains the binary extracted from the release Linux arm64 image, built from the tagged source and locked dependencies. It is an AArch64 ELF executable built on Debian 12, not a macOS or Alpine/musl binary.
+The v0.3.0 preview provides separate Linux amd64 and arm64 archives, built from the tagged source and locked dependencies on native runners in Debian 12 containers. These are ELF executables for glibc Linux, not macOS or Alpine/musl binaries.
 
 ## Runtime requirements
 
-- Linux arm64 with glibc. The binary imports symbols up to **GLIBC_2.34**; use glibc 2.34 or newer.
+- Linux x86-64 (`amd64`) or AArch64 (`arm64`), matching the selected archive. Debian 12 with glibc 2.36 is the release build/runtime baseline.
 - `libgcc_s.so.1` and the normal glibc runtime libraries. Install `libgcc-s1` on Debian/Ubuntu if absent.
 - System CA certificates for upstream HTTPS verification. Install `ca-certificates` and keep the trust store current.
-- This release's ELF dependency table has no dynamic `libssl` or `libcrypto` dependency; OpenSSL is linked into the executable. Other source builds may differ.
+- Install `libssl3` on Debian/Ubuntu for builds using dynamic OpenSSL. Each archive includes `ELF-INFO.txt` with that executable's dynamic dependencies and symbol versions; source builds may differ.
 
-The release also includes `rgnix-0.2.0.tgz`, a Helm chart. `SHA256SUMS` lists both assets; the command below checks only the binary archive.
+The release also includes `rgnix-0.3.0.tgz`, a Helm chart. `SHA256SUMS` lists both binary archives and the chart; the command below checks only the downloaded binary archive.
 
-The exact binary SHA-256 and validation environment are in [the artifact record](validation/release-0.2.0-artifact.json). Runtime compatibility on other distributions is not separately certified.
+See the [release workflow and signature verification guide](releases.md). Runtime compatibility on other distributions is not separately certified. The older v0.2.0 artifact identity remains in its [historical record](validation/release-0.2.0-artifact.json).
 
 ## Verify and run
 
-Download `rgnix-0.2.0-linux-arm64.tar.gz` and `SHA256SUMS` from the same release, then run:
+Download the appropriate v0.3.0 archive and `SHA256SUMS` from the same release. For amd64 (set `arch=arm64` on AArch64):
 
 ```sh
-grep ' rgnix-0.2.0-linux-arm64.tar.gz$' SHA256SUMS | sha256sum -c -
-tar -xzf rgnix-0.2.0-linux-arm64.tar.gz
-cd rgnix-0.2.0-linux-arm64
+arch=amd64
+archive="rgnix-0.3.0-linux-$arch.tar.gz"
+grep " $archive\$" SHA256SUMS | sha256sum -c -
+tar -xzf "$archive"
+cd "rgnix-0.3.0-linux-$arch"
 
 ./rgnix --version
 ./rgnix check -c examples/nginx.conf

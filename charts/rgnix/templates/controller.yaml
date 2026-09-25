@@ -1,3 +1,9 @@
+{{- if not (has .Values.mode (list "ingress" "gateway")) }}
+{{- fail "mode must be ingress or gateway" }}
+{{- end }}
+{{- if and (eq .Values.mode "gateway") .Values.admission.enabled }}
+{{- fail "the Ingress admission webhook cannot be enabled in Gateway mode" }}
+{{- end }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -8,6 +14,28 @@ kind: ClusterRole
 metadata:
   name: {{ .Release.Namespace }}-{{ .Release.Name }}
 rules:
+  {{- if eq .Values.mode "gateway" }}
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gatewayclasses]
+    verbs: [get, list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gatewayclasses/status]
+    verbs: [get, patch]
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch]
+  {{- if not .Values.watchNamespaces }}
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways, httproutes, grpcroutes, referencegrants, backendtlspolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways/status, httproutes/status, grpcroutes/status, backendtlspolicies/status]
+    verbs: [get, patch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, grpcroutes]
+    verbs: [patch]
+  {{- end }}
+  {{- end }}
   - apiGroups: [networking.k8s.io]
     resources: [ingressclasses]
     verbs: [get, list, watch]
@@ -46,6 +74,17 @@ metadata:
   name: {{ $.Release.Namespace }}-{{ $.Release.Name }}-watch
   namespace: {{ . | quote }}
 rules:
+  {{- if eq $.Values.mode "gateway" }}
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways, httproutes, grpcroutes, referencegrants, backendtlspolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways/status, httproutes/status, grpcroutes/status, backendtlspolicies/status]
+    verbs: [get, patch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, grpcroutes]
+    verbs: [patch]
+  {{- end }}
   - apiGroups: [networking.k8s.io]
     resources: [ingresses, ingresses/status]
     verbs: [get, list, watch, patch]
@@ -79,6 +118,23 @@ kind: Role
 metadata:
   name: {{ .Release.Name }}-leader
 rules:
+  {{- if eq .Values.mode "gateway" }}
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways, httproutes, grpcroutes, referencegrants, backendtlspolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways/status, httproutes/status, grpcroutes/status, backendtlspolicies/status]
+    verbs: [get, patch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, grpcroutes]
+    verbs: [patch]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  {{- end }}
   - apiGroups: [coordination.k8s.io]
     resources: [leases]
     verbs: [get, create, update]
@@ -102,6 +158,7 @@ subjects:
     name: {{ .Release.Name }}
     namespace: {{ .Release.Namespace }}
 ---
+{{- if eq .Values.mode "ingress" }}
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
@@ -110,6 +167,25 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: {{ .Values.defaultIngressClass | quote }}
 spec:
   controller: rgnix.io/ingress-controller
+{{- else }}
+{{- if .Values.gateway.createClass }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ .Values.gateway.className }}
+spec:
+  controllerName: rgnix.io/gateway-controller
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ default .Release.Name .Values.gateway.name }}
+spec:
+  gatewayClassName: {{ .Values.gateway.className }}
+  listeners:
+    {{- toYaml .Values.gateway.listeners | nindent 4 }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -152,12 +228,22 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            {{- if eq .Values.mode "gateway" }}
+            - gateway
+            - --gateway={{ .Release.Namespace }}/{{ default .Release.Name .Values.gateway.name }}
+            - --http-port={{ .Values.service.httpPort }}
+            - --https-port={{ .Values.service.httpsPort }}
+            {{- else }}
             - ingress
             - --ingress-class={{ .Values.ingressClass }}
+            {{- end }}
             {{- range .Values.watchNamespaces }}
             - --watch-namespace={{ . }}
             {{- end }}
             - --publish-service={{ .Release.Namespace }}/{{ .Release.Name }}
+            {{- if .Values.globalRateLimit.secret.name }}
+            - --global-rate-limit-file=/etc/rgnix/global-rate-limit/config.json
+            {{- end }}
             {{- if .Values.rolloutMetrics.secret.name }}
             - --rollout-metrics-file=/etc/rgnix/release-metrics/metrics.json
             {{- end }}
@@ -275,8 +361,13 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sleep", "5"]
-          {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name }}
+          {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name .Values.globalRateLimit.secret.name }}
           volumeMounts:
+            {{- if .Values.globalRateLimit.secret.name }}
+            - name: global-rate-limit
+              mountPath: /etc/rgnix/global-rate-limit
+              readOnly: true
+            {{- end }}
             {{- if .Values.admission.enabled }}
             - name: admission-tls
               mountPath: /etc/rgnix/admission
@@ -318,8 +409,16 @@ spec:
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name }}
+      {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name .Values.globalRateLimit.secret.name }}
       volumes:
+        {{- if .Values.globalRateLimit.secret.name }}
+        - name: global-rate-limit
+          secret:
+            secretName: {{ .Values.globalRateLimit.secret.name | quote }}
+            items:
+              - key: {{ .Values.globalRateLimit.secret.key | quote }}
+                path: config.json
+        {{- end }}
         {{- if .Values.admission.enabled }}
         - name: admission-tls
           secret:

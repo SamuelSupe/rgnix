@@ -1,7 +1,7 @@
 pub mod bundle;
 mod policy;
 mod security;
-mod syntax;
+pub(crate) mod syntax;
 mod upstream;
 use crate::{model::*, script::Compiler};
 use anyhow::{Context, Result, bail, ensure};
@@ -37,7 +37,7 @@ fn load_direct(path: &Path, compiler: &Compiler, version: u64) -> Result<Runtime
     let nodes = syntax::load(&absolute)?;
     load_nodes(&nodes, base, compiler, version)
 }
-fn load_nodes(
+pub(crate) fn load_nodes(
     nodes: &[Directive],
     base: &Path,
     compiler: &Compiler,

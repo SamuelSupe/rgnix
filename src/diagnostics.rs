@@ -238,9 +238,10 @@ impl Admin {
                     .listener
                     .or_else(|| snapshot.listeners.first().map(|l| l.address))
                     .and_then(|listener| {
-                        crate::proxy::normalized_path(input.path.split('?').next().unwrap_or("/"))
+                        input
+                            .routing_request()
                             .ok()
-                            .and_then(|path| snapshot.route(listener, &input.host, &path))
+                            .and_then(|request| snapshot.route_request(listener, &request))
                     });
                 if selected
                     .as_ref()
@@ -290,6 +291,14 @@ impl Admin {
             "/v1/config" => {
                 let mut value = describe(&snapshot);
                 value["controls_sha256"] = json!(self.shared.controls.active.load().digest);
+                value["shared_rate_limit"] = self
+                    .shared
+                    .controls
+                    .active
+                    .load()
+                    .global_rate
+                    .as_ref()
+                    .map_or_else(|| json!({"enabled":false}), |limiter| limiter.diagnostic());
                 value["principal"] = json!({"name":principal.name,"role":principal.role,"namespaces":principal.namespaces});
                 let gates: std::collections::BTreeSet<_> = snapshot
                     .hosts
@@ -377,10 +386,22 @@ fn route(route: &crate::model::Route) -> Value {
                 .collect::<Vec<_>>()
         );
     }
+    for pointer in [
+        "/gateway/request_headers/set",
+        "/gateway/request_headers/add",
+        "/gateway/response_headers/set",
+        "/gateway/response_headers/add",
+    ] {
+        if let Some(headers) = settings.pointer_mut(pointer).and_then(Value::as_array_mut) {
+            for header in headers {
+                header["value"] = json!("[redacted]");
+            }
+        }
+    }
     json!({"id":route.id,"match":route.matcher,"action":route.action,"settings":settings,"script":route.script.as_ref().map(|s|&s.digest),"allowed_backends":route.allowed_backends,"tenant":route.tenant.as_ref().map(|t|t.diagnostic()),"traffic":route.rollout.as_ref().map(|r|r.diagnostic())})
 }
 fn routes(snapshot: &RuntimeSnapshot) -> Value {
-    json!(snapshot.hosts.iter().map(|h|json!({"listener":h.listener,"names":h.names,"default":h.default,"source":if h.ingress {"ingress"} else {"file"},"routes":h.routes.iter().map(|r|route(r)).collect::<Vec<_>>()})).collect::<Vec<_>>())
+    json!(snapshot.hosts.iter().map(|h|json!({"listener":h.listener,"names":h.names,"default":h.default,"source":if snapshot.gateway.is_some() {"gateway"} else if h.ingress {"ingress"} else {"file"},"routes":h.routes.iter().map(|r|route(r)).collect::<Vec<_>>()})).collect::<Vec<_>>())
 }
 fn backends(snapshot: &RuntimeSnapshot) -> Value {
     json!(

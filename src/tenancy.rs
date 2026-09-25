@@ -154,6 +154,9 @@ impl Drop for Permit {
     }
 }
 impl Tenant {
+    pub(crate) fn active(&self) -> [usize; 4] {
+        *self.active.lock().unwrap_or_else(|e| e.into_inner())
+    }
     pub fn acquire(self: &Arc<Self>, resource: Resource) -> std::result::Result<Permit, u16> {
         let quota = self.quota.load();
         let limit = match resource {
@@ -197,6 +200,10 @@ impl Tenant {
     }
 }
 impl Tenants {
+    pub(crate) fn observations(&self, limit: usize) -> (usize, Vec<Arc<Tenant>>) {
+        let states = self.states.lock().unwrap_or_else(|e| e.into_inner());
+        (states.len(), states.values().take(limit).cloned().collect())
+    }
     pub fn tenant(&self, namespace: &str, quota: &Quota) -> Arc<Tenant> {
         let mut states = self.states.lock().unwrap_or_else(|e| e.into_inner());
         let tenant = states

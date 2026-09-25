@@ -79,6 +79,7 @@ pub struct AddedHeader {
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct Settings {
+    pub gateway: Option<crate::gateway::Policy>,
     pub root: PathBuf,
     pub index: Vec<String>,
     pub mime: BTreeMap<String, String>,
@@ -106,6 +107,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            gateway: None,
             root: PathBuf::from("html"),
             index: vec!["index.html".into()],
             mime: BTreeMap::from([
@@ -176,6 +178,7 @@ pub struct TlsHost {
 
 #[derive(Clone)]
 pub struct RuntimeSnapshot {
+    pub gateway: Option<crate::gateway::Routing>,
     pub version: u64,
     pub source_bundle: Option<Arc<crate::config::bundle::Bundle>>,
     pub ready: bool,
@@ -193,6 +196,7 @@ pub struct RuntimeSnapshot {
 impl RuntimeSnapshot {
     pub fn empty(listeners: Vec<Listener>) -> Self {
         Self {
+            gateway: None,
             version: 0,
             source_bundle: None,
             ready: true,
@@ -236,6 +240,7 @@ impl RuntimeSnapshot {
             })
             .collect::<Result<Vec<_>>>()?;
         let config = serde_json::json!({
+            "gateway": self.gateway,
             "listeners": self.listeners,
             "hosts": self.hosts.iter().map(|h| serde_json::json!([
                 h.listener, h.names, h.default, h.ingress,
@@ -243,7 +248,7 @@ impl RuntimeSnapshot {
                     r.script.as_ref().map(|s| &s.digest), r.allowed_backends,
                     r.rollout.as_ref().map(|rollout|&rollout.policy), r.tenant.as_ref().map(|tenant|tenant.quota.load_full())])).collect::<Vec<_>>()
             ])).collect::<Vec<_>>(),
-            "backends": self.backends.iter().map(|(name, b)| serde_json::json!([name, b.endpoints, b.tls, b.hostname, b.host_header, b.options, b.origins, b.ca_pem])).collect::<Vec<_>>(),
+            "backends": self.backends.iter().map(|(name, b)| serde_json::json!([name, b.endpoints, b.tls, b.hostname, b.host_header, b.options, b.origins, b.ca_pem, b.profile])).collect::<Vec<_>>(),
             "certificates": certificates,
             "log_rotation": self.log_rotation,
             "default_access_log": self.default_access_log,
@@ -257,7 +262,29 @@ impl RuntimeSnapshot {
         self.routing = crate::routing::Index::build(&self.hosts);
     }
     pub fn route(&self, listener: SocketAddr, host: &str, path: &str) -> Option<Arc<Route>> {
+        if let Some(gateway) = &self.gateway {
+            return gateway.route(
+                listener,
+                &crate::script::RequestData {
+                    host: host.into(),
+                    path: path.into(),
+                    method: "GET".into(),
+                    ..Default::default()
+                },
+            );
+        }
         self.routing.route(&self.hosts, listener, host, path)
+    }
+    pub fn route_request(
+        &self,
+        listener: SocketAddr,
+        request: &crate::script::RequestData,
+    ) -> Option<Arc<Route>> {
+        if let Some(gateway) = &self.gateway {
+            gateway.route(listener, request)
+        } else {
+            self.route(listener, &request.host, &request.path)
+        }
     }
     pub fn hostless_server_name(&self, listener: SocketAddr) -> Option<&str> {
         self.routing.hostless_server_name(&self.hosts, listener)

@@ -1,9 +1,22 @@
 replicaCount: 2
 image:
-  repository: rgnix
-  tag: "0.2.0"
+  repository: ghcr.io/samuelsupe/rgnix
+  tag: "0.3.0"
   pullPolicy: IfNotPresent
 ingressClass: rgnix
+mode: ingress
+gateway:
+  className: rgnix
+  createClass: true
+  name: ""
+  # CRDs are installed separately by the cluster administrator.
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
 defaultIngressClass: false
 watchNamespaces: []
 service:
@@ -13,6 +26,13 @@ service:
   httpPort: 80
   httpsPort: 443
   externalTrafficPolicy: Cluster
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    interval: 30s
+    scrapeTimeout: 10s
 resources:
   requests:
     cpu: 100m
@@ -67,6 +87,11 @@ otlpLogs:
   caConfigMap:
     name: ""
     key: ca.crt
+
+globalRateLimit:
+  secret:
+    name: ""
+    key: config.json
 
 rolloutMetrics:
   secret:

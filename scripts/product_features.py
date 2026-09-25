@@ -19,7 +19,7 @@ import tempfile
 import threading
 import time
 
-from integration import Upstream, check, free_port, request, wait_for, RESULTS
+from integration import Upstream, check, free_port, request, wait_for, metric_value, RESULTS
 
 
 def command(*args, **kwargs):
@@ -28,6 +28,8 @@ def command(*args, **kwargs):
 
 class Backend(Upstream):
     def do_GET(self):
+        if self.path == "/authorize" and hasattr(self.server, "auth_traces"):
+            self.server.auth_traces.append({name: self.headers.get(name) for name in ("traceparent", "tracestate")})
         if self.path == "/jwks":
             self.send_response(200)
             self.send_header("Content-Length", str(len(self.server.jwks)))
@@ -166,6 +168,8 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
                 check("concurrency permit releases after completion", held.result()[0] == 200 and request(port, "/limited", headers={"x-tenant": "one"})[0] == 200)
                 held = pool.submit(request, port, "/backend-limit")
                 time.sleep(.15)
+                metrics = request(admin, "/metrics")[2].decode()
+                check("backend metrics expose concurrency occupancy and its configured limit", metric_value(metrics, "rgnix_backend_inflight", backend="bounded") == 1 and metric_value(metrics, "rgnix_backend_inflight_limit", backend="bounded") == 1)
                 check("backend concurrency covers the upstream request lifetime", request(port, "/backend-limit")[0] == 503 and held.result()[0] == 200)
                 held = pool.submit(request, port, "/least")
                 time.sleep(.15)
@@ -181,6 +185,8 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
             first.healthy = False
             wait_for(lambda: all(json.loads(request(port, "/health")[2])["port"] == second.server_port for _ in range(4)), True)
             check("active health excludes an unhealthy HTTP endpoint", all(json.loads(request(port, "/health")[2])["port"] == second.server_port for _ in range(4)))
+            metrics = request(admin, "/metrics")[2].decode()
+            check("backend metrics distinguish total, eligible and unready endpoints", metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="total") == 2 and metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="eligible") == 1 and metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="unready") == 1)
             first.healthy = True
             body = json.dumps({"count": 7, "enabled": True})
             check("compiled RGL reads typed JSON, decoded args and cookies", request(port, "/body?tenant=a+b", "POST", {"Cookie": "group=blue"}, body)[0] == 201)
@@ -244,7 +250,17 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
             simulated = json.loads(command(binary, "simulate", "-c", str(config), "--request", str(fixture)))
             check("offline simulation executes the compiled plugin", simulated["plugin"]["decision"]["status"] == 201)
             metrics = request(admin, "/metrics")[2].decode()
+            Path(".local/metrics-product.prom").write_text(metrics)
             check("metrics distinguish configured routes and backends", "rgnix_route_requests_total{" in metrics and "rgnix_backend_requests_total{" in metrics)
+            check("metrics expose upstream phases, pool reuse and response bytes", metric_value(metrics, "rgnix_upstream_connect_seconds_count", backend="http://sticky", reused="true") > 0 and metric_value(metrics, "rgnix_upstream_header_seconds_count", backend="http://sticky") == 5 and metric_value(metrics, "rgnix_upstream_request_seconds_count", backend="http://sticky") == 5 and metric_value(metrics, "rgnix_response_body_bytes_total") > len(page))
+            check("metrics expose active config and successful update timing", metric_value(metrics, "rgnix_config_resources", kind="listeners") == 4 and metric_value(metrics, "rgnix_config_update_seconds_count", source="file", result="success") == 2 and metric_value(metrics, "rgnix_config_last_success_timestamp_seconds") > time.time() - 60)
+            if sys.platform == "linux":
+                check("Linux metrics expose real process memory, file descriptors and threads", metric_value(metrics, "process_resident_memory_bytes") > 0 and metric_value(metrics, "process_open_fds") > 0 and metric_value(metrics, "process_threads") > 0 and metric_value(metrics, "process_start_time_seconds") > time.time() - 180)
+            config.write_text("\n".join(line for line in config.read_text().splitlines() if "upstream bounded " not in line and "location /backend-limit " not in line))
+            process.send_signal(signal.SIGHUP)
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_config_version"), 5)
+            metrics = request(admin, "/metrics")[2].decode()
+            check("removed backends disappear from current-state metrics while historical counters remain", 'rgnix_backend_endpoints{backend="bounded"' not in metrics and 'rgnix_backend_endpoints{backend="http://bounded"' not in metrics and 'rgnix_backend_requests_total{backend="http://bounded"' in metrics)
             grpc_cases(binary, root, first)
             observability_cases(binary, root, first)
             security_transport_cases(binary, root)
@@ -433,7 +449,13 @@ def observability_cases(binary, root, upstream):
     port, admin = free_port(), free_port()
     config = root / "trace.conf"
     access = root / "trace.access"
-    config.write_text(f"http {{ access_log {access}; server {{ listen 127.0.0.1:{port}; location / {{ proxy_pass http://127.0.0.1:{upstream.server_port}; }} }} }}")
+    upstream.auth_traces = []
+    config.write_text(f"""http {{ access_log {access}; server {{ listen 127.0.0.1:{port};
+location / {{ proxy_pass http://127.0.0.1:{upstream.server_port}; }}
+location /auth {{ rgnix_auth_request http://127.0.0.1:{upstream.server_port}/authorize; proxy_pass http://127.0.0.1:{upstream.server_port}; }}
+location /tamper {{ proxy_set_header traceparent invalid; proxy_set_header tracestate forged=value; proxy_pass http://127.0.0.1:{upstream.server_port}; }}
+location /status {{ proxy_pass http://127.0.0.1:{upstream.server_port}/authorize; }}
+}} }}""")
     environment = {k: v for k, v in os.environ.items() if not k.startswith("OTEL_")}
     environment.update({"OTEL_BSP_SCHEDULE_DELAY": "40", "OTEL_BLRP_SCHEDULE_DELAY": "40"})
     with open(root / "trace.log", "w+") as output:
@@ -443,7 +465,8 @@ def observability_cases(binary, root, upstream):
         try:
             wait_for(lambda: request(admin, "/readyz")[0], 200)
             trace_id, parent = "0123456789abcdef" * 2, "1122334455667788"
-            response = request(port, "/test?secret=private-query", headers={"traceparent": f"00-{trace_id}-{parent}-01"})
+            state = "rojo=one,congo=two"
+            response = request(port, "/test?secret=private-query", headers={"traceparent": f"00-{trace_id}-{parent}-01", "tracestate": state})
             propagated = json.loads(response[2])["headers"]["traceparent"]
             def records(path):
                 result = []
@@ -461,15 +484,110 @@ def observability_cases(binary, root, upstream):
             client = next(span for span in spans if span[6] == [3])
             check("OTLP exports linked server and client spans", server[1] == client[1] == [bytes.fromhex(trace_id)] and server[4] == [bytes.fromhex(parent)] and client[4] == server[2])
             check("traceparent propagates the upstream client span identity", propagated == f"00-{trace_id}-{client[2][0].hex()}-01")
+            check("tracestate reaches the backend and both OTLP spans", json.loads(response[2])["headers"]["tracestate"] == state and server[3] == client[3] == [state.encode()])
+            check("span flags identify remote server parents and local client parents", int.from_bytes(server[16][0], "little") == 0x301 and int.from_bytes(client[16][0], "little") == 0x101)
+            check("proxy client span timestamps are contained by the server span", int.from_bytes(server[7][0], "little") <= int.from_bytes(client[7][0], "little") <= int.from_bytes(client[8][0], "little") <= int.from_bytes(server[8][0], "little"))
             check("OTLP access logs correlate with the server span", logs[0][9] == server[1] and logs[0][10] == server[2])
             wait_for(lambda: access.exists() and trace_id in access.read_text(), True)
-            check("local access logs include trace and span IDs", f'span_id="{server[2][0].hex()}"' in access.read_text())
+            check("local access logs include trace, parent and outbound span IDs", f'span_id="{server[2][0].hex()}"' in access.read_text() and f'parent_span_id="{parent}"' in access.read_text() and f'upstream_span_id="{client[2][0].hex()}"' in access.read_text() and 'trace_sampled=true' in access.read_text())
             response = request(port, "/unsampled", headers={"traceparent": f"00-{trace_id}-{parent}-00"})
             wait_for(lambda: len(records("/v1/logs")), 2)
             check("parent sampling decisions are preserved without exporting unsampled spans", len(records("/v1/traces")) == 2 and json.loads(response[2])["headers"]["traceparent"].endswith("-00"))
             check("pre-routing rejected requests are logged", request(port, "/bad%GG")[0] == 400)
             wait_for(lambda: len(records("/v1/logs")), 3)
             check("trace payload excludes query and credential content", all(b"private-query" not in payload for path, payload in collector.records if path == "/v1/traces"))
+
+            def traced_request(path="/test", state="vendor=opaque", version="00", flags="01", suffix=""):
+                ident = os.urandom(16).hex()
+                reply = request(port, path, headers={"traceparent": f"{version}-{ident}-{parent}-{flags}{suffix}", "tracestate": state, "Authorization": "Bearer yes"})
+                wait_for(lambda: len([s for s in records("/v1/traces") if s.get(1) == [bytes.fromhex(ident)]]), 3 if path == "/auth" else 2)
+                return ident, reply, [s for s in records("/v1/traces") if s.get(1) == [bytes.fromhex(ident)]]
+
+            ident, reply, spans = traced_request(version="02", suffix="-future-data")
+            check("future traceparent versions preserve the trace while forwarding supported fields", json.loads(reply[2])["headers"]["traceparent"].startswith("00-" + ident) and all(s[3] == [b"vendor=opaque"] for s in spans))
+            ident, reply, spans = traced_request(state="duplicate=a,duplicate=b")
+            check("invalid tracestate is dropped without breaking a valid traceparent", "tracestate" not in json.loads(reply[2])["headers"] and all(3 not in s for s in spans))
+            large_state = ",".join(f"v{n}=" + "x" * 120 for n in range(6))
+            ident, reply, spans = traced_request(state=large_state)
+            kept_state = ",".join(large_state.split(",")[:4])
+            check("oversized tracestate retains whole vendor entries within the propagation limit", json.loads(reply[2])["headers"]["tracestate"] == kept_state and all(s[3] == [kept_state.encode()] for s in spans))
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            connection.putrequest("GET", "/multiple-state")
+            connection.putheader("traceparent", f"00-{os.urandom(16).hex()}-{parent}-01")
+            connection.putheader("tracestate", "rojo=one, ,")
+            connection.putheader("tracestate", "congo=two")
+            connection.endheaders()
+            reply = connection.getresponse()
+            check("multiple tracestate headers preserve vendor order and ignore empty members", json.loads(reply.read())["headers"]["tracestate"] == state)
+            connection.close()
+            ident, reply, spans = traced_request("/tamper")
+            check("route header edits cannot detach propagation from the recorded spans", json.loads(reply[2])["headers"]["traceparent"].startswith("00-" + ident) and json.loads(reply[2])["headers"]["tracestate"] == "vendor=opaque")
+            ident, reply, spans = traced_request("/auth")
+            auth_span = next(s for s in spans if s[5] == [b"GET auth"])
+            server = next(s for s in spans if s[6] == [2])
+            clients = [s for s in spans if s[6] == [3]]
+            check("external authorization creates a distinct child span and propagates W3C context", len({s[2][0] for s in clients}) == 2 and all(s[4] == server[2] for s in clients) and upstream.auth_traces[-1] == {"traceparent": f"00-{ident}-{auth_span[2][0].hex()}-01", "tracestate": "vendor=opaque"})
+            ident = os.urandom(16).hex()
+            request(port, "/status", headers={"traceparent": f"00-{ident}-{parent}-01"})
+            wait_for(lambda: len([s for s in records("/v1/traces") if s.get(1) == [bytes.fromhex(ident)]]), 2)
+            spans = [s for s in records("/v1/traces") if s.get(1) == [bytes.fromhex(ident)]]
+            check("HTTP 401 marks the client span as error and leaves server status unset", all(wire_fields(s[15][0]).get(3, [0]) == ([2] if s[6] == [3] else [0]) for s in spans))
+
+            edge, edge_admin = free_port(), free_port()
+            edge_config = root / "trace-edge.conf"
+            edge_log = root / "trace-edge.access"
+            edge_config.write_text(f"http {{ access_log {edge_log} json; server {{ listen 127.0.0.1:{edge}; location / {{ proxy_pass http://127.0.0.1:{port}; }} }} }}")
+            with open(root / "trace-edge.log", "w+") as edge_output:
+                gateway = subprocess.Popen([binary, "serve", "-c", str(edge_config), "--admin", f"127.0.0.1:{edge_admin}", "--otlp-logs-endpoint", f"http://127.0.0.1:{collector.server_port}/v1/logs", "--otlp-traces-endpoint", f"http://127.0.0.1:{collector.server_port}/v1/traces", "--trace-sample-ratio", "1"], env=environment, stdout=edge_output, stderr=edge_output)
+                try:
+                    wait_for(lambda: request(edge_admin, "/readyz")[0], 200)
+                    reply = request(edge, "/chain")
+                    forwarded = json.loads(reply[2])["headers"]["traceparent"]
+                    ident = bytes.fromhex(forwarded.split('-')[1])
+                    wait_for(lambda: len([s for s in records("/v1/traces") if s.get(1) == [ident]]), 4)
+                    chain = [s for s in records("/v1/traces") if s.get(1) == [ident]]
+                    root_span = next(s for s in chain if 4 not in s)
+                    cursor = root_span[2]
+                    for _ in range(3):
+                        cursor = next(s for s in chain if s.get(4) == cursor)[2]
+                    check("two proxy hops form one trace with four linked spans and forward the last client ID", cursor == [bytes.fromhex(forwarded.split('-')[2])] and root_span[6] == [2])
+                    wait_for(lambda: len([s for s in records("/v1/logs") if s.get(9) == [ident]]), 2)
+                    logs = [s for s in records("/v1/logs") if s.get(9) == [ident]]
+                    wait_for(lambda: edge_log.exists() and ident.hex() in edge_log.read_text())
+                    check("both hops OTLP and JSON access logs correlate with their own server spans", {s[10][0] for s in logs} == {s[2][0] for s in chain if s[6] == [2]} and any(json.loads(line)["trace_id"] == ident.hex() and json.loads(line)["trace_sampled"] for line in edge_log.read_text().splitlines()))
+                    connection = http.client.HTTPConnection("127.0.0.1", edge)
+                    connection.putrequest("GET", "/duplicate")
+                    for _ in range(2): connection.putheader("traceparent", f"00-{trace_id}-{parent}-01")
+                    connection.putheader("tracestate", "old=must-not-survive")
+                    connection.endheaders()
+                    response = connection.getresponse()
+                    headers = json.loads(response.read())["headers"]
+                    connection.close()
+                    check("duplicate parents start a new trace and cannot retain old tracestate", headers["traceparent"].split('-')[1] != trace_id and "tracestate" not in headers)
+                    ident = os.urandom(16).hex()
+                    reply = request(edge, "/unsampled-chain", headers={"traceparent": f"00-{ident}-{parent}-00", "tracestate": state})
+                    wait_for(lambda: len([r for r in records("/v1/logs") if r.get(9) == [bytes.fromhex(ident)]]), 2)
+                    check("unsampled W3C context and correlated logs survive both proxy hops", not any(s.get(1) == [bytes.fromhex(ident)] for s in records("/v1/traces")) and json.loads(reply[2])["headers"]["traceparent"].endswith("-00") and json.loads(reply[2])["headers"]["tracestate"] == state)
+                    for invalid in [f"ff-{trace_id}-{parent}-01", f"00-{'0' * 32}-{parent}-01", f"00-{trace_id}-{'0' * 16}-01", f"00-{trace_id.upper()}-{parent}-01", f"00-{trace_id}-{parent}-01-extra"]:
+                        reply = request(edge, "/bad-context", headers={"traceparent": invalid, "tracestate": "orphan=discard"})
+                        echoed = json.loads(reply[2])["headers"]
+                        assert echoed["traceparent"].split('-')[1] not in (trace_id, '0' * 32) and "tracestate" not in echoed
+                    check("invalid versions, zero IDs and malformed context start clean traces", True)
+                finally:
+                    gateway.send_signal(signal.SIGINT)
+                    gateway.wait(timeout=15)
+                gateway = subprocess.Popen([binary, "serve", "-c", str(edge_config), "--admin", f"127.0.0.1:{edge_admin}", "--otlp-logs-endpoint", f"http://127.0.0.1:{collector.server_port}/v1/logs"], env={**environment, "OTEL_TRACES_EXPORTER": "none"}, stdout=edge_output, stderr=edge_output)
+                try:
+                    wait_for(lambda: request(edge_admin, "/readyz")[0], 200)
+                    ident = os.urandom(16).hex()
+                    request(edge, "/pass-through", headers={"traceparent": f"00-{ident}-{parent}-01", "tracestate": state})
+                    wait_for(lambda: len([r for r in records("/v1/logs") if r.get(9) == [bytes.fromhex(ident)]]), 2)
+                    logs = [r for r in records("/v1/logs") if r.get(9) == [bytes.fromhex(ident)]]
+                    passthrough = next(r for r in logs if r[10] == [bytes.fromhex(parent)])
+                    check("disabled tracing preserves incoming sampling in correlated OTLP logs", int.from_bytes(passthrough[8][0], "little") == 1 and len([s for s in records("/v1/traces") if s.get(1) == [bytes.fromhex(ident)]]) == 2)
+                finally:
+                    gateway.send_signal(signal.SIGINT)
+                    gateway.wait(timeout=15)
         finally:
             process.send_signal(signal.SIGINT)
             process.wait(timeout=15)

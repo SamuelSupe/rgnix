@@ -148,7 +148,28 @@ impl Reporter {
             }
         }
     }
-    pub(super) async fn leader(&self) -> Result<bool> {
+    pub(super) async fn leader(&self, timeout: Duration) -> Result<bool> {
+        let result = tokio::time::timeout(timeout, self.claim_lease()).await;
+        let outcome = match &result {
+            Ok(Ok(true)) => "acquired",
+            Ok(Ok(false)) => {
+                self.telemetry
+                    .controller
+                    .leader_until
+                    .store(0, std::sync::atomic::Ordering::Relaxed);
+                "contended"
+            }
+            Ok(Err(_)) => "error",
+            Err(_) => "timeout",
+        };
+        self.telemetry
+            .controller
+            .lease_results
+            .with_label_values(&[outcome])
+            .inc();
+        result?
+    }
+    async fn claim_lease(&self) -> Result<bool> {
         let api = Api::<Lease>::namespaced(self.client.clone(), &self.options.publish_namespace);
         let name = format!("{}-leader", self.options.class);
         let now = Utc::now();
@@ -182,14 +203,20 @@ impl Reporter {
             api.create(&PostParams::default(), &lease).await
         };
         match result {
-            Ok(_) => Ok(true),
+            Ok(_) => {
+                self.telemetry
+                    .controller
+                    .leader_until
+                    .store(now.timestamp() + 30, std::sync::atomic::Ordering::Relaxed);
+                Ok(true)
+            }
             Err(kube::Error::Api(e)) if e.code == 409 => Ok(false),
             Err(e) => Err(e.into()),
         }
     }
     async fn update_status(&self, ingresses: &[Arc<Ingress>]) -> Result<()> {
         let timeout = Duration::from_secs(5);
-        if !tokio::time::timeout(timeout, self.leader()).await?? {
+        if !self.leader(timeout).await? {
             return Ok(());
         }
         let services =
@@ -227,7 +254,7 @@ impl Reporter {
             tokio::select! {
                 // A large batch must keep renewing its Lease; losing it cancels pending writes.
                 _ = renew.tick() => {
-                    if !tokio::time::timeout(timeout, self.leader()).await?? {
+                    if !self.leader(timeout).await? {
                         return Ok(());
                     }
                 },

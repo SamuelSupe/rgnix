@@ -19,18 +19,20 @@ SIGHUP 在控制线程重读 include、证书和脚本，全部完成后发布�
 `Dockerfile` 使用 Rust 1.98 / Debian bookworm 多阶段构建，运行阶段非 root 用户 UID/GID 10101。Rust 依赖使用 `--locked`。有企业 TLS 根证书的构建环境可使用 BuildKit secret，不关闭证书校验：
 
 ```sh
-docker build --secret id=build_ca,src=/path/to/ca-bundle.pem -t rgnix:0.2.0 .
+docker build --secret id=build_ca,src=/path/to/ca-bundle.pem -t rgnix:0.3.0 .
 ```
 
 双架构 OCI 镜像构建（需要 buildx 以及本机或远端相应架构 builder）：
 
 ```sh
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t YOUR_REGISTRY/rgnix:0.2.0 \
-  --output type=oci,dest=rgnix-0.2.0.oci.tar .
+  -t YOUR_REGISTRY/rgnix:0.3.0 \
+  --output type=oci,dest=rgnix-0.3.0.oci.tar .
 ```
 
-本地单架构加载使用 `docker build` 或 buildx `--load`。CI 配置双架构构建但不推送。构建缓存分架构；显式重新构建项目 crate，防止源文件 mtime 导致旧二进制被误复用。
+本地单架构加载使用 `docker build` 或 buildx `--load`。普通 CI 在原生 amd64/arm64 runner 分别构建镜像但不推送；Release 工作流在双架构测试和 Gateway Kubernetes 验证通过后，发布 `ghcr.io/samuelsupe/rgnix:0.3.0` 签名镜像与 OCI Chart，见[发行流程](releases.md)。构建缓存分架构；显式重新构建项目 crate，防止源文件 mtime 导致旧二进制被误复用。
+
+Gateway API 使用独立的 `rgnix gateway` / Helm `mode=gateway`，其 CRD、预置 Gateway 绑定和部署步骤见 [Gateway API](gateway-api.md)。
 
 ## Kubernetes Ingress
 
@@ -38,7 +40,7 @@ docker buildx build --platform linux/amd64,linux/arm64 \
 helm upgrade --install rgnix charts/rgnix \
   --namespace rgnix-system --create-namespace \
   --set image.repository=YOUR_REGISTRY/rgnix \
-  --set image.tag=0.2.0
+  --set image.tag=0.3.0
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
 
@@ -165,10 +167,10 @@ rgnix ingress --ingress-class rgnix \
 | `rgnix_config_diagnostics` | 当前 Ingress 配置诊断数量 |
 | `rgnix_checkpoint_healthy` / `rgnix_checkpoint_errors_total` | 最近检查点持久化是否成功、累计失败次数 |
 | `rgnix_report_errors_total` | Kubernetes Event/status 写入失败或超时 |
-| `rgnix_rejected_requests_total{budget}` | 请求/插件实例额度耗尽，标签仅 inflight/plugin |
+| `rgnix_rejected_requests_total{budget}` | 请求/插件实例及路由速率/并发额度耗尽 |
 | `rgnix_upstream_ejections_total` | 因连续传输失败暂时摘除的端点次数 |
 
-指标只使用配置路由/后端标识，不使用实际请求路径、Host、租户等任意请求值；历史路由/后端标签总数最多 2048。进程 CPU/RSS 使用容器监控或 `/proc` 获取。`otlpTraces.*` 可独立启用 W3C 上下文传播、server/client spans 和访问日志关联，详见[可观测性](product-features.md#可观测性)。
+当前源码还提供上游分阶段耗时、body 字节/预读、后端健康、进程及命名空间预算、watch/Lease、发布门禁和 Linux CPU/RSS/FD 指标。Helm 提供独立 metrics Service 与可选 ServiceMonitor；完整目录、计量边界、基数限制、PromQL 和告警见[运维指标](metrics.md)。`otlpTraces.*` 可独立启用 W3C 上下文传播、server/client spans 和访问日志关联，详见[可观测性](product-features.md#可观测性)。
 
 ## OrbStack 验收
 
@@ -178,9 +180,9 @@ Linux 构建/验证在 OrbStack 中执行，避免用 macOS 编译结果代表 L
 
 ```sh
 orb -m ubuntu bash -lc 'cd /PATH/TO/rgnix && CARGO_TARGET_DIR=/tmp/rgnix-target bash scripts/check.sh'
-docker build -t rgnix:0.2.0 .
-RGNIX_IMAGE_TAG=0.2.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
-RGNIX_IMAGE_TAG=0.2.0 python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
+docker build -t rgnix:0.3.0 .
+RGNIX_IMAGE_TAG=0.3.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
+RGNIX_IMAGE_TAG=0.3.0 python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
 ```
 
 脚本只接受专用命名空间，并要求现有 namespace 带 `rgnix-qa=true`；使用专属 IngressClass，不修改其他 controller 或工作负载。它会创建两个 NGINX 后端、插件、临时证书，执行删除/恢复和滚动升级。结束后保留环境便于检查。QA 的 LoadBalancerClass 为 `rgnix.io/acceptance`、禁用 NodePort，通过 port-forward 和集群内 Service 验证；地址 `192.0.2.10` 仅是 status 回写测试数据，不是真实公网 LB。
@@ -193,3 +195,7 @@ RGNIX_IMAGE_TAG=0.2.0 python3 scripts/product_kubernetes.py rgnix-qa-example orb
 helm uninstall rgnix-qa -n rgnix-qa-example --kube-context orbstack
 kubectl --context orbstack delete namespace rgnix-qa-example
 ```
+
+## 共享请求速率配额
+
+当前源码可通过 `globalRateLimit.secret.name/key` 挂载 Redis 协调器配置；同一部署的副本共享 route 与 namespace 请求速率，故障模式默认 503，支持显式放行或本地降级。配置、Redis 权限及持久性边界见[跨副本速率限制](shared-rate-limits.md)。并发、CPU/内存保护仍按进程执行。

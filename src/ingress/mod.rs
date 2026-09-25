@@ -1,7 +1,7 @@
 mod preflight;
 pub(crate) use preflight::{PreviewInput, managed, validate};
 mod checkpoint;
-mod policy;
+pub(crate) mod policy;
 pub(crate) mod release;
 mod resources;
 mod status;
@@ -48,13 +48,13 @@ struct Stores {
     maps: Vec<Store<ConfigMap>>,
 }
 #[derive(Clone)]
-struct Resources {
-    ingresses: Vec<Arc<Ingress>>,
-    classes: Vec<Arc<IngressClass>>,
-    services: Vec<Arc<Service>>,
-    slices: Vec<Arc<EndpointSlice>>,
-    secrets: Vec<Arc<Secret>>,
-    maps: Vec<Arc<ConfigMap>>,
+pub(crate) struct Resources {
+    pub(crate) ingresses: Vec<Arc<Ingress>>,
+    pub(crate) classes: Vec<Arc<IngressClass>>,
+    pub(crate) services: Vec<Arc<Service>>,
+    pub(crate) slices: Vec<Arc<EndpointSlice>>,
+    pub(crate) secrets: Vec<Arc<Secret>>,
+    pub(crate) maps: Vec<Arc<ConfigMap>>,
 }
 #[derive(Default, Clone)]
 struct History {
@@ -75,12 +75,19 @@ fn observe<K>(
     api: Api<K>,
     changed: watch::Sender<()>,
     mut shutdown: pingora::server::ShutdownWatch,
+    telemetry: Arc<crate::telemetry::Telemetry>,
 ) -> Store<K>
 where
     K: Clone + Debug + DeserializeOwned + Resource<DynamicType = ()> + Send + Sync + 'static,
 {
     let (store, writer) = reflector::store::<K>();
     tokio::spawn(async move {
+        let kind = K::kind(&());
+        let mut status = telemetry.controller.watch(&kind);
+        telemetry
+            .controller
+            .watch_errors
+            .with_label_values(&[&kind]);
         let events = watcher(api, watcher::Config::default());
         let events = reflector::reflector(writer, events);
         tokio::pin!(events);
@@ -88,8 +95,28 @@ where
             tokio::select! {
                 _=shutdown.changed()=>break,
                 event=events.next()=>match event {
-                    Some(Ok(watcher::Event::Apply(_)|watcher::Event::Delete(_)|watcher::Event::InitDone))=>{let _=changed.send(());},
-                    Some(Ok(_))=>{},Some(Err(e))=>{log::warn!("Kubernetes watch {}: {e}",K::kind(&()));tokio::time::sleep(Duration::from_secs(1)).await;},None=>break,
+                    Some(Ok(event)) => {
+                        status.healthy(true);
+                        let event_kind = match &event {
+                            watcher::Event::Apply(_) => "apply",
+                            watcher::Event::Delete(_) => "delete",
+                            watcher::Event::Init => { status.synchronized(false); "init" },
+                            watcher::Event::InitApply(_) => "init_apply",
+                            watcher::Event::InitDone => { status.synchronized(true); "init_done" },
+                        };
+                        telemetry.controller.watch_events.with_label_values(&[kind.as_ref(), event_kind]).inc();
+                        telemetry.controller.watch_last_event.with_label_values(&[&kind]).set(k8s_openapi::chrono::Utc::now().timestamp());
+                        if matches!(event, watcher::Event::Apply(_)|watcher::Event::Delete(_)|watcher::Event::InitDone) {
+                            let _ = changed.send(());
+                        }
+                    },
+                    Some(Err(e)) => {
+                        status.healthy(false);
+                        telemetry.controller.watch_errors.with_label_values(&[&kind]).inc();
+                        log::warn!("Kubernetes watch {kind}: {e}");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    },
+                    None => break,
                 }
             }
         }
@@ -101,6 +128,7 @@ fn observe_namespaced<K>(
     namespaces: &[String],
     changed: watch::Sender<()>,
     shutdown: pingora::server::ShutdownWatch,
+    telemetry: Arc<crate::telemetry::Telemetry>,
 ) -> Vec<Store<K>>
 where
     K: Clone
@@ -112,7 +140,7 @@ where
         + 'static,
 {
     if namespaces.is_empty() {
-        return vec![observe(Api::all(client), changed, shutdown)];
+        return vec![observe(Api::all(client), changed, shutdown, telemetry)];
     }
     namespaces
         .iter()
@@ -121,6 +149,7 @@ where
                 Api::namespaced(client.clone(), ns),
                 changed.clone(),
                 shutdown.clone(),
+                telemetry.clone(),
             )
         })
         .collect()
@@ -166,27 +195,42 @@ pub async fn run(
             &options.namespaces,
             tx.clone(),
             shutdown.clone(),
+            shared.telemetry.clone(),
         ),
-        classes: observe(Api::all(client.clone()), tx.clone(), shutdown.clone()),
+        classes: observe(
+            Api::all(client.clone()),
+            tx.clone(),
+            shutdown.clone(),
+            shared.telemetry.clone(),
+        ),
         services: observe_namespaced(
             client.clone(),
             &with_controller,
             tx.clone(),
             shutdown.clone(),
+            shared.telemetry.clone(),
         ),
         slices: observe_namespaced(
             client.clone(),
             &options.namespaces,
             tx.clone(),
             shutdown.clone(),
+            shared.telemetry.clone(),
         ),
         secrets: observe_namespaced(
             client.clone(),
             &options.namespaces,
             tx.clone(),
             shutdown.clone(),
+            shared.telemetry.clone(),
         ),
-        maps: observe_namespaced(client.clone(), &with_controller, tx, shutdown.clone()),
+        maps: observe_namespaced(
+            client.clone(),
+            &with_controller,
+            tx,
+            shutdown.clone(),
+            shared.telemetry.clone(),
+        ),
     };
     tokio::select! {_=shutdown.changed()=>return Ok(()),ready=stores.ready()=>ready?}
     let mut history = History::default();
@@ -239,34 +283,24 @@ pub async fn run(
     let mut release_check = std::time::Instant::now() - Duration::from_secs(5);
     loop {
         let mut resources = stores.snapshot();
+        for (kind, count) in [
+            ("Ingress", resources.ingresses.len()),
+            ("IngressClass", resources.classes.len()),
+            ("Service", resources.services.len()),
+            ("EndpointSlice", resources.slices.len()),
+            ("Secret", resources.secrets.len()),
+            ("ConfigMap", resources.maps.len()),
+        ] {
+            shared
+                .telemetry
+                .controller
+                .resources
+                .with_label_values(&[kind])
+                .set(count as i64);
+        }
         if release_check.elapsed() >= Duration::from_secs(5) {
             release::reconcile(&client, &shared, &options, &resources).await;
             release_check = std::time::Instant::now();
-        }
-        for (owner, uid, revision) in shared.rollouts.pending() {
-            let Some((ns, name)) = owner.split_once('/') else {
-                continue;
-            };
-            if let Some(ingress) = resources.ingresses.iter().find(|i| {
-                i.namespace().as_deref() == Some(ns)
-                    && i.name_any() == name
-                    && i.uid().as_deref() == Some(&uid)
-            }) && ingress.annotations().get("rgnix.io/rolled-back-revision") != Some(&revision)
-                && ingress
-                    .annotations()
-                    .get("rgnix.io/traffic-policy")
-                    .and_then(|v| crate::rollout::Policy::parse(v).ok())
-                    .is_some_and(|p| p.revision == revision)
-            {
-                let patch = serde_json::json!({"metadata":{"resourceVersion":ingress.resource_version(),"annotations":{"rgnix.io/rolled-back-revision":revision}}});
-                let api: Api<Ingress> = Api::namespaced(client.clone(), ns);
-                if let Err(e) = api
-                    .patch(name, &Default::default(), &kube::api::Patch::Merge(&patch))
-                    .await
-                {
-                    log::warn!("persist traffic rollback {owner}: {e}");
-                }
-            }
         }
         *shared
             .ingress_preview
@@ -280,6 +314,11 @@ pub async fn run(
             resources.prepare(&options, &history),
             shared.controls.active.load().digest.clone(),
         );
+        shared
+            .telemetry
+            .controller
+            .selected
+            .set(resources.ingresses.len() as i64);
         if previous_input.as_ref() == Some(&input) {
             tokio::select! { _=shutdown.changed()=>return Ok(()), _=changed.changed()=>{}, _=tokio::time::sleep(Duration::from_secs(1))=>{} }
             continue;
@@ -287,12 +326,22 @@ pub async fn run(
         previous_input = Some(input);
         let options_copy = options.clone();
         let state = shared.clone();
+        let started = std::time::Instant::now();
+        let update_metric = |result| {
+            shared
+                .telemetry
+                .config_update_seconds
+                .with_label_values(&["ingress", result])
+                .observe(started.elapsed().as_secs_f64());
+        };
         let result = tokio::task::spawn_blocking(move || {
             build(&state, &options_copy, resources, history, false)
         })
-        .await?;
+        .await
+        .inspect_err(|_| update_metric("error"))?;
         history = result.1;
-        let (mut snapshot, diagnostics, selected) = result.0?;
+        let (mut snapshot, diagnostics, selected) =
+            result.0.inspect_err(|_| update_metric("error"))?;
         let cold_invalid = diagnostics
             .iter()
             .any(|d| d.reason == "UnrecoverablePlugin");
@@ -307,7 +356,10 @@ pub async fn run(
             .telemetry
             .config_degraded
             .set(diagnostics.len() as i64);
-        shared.publish(snapshot)?;
+        shared
+            .publish(snapshot)
+            .inspect_err(|_| update_metric("error"))?;
+        update_metric("success");
         let _ = report_tx.send((diagnostics, selected));
         let mut desired = history.accepted.clone();
         for (uid, (proposal, _)) in &history.proposals {
@@ -1041,10 +1093,18 @@ fn resolve_backend(
     namespace: &str,
     reference: &IngressServiceBackend,
 ) -> (Backend, Option<String>) {
+    service_backend(&resources.services, &resources.slices, namespace, reference)
+}
+
+pub(crate) fn service_backend(
+    services: &[Arc<Service>],
+    slices: &[Arc<EndpointSlice>],
+    namespace: &str,
+    reference: &IngressServiceBackend,
+) -> (Backend, Option<String>) {
     let mut endpoints = vec![];
     let result = (|| -> Result<()> {
-        let service = resources
-            .services
+        let service = services
             .iter()
             .find(|s| s.namespace().as_deref() == Some(namespace) && s.name_any() == reference.name)
             .context("Service missing")?;
@@ -1072,7 +1132,7 @@ fn resolve_backend(
             "only TCP Services are supported"
         );
         let mut unique = BTreeSet::new();
-        for slice in &resources.slices {
+        for slice in slices {
             if slice.namespace().as_deref() != Some(namespace)
                 || slice.labels().get("kubernetes.io/service-name") != Some(&reference.name)
                 || !["IPv4", "IPv6"].contains(&slice.address_type.as_str())

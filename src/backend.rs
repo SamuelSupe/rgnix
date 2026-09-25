@@ -105,6 +105,14 @@ pub struct Lease {
     state: Arc<State>,
     backend: Arc<Backend>,
 }
+pub(crate) struct Observation {
+    pub endpoints: usize,
+    pub eligible: usize,
+    pub ejected: usize,
+    pub unready: usize,
+    pub active: usize,
+    pub dns_age: Option<f64>,
+}
 impl Drop for Lease {
     fn drop(&mut self) {
         self.state.active.fetch_sub(1, Ordering::Relaxed);
@@ -251,6 +259,31 @@ impl Backend {
         let pool = self.pool.lock().unwrap_or_else(|e| e.into_inner());
         serde_json::json!({"tls":self.tls,"hostname":self.hostname,"options":self.options,"origins":self.origins,"active":self.active.load(Ordering::Relaxed),
             "endpoints":pool.endpoints.iter().map(|(e,s)| { let h=s.health.lock().unwrap_or_else(|e|e.into_inner()); serde_json::json!({"address":e.address,"weight":e.weight,"active":s.active.load(Ordering::Relaxed),"failures":h.failures,"active_health":h.active_ok,"ejected":h.blocked_until.is_some_and(|t|t>Instant::now())}) }).collect::<Vec<_>>()})
+    }
+    pub(crate) fn observation(&self) -> Observation {
+        let pool = self.pool.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        let mut result = Observation {
+            endpoints: pool.endpoints.len(),
+            eligible: 0,
+            ejected: 0,
+            unready: 0,
+            active: self.active.load(Ordering::Relaxed),
+            dns_age: self
+                .origins
+                .iter()
+                .any(|o| o.host.parse::<std::net::IpAddr>().is_err())
+                .then(|| pool.dns_success.elapsed().as_secs_f64()),
+        };
+        for (endpoint, state) in &pool.endpoints {
+            let health = state.health.lock().unwrap_or_else(|e| e.into_inner());
+            let ejected = health.blocked_until.is_some_and(|until| until > now);
+            let unready = self.options.health.is_some() && health.active_ok != Some(true);
+            result.ejected += usize::from(ejected);
+            result.unready += usize::from(unready);
+            result.eligible += usize::from(!ejected && !unready && endpoint.weight > 0);
+        }
+        result
     }
     pub async fn maintain(&self, resolver: Option<&hickory_resolver::TokioResolver>) {
         let now = Instant::now();
