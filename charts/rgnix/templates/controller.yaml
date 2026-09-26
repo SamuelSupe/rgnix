@@ -1,8 +1,12 @@
+{{- $shutdown := mergeOverwrite (dict "enabled" false "preStopSeconds" 10 "graceSeconds" 5 "timeoutSeconds" 25 "terminationGracePeriodSeconds" 60) (default dict .Values.shutdown) }}
+{{- if le (int $shutdown.terminationGracePeriodSeconds) (int (add $shutdown.preStopSeconds $shutdown.graceSeconds $shutdown.timeoutSeconds)) }}
+{{- fail "terminationGracePeriodSeconds must exceed preStopSeconds + graceSeconds + timeoutSeconds" }}
+{{- end }}
 {{- if not (has .Values.mode (list "ingress" "gateway")) }}
 {{- fail "mode must be ingress or gateway" }}
 {{- end }}
-{{- if and (eq .Values.mode "gateway") .Values.admission.enabled }}
-{{- fail "the Ingress admission webhook cannot be enabled in Gateway mode" }}
+{{- if and .Values.requireMultipleNodes (lt (int .Values.replicaCount) 2) }}
+{{- fail "requireMultipleNodes requires at least two replicas" }}
 {{- end }}
 apiVersion: v1
 kind: ServiceAccount
@@ -137,7 +141,14 @@ rules:
   {{- end }}
   - apiGroups: [coordination.k8s.io]
     resources: [leases]
-    verbs: [get, create, update]
+    verbs:
+      - get
+      - create
+      - update
+      - list
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
   - apiGroups: [""]
     resources: [configmaps]
     verbs: [get, list, watch, create, update, delete]
@@ -209,13 +220,21 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ .Release.Name }}
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: {{ $shutdown.terminationGracePeriodSeconds }}
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
+          {{- if .Values.requireMultipleNodes }}
+          whenUnsatisfiable: DoNotSchedule
+          minDomains: 2
+          nodeTaintsPolicy: Honor
+          matchLabelKeys: [pod-template-hash]
+          {{- else }}
           whenUnsatisfiable: ScheduleAnyway
+          {{- end }}
           labelSelector:
             matchLabels:
+              app.kubernetes.io/name: rgnix
               app.kubernetes.io/instance: {{ .Release.Name }}
       securityContext:
         runAsNonRoot: true
@@ -254,6 +273,14 @@ spec:
             - --admission-controller-user=system:serviceaccount:{{ .Release.Namespace }}:{{ .Release.Name }}
             {{- end }}
             - --threads={{ .Values.threads }}
+            {{- if $shutdown.enabled }}
+            - --drain-file=/var/run/rgnix/drain
+            - --shutdown-grace-seconds={{ $shutdown.graceSeconds }}
+            - --shutdown-timeout-seconds={{ $shutdown.timeoutSeconds }}
+            {{- end }}
+            {{- if .Values.reportReplicas }}
+            - --report-replicas
+            {{- end }}
             - --max-inflight={{ .Values.maxInflight }}
             - --max-plugin-instances={{ .Values.maxPluginInstances }}
             - --upstream-max-fails={{ .Values.upstreamMaxFails }}
@@ -360,9 +387,14 @@ spec:
           lifecycle:
             preStop:
               exec:
+                {{- if $shutdown.enabled }}
+                command: ["/bin/sh", "-c", {{ printf "touch /var/run/rgnix/drain; sleep %v" $shutdown.preStopSeconds | quote }}]
+                {{- else }}
                 command: ["/bin/sleep", "5"]
-          {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name .Values.globalRateLimit.secret.name }}
+                {{- end }}
           volumeMounts:
+            - name: drain
+              mountPath: /var/run/rgnix
             {{- if .Values.globalRateLimit.secret.name }}
             - name: global-rate-limit
               mountPath: /etc/rgnix/global-rate-limit
@@ -408,9 +440,9 @@ spec:
               mountPath: /etc/rgnix/admin
               readOnly: true
             {{- end }}
-          {{- end }}
-      {{- if or (and .Values.otlpLogs.endpoint .Values.otlpLogs.caConfigMap.name) (and .Values.otlpTraces.endpoint .Values.otlpTraces.caConfigMap.name) .Values.admin.tokenSecret.name .Values.admin.readTokenSecret.name .Values.tenancy.policyConfigMap.name .Values.admin.usersSecret.name .Values.admission.enabled .Values.rolloutMetrics.secret.name .Values.globalRateLimit.secret.name }}
       volumes:
+        - name: drain
+          emptyDir: {}
         {{- if .Values.globalRateLimit.secret.name }}
         - name: global-rate-limit
           secret:
@@ -480,7 +512,6 @@ spec:
               - key: {{ .Values.admin.tokenSecret.key | quote }}
                 path: token
         {{- end }}
-      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -498,6 +529,7 @@ spec:
   {{- end }}
   {{- end }}
   selector:
+    app.kubernetes.io/name: rgnix
     app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
     - name: http
@@ -515,6 +547,7 @@ spec:
   minAvailable: 1
   selector:
     matchLabels:
+      app.kubernetes.io/name: rgnix
       app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- if .Values.admission.enabled }}
@@ -525,29 +558,52 @@ metadata:
   name: {{ .Release.Name }}-admission
 spec:
   selector:
+    app.kubernetes.io/name: rgnix
     app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
     - name: admission
       port: 443
       targetPort: admission
+{{- end }}
+{{- if and .Values.admission.enabled .Values.admission.register }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: {{ .Release.Namespace }}-{{ .Release.Name }}
+  {{- if .Values.admission.certManagerCertificate }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ printf "%s/%s" .Release.Namespace .Values.admission.certManagerCertificate | quote }}
+  {{- end }}
 webhooks:
-  - name: ingress.rgnix.io
+  - name: {{ .Values.mode }}.rgnix.io
     admissionReviewVersions: [v1]
     sideEffects: None
     failurePolicy: {{ .Values.admission.failurePolicy }}
     matchPolicy: Equivalent
     timeoutSeconds: 10
+    matchConditions:
+      - name: selected-controller
+        expression: >-
+          {{- if eq .Values.mode "gateway" }}
+          [object, oldObject].exists(o, o != null &&
+            (request.kind.kind == 'Gateway' ?
+              o.metadata.namespace == {{ .Release.Namespace | squote }} && o.metadata.name == {{ default .Release.Name .Values.gateway.name | squote }} :
+              has(o.spec.parentRefs) && o.spec.parentRefs.exists(p,
+                (!has(p.group) || p.group == 'gateway.networking.k8s.io') &&
+                (!has(p.kind) || p.kind == 'Gateway') &&
+                p.name == {{ default .Release.Name .Values.gateway.name | squote }} &&
+                (has(p.namespace) ? p.namespace : o.metadata.namespace) == {{ .Release.Namespace | squote }})))
+          {{- else }}
+          [object, oldObject].exists(o, o != null &&
+            (has(o.spec.ingressClassName) ? o.spec.ingressClassName == {{ .Values.ingressClass | squote }} : {{ .Values.defaultIngressClass }}))
+          {{- end }}
     {{- if .Values.watchNamespaces }}
     namespaceSelector:
       matchExpressions:
         - key: kubernetes.io/metadata.name
           operator: In
-          values: {{ .Values.watchNamespaces | toJson }}
+          values: {{ if eq .Values.mode "gateway" }}{{ append .Values.watchNamespaces .Release.Namespace | uniq | toJson }}{{ else }}{{ .Values.watchNamespaces | toJson }}{{ end }}
     {{- else }}
     namespaceSelector:
       {{- toYaml .Values.admission.namespaceSelector | nindent 6 }}
@@ -556,13 +612,15 @@ webhooks:
       service:
         namespace: {{ .Release.Namespace }}
         name: {{ .Release.Name }}-admission
-        path: /admission/ingress
+        path: /admission/{{ .Values.mode }}
         port: 443
+      {{- if not .Values.admission.certManagerCertificate }}
       caBundle: {{ required "admission.caBundle is required" .Values.admission.caBundle | quote }}
+      {{- end }}
     rules:
-      - apiGroups: [networking.k8s.io]
+      - apiGroups: [{{ if eq .Values.mode "gateway" }}gateway.networking.k8s.io{{ else }}networking.k8s.io{{ end }}]
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
-        resources: [ingresses]
+        resources: {{ if eq .Values.mode "gateway" }}[gateways, httproutes, grpcroutes]{{ else }}[ingresses]{{ end }}
         scope: Namespaced
 {{- end }}

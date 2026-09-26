@@ -3,6 +3,15 @@ on:
   push:
     tags: ['v[0-9]*']
   workflow_dispatch:
+    inputs:
+      soak_seconds:
+        description: 'Mixed load duration, 120 to 3600 seconds'
+        type: number
+        default: 600
+      scale_routes:
+        description: 'Scale fixture route count, 1 to 2000'
+        type: number
+        default: 200
 
 permissions:
   contents: read
@@ -86,7 +95,7 @@ jobs:
   gateway:
     needs: native
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -99,6 +108,7 @@ jobs:
           version: v0.30.0
           node_image: kindest/node:v1.34.0
           cluster_name: rgnix
+          config: examples/kind-production.yaml
       - name: Install pinned standard CRDs
         run: |
           curl -fL https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml -o /tmp/gateway-api.yaml
@@ -111,7 +121,12 @@ jobs:
           docker build -f scripts/fixtures/gateway-grpc.Dockerfile -t rgnix:gateway-grpc-fixture .
           kind load docker-image rgnix:gateway-ci rgnix:gateway-grpc-fixture --name rgnix
       - name: Gateway resource, TLS and gRPC behavior
-        run: python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-release-qa --image rgnix:gateway-ci --output gateway-results.json
+        env:
+          SOAK_SECONDS: ${{ inputs.soak_seconds || 120 }}
+          SCALE_ROUTES: ${{ inputs.scale_routes || 200 }}
+        run: |
+          python3 -c 'import os; assert 120 <= int(os.environ["SOAK_SECONDS"]) <= 3600'
+          python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-release-qa --image rgnix:gateway-ci --require-multiple-nodes --soak-seconds "$SOAK_SECONDS" --scale-routes "$SCALE_ROUTES" --output gateway-results.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

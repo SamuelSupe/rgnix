@@ -45,12 +45,25 @@ struct Token {
 }
 
 pub fn parse(source: &str) -> Result<Vec<Function>> {
+    parse_entry(source, "on_request")
+}
+
+pub(crate) fn parse_entry(source: &str, entry: &str) -> Result<Vec<Function>> {
+    Ok(parse_located(source, entry)?.functions)
+}
+
+pub(crate) struct Parsed {
+    pub functions: Vec<Function>,
+    pub locations: Vec<(usize, usize)>,
+}
+pub(crate) fn parse_located(source: &str, entry: &str) -> Result<Parsed> {
     ensure!(source.len() <= 256 * 1024, "RGL source exceeds 256 KiB");
     let tokens = lex(source)?;
     let mut parser = Parser {
         tokens,
         pos: 0,
         depth: 0,
+        locations: vec![],
     };
     let mut functions = vec![];
     while !parser.at("<eof>") {
@@ -78,10 +91,13 @@ pub fn parse(source: &str) -> Result<Vec<Function>> {
         functions.push(Function { name, params, body });
     }
     ensure!(
-        functions.iter().any(|f| f.name == "on_request"),
-        "on_request() is required"
+        functions.iter().any(|f| f.name == entry),
+        "{entry}() is required"
     );
-    Ok(functions)
+    Ok(Parsed {
+        functions,
+        locations: parser.locations,
+    })
 }
 
 fn lex(source: &str) -> Result<Vec<Token>> {
@@ -183,6 +199,7 @@ struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     depth: usize,
+    locations: Vec<(usize, usize)>,
 }
 impl Parser {
     fn at(&self, value: &str) -> bool {
@@ -239,6 +256,8 @@ impl Parser {
         Ok(statements)
     }
     fn statement(&mut self) -> Result<Stmt> {
+        let token = &self.tokens[self.pos];
+        self.locations.push((token.line, token.col));
         if self.eat("local") {
             let name = self.ident()?;
             self.expect("=")?;

@@ -69,6 +69,41 @@ impl Admin {
         let Ok(_permit) = self.shared.simulations.try_acquire() else {
             return (429, json!({"error":"preflight budget exhausted"}));
         };
+        if session.req_header().uri.path() == "/v1/validate-gateway" {
+            let candidate: kube::core::DynamicObject = match read_json(session).await {
+                Ok(v) => v,
+                Err(e) => return e,
+            };
+            if !candidate
+                .metadata
+                .namespace
+                .as_deref()
+                .is_some_and(|ns| principal.allows(ns))
+            {
+                return (403, json!({"error":"namespace outside identity scope"}));
+            }
+            if candidate
+                .types
+                .as_ref()
+                .is_some_and(|t| t.kind == "Gateway")
+                && !(principal.global() && principal.writer())
+            {
+                return (
+                    403,
+                    json!({"error":"Gateway preflight requires a global writer"}),
+                );
+            }
+            let shared = self.shared.clone();
+            return match tokio::task::spawn_blocking(move || {
+                crate::gateway::validate(&shared, candidate)
+            })
+            .await
+            {
+                Ok(Ok(result)) => (200, result),
+                Ok(Err(error)) => (400, json!({"valid":false,"error":error.to_string()})),
+                Err(_) => (500, json!({"error":"preflight task failed"})),
+            };
+        }
         if session.req_header().uri.path() == "/v1/validate-ingress" {
             let candidate: k8s_openapi::api::networking::v1::Ingress =
                 match read_json(session).await {

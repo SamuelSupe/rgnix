@@ -199,7 +199,11 @@ impl Preview<'_> {
             let protocol=self.request.headers.get("content-type").is_some_and(|v|v.starts_with("application/grpc")) || self.request.headers.get("upgrade").is_some_and(|v|v.eq_ignore_ascii_case("websocket"));
             let eligible=!protocol && self.body_len<=m.max_body_bytes;
             json!({"backend":m.service,"eligible":eligible,"selected":eligible && self.sample%100 < u64::from(m.percent),"percent":m.percent,"reason":if protocol {"streaming protocol"} else if self.body_len>m.max_body_bytes {"body exceeds mirror cap"} else {"sampling"}})
-        });
+        }).or_else(|| self.route.settings.gateway.as_ref().and_then(|p| p.mirror.as_ref()).map(|m| {
+            let protocol = self.request.headers.get("content-type").is_some_and(|v| v.starts_with("application/grpc")) || self.request.headers.contains_key("upgrade");
+            let eligible = m.backend.is_some() && !protocol && self.body_len <= 64 * 1024;
+            json!({"backend":m.backend,"eligible":eligible,"selected":eligible && self.sample % u64::from(m.denominator) < u64::from(m.numerator),"fraction":{"numerator":m.numerator,"denominator":m.denominator},"reason":if m.backend.is_none() {"unresolved mirror reference"} else if protocol {"streaming protocol"} else if self.body_len > 64 * 1024 {"body exceeds mirror cap"} else {"sampling"}})
+        }));
         Ok(
             json!({"kind":"proxy","backend":backend,"uri":target,"headers":headers,"backend_state":upstream.diagnostic(),"traffic":self.route.rollout.as_ref().map(|r|r.diagnostic()),"mirror":mirror,"io_executed":false}),
         )

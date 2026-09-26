@@ -198,8 +198,8 @@ trace 支持 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT/HEADERS/CERTIFICATE/TIMEOUT/PRO
 
 `rgnix_otlp_traces_exported_total/dropped_total/export_errors_total/retries_total/partial_success_total/pending` 与 logs 指标对应。访问日志 off 不关闭单独启用的 trace。Helm 提供 `otlpTraces.*`、`admin.tokenSecret` 和可信代理配置。
 
-源码已加入预置数据面的 [Gateway API](gateway-api.md)、[迁移工具](migration.md)和[正式发行流水线](releases.md)。Gateway 预览支持 GatewayClass、Gateway、HTTPRoute、GRPCRoute 和 ReferenceGrant；尚未获得上游 conformance 认证，具体不支持的字段和进程内插件历史限制见兼容说明。
+源码已加入预置数据面的 [Gateway API](gateway-api.md)、[迁移工具](migration.md)和[正式发行流水线](releases.md)。Gateway 预览支持 GatewayClass、Gateway、HTTPRoute、GRPCRoute 和 ReferenceGrant；尚未获得上游 conformance 认证，有效插件与策略已使用绑定 UID 的 ConfigMap 检查点持久化；异步写入边界及不支持的字段见兼容说明。
 
-后续范围仍包括响应缓存、HTTP/3、完整 Lua/NGINX 兼容、正则和嵌套 location、rewrite/map/if、分布式限流，以及 Gateway 基础设施自动置备和其余策略能力。
+后续范围仍包括响应缓存、HTTP/3、完整 Lua/NGINX 兼容、正则和嵌套 location、rewrite/map/if、Redis Sentinel/Cluster 故障转移，以及 Gateway 基础设施自动置备和其余策略能力。
 
 命名空间配额、Service 灰度、镜像、自动回退、管理角色和日志字段策略参见[平台策略及变更管理](platform-policies.zh-CN.md)。

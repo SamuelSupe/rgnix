@@ -1,0 +1,13 @@
+-- Administrator-owned packet policy, before HTTP parsing and TLS termination.
+function on_xdp()
+    if pkt.src_in("192.0.2.0/24") or pkt.src_in("2001:db8:bad::/48") then
+        return xdp.drop()
+    end
+    -- A node-wide fixed-window budget for new TCP SYN packets to HTTPS.
+    if pkt.tcp_syn() and pkt.dst_port() == 443 then
+        if not xdp.allow_rate(10000) then
+            return xdp.drop()
+        end
+    end
+    return xdp.pass()
+end

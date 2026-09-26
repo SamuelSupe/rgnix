@@ -184,6 +184,15 @@ pub async fn run(
     mut shutdown: pingora::server::ShutdownWatch,
 ) -> Result<()> {
     let client = Client::try_default().await?;
+    crate::fleet::start(
+        shared.clone(),
+        client.clone(),
+        options.publish_namespace.clone(),
+        options.publish_service.clone(),
+        options.identity.clone(),
+        format!("ingress:{}", options.class),
+        shutdown.clone(),
+    );
     let (tx, mut changed) = watch::channel(());
     let mut with_controller = options.namespaces.clone();
     if !with_controller.is_empty() && !with_controller.contains(&options.publish_namespace) {
@@ -280,6 +289,8 @@ pub async fn run(
     let mut bootstrapped = false;
     let mut checkpoint_state_sent = false;
     let mut previous_input = None;
+    let mut compiled_generation = 0;
+    let mut compilation_retry = std::time::Instant::now();
     let mut release_check = std::time::Instant::now() - Duration::from_secs(5);
     loop {
         let mut resources = stores.snapshot();
@@ -314,16 +325,26 @@ pub async fn run(
             resources.prepare(&options, &history),
             shared.controls.active.load().digest.clone(),
         );
+        if shared.fleet.enabled {
+            shared.fleet.begin(crate::fleet::source_digest(&input, "")?);
+        }
         shared
             .telemetry
             .controller
             .selected
             .set(resources.ingresses.len() as i64);
-        if previous_input.as_ref() == Some(&input) {
-            tokio::select! { _=shutdown.changed()=>return Ok(()), _=changed.changed()=>{}, _=tokio::time::sleep(Duration::from_secs(1))=>{} }
+        let generation = shared.compiler.generation.load(Ordering::Acquire);
+        if previous_input.as_ref() == Some(&input)
+            && compiled_generation == generation
+            && (shared.telemetry.config_degraded.get() == 0
+                || compilation_retry.elapsed() < Duration::from_secs(5))
+        {
+            tokio::select! { _=shutdown.changed()=>return Ok(()), _=changed.changed()=>{}, _=shared.compiler.changed.notified()=>{}, _=tokio::time::sleep(Duration::from_secs(1))=>{} }
             continue;
         }
         previous_input = Some(input);
+        compiled_generation = generation;
+        compilation_retry = std::time::Instant::now();
         let options_copy = options.clone();
         let state = shared.clone();
         let started = std::time::Instant::now();
@@ -345,12 +366,13 @@ pub async fn run(
         let cold_invalid = diagnostics
             .iter()
             .any(|d| d.reason == "UnrecoverablePlugin");
+        let pending_restore = diagnostics.iter().any(|d| d.reason == "PendingRestore");
         let has_accepted_route = snapshot
             .hosts
             .iter()
             .flat_map(|h| &h.routes)
             .any(|r| !matches!(r.action, Action::Unavailable));
-        bootstrapped |= !cold_invalid || has_accepted_route;
+        bootstrapped |= !pending_restore && (!cold_invalid || has_accepted_route);
         snapshot.ready = bootstrapped;
         shared
             .telemetry
@@ -360,6 +382,15 @@ pub async fn run(
             .publish(snapshot)
             .inspect_err(|_| update_metric("error"))?;
         update_metric("success");
+        shared.fleet.complete(diagnostics.first().map(|diagnostic| {
+            format!(
+                "{}/{} {}: {}",
+                diagnostic.ingress.namespace().unwrap_or_default(),
+                diagnostic.ingress.name_any(),
+                diagnostic.reason,
+                diagnostic.message
+            )
+        }));
         let _ = report_tx.send((diagnostics, selected));
         let mut desired = history.accepted.clone();
         for (uid, (proposal, _)) in &history.proposals {
@@ -380,6 +411,7 @@ pub async fn run(
                 return Ok(());
             },
             _=changed.changed()=>{tokio::time::sleep(Duration::from_millis(100)).await;},
+            _=shared.compiler.changed.notified()=>{},
             _=tokio::time::sleep(Duration::from_secs(1))=>{},
         }
     }
@@ -618,19 +650,44 @@ fn build(
                     if !history.revoked.contains(&uid)
                         && let Some(accepted) = durable.as_ref()
                         && history.accepted.get(&uid) != Some(accepted)
-                        && let Ok(script) = shared
-                            .compiler
-                            .from_bytes(accepted.source.as_bytes(), false)
                     {
-                        history.scripts.insert(uid.clone(), script);
-                        history.routes.insert(uid.clone(), accepted.spec.clone());
-                        history.accepted.insert(uid.clone(), accepted.clone());
+                        match shared.compiler.for_tenant(
+                            &ns,
+                            accepted.source.as_bytes(),
+                            quota.as_ref().map_or(60, |q| q.max_compilations_per_minute),
+                            preview,
+                        ) {
+                            Ok(script) => {
+                                history.scripts.insert(uid.clone(), script);
+                                history.routes.insert(uid.clone(), accepted.spec.clone());
+                                history.accepted.insert(uid.clone(), accepted.clone());
+                            }
+                            Err(error)
+                                if error.is::<crate::script::PendingCompilation>()
+                                    && !history.scripts.contains_key(&uid) =>
+                            {
+                                diagnostics.push(Diagnostic {
+                                    ingress: ingress.clone(),
+                                    reason: "PendingRestore",
+                                    message:
+                                        "waiting for the accepted plugin before initial readiness"
+                                            .into(),
+                                });
+                            }
+                            Err(_) => {}
+                        }
                     }
                     match route_policy
                         .as_ref()
                         .map_err(|e| anyhow::anyhow!("{e:#}"))
-                        .and_then(|_| shared.compiler.from_bytes(source.as_bytes(), false))
-                    {
+                        .and_then(|_| {
+                            shared.compiler.for_tenant(
+                                &ns,
+                                source.as_bytes(),
+                                quota.as_ref().map_or(60, |q| q.max_compilations_per_minute),
+                                preview,
+                            )
+                        }) {
                         Ok(script) => {
                             let candidate = checkpoint::Accepted {
                                 schema: 1,
@@ -674,12 +731,17 @@ fn build(
                         }
                         Err(e) => {
                             history.proposals.remove(&uid);
-                            if !preview {
+                            let pending = e.is::<crate::script::PendingCompilation>();
+                            if !preview && !pending {
                                 shared.telemetry.reload_errors.inc();
                             }
                             diagnostics.push(Diagnostic {
                                 ingress: ingress.clone(),
-                                reason: "InvalidPlugin",
+                                reason: if pending {
+                                    "PendingCompilation"
+                                } else {
+                                    "InvalidPlugin"
+                                },
                                 message: format!("plugin rejected: {e:#}"),
                             });
                             let previous = history.scripts.get(&uid).cloned();

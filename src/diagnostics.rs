@@ -33,7 +33,7 @@ pub struct Options {
     /// Private persistent configuration history, standalone mode only.
     #[arg(long)]
     pub history_dir: Option<PathBuf>,
-    /// TLS AdmissionReview listener; requires certificate and key, Ingress mode only.
+    /// TLS AdmissionReview listener; requires certificate and key in Ingress/Gateway mode.
     #[arg(long)]
     pub admission_listen: Option<SocketAddr>,
     #[arg(long)]
@@ -97,6 +97,7 @@ impl ServeHttp for Admin {
             } else {
                 match path {
                     "/v1/config"
+                    | "/v1/fleet"
                     | "/v1/routes"
                     | "/v1/backends"
                     | "/v1/history"
@@ -105,6 +106,7 @@ impl ServeHttp for Admin {
                     | "/v1/rollouts"
                     | "/v1/validate"
                     | "/v1/validate-ingress" => path,
+                    "/v1/validate-gateway" => path,
                     _ => "unknown",
                 }
                 .to_string()
@@ -163,7 +165,7 @@ impl Admin {
     ) -> (u16, Value) {
         if matches!(
             session.req_header().uri.path(),
-            "/v1/validate" | "/v1/validate-ingress"
+            "/v1/validate" | "/v1/validate-ingress" | "/v1/validate-gateway"
         ) {
             return self.validate(session, principal).await;
         }
@@ -288,6 +290,8 @@ impl Admin {
         let current = self.shared.snapshot.load_full();
         let snapshot = principal.view(&current);
         let data = match path {
+            "/v1/fleet" if principal.global() => self.shared.fleet.diagnostic(),
+            "/v1/fleet" => return (403, json!({"error":"replica status requires global scope"})),
             "/v1/config" => {
                 let mut value = describe(&snapshot);
                 value["controls_sha256"] = json!(self.shared.controls.active.load().digest);

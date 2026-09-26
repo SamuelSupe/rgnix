@@ -12,7 +12,10 @@ pub struct Admission {
 impl ServeHttp for Admission {
     async fn response(&self, session: &mut ServerSession) -> http::Response<Vec<u8>> {
         session.set_keepalive(None);
-        if session.req_header().uri.path() != "/admission/ingress" {
+        if !matches!(
+            session.req_header().uri.path(),
+            "/admission/ingress" | "/admission/gateway"
+        ) {
             return reply(404, json!({"error":"unknown admission endpoint"}));
         }
         let input: Value = match read_json(session).await {
@@ -39,11 +42,16 @@ impl ServeHttp for Admission {
 }
 impl Admission {
     async fn validate(&self, request: &Value) -> Result<Vec<String>, (u16, String)> {
-        if request["kind"]["group"] != "networking.k8s.io" || request["kind"]["kind"] != "Ingress" {
-            return Err((
-                400,
-                "webhook only validates networking.k8s.io Ingress".into(),
-            ));
+        let gateway = request["kind"]["group"] == "gateway.networking.k8s.io"
+            && matches!(
+                request["kind"]["kind"].as_str(),
+                Some("Gateway" | "HTTPRoute" | "GRPCRoute")
+            );
+        if !(gateway
+            || request["kind"]["group"] == "networking.k8s.io"
+                && request["kind"]["kind"] == "Ingress")
+        {
+            return Err((400, "unsupported admission resource".into()));
         }
         if request["operation"] == "DELETE" {
             return Ok(vec![]);
@@ -51,19 +59,45 @@ impl Admission {
         if !matches!(request["operation"].as_str(), Some("CREATE" | "UPDATE")) {
             return Err((400, "unsupported admission operation".into()));
         }
-        let mut candidate: k8s_openapi::api::networking::v1::Ingress =
-            serde_json::from_value(request["object"].clone())
-                .map_err(|_| (400, "invalid Ingress object".into()))?;
-        if candidate.metadata.namespace.is_none() {
-            candidate.metadata.namespace = request["namespace"].as_str().map(str::to_owned);
+        let mut object = request["object"].clone();
+        if object["metadata"]["namespace"].is_null() {
+            object["metadata"]["namespace"] = request["namespace"].clone();
         }
-        if !crate::ingress::managed(&self.shared, &candidate).map_err(|e| (503, e.to_string()))? {
+        let selected = if gateway {
+            let candidate = serde_json::from_value(object.clone())
+                .map_err(|_| (400, "invalid Gateway resource".into()))?;
+            crate::gateway::managed(&self.shared, &candidate)
+        } else {
+            let candidate = serde_json::from_value(object.clone())
+                .map_err(|_| (400, "invalid Ingress".into()))?;
+            crate::ingress::managed(&self.shared, &candidate)
+        }
+        .map_err(|error| (503, error.to_string()))?;
+        if !selected {
             return Ok(vec![]);
         }
         let old = &request["oldObject"];
+        let previously_selected = if old.is_null() {
+            false
+        } else if gateway {
+            crate::gateway::managed(
+                &self.shared,
+                &serde_json::from_value(old.clone())
+                    .map_err(|_| (400, "invalid previous Gateway resource".into()))?,
+            )
+            .map_err(|error| (503, error.to_string()))?
+        } else {
+            crate::ingress::managed(
+                &self.shared,
+                &serde_json::from_value(old.clone())
+                    .map_err(|_| (400, "invalid previous Ingress".into()))?,
+            )
+            .map_err(|error| (503, error.to_string()))?
+        };
         let controlled = ["rgnix.io/rollout-state", "rgnix.io/rolled-back-revision"];
         let changed = controlled.iter().any(|key| {
             old["metadata"]["annotations"][key] != request["object"]["metadata"]["annotations"][key]
+                || (!previously_selected && !object["metadata"]["annotations"][key].is_null())
         });
         if changed {
             if self
@@ -97,11 +131,16 @@ impl Admission {
             .try_acquire()
             .map_err(|_| (429, "validation capacity exhausted; retry".into()))?;
         let shared = self.shared.clone();
-        let result =
-            tokio::task::spawn_blocking(move || crate::ingress::validate(&shared, candidate))
-                .await
-                .map_err(|_| (500, "validation task failed".into()))?
-                .map_err(|e| (422, e.to_string()))?;
+        let result = tokio::task::spawn_blocking(move || {
+            if gateway {
+                crate::gateway::validate(&shared, serde_json::from_value(object)?)
+            } else {
+                crate::ingress::validate(&shared, serde_json::from_value(object)?)
+            }
+        })
+        .await
+        .map_err(|_| (500, "validation task failed".into()))?
+        .map_err(|e| (422, e.to_string()))?;
         if result["valid"] != true {
             return Err((422, result["errors"].to_string()));
         }
@@ -120,3 +159,4 @@ fn reply(status: u16, body: Value) -> http::Response<Vec<u8>> {
         .body(serde_json::to_vec(&body).unwrap())
         .unwrap()
 }
+pub(crate) mod tls;

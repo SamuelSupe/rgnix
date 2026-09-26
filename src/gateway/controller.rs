@@ -100,6 +100,15 @@ fn observe(
 
 pub async fn run(shared: Arc<Shared>, options: Options, mut shutdown: ShutdownWatch) -> Result<()> {
     let client = Client::try_default().await?;
+    crate::fleet::start(
+        shared.clone(),
+        client.clone(),
+        options.publish_namespace.clone(),
+        options.publish_service.clone(),
+        options.identity.clone(),
+        format!("gateway:{}/{}", options.namespace, options.name),
+        shutdown.clone(),
+    );
     let (changed, mut changes) = watch::channel(());
     let mut stores = vec![];
     for kind in ["GatewayClass", "Namespace"] {
@@ -192,6 +201,7 @@ pub async fn run(shared: Arc<Shared>, options: Options, mut shutdown: ShutdownWa
         tokio::select! {
             _=shutdown.changed()=>break,
             _=changes.changed()=>{},
+            _=shared.compiler.changed.notified()=>{},
             _=ticker.tick()=>{},
         }
         let mut resources = Resources::new();
@@ -216,6 +226,20 @@ pub async fn run(shared: Arc<Shared>, options: Options, mut shutdown: ShutdownWa
                 .set(resources.len() as i64);
         }
         let started = std::time::Instant::now();
+        if shared.fleet.enabled {
+            shared.fleet.begin(crate::fleet::source_digest(
+                &resources,
+                &shared.controls.active.load().digest,
+            )?);
+        }
+        *shared
+            .gateway_preview
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(super::preflight::PreviewInput {
+            resources: resources.clone(),
+            options: options.clone(),
+            history: history.clone(),
+        });
         let state = shared.clone();
         let opts = options.clone();
         let (built, next_history) =
@@ -259,6 +283,9 @@ pub async fn run(shared: Arc<Shared>, options: Options, mut shutdown: ShutdownWa
                 .observe(started.elapsed().as_secs_f64());
         }
         let _ = reports.send(built.updates);
+        shared
+            .fleet
+            .complete(previous_diagnostics.iter().next().cloned());
     }
     shared.telemetry.ready.store(false, Ordering::Release);
     Ok(())
@@ -270,7 +297,11 @@ fn collect_diagnostics(
     output: &mut std::collections::BTreeSet<String>,
 ) {
     if let Some(object) = value.as_object() {
-        if object.get("status").is_some_and(|s| s == "False") {
+        if object.get("status").is_some_and(|s| s == "False")
+            || object
+                .get("reason")
+                .is_some_and(|r| r == "UsingLastValidConfiguration")
+        {
             output.insert(format!(
                 "{resource}: {} {}",
                 value["reason"].as_str().unwrap_or_default(),

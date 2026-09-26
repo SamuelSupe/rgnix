@@ -218,6 +218,10 @@ pub fn compile(source: &str) -> Result<Vec<u8>> {
 
 fn compile_inner(source: &str) -> Result<Vec<u8>> {
     let ast = syntax::parse(source)?;
+    ensure!(
+        ast.iter().all(|f| f.name != "on_xdp"),
+        "on_xdp requires a separate administrator-owned policy loaded with rgnix xdp"
+    );
     let mut builder = Builder {
         ast: ast.into_iter().map(|f| (f.name.clone(), f)).collect(),
         functions: vec![],

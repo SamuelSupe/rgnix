@@ -1,7 +1,11 @@
 replicaCount: 2
+# Kubernetes 1.30+: keep scheduling skew <= 1 across at least two eligible nodes.
+requireMultipleNodes: false
+# Available in v0.4.0+; v0.3.0 has no replica reporter.
+reportReplicas: false
 image:
   repository: ghcr.io/samuelsupe/rgnix
-  tag: "0.3.0"
+  tag: "0.4.0"
   pullPolicy: IfNotPresent
 ingressClass: rgnix
 mode: ingress
@@ -40,6 +44,13 @@ resources:
   limits:
     cpu: "2"
     memory: 512Mi
+shutdown:
+  # Enable with v0.4.0+; v0.3.0 does not accept the drain CLI flags.
+  enabled: false
+  preStopSeconds: 10
+  graceSeconds: 5
+  timeoutSeconds: 25
+  terminationGracePeriodSeconds: 60
 threads: 2
 maxInflight: 1024
 maxPluginInstances: 32
@@ -99,7 +110,44 @@ rolloutMetrics:
     key: metrics.json
 admission:
   enabled: false
+  # Set false during first enablement to start the TLS server before registration.
+  register: true
   tlsSecret: ""
   caBundle: ""
+  # Optional existing cert-manager Certificate in this namespace; cainjector manages caBundle.
+  certManagerCertificate: ""
   failurePolicy: Fail
   namespaceSelector: {}
+
+# The node agent is independent of the HTTP Deployment. Use a v0.4.0+ image
+# containing XDP ABI 2; 0.3.0 images do not contain this feature.
+xdp:
+  enabled: false
+  image:
+    repository: ghcr.io/samuelsupe/rgnix
+    tag: ""
+    pullPolicy: IfNotPresent
+  policyConfigMap: ""
+  policyKey: edge.o
+  configKey: policy.json
+  interface: eth0
+  mode: native
+  admin: "127.0.0.1:9191"
+  watchInterval: 1
+  persist: false
+  history: true
+  maxUnavailable: 1
+  minReadySeconds: 10
+  nodeSelector:
+    kubernetes.io/os: linux
+    rgnix.io/xdp: enabled
+  tolerations: []
+  otlpLogsEndpoint: ""
+  otlpHeadersSecret: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

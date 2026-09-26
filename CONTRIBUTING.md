@@ -24,7 +24,7 @@ NGINX=/path/to/nginx python3 scripts/nginx_parity.py target/debug/rgnix
 Live Ingress acceptance creates and changes resources in a **dedicated test namespace**, including rolling restarts and endpoint removal. Read the script before running it; it retains resources for inspection and rejects an existing namespace without the `rgnix-qa=true` label.
 
 ```sh
-RGNIX_IMAGE_TAG=0.2.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
+RGNIX_IMAGE_TAG=0.4.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
 ```
 
 The cluster must have the image available. This is an acceptance fixture, not a command for an application namespace.

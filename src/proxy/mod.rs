@@ -109,6 +109,47 @@ fn normalize_decoded_path(decoded: &str) -> anyhow::Result<String> {
 #[async_trait]
 impl ProxyHttp for Proxy {
     type CTX = Context;
+    fn request_deadline(&self, session: &Session, ctx: &mut Context) -> Option<Instant> {
+        let snapshot = self.shared.snapshot.load_full();
+        ctx.snapshot = Some(snapshot.clone());
+        snapshot.gateway.as_ref()?;
+        let header = session.req_header();
+        let request = RequestData {
+            method: header.method.to_string(),
+            path: normalized_path(header.uri.path()).ok()?,
+            query: header.uri.query().unwrap_or_default().into(),
+            host: request_host(header).ok()?,
+            headers: header
+                .headers
+                .keys()
+                .filter_map(|name| {
+                    header.headers.get(name).map(|value| {
+                        (
+                            name.as_str().into(),
+                            String::from_utf8_lossy(value.as_bytes()).into_owned(),
+                        )
+                    })
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let route = snapshot.route_request(self.listener, &request)?;
+        ctx.started
+            .checked_add(route.settings.gateway.as_ref()?.timeouts.request?)
+    }
+    fn backend_request_timeout(
+        &self,
+        _session: &Session,
+        ctx: &Context,
+    ) -> Option<std::time::Duration> {
+        ctx.route
+            .as_ref()?
+            .settings
+            .gateway
+            .as_ref()?
+            .timeouts
+            .backend_request
+    }
     fn new_ctx(&self) -> Context {
         Context {
             snapshot: None,
@@ -148,7 +189,9 @@ impl ProxyHttp for Proxy {
             &session.req_header().headers,
             self.shared.telemetry.trace_ratio,
         );
-        ctx.snapshot = Some(self.shared.snapshot.load_full());
+        if ctx.snapshot.is_none() {
+            ctx.snapshot = Some(self.shared.snapshot.load_full());
+        }
         ctx.original_uri = session
             .req_header()
             .uri
@@ -452,7 +495,10 @@ impl ProxyHttp for Proxy {
             .saturating_add(u64::from(keepalive.subsec_nanos() > 0));
         // Preserve parser decisions such as disabling reuse for ambiguous body framing.
         if session.get_keepalive().is_some() {
-            session.set_keepalive((!keepalive.is_zero()).then_some(keepalive_seconds));
+            session.set_keepalive(
+                (!keepalive.is_zero() && self.shared.telemetry.draining.get() == 0)
+                    .then_some(keepalive_seconds),
+            );
         }
         session.set_read_timeout(Some(route.settings.read_timeout));
         session.set_write_timeout(Some(route.settings.write_timeout));
@@ -885,6 +931,13 @@ impl ProxyHttp for Proxy {
             );
         }
         self.response_headers(response, ctx)?;
+        if self.shared.telemetry.draining.get() != 0
+            && !session.is_http2()
+            && response.status.as_u16() != 101
+        {
+            session.set_keepalive(None);
+            response.insert_header("Connection", "close")?;
+        }
         if let Some(route) = &ctx.route {
             crate::compression::prepare(session, response, &route.settings.compression);
         }

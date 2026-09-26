@@ -1,5 +1,7 @@
 # RGL v1 语言与宿主 ABI
 
+RGL 另提供独立的 [`on_xdp()` 报文过滤入口](xdp.md)。它使用受限语法子集，经 Clang 编译为 eBPF，由管理员进程加载到 Linux 内核；下文描述的 HTTP/Wasm ABI 不适用于 XDP。XDP 策略不能通过租户 `rgnix_script` 挂载。
+
 RGL 是面向路由的静态类型小语言，语法接近 Lua。源文件后缀 `.rgl`。词法分析和递归下降/Pratt 解析生成 AST；类型推导后由 `wasm-encoder` 生成真实 Wasm。Wasmtime 使用 Cranelift 在加载时编译机器码。请求路径上没有源码解析、AST 解释或模块编译。
 
 编译模块按内容 SHA-256 在进程内复用；机器码缓存不跨进程持久化。Ingress 将上一有效源码和路由定义保存到控制器命名空间，重启后重新编译恢复。配置发布前校验 Wasm、导入白名单、内存、实例化和入口签名。`.wasm` 与 `.rgl` 使用相同隔离限制；不加载原生序列化代码缓存。最多缓存 128 个编译失败摘要，避免端点变化反复编译相同的坏插件。
@@ -128,3 +130,5 @@ Wasm 仅能导入 `rgnix_v1` 模块中上表的函数，加上编译器私用的
 - 编译产物包含 `rgnix.abi` 自定义段、内容 `1`；兼容性以版本化导入名和函数签名为准，不依赖该提示段。
 
 可移植 `.wasm` 与 CPU 无关，启动加载时编译成本单独发生；不输出或加载 Wasmtime 的不安全反序列化原生缓存。[Wasmtime Module 文档](https://docs.wasmtime.dev/api/wasmtime/struct.Module.html)。
+
+`serve`、`ingress` 和 `gateway` 使用 Wasmtime 内存资源池，容量为 `--max-plugin-instances` 加 3（两个模拟器实例和一个串行编译检查）。每次执行仍创建独立 Store 和实例，Wasmtime 在复用资源时重置内存、全局变量和内存大小；不复用请求数据或脚本状态。每实例仍限制 8 MiB 内存，Linux 每个已使用槽最多保留 64 KiB 可复用驻留内存，较大的内存在释放后回收。虚拟地址预留不等于实际 RSS。fuel、宿主数据预算和命名空间配额保持生效。

@@ -1,6 +1,6 @@
 # 域名授权、发布流程与管理治理
 
-这些能力包含在 v0.2.0 预览版中；实现阶段的实际运行范围见[治理验证记录](validation-governance.md)。
+基础治理能力从 v0.2.0 提供，跨副本速率配额、Gateway 策略及业务指标回退包含在 v0.3.0 预览版中；实现阶段的实际运行范围见[治理验证记录](validation-governance.md)。
 
 ## 命名空间与域名边界
 
@@ -69,7 +69,7 @@ reader 可查看本 namespace 的路由、后端、证书，进行解释、模�
 
 RGL 可覆盖正常流量选择；已锁定的回退优先于 RGL，无法继续强制发往坏候选后端。镜像保持独立，镜像故障不触发主流量回退。
 
-Lease 领导者约每 5 秒检查阶段时长、健康样本、审批和外部指标。所有条件通过后持久化 `rgnix.io/rollout-state`，各副本由 watch 采用权重。最终阶段完成观察后标记 `promoted`。阶段状态、暂停及审批跨重启恢复；请求样本是每副本的内存窗口，重启后重新累积。健康样本只包含该阶段完成的非 fallback 请求；跨副本业务指标应通过外部 provider 查询聚合结果。
+Lease 领导者约每 5 秒检查阶段时长、健康样本、审批和外部指标。健康样本从各 Pod 的新鲜 Lease 报告汇总，不再要求 leader 本机收到候选流量。缺失、未就绪、陈旧或阶段不一致的报告会暂停推进。所有条件通过后持久化 `rgnix.io/rollout-state`，各副本由 watch 采用权重。最终阶段完成观察后标记 `promoted`。阶段状态、暂停及审批跨重启恢复；请求原始样本仍在各副本内存中，重启后重新累积。样本只包含该阶段完成的非 fallback 请求；额外业务指标仍通过外部 provider 查询。
 
 ```http
 POST /v1/rollouts
@@ -94,7 +94,7 @@ Content-Type: application/json
 }}}
 ```
 
-支持 HTTP(S) JSON 数值或数值字符串，JSON pointer 定位数据，`min`/`max` 为包含边界。上限 128 个 provider、每发布 8 个 gate。后台每约 5 秒检查，单次 2 秒、响应 64 KiB、并发 8；HTTPS 使用系统信任，不跟随重定向、不使用环境代理。缺失、超时、解析失败或超过 60 秒的旧结果均阻止阶段推进，不当成通过。指标通过时仍需满足本地健康、时间与审批条件。默认外部门禁只阻止推进。当前源码可在 traffic-policy 中显式配置 `metric_rollback`，让业务指标连续失败触发稳定后端回退，即使候选请求持续返回 HTTP 200。该扩展尚未包含在已发布 v0.2.0 中。
+支持 HTTP(S) JSON 数值或数值字符串，JSON pointer 定位数据，`min`/`max` 为包含边界。上限 128 个 provider、每发布 8 个 gate。后台每约 5 秒检查，单次 2 秒、响应 64 KiB、并发 8；HTTPS 使用系统信任，不跟随重定向、不使用环境代理。缺失、超时、解析失败或超过 60 秒的旧结果均阻止阶段推进，不当成通过。指标通过时仍需满足副本汇总健康、时间与审批条件。默认外部门禁只阻止推进。当前源码可在 traffic-policy 中显式配置 `metric_rollback`，让业务指标连续失败触发稳定后端回退，即使候选请求持续返回 HTTP 200。该扩展包含在 v0.3.0 预览版中。
 
 ```json
 {
@@ -111,6 +111,8 @@ Content-Type: application/json
 
 `POST /v1/validate` 接受 `{"config_path":"/etc/rgnix/candidate.conf","expected_version":12}`，在独立模式编译候选，不发布。文件由全局 writer 指定本机路径；基准版本发生变化返回 409，应重试预检。`POST /v1/validate-ingress` 接受完整 Ingress JSON，用当前 Service、端点、Secret、插件、配额与域名策略构建隔离候选，返回 valid/errors/warnings/diff，不改写任何资源。
 
+v0.4.0 提供 [Gateway 预检与准入](gateway-api.md#gateway-preflight-and-admission)、[多副本发布状态与等待门禁](publication.md)。
+
 模拟器的 `outbound` 展示最终 Service/后端、URI、脱敏转发头、当前灰度状态、镜像资格与确定性的样本选择；`io_executed:false` 表明未调用业务上游。它不模拟网络成功率或远端响应，也不改变真实轮询游标、限流计数与灰度样本。
 
 可选 Helm 准入配置：
@@ -124,7 +126,13 @@ admission:
   failurePolicy: Fail
 ```
 
-TLS Secret 的 SAN 必须覆盖 `RELEASE-admission.NAMESPACE.svc`。Chart 安装独立的 9443 TLS listener、Service 和 ValidatingWebhookConfiguration，不通过该端口开放管理 API。CREATE/UPDATE 与 `kubectl apply --dry-run=server` 复用同一套预检。健康时忽略无关 IngressClass；限定 watch 时自动设置 namespaceSelector。准入启用后，发布状态注解只允许控制器 ServiceAccount 更新，应用通过受审计的 rollout API 操作。DELETE 不被阻挡。首次部署需要等待 watch 就绪；默认 Fail 在 webhook 不可用时拒绝匹配 namespace 内的 Ingress 变更，包括其他 Class，应据此选择部署范围。准入证书更新需滚动控制器。
+TLS Secret 的 SAN 必须覆盖 `RELEASE-admission.NAMESPACE.svc`。Chart 安装独立的 9443 TLS listener、Service 和 ValidatingWebhookConfiguration，不通过该端口开放管理 API。CREATE/UPDATE 与 `kubectl apply --dry-run=server` 复用同一套预检。
+
+Chart 使用 Kubernetes 1.30+ 的 CEL matchConditions，在调用 webhook 前筛选配置的 IngressClass 或绑定的 Gateway/parentRefs，同时检查 oldObject。限定 watch 时还设置 namespaceSelector。无关资源在 webhook 失联时也不会被调用；选中资源保留 Fail 策略。defaultIngressClass 应与 Chart 管理的 IngressClass 默认标志保持一致。发布状态注解只允许控制器 ServiceAccount 更新，应用通过受审计的 rollout API 操作。DELETE 不被阻挡。
+
+准入 TLS 文件每 2 秒检查一次，证书和私钥匹配、时间有效后整体替换；无效更新保留上一有效证书并增加专用错误指标。Secret 必须使用目录投影，不能使用 subPath。轮换 CA 时先把旧、新 CA 同时放入 caBundle，再更新 TLS Secret；确认所有副本提供新证书后移除旧 CA。Kubernetes Secret 投影存在同步延迟，不能以 Secret 更新成功代替握手验证。
+
+也可设置 `admission.certManagerCertificate` 为同命名空间已有的 cert-manager Certificate 名称，由 cainjector 管理 caBundle；tlsSecret 仍需指向该证书的 Secret。CA 发行及 cert-manager 安装由管理员管理。证书到期与拒绝更新告警见 Prometheus 示例。
 
 ## 业务 TLS 与 HTTPS 跳转
 

@@ -1,6 +1,6 @@
 # 跨副本速率限制
 
-当前源码支持可选 Redis 协调器，尚未包含在已发布的 v0.2.0 中。启用后，独立服务、Ingress 和 Gateway 的路由速率限制，以及管理员命名空间 `requests_per_second` / `burst`，在同一 `scope` 内共享令牌桶。未启用时保持本地计数。
+v0.3.0 预览版支持可选 Redis 协调器。启用后，独立服务、Ingress 和 Gateway 的路由速率限制，以及管理员命名空间 `requests_per_second` / `burst`，在同一 `scope` 内共享令牌桶。未启用时保持本地计数。
 
 ```json
 {

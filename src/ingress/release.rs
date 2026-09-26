@@ -175,9 +175,11 @@ pub(crate) async fn reconcile_object(
                     .is_some_and(|r| r.passed(&controls.digest))
             })
         };
-        let Some(next) =
-            state.next_progress(k8s_openapi::chrono::Utc::now().timestamp(), gates_pass)
-        else {
+        let Some(next) = state.next_progress(
+            k8s_openapi::chrono::Utc::now().timestamp(),
+            gates_pass,
+            shared.fleet.rollout_samples(&state),
+        ) else {
             return Ok(());
         };
         (

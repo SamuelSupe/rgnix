@@ -1,0 +1,525 @@
+{
+  "complete": true,
+  "failure": null,
+  "namespace": "rgnix-gateway-acceptance-20260926",
+  "peer_namespace": "rgnix-gateway-acceptance-20260926-peer",
+  "image": "rgnix:gateway-acceptance-20260926",
+  "soak_seconds": 180,
+  "scale_routes": 200,
+  "checks": [
+    {
+      "name": "Gateway status reflects published generation",
+      "passed": true
+    },
+    {
+      "name": "Service backend and Host preservation",
+      "passed": true
+    },
+    {
+      "name": "HTTPRoute status",
+      "passed": true
+    },
+    {
+      "name": "All replicas acknowledge the same accepted configuration",
+      "passed": true
+    },
+    {
+      "name": "Controller replicas run on distinct Kubernetes nodes",
+      "passed": true,
+      "nodes": [
+        "rgnix-product-20260926-worker",
+        "rgnix-product-20260926-worker2"
+      ]
+    },
+    {
+      "name": "Namespace-scoped identity cannot inspect peer configurations",
+      "passed": true
+    },
+    {
+      "name": "Replica discovery excludes same-release XDP node agents",
+      "passed": true
+    },
+    {
+      "name": "Replica observation fails closed when Lease reads are denied",
+      "passed": true
+    },
+    {
+      "name": "Replica observation failure leaves accepted data-plane traffic available",
+      "passed": true
+    },
+    {
+      "name": "Replica observation recovers after RBAC restoration",
+      "passed": true
+    },
+    {
+      "name": "request-deadline bounds delayed upstream headers",
+      "passed": true
+    },
+    {
+      "name": "backend-deadline bounds delayed upstream headers",
+      "passed": true
+    },
+    {
+      "name": "disabled-deadline bounds delayed upstream headers",
+      "passed": true
+    },
+    {
+      "name": "Backend deadline cancels a continuously streaming response",
+      "passed": true
+    },
+    {
+      "name": "Gateway preflight validates duration relationships without publishing",
+      "passed": true
+    },
+    {
+      "name": "Standard RequestMirror resolves its own backend reference",
+      "passed": true
+    },
+    {
+      "name": "Standard mirror preserves complete body, URI and Host",
+      "passed": true
+    },
+    {
+      "name": "Unauthorized mirror is disabled while primary requests continue",
+      "passed": true
+    },
+    {
+      "name": "Rejected references report a cause and prevent fleet publication acknowledgement",
+      "passed": true
+    },
+    {
+      "name": "Zero-percent standard mirror is accepted",
+      "passed": true
+    },
+    {
+      "name": "Replica adopts zero-percent mirror",
+      "passed": true
+    },
+    {
+      "name": "Replica adopts zero-percent mirror",
+      "passed": true
+    },
+    {
+      "name": "Zero-percent mirror sends no shadow requests",
+      "passed": true
+    },
+    {
+      "name": "Method, header and query match",
+      "passed": true
+    },
+    {
+      "name": "Predicate mismatch falls through",
+      "passed": true
+    },
+    {
+      "name": "Duplicate header matching uses the first value",
+      "passed": true
+    },
+    {
+      "name": "PathPrefix matches path segments",
+      "passed": true
+    },
+    {
+      "name": "Rewrite and literal request/response header modifiers",
+      "passed": true
+    },
+    {
+      "name": "Redirect preserves suffix/query and scheme default port",
+      "passed": true
+    },
+    {
+      "name": "Weighted route accepted",
+      "passed": true
+    },
+    {
+      "name": "Service weights independent of endpoint counts",
+      "passed": true,
+      "counts": {
+        "a": 265,
+        "b": 35
+      }
+    },
+    {
+      "name": "Cross-namespace backend denied without ReferenceGrant",
+      "passed": true
+    },
+    {
+      "name": "ReferenceGrant permits Service",
+      "passed": true
+    },
+    {
+      "name": "ReferenceGrant withdrawal revokes traffic",
+      "passed": true
+    },
+    {
+      "name": "RGL selects an explicitly declared backend",
+      "passed": true
+    },
+    {
+      "name": "Gateway accepted plugin is durably checkpointed",
+      "passed": true
+    },
+    {
+      "name": "Invalid plugin retains previous valid code",
+      "passed": true
+    },
+    {
+      "name": "Gateway preflight cannot hide an invalid candidate behind its checkpoint",
+      "passed": true
+    },
+    {
+      "name": "New replica 1 restores checkpoint before readiness while source is invalid",
+      "passed": true
+    },
+    {
+      "name": "New replica 2 restores checkpoint before readiness while source is invalid",
+      "passed": true
+    },
+    {
+      "name": "Endpoint withdrawal still applies during plugin failure",
+      "passed": true
+    },
+    {
+      "name": "Endpoint restoration",
+      "passed": true
+    },
+    {
+      "name": "Recreated ConfigMap cannot inherit old checkpoint code",
+      "passed": true
+    },
+    {
+      "name": "Revoked checkpoint is pruned",
+      "passed": true
+    },
+    {
+      "name": "Route deletion takes effect",
+      "passed": true
+    },
+    {
+      "name": "Unsupported expressions reported in status",
+      "passed": true
+    },
+    {
+      "name": "AllowedRoutes admits another namespace",
+      "passed": true
+    },
+    {
+      "name": "AllowedRoutes revocation removes foreign routes",
+      "passed": true
+    },
+    {
+      "name": "Namespace selector admits matching labels",
+      "passed": true
+    },
+    {
+      "name": "Cross-namespace method routing",
+      "passed": true
+    },
+    {
+      "name": "Namespace reader simulates an authorized Gateway route",
+      "passed": true
+    },
+    {
+      "name": "Simulation cannot cross tenant boundaries by changing method",
+      "passed": true
+    },
+    {
+      "name": "Gateway JWT rejects missing credentials",
+      "passed": true
+    },
+    {
+      "name": "Gateway JWT validates the declared issuer and audience",
+      "passed": true
+    },
+    {
+      "name": "JWT Secret withdrawal cannot fall through to a public prefix",
+      "passed": true
+    },
+    {
+      "name": "Gateway external auth denies unapproved requests",
+      "passed": true
+    },
+    {
+      "name": "Gateway external auth replaces spoofed identity headers",
+      "passed": true
+    },
+    {
+      "name": "Gateway rate policy accepted",
+      "passed": true
+    },
+    {
+      "name": "Replica serves shared-rate policy",
+      "passed": true
+    },
+    {
+      "name": "Replica serves shared-rate policy",
+      "passed": true
+    },
+    {
+      "name": "Gateway rate budget is shared across replicas",
+      "passed": true
+    },
+    {
+      "name": "Gateway persists the initial rollout stage",
+      "passed": true
+    },
+    {
+      "name": "Follower has the staged route",
+      "passed": true
+    },
+    {
+      "name": "Gateway staged 90/10 Service split",
+      "passed": true,
+      "counts": {
+        "a": 90,
+        "b": 10
+      }
+    },
+    {
+      "name": "Gateway mirror reaches its declared Service",
+      "passed": true
+    },
+    {
+      "name": "Gateway approval advances using candidate samples received only by a non-leader",
+      "passed": true
+    },
+    {
+      "name": "Gateway stage weights change request routing",
+      "passed": true
+    },
+    {
+      "name": "Gateway stage and approval survive both replicas restarting",
+      "passed": true
+    },
+    {
+      "name": "Gateway explicit rollback routes to its stable backend",
+      "passed": true
+    },
+    {
+      "name": "Business rollout initially uses HTTP-successful candidate",
+      "passed": true
+    },
+    {
+      "name": "Sustained external business failure persists automatic rollback",
+      "passed": true
+    },
+    {
+      "name": "Business rollback survives restart on replica 1",
+      "passed": true
+    },
+    {
+      "name": "Business rollback survives restart on replica 2",
+      "passed": true
+    },
+    {
+      "name": "Gateway rollout cannot select an undeclared Service",
+      "passed": true
+    },
+    {
+      "name": "HTTPS Service requires a usable TLS transport policy",
+      "passed": true
+    },
+    {
+      "name": "BackendTLSPolicy validates private CA and hostname",
+      "passed": true
+    },
+    {
+      "name": "BackendTLS hostname mismatch rejects upstream connection",
+      "passed": true
+    },
+    {
+      "name": "Corrected BackendTLS hostname restores traffic",
+      "passed": true
+    },
+    {
+      "name": "Backend CA rotation invalidates previously trusted upstream pools",
+      "passed": true
+    },
+    {
+      "name": "Restored backend CA restores traffic",
+      "passed": true
+    },
+    {
+      "name": "Backend CA withdrawal fails closed with policy status",
+      "passed": true
+    },
+    {
+      "name": "Cross-namespace TLS Secret requires ReferenceGrant",
+      "passed": true
+    },
+    {
+      "name": "HTTPS SNI certificate and route",
+      "passed": true
+    },
+    {
+      "name": "TLS Secret rotates without restarting the data plane",
+      "passed": true
+    },
+    {
+      "name": "TLS Secret deletion revokes the SNI certificate",
+      "passed": true
+    },
+    {
+      "name": "GRPCRoute status",
+      "passed": true
+    },
+    {
+      "name": "gRPC HTTP/2 unary, trailers and bidirectional stream",
+      "passed": true
+    },
+    {
+      "name": "gRPC stream is established before Pod termination",
+      "passed": true
+    },
+    {
+      "name": "In-flight gRPC HTTP/2 stream finishes after its controller Pod begins terminating",
+      "passed": true
+    },
+    {
+      "name": "Replacement controller restores readiness after gRPC drain",
+      "passed": true
+    },
+    {
+      "name": "HTTPRoute initially uses the declared HTTP/1 backend protocol",
+      "passed": true
+    },
+    {
+      "name": "HTTPRoute honors Service h2c application protocol",
+      "passed": true
+    },
+    {
+      "name": "Unsupported HTTPS backend cannot be downgraded to plaintext",
+      "passed": true
+    },
+    {
+      "name": "Replica 1 loads administrator namespace quota",
+      "passed": true
+    },
+    {
+      "name": "Replica 2 loads administrator namespace quota",
+      "passed": true
+    },
+    {
+      "name": "Namespace total request quota is shared across replicas",
+      "passed": true
+    },
+    {
+      "name": "Exhausted tenant does not consume another namespace budget",
+      "passed": true
+    },
+    {
+      "name": "Two-replica rolling restart",
+      "passed": true
+    },
+    {
+      "name": "Clean deployment converges after a rolling restart",
+      "passed": true
+    },
+    {
+      "name": "CLI publication gate requires the expected digest and replica count",
+      "passed": true
+    },
+    {
+      "name": "Scale configuration converges on every replica",
+      "passed": true
+    },
+    {
+      "name": "New requests use the newly published plugin",
+      "passed": true
+    },
+    {
+      "name": "In-flight requests retain their plugin snapshot across publication",
+      "passed": true
+    },
+    {
+      "name": "Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement",
+      "passed": true,
+      "seconds": 180,
+      "scale_routes": 200,
+      "connection_mode": "HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker",
+      "measurement": {
+        "workers": [
+          {
+            "requests": 4151,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4195,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 6867,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4149,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4145,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 6856,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 30363,
+        "failed_requests": 0,
+        "retained_latency_samples": 30363,
+        "p99_ms": 45.667527010664344
+      }
+    },
+    {
+      "name": "Replacement replica acknowledges the accepted configuration",
+      "passed": true
+    },
+    {
+      "name": "Gateway admission accepts server-side dry-run",
+      "passed": true
+    },
+    {
+      "name": "Gateway admission rejects unsupported policy before persistence",
+      "passed": true
+    },
+    {
+      "name": "Gateway admission protects controller-owned rollout state",
+      "passed": true
+    },
+    {
+      "name": "Changing parentRefs cannot import forged controller rollout state",
+      "passed": true
+    },
+    {
+      "name": "Owned resources fail closed while admission is unavailable",
+      "passed": true
+    },
+    {
+      "name": "Admission outage does not block another Gateway or its HTTPRoute/GRPCRoute",
+      "passed": true
+    },
+    {
+      "name": "Admission recovers after its Service endpoints return",
+      "passed": true
+    },
+    {
+      "name": "Admission TLS rotates on every replica without restart",
+      "passed": true
+    },
+    {
+      "name": "Admission succeeds after removing the old CA",
+      "passed": true
+    },
+    {
+      "name": "Invalid admission certificate update retains the accepted certificate",
+      "passed": true
+    }
+  ],
+  "scope": "Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"
+}

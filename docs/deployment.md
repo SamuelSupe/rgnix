@@ -1,5 +1,7 @@
 # 部署与运行
 
+可选的 [RGL XDP 入口过滤](xdp.md)由独立管理员进程/DaemonSet 加载，不改变 HTTP Deployment 的非 root 和租户隔离边界；支持预编译产物、ConfigMap 内容自动更新、规则指标、可选持久挂载及节点历史回退。Helm 的 `xdp.enabled` 默认关闭，启用时必须指定包含此功能的镜像、策略 ConfigMap 和节点范围。
+
 ## 独立服务
 
 ```sh
@@ -10,27 +12,35 @@ kill -HUP PID
 kill -TERM PID
 ```
 
-SIGHUP 在控制线程重读 include、证书和脚本，全部完成后发布快照。坏配置增加失败计数并保留原版本；监听地址、TLS/HTTP2 选项变化拒绝热更新。线程数来自 CLI，需要重启。SIGTERM 停止接收新请求并优雅终止，配置的 5 秒宽限期及最长 25 秒排空不适合无限期维持 WebSocket；客户端应支持重连。
+SIGHUP 在控制线程重读 include、证书和脚本，全部完成后发布快照。坏配置增加失败计数并保留原版本；监听地址、TLS/HTTP2 选项变化拒绝热更新。线程数来自 CLI，需要重启。SIGTERM 触发优雅退出，默认 5 秒宽限期之后在最长 25 秒预算内等待活跃请求结束，再关闭运行时。持久连接负载和 gRPC 流跨 Pod 终止完成的实测见[验证记录](validation-gateway-hardening-2026-09-26.md)。超过预算的连接会关闭；网关不自动重放业务请求，非幂等请求的重试应由客户端与业务幂等契约共同决定。
 
 相对 root、include、证书、脚本和日志路径均基于主配置文件目录。挂载示例目录只读时无需其他数据卷；日志默认写 stdout/stderr。使用文件日志时预先创建可写目录；显式错误日志在加载配置时检查可打开，访问日志按需打开，两者通过有界后台队列写入。`rgnix_log_rotation` 提供大小/UTC 时间轮转、保留份数及 gzip；SIGUSR1 重开文件，可配合外部 logrotate。独立模式成功的 SIGHUP 也应用轮转策略并重开文件，失败保留旧配置。见[本地日志与轮转](log-rotation.md)。
+
+独立模式可用 `--shutdown-grace-seconds`（0..3600）、`--shutdown-timeout-seconds`（1..86400）调整停机预算。配置 `--drain-file /path/to/marker` 后，管理员创建该文件即可先让 `/readyz` 返回 503；`/healthz` 仍保持存活，`rgnix_draining` 变为 1。HTTP/1.1 后续响应带 `Connection: close`，已建立的 WebSocket 不因 marker 被直接中断。排空不可通过删除 marker 撤销，启动前需移除旧 marker。HTTP/2 在 SIGTERM 时沿 Pingora 的 GOAWAY/流排空流程退出；超过总停机预算的流仍会关闭。
+
+使用 v0.4.0+ 镜像并设置 `shutdown.enabled: true` 后，Helm 的 `shutdown.preStopSeconds/graceSeconds/timeoutSeconds/terminationGracePeriodSeconds` 控制相同流程；旧 v0.3.0 镜像不接受新增参数，因此开关默认关闭。preStop 在专用 emptyDir 写 marker，再等待端点撤下和存量 HTTP/1.1 连接有机会收到关闭提示，随后发送 SIGTERM。terminationGracePeriodSeconds 必须大于前三项之和。慢客户端、长期空闲连接和无限 WebSocket 不具备无期限连续性保证。
 
 ## 镜像
 
 `Dockerfile` 使用 Rust 1.98 / Debian bookworm 多阶段构建，运行阶段非 root 用户 UID/GID 10101。Rust 依赖使用 `--locked`。有企业 TLS 根证书的构建环境可使用 BuildKit secret，不关闭证书校验：
 
 ```sh
-docker build --secret id=build_ca,src=/path/to/ca-bundle.pem -t rgnix:0.3.0 .
+docker build --secret id=build_ca,src=/path/to/ca-bundle.pem -t rgnix:0.4.0 .
 ```
 
 双架构 OCI 镜像构建（需要 buildx 以及本机或远端相应架构 builder）：
 
 ```sh
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t YOUR_REGISTRY/rgnix:0.3.0 \
-  --output type=oci,dest=rgnix-0.3.0.oci.tar .
+  -t YOUR_REGISTRY/rgnix:0.4.0 \
+  --output type=oci,dest=rgnix-0.4.0.oci.tar .
 ```
 
-本地单架构加载使用 `docker build` 或 buildx `--load`。普通 CI 在原生 amd64/arm64 runner 分别构建镜像但不推送；Release 工作流在双架构测试和 Gateway Kubernetes 验证通过后，发布 `ghcr.io/samuelsupe/rgnix:0.3.0` 签名镜像与 OCI Chart，见[发行流程](releases.md)。构建缓存分架构；显式重新构建项目 crate，防止源文件 mtime 导致旧二进制被误复用。
+本地单架构加载使用 `docker build` 或 buildx `--load`。普通 CI 在原生 amd64/arm64 runner 分别构建镜像但不推送；Release 工作流在双架构测试和 Gateway Kubernetes 验证通过后，发布 `ghcr.io/samuelsupe/rgnix:0.4.0` 签名镜像与 OCI Chart，见[发行流程](releases.md)。构建缓存分架构；显式重新构建项目 crate，防止源文件 mtime 导致旧二进制被误复用。
+
+当前源码可开启 `reportReplicas: true`，用 [多副本发布状态与 CLI 等待门禁](publication.md)验证实际采用的配置；v0.3.0 旧镜像需保持关闭。
+
+生产集群可设置 `requireMultipleNodes: true`（Kubernetes 1.30+，至少两个副本）。Chart 使用按 Deployment 修订分组的拓扑硬约束：在至少两个可调度节点间将偏斜限制为 1；节点不足时 Pod 保持 Pending，滚动更新仍允许新旧修订暂时共存。默认关闭，便于单节点开发；此时两个副本不构成跨节点高可用保证。业务 Service、PDB、准入及副本发现只匹配 HTTP 控制器，不包含同 release 的 XDP 节点代理。参见 [Kubernetes 拓扑约束](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/)。
 
 Gateway API 使用独立的 `rgnix gateway` / Helm `mode=gateway`，其 CRD、预置 Gateway 绑定和部署步骤见 [Gateway API](gateway-api.md)。
 
@@ -40,7 +50,7 @@ Gateway API 使用独立的 `rgnix gateway` / Helm `mode=gateway`，其 CRD、�
 helm upgrade --install rgnix charts/rgnix \
   --namespace rgnix-system --create-namespace \
   --set image.repository=YOUR_REGISTRY/rgnix \
-  --set image.tag=0.3.0
+  --set image.tag=0.4.0 --set shutdown.enabled=true
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
 
@@ -180,9 +190,9 @@ Linux 构建/验证在 OrbStack 中执行，避免用 macOS 编译结果代表 L
 
 ```sh
 orb -m ubuntu bash -lc 'cd /PATH/TO/rgnix && CARGO_TARGET_DIR=/tmp/rgnix-target bash scripts/check.sh'
-docker build -t rgnix:0.3.0 .
-RGNIX_IMAGE_TAG=0.3.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
-RGNIX_IMAGE_TAG=0.3.0 python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
+docker build -t rgnix:0.4.0 .
+RGNIX_IMAGE_TAG=0.4.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
+RGNIX_IMAGE_TAG=0.4.0 python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
 ```
 
 脚本只接受专用命名空间，并要求现有 namespace 带 `rgnix-qa=true`；使用专属 IngressClass，不修改其他 controller 或工作负载。它会创建两个 NGINX 后端、插件、临时证书，执行删除/恢复和滚动升级。结束后保留环境便于检查。QA 的 LoadBalancerClass 为 `rgnix.io/acceptance`、禁用 NodePort，通过 port-forward 和集群内 Service 验证；地址 `192.0.2.10` 仅是 status 回写测试数据，不是真实公网 LB。

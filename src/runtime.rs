@@ -1,6 +1,7 @@
 use crate::{
     config, ingress, model::RuntimeSnapshot, proxy::Proxy, script::Compiler, telemetry::Telemetry,
 };
+mod drain;
 use anyhow::{Context, Result, ensure};
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
@@ -21,6 +22,7 @@ use std::{
 };
 
 pub struct Shared {
+    pub(crate) fleet: crate::fleet::State,
     pub audit: Arc<crate::audit::Audit>,
     pub snapshot: ArcSwap<RuntimeSnapshot>,
     pub compiler: Arc<Compiler>,
@@ -38,12 +40,23 @@ pub struct Shared {
     publication: Mutex<Publication>,
     pub file_mode: bool,
     pub(crate) ingress_preview: Mutex<Option<crate::ingress::PreviewInput>>,
+    pub(crate) gateway_preview: Mutex<Option<crate::gateway::PreviewInput>>,
     pub auth_client: reqwest::Client,
     pub upstream_max_fails: usize,
     pub upstream_fail_timeout: std::time::Duration,
 }
 #[derive(Clone, clap::Args)]
 pub struct Limits {
+    /// Optional administrator-owned marker file; creation starts connection draining.
+    #[arg(long)]
+    pub drain_file: Option<PathBuf>,
+    #[arg(long, default_value_t = 5)]
+    pub shutdown_grace_seconds: u64,
+    #[arg(long, default_value_t = 25)]
+    pub shutdown_timeout_seconds: u64,
+    /// Publish per-Pod configuration acknowledgements and observe peers selected by publish-service.
+    #[arg(long)]
+    pub report_replicas: bool,
     /// Administrator-controlled namespace quotas and domains (JSON); automatically reloaded.
     #[arg(long)]
     pub tenant_policy_file: Option<PathBuf>,
@@ -79,6 +92,7 @@ struct Publication {
 impl Shared {
     pub(crate) fn preview(&self) -> Self {
         Self {
+            fleet: Default::default(),
             audit: self.audit.clone(),
             snapshot: ArcSwap::from(self.snapshot.load_full()),
             compiler: self.compiler.clone(),
@@ -95,6 +109,7 @@ impl Shared {
             publication: Mutex::new(Publication::default()),
             file_mode: self.file_mode,
             ingress_preview: Mutex::new(None),
+            gateway_preview: Mutex::new(None),
             auth_client: self.auth_client.clone(),
             upstream_max_fails: self.upstream_max_fails,
             upstream_fail_timeout: self.upstream_fail_timeout,
@@ -313,13 +328,17 @@ pub fn serve(
     diagnostics: crate::diagnostics::Options,
 ) -> Result<()> {
     ensure!(
+        !limits.report_replicas || !matches!(source, Source::File(_)),
+        "report-replicas requires Ingress or Gateway mode"
+    );
+    ensure!(
         diagnostics.admission_listen.is_some() == diagnostics.admission_tls_cert.is_some()
             && diagnostics.admission_listen.is_some() == diagnostics.admission_tls_key.is_some(),
         "admission-listen requires admission-tls-cert and admission-tls-key"
     );
     ensure!(
-        diagnostics.admission_listen.is_none() || matches!(source, Source::Ingress(_)),
-        "admission requires Ingress mode"
+        diagnostics.admission_listen.is_none() || !matches!(source, Source::File(_)),
+        "admission requires Ingress or Gateway mode"
     );
     let controls = Arc::new(crate::controls::Controls::new(
         diagnostics.clone(),
@@ -342,6 +361,15 @@ pub fn serve(
         "upstream-max-fails must be 0..1000 and upstream-fail-timeout-secs 1..3600"
     );
     ensure!(threads > 0 && threads <= 256, "threads must be 1..256");
+    ensure!(
+        limits.shutdown_grace_seconds <= 3600
+            && (1..=86400).contains(&limits.shutdown_timeout_seconds),
+        "invalid shutdown grace or timeout"
+    );
+    ensure!(
+        limits.drain_file.as_ref().is_none_or(|p| !p.exists()),
+        "drain marker exists at startup; remove it before starting a new process"
+    );
     ensure!(
         limits.max_inflight > 0 && limits.max_inflight <= 1_000_000,
         "max-inflight must be 1..1000000"
@@ -378,6 +406,7 @@ pub fn serve(
         publication.durable = Some(durable);
     }
     let shared = Arc::new(Shared {
+        fleet: crate::fleet::State::new(limits.report_replicas),
         audit: audit.clone(),
         snapshot: ArcSwap::from_pointee(snapshot),
         compiler,
@@ -394,6 +423,7 @@ pub fn serve(
         publication: Mutex::new(publication),
         file_mode,
         ingress_preview: Mutex::new(None),
+        gateway_preview: Mutex::new(None),
         auth_client: reqwest::Client::builder()
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
@@ -410,12 +440,23 @@ pub fn serve(
         daemon: false,
         // Pingora includes the first attempt in this budget.
         max_retries: 1,
-        grace_period_seconds: Some(5),
-        graceful_shutdown_timeout_seconds: Some(25),
+        grace_period_seconds: Some(limits.shutdown_grace_seconds),
+        graceful_shutdown_timeout_seconds: Some(limits.shutdown_timeout_seconds),
         max_blocking_threads: Some(16),
         ..ServerConf::default()
     };
     let mut server = Server::new_with_opt_and_conf(None, conf);
+    let draining = shared.clone();
+    server.set_graceful_shutdown_check(move || {
+        draining.requests.available_permits() == limits.max_inflight
+    });
+    server.add_service(background_service(
+        "connection-drain",
+        drain::Drain {
+            marker: limits.drain_file.clone(),
+            telemetry: telemetry.clone(),
+        },
+    ));
     server.bootstrap();
     for listener in listeners {
         let mut service = pingora::proxy::http_proxy_service(
@@ -471,21 +512,17 @@ pub fn serve(
                 controller_user: diagnostics.admission_controller_user.clone(),
             },
         );
-        admission.add_tls(
-            &address.to_string(),
-            diagnostics
-                .admission_tls_cert
-                .as_ref()
-                .unwrap()
-                .to_str()
-                .context("invalid admission certificate path")?,
-            diagnostics
-                .admission_tls_key
-                .as_ref()
-                .unwrap()
-                .to_str()
-                .context("invalid admission key path")?,
+        let certificate = crate::admission::tls::ReloadingCertificate::new(
+            diagnostics.admission_tls_cert.clone().unwrap(),
+            diagnostics.admission_tls_key.clone().unwrap(),
+            &shared.telemetry.registry,
         )?;
+        admission.add_tls_with_settings(
+            &address.to_string(),
+            None,
+            TlsSettings::with_callbacks(Box::new(certificate.clone()))?,
+        );
+        server.add_service(background_service("admission-certificates", certificate));
         server.add_service(admission);
     }
     server.add_service(background_service(

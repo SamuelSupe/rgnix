@@ -1,0 +1,137 @@
+{
+  "platform": "Linux-7.0.14-orbstack-00380-ga7e0a2dc9535-aarch64-with-glibc2.42",
+  "concurrency": 64,
+  "rounds": 3,
+  "workers": 2,
+  "client_threads": 2,
+  "additional_routes": 0,
+  "affinity": {
+    "server": "0,1",
+    "client": "2,3",
+    "origin": null
+  },
+  "workload": "2-byte local responses; wrk HTTP/1.1 keepalive client",
+  "binaries": {
+    "baseline": {
+      "path": "/Users/livesite/Documents/ChatGPT/rgnix/.local/performance/rgnix-before",
+      "sha256": "8b95ee184a038807e9be8828f2444f0c900ef8fc861176a82841ed515c3ab16b",
+      "cases": {
+        "plain": {
+          "runs": [
+            {
+              "requests": 1863740,
+              "seconds": 10.100046,
+              "bytes": 264651080,
+              "errors": 0,
+              "p50_ms": 0.348,
+              "p95_ms": 0.507,
+              "p99_ms": 0.639,
+              "rps": 184527.8724473136,
+              "wrk_output": "Running 10s test @ http://127.0.0.1:43021/plain\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   345.93us  118.83us   6.43ms   75.52%\n    Req/Sec    92.74k     6.72k  101.10k    93.07%\n  Latency Distribution\n     50%  348.00us\n     75%  418.00us\n     90%  474.00us\n     99%  639.00us\n  1863740 requests in 10.10s, 252.39MB read\nRequests/sec: 184527.87\nTransfer/sec:     24.99MB\nRGNIX_RESULT {\"requests\":1863740,\"seconds\":10.100046,\"bytes\":264651080,\"errors\":0,\"p50_ms\":0.348000,\"p95_ms\":0.507000,\"p99_ms\":0.639000}\n",
+              "server_cpu_cores": 1.952466355103729,
+              "server_cpu_us_per_request": 10.580875014755277,
+              "rss_kib": 34004,
+              "round": 1
+            },
+            {
+              "requests": 1226470,
+              "seconds": 10.010614,
+              "bytes": 174158740,
+              "errors": 0,
+              "p50_ms": 0.467,
+              "p95_ms": 1.132,
+              "p99_ms": 2.579,
+              "rps": 122516.96049812729,
+              "wrk_output": "Running 10s test @ http://127.0.0.1:43021/plain\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   584.12us  753.27us  22.76ms   96.76%\n    Req/Sec    61.64k    17.96k   96.69k    64.00%\n  Latency Distribution\n     50%  467.00us\n     75%  641.00us\n     90%    0.90ms\n     99%    2.58ms\n  1226470 requests in 10.01s, 166.09MB read\nRequests/sec: 122516.96\nTransfer/sec:     16.59MB\nRGNIX_RESULT {\"requests\":1226470,\"seconds\":10.010614,\"bytes\":174158740,\"errors\":0,\"p50_ms\":0.467000,\"p95_ms\":1.132000,\"p99_ms\":2.579000}\n",
+              "server_cpu_cores": 1.8640215275506578,
+              "server_cpu_us_per_request": 15.214395786280953,
+              "rss_kib": 34576,
+              "round": 2
+            },
+            {
+              "requests": 1600916,
+              "seconds": 10.099326,
+              "bytes": 227330072,
+              "errors": 0,
+              "p50_ms": 0.385,
+              "p95_ms": 0.76,
+              "p99_ms": 1.234,
+              "rps": 158517.1129241694,
+              "wrk_output": "Running 10s test @ http://127.0.0.1:43021/plain\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   415.09us  243.84us   5.32ms   88.59%\n    Req/Sec    80.06k    15.70k  138.88k    78.11%\n  Latency Distribution\n     50%  385.00us\n     75%  474.00us\n     90%  595.00us\n     99%    1.23ms\n  1600916 requests in 10.10s, 216.80MB read\nRequests/sec: 158517.11\nTransfer/sec:     21.47MB\nRGNIX_RESULT {\"requests\":1600916,\"seconds\":10.099326,\"bytes\":227330072,\"errors\":0,\"p50_ms\":0.385000,\"p95_ms\":0.760000,\"p99_ms\":1.234000}\n",
+              "server_cpu_cores": 1.9496350548541554,
+              "server_cpu_us_per_request": 12.29920870301752,
+              "rss_kib": 31756,
+              "round": 3
+            }
+          ],
+          "median_rps": 158517.1129241694,
+          "median_p95_ms": 0.76,
+          "median_p99_ms": 1.234,
+          "median_server_cpu_us_per_request": 12.29920870301752,
+          "median_rss_kib": 34004
+        }
+      }
+    },
+    "candidate": {
+      "path": "/Users/livesite/Documents/ChatGPT/rgnix/.local/performance/rgnix-after",
+      "sha256": "c6049300dd4561446c84d90dba15960469d87c8496e2a5141702a05855ccd7d5",
+      "cases": {
+        "plain": {
+          "runs": [
+            {
+              "requests": 1906524,
+              "seconds": 10.09982,
+              "bytes": 270726408,
+              "errors": 0,
+              "p50_ms": 0.34,
+              "p95_ms": 0.495,
+              "p99_ms": 0.572,
+              "rps": 188768.11665950483,
+              "wrk_output": "Running 10s test @ http://127.0.0.1:43021/plain\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   337.43us  110.95us   5.80ms   73.27%\n    Req/Sec    94.87k     3.58k   99.58k    84.65%\n  Latency Distribution\n     50%  340.00us\n     75%  409.00us\n     90%  464.00us\n     99%  572.00us\n  1906524 requests in 10.10s, 258.18MB read\nRequests/sec: 188768.12\nTransfer/sec:     25.56MB\nRGNIX_RESULT {\"requests\":1906524,\"seconds\":10.099820,\"bytes\":270726408,\"errors\":0,\"p50_ms\":0.340000,\"p95_ms\":0.495000,\"p99_ms\":0.572000}\n",
+              "server_cpu_cores": 1.9465693448002046,
+              "server_cpu_us_per_request": 10.311960405428938,
+              "rss_kib": 34148,
+              "round": 1
+            },
+            {
+              "requests": 1921302,
+              "seconds": 10.099415,
+              "bytes": 272824884,
+              "errors": 0,
+              "p50_ms": 0.339,
+              "p95_ms": 0.488,
+              "p99_ms": 0.546,
+              "rps": 190238.9395821441,
+              "wrk_output": "Running 10s test @ http://127.0.0.1:43021/plain\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   334.82us  110.03us   6.07ms   73.42%\n    Req/Sec    95.60k     3.01k   99.94k    83.66%\n  Latency Distribution\n     50%  339.00us\n     75%  406.00us\n     90%  460.00us\n     99%  546.00us\n  1921302 requests in 10.10s, 260.19MB read\nRequests/sec: 190238.94\nTransfer/sec:     25.76MB\nRGNIX_RESULT {\"requests\":1921302,\"seconds\":10.099415,\"bytes\":272824884,\"errors\":0,\"p50_ms\":0.339000,\"p95_ms\":0.488000,\"p99_ms\":0.546000}\n",
+              "server_cpu_cores": 1.9525883429881827,
+              "server_cpu_us_per_request": 10.263873144357316,
+              "rss_kib": 33892,
+              "round": 2
+            },
+            {
+              "requests": 1781031,
+              "seconds": 10.099961,
+              "bytes": 252906402,
+              "errors": 0,
+              "p50_ms": 0.36,
+              "p95_ms": 0.552,
+              "p99_ms": 0.721,
+              "rps": 176340.38388861105,
+              "wrk_output": "Running 10s test @ http://127.0.0.1:43021/plain\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   362.25us  133.69us   3.99ms   77.65%\n    Req/Sec    88.66k     6.81k   98.48k    72.28%\n  Latency Distribution\n     50%  360.00us\n     75%  435.00us\n     90%  502.00us\n     99%  721.00us\n  1781031 requests in 10.10s, 241.19MB read\nRequests/sec: 176340.38\nTransfer/sec:     23.88MB\nRGNIX_RESULT {\"requests\":1781031,\"seconds\":10.099961,\"bytes\":252906402,\"errors\":0,\"p50_ms\":0.360000,\"p95_ms\":0.552000,\"p99_ms\":0.721000}\n",
+              "server_cpu_cores": 1.9534728896477918,
+              "server_cpu_us_per_request": 11.077853220971448,
+              "rss_kib": 33944,
+              "round": 3
+            }
+          ],
+          "median_rps": 188768.11665950483,
+          "median_p95_ms": 0.495,
+          "median_p99_ms": 0.572,
+          "median_server_cpu_us_per_request": 10.311960405428938,
+          "median_rss_kib": 33944
+        }
+      }
+    }
+  },
+  "qualification": "EXCLUDED from performance conclusions: overlapping unrelated build/test activity and large baseline/candidate latency variation on shared VM"
+}

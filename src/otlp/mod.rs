@@ -110,15 +110,22 @@ pub struct Exporter {
 }
 impl Exporter {
     pub fn start(options: Options, registry: &Registry) -> Result<Option<Self>> {
-        Self::start_signal(options, registry, config::Signal::Logs)
+        Self::start_signal(options, registry, config::Signal::Logs, "rgnix.access")
     }
     pub fn start_traces(options: Options, registry: &Registry) -> Result<Option<Self>> {
-        Self::start_signal(options, registry, config::Signal::Traces)
+        Self::start_signal(options, registry, config::Signal::Traces, "rgnix.proxy")
+    }
+    pub(crate) fn start_network(options: Options, registry: &Registry) -> Result<Option<Self>> {
+        Self::start_signal(options, registry, config::Signal::Logs, "rgnix.xdp")
+    }
+    pub(crate) fn network_log(&self, record: LogRecord) {
+        self.record(Record::Log(record));
     }
     fn start_signal(
         options: Options,
         registry: &Registry,
         signal: config::Signal,
+        scope: &'static str,
     ) -> Result<Option<Self>> {
         let Some(config) = options.configure(signal)? else {
             return Ok(None);
@@ -134,7 +141,7 @@ impl Exporter {
             .name(format!("otlp-{}",signal.name()))
             .spawn(move || {
                 runtime.block_on(async {
-                    let work = run(config, receiver, &worker_metrics);
+                    let work = run(config, receiver, &worker_metrics, scope);
                     tokio::pin!(work);
                     tokio::select! {
                         _ = &mut work => {},
@@ -198,7 +205,12 @@ impl Drop for Exporter {
     }
 }
 
-async fn run(config: config::Config, mut receiver: mpsc::Receiver<Record>, metrics: &Metrics) {
+async fn run(
+    config: config::Config,
+    mut receiver: mpsc::Receiver<Record>,
+    metrics: &Metrics,
+    scope_name: &'static str,
+) {
     while let Some(first) = receiver.recv().await {
         let mut size = first.encoded_len();
         let mut records = vec![first];
@@ -216,11 +228,7 @@ async fn run(config: config::Config, mut receiver: mpsc::Receiver<Record>, metri
         }
         let count = records.len();
         let scope = Some(InstrumentationScope {
-            name: match config.signal {
-                config::Signal::Logs => "rgnix.access",
-                config::Signal::Traces => "rgnix.proxy",
-            }
-            .into(),
+            name: scope_name.into(),
             version: env!("CARGO_PKG_VERSION").into(),
             ..Default::default()
         });

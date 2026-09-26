@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.0 — 2026-09-26 · Preview
+
+Optional RGL XDP packet policies, Gateway publication controls and resilient lifecycle handling. See the [release notes](docs/releases/v0.4.0.md) for installation, upgrade requirements and validation boundaries.
+
+- Restrict admission calls by IngressClass/Gateway ownership, hot-reload validated admission certificates, and support overlapping CA rotation and cert-manager CA injection.
+- Aggregate stage-qualified candidate samples across controller replicas before advancing a rollout; missing/stale observations pause progress.
+- Move Kubernetes plugin compilation into a bounded queue with per-namespace limits and administrator compile-rate budgets, leaving endpoint and certificate withdrawals independent of JIT work; wake reconciliation after compilation and wait for accepted plugin recovery before initial readiness.
+- Add configurable shutdown budgets, a preStop drain marker, readiness withdrawal and HTTP/1.1 Connection close before termination; keep active asynchronous requests alive within the shutdown deadline. Extend Gateway checks with persistent connections, follower-only rollout samples, admission outages, certificate rotation and gRPC stream completion during Pod termination.
+
+- Add HTTPRoute RequestMirror with percent/fraction sampling, ReferenceGrant/BackendTLS validation and bounded complete-body forwarding; add absolute request/backendRequest deadlines that also stop trickling streams without request replay.
+- Add Gateway/HTTPRoute/GRPCRoute isolated candidate preflight and TLS admission, including strict candidate-plugin validation, namespace authorization and protected rollout state.
+- Add staged admission registration so Gateway installation can start its TLS validator before registering the fail-closed webhook.
+- Add opt-in Ingress/Gateway replica publication reports, fixed-label metrics/alerts, authenticated `/v1/fleet` and `rgnix wait` expected-digest/minimum-replica gates.
+- Add opt-in revision-aware hard spreading across multiple nodes; scope business/admission Services and PDBs to HTTP controller Pods so same-release XDP agents cannot pollute discovery or availability counts.
+- Extend release acceptance with three-node kind configuration, configurable route scale, mixed HTTP/TLS/RGL/body/OTLP load, publication during in-flight requests and Pod replacement. See the [production gate](docs/production-readiness.md) and [executed scope](docs/validation-product-2026-09-26.md); full Gateway conformance is not claimed.
+
+- Pool Wasmtime resources within the runtime plugin budget while keeping fresh request instances; short-circuit XDP scope scans and avoid clock reads for non-expiring address sets. Add native wrk, paired binary and verified kernel benchmarks with an [executed performance record](docs/validation-performance-2026-09-26.md).
+- Fix standalone boolean XDP predicates rejected by Clang; make the product health-metrics regression wait for the named pool's probe convergence.
+- Add XDP ABI 2: scoped observation/enforcement, named per-source/subnet/port token buckets and byte budgets, independent global ceilings, bounded LRU state, expiring LPM address sets and stable rule counters.
+- Add sampled OTLP packet events using the existing bounded exporter; automatic content-based configuration/object watch, desired/applied status, readiness convergence, integrity checks and durable 20-revision rollback.
+- Add opt-in persistent link/program/map ownership and restart takeover, explicit safe detach, shared host locks, PCAP explanation, source diagnostics, `xdp doctor/status`, immutable libxdp dispatcher artifacts and an optional Helm DaemonSet.
+- Add isolated functional, dispatcher interoperability and real HTTP/UDP-load benchmark gates. Hardware NIC and multi-node performance qualification remain separate from virtual-interface evidence.
+
+- Add administrator-owned `on_xdp()` RGL packet policies compiled through Clang to real eBPF: IPv4/IPv6 CIDRs, TCP/UDP ports, SYN checks, bounded parsing and atomic packet-rate budgets.
+- Add `rgnix xdp compile/check/run/test`, exclusive native/generic BPF-link attachment, atomic SIGHUP replacement with last-good retention, automatic detach, health endpoints and Prometheus counters.
+- Provide an isolated Linux kernel/veth regression gate, a separate node DaemonSet example, and explicit packet-language, privilege, CNI coexistence and lifecycle boundaries.
+
 ## 0.3.0 — 2026-09-25 · Preview
 
 Gateway API, shared request-rate quotas, durable recovery and business-metric rollback. This preview adds native Linux amd64/arm64 release archives, a versioned GHCR image and an OCI Helm chart. See the [release notes](docs/releases/v0.3.0.md) for installation, upgrade boundaries and validation.

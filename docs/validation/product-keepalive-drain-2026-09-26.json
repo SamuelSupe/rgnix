@@ -1,0 +1,461 @@
+{
+  "complete": false,
+  "failure": {
+    "type": "AssertionError",
+    "message": "{\"workers\": [{\"requests\": 4283, \"failed_requests\": 0, \"errors\": []}, {\"requests\": 4292, \"failed_requests\": 1, \"errors\": [\"Remote end closed connection without response\"]}, {\"requests\": 264677, \"failed_requests\": 0, \"errors\": []}, {\"requests\": 4287, \"failed_requests\": 1, \"errors\": [\"[Errno 32] Broken pipe\"]}, {\"requests\": 4289, \"failed_requests\": 1, \"errors\": [\"Remote end closed connection without response\"]}, {\"requests\": 264627, \"failed_requests\": 0, \"errors\": []}], \"requests\": 546455, \"failed_requests\": 3, \"retained_latency_samples\": 37151, \"p99_ms\": 44.838494970463216}\nTraceback (most recent call last):\n  File \"<stdin>\", line 34, in <module>\nAssertionError\ncommand terminated with exit code 1\n"
+  },
+  "namespace": "rgnix-product-qa-20260926",
+  "peer_namespace": "rgnix-product-qa-20260926-peer",
+  "image": "rgnix:product-qa-20260926",
+  "soak_seconds": 180,
+  "scale_routes": 200,
+  "checks": [
+    {
+      "name": "Gateway status reflects published generation",
+      "passed": true
+    },
+    {
+      "name": "Service backend and Host preservation",
+      "passed": true
+    },
+    {
+      "name": "HTTPRoute status",
+      "passed": true
+    },
+    {
+      "name": "All replicas acknowledge the same accepted configuration",
+      "passed": true
+    },
+    {
+      "name": "Namespace-scoped identity cannot inspect peer configurations",
+      "passed": true
+    },
+    {
+      "name": "Replica observation fails closed when Lease reads are denied",
+      "passed": true
+    },
+    {
+      "name": "Replica observation failure leaves accepted data-plane traffic available",
+      "passed": true
+    },
+    {
+      "name": "Replica observation recovers after RBAC restoration",
+      "passed": true
+    },
+    {
+      "name": "request-deadline bounds delayed upstream headers",
+      "passed": true
+    },
+    {
+      "name": "backend-deadline bounds delayed upstream headers",
+      "passed": true
+    },
+    {
+      "name": "disabled-deadline bounds delayed upstream headers",
+      "passed": true
+    },
+    {
+      "name": "Backend deadline cancels a continuously streaming response",
+      "passed": true
+    },
+    {
+      "name": "Gateway preflight validates duration relationships without publishing",
+      "passed": true
+    },
+    {
+      "name": "Standard RequestMirror resolves its own backend reference",
+      "passed": true
+    },
+    {
+      "name": "Standard mirror preserves complete body, URI and Host",
+      "passed": true
+    },
+    {
+      "name": "Unauthorized mirror is disabled while primary requests continue",
+      "passed": true
+    },
+    {
+      "name": "Rejected references prevent a successful fleet publication acknowledgement",
+      "passed": true
+    },
+    {
+      "name": "Zero-percent standard mirror is accepted",
+      "passed": true
+    },
+    {
+      "name": "Replica adopts zero-percent mirror",
+      "passed": true
+    },
+    {
+      "name": "Replica adopts zero-percent mirror",
+      "passed": true
+    },
+    {
+      "name": "Zero-percent mirror sends no shadow requests",
+      "passed": true
+    },
+    {
+      "name": "Method, header and query match",
+      "passed": true
+    },
+    {
+      "name": "Predicate mismatch falls through",
+      "passed": true
+    },
+    {
+      "name": "Duplicate header matching uses the first value",
+      "passed": true
+    },
+    {
+      "name": "PathPrefix matches path segments",
+      "passed": true
+    },
+    {
+      "name": "Rewrite and literal request/response header modifiers",
+      "passed": true
+    },
+    {
+      "name": "Redirect preserves suffix/query and scheme default port",
+      "passed": true
+    },
+    {
+      "name": "Weighted route accepted",
+      "passed": true
+    },
+    {
+      "name": "Service weights independent of endpoint counts",
+      "passed": true,
+      "counts": {
+        "b": 36,
+        "a": 264
+      }
+    },
+    {
+      "name": "Cross-namespace backend denied without ReferenceGrant",
+      "passed": true
+    },
+    {
+      "name": "ReferenceGrant permits Service",
+      "passed": true
+    },
+    {
+      "name": "ReferenceGrant withdrawal revokes traffic",
+      "passed": true
+    },
+    {
+      "name": "RGL selects an explicitly declared backend",
+      "passed": true
+    },
+    {
+      "name": "Gateway accepted plugin is durably checkpointed",
+      "passed": true
+    },
+    {
+      "name": "Invalid plugin retains previous valid code",
+      "passed": true
+    },
+    {
+      "name": "Gateway preflight cannot hide an invalid candidate behind its checkpoint",
+      "passed": true
+    },
+    {
+      "name": "New replica 1 restores checkpoint while source is invalid",
+      "passed": true
+    },
+    {
+      "name": "New replica 2 restores checkpoint while source is invalid",
+      "passed": true
+    },
+    {
+      "name": "Endpoint withdrawal still applies during plugin failure",
+      "passed": true
+    },
+    {
+      "name": "Endpoint restoration",
+      "passed": true
+    },
+    {
+      "name": "Recreated ConfigMap cannot inherit old checkpoint code",
+      "passed": true
+    },
+    {
+      "name": "Revoked checkpoint is pruned",
+      "passed": true
+    },
+    {
+      "name": "Route deletion takes effect",
+      "passed": true
+    },
+    {
+      "name": "Unsupported expressions reported in status",
+      "passed": true
+    },
+    {
+      "name": "AllowedRoutes admits another namespace",
+      "passed": true
+    },
+    {
+      "name": "AllowedRoutes revocation removes foreign routes",
+      "passed": true
+    },
+    {
+      "name": "Namespace selector admits matching labels",
+      "passed": true
+    },
+    {
+      "name": "Cross-namespace method routing",
+      "passed": true
+    },
+    {
+      "name": "Namespace reader simulates an authorized Gateway route",
+      "passed": true
+    },
+    {
+      "name": "Simulation cannot cross tenant boundaries by changing method",
+      "passed": true
+    },
+    {
+      "name": "Gateway JWT rejects missing credentials",
+      "passed": true
+    },
+    {
+      "name": "Gateway JWT validates the declared issuer and audience",
+      "passed": true
+    },
+    {
+      "name": "JWT Secret withdrawal cannot fall through to a public prefix",
+      "passed": true
+    },
+    {
+      "name": "Gateway external auth denies unapproved requests",
+      "passed": true
+    },
+    {
+      "name": "Gateway external auth replaces spoofed identity headers",
+      "passed": true
+    },
+    {
+      "name": "Gateway rate policy accepted",
+      "passed": true
+    },
+    {
+      "name": "Replica serves shared-rate policy",
+      "passed": true
+    },
+    {
+      "name": "Replica serves shared-rate policy",
+      "passed": true
+    },
+    {
+      "name": "Gateway rate budget is shared across replicas",
+      "passed": true
+    },
+    {
+      "name": "Gateway persists the initial rollout stage",
+      "passed": true
+    },
+    {
+      "name": "Gateway staged 90/10 Service split",
+      "passed": true,
+      "counts": {
+        "a": 90,
+        "b": 10
+      }
+    },
+    {
+      "name": "Gateway mirror reaches its declared Service",
+      "passed": true
+    },
+    {
+      "name": "Gateway approval advances persisted stage",
+      "passed": true
+    },
+    {
+      "name": "Gateway stage weights change request routing",
+      "passed": true
+    },
+    {
+      "name": "Gateway stage and approval survive both replicas restarting",
+      "passed": true
+    },
+    {
+      "name": "Gateway explicit rollback routes to its stable backend",
+      "passed": true
+    },
+    {
+      "name": "Business rollout initially uses HTTP-successful candidate",
+      "passed": true
+    },
+    {
+      "name": "Sustained external business failure persists automatic rollback",
+      "passed": true
+    },
+    {
+      "name": "Business rollback survives restart on replica 1",
+      "passed": true
+    },
+    {
+      "name": "Business rollback survives restart on replica 2",
+      "passed": true
+    },
+    {
+      "name": "Gateway rollout cannot select an undeclared Service",
+      "passed": true
+    },
+    {
+      "name": "HTTPS Service requires a usable TLS transport policy",
+      "passed": true
+    },
+    {
+      "name": "BackendTLSPolicy validates private CA and hostname",
+      "passed": true
+    },
+    {
+      "name": "BackendTLS hostname mismatch rejects upstream connection",
+      "passed": true
+    },
+    {
+      "name": "Corrected BackendTLS hostname restores traffic",
+      "passed": true
+    },
+    {
+      "name": "Backend CA rotation invalidates previously trusted upstream pools",
+      "passed": true
+    },
+    {
+      "name": "Restored backend CA restores traffic",
+      "passed": true
+    },
+    {
+      "name": "Backend CA withdrawal fails closed with policy status",
+      "passed": true
+    },
+    {
+      "name": "Cross-namespace TLS Secret requires ReferenceGrant",
+      "passed": true
+    },
+    {
+      "name": "HTTPS SNI certificate and route",
+      "passed": true
+    },
+    {
+      "name": "TLS Secret rotates without restarting the data plane",
+      "passed": true
+    },
+    {
+      "name": "TLS Secret deletion revokes the SNI certificate",
+      "passed": true
+    },
+    {
+      "name": "GRPCRoute status",
+      "passed": true
+    },
+    {
+      "name": "gRPC HTTP/2 unary, trailers and bidirectional stream",
+      "passed": true
+    },
+    {
+      "name": "HTTPRoute initially uses the declared HTTP/1 backend protocol",
+      "passed": true
+    },
+    {
+      "name": "HTTPRoute honors Service h2c application protocol",
+      "passed": true
+    },
+    {
+      "name": "Unsupported HTTPS backend cannot be downgraded to plaintext",
+      "passed": true
+    },
+    {
+      "name": "Replica 1 loads administrator namespace quota",
+      "passed": true
+    },
+    {
+      "name": "Replica 2 loads administrator namespace quota",
+      "passed": true
+    },
+    {
+      "name": "Namespace total request quota is shared across replicas",
+      "passed": true
+    },
+    {
+      "name": "Exhausted tenant does not consume another namespace budget",
+      "passed": true
+    },
+    {
+      "name": "Two-replica rolling restart",
+      "passed": true
+    },
+    {
+      "name": "Clean deployment converges after a rolling restart",
+      "passed": true
+    },
+    {
+      "name": "CLI publication gate requires the expected digest and replica count",
+      "passed": true
+    },
+    {
+      "name": "Scale configuration converges on every replica",
+      "passed": true
+    },
+    {
+      "name": "New requests use the newly published plugin",
+      "passed": true
+    },
+    {
+      "name": "In-flight requests retain their plugin snapshot across publication",
+      "passed": true
+    },
+    {
+      "name": "Mixed HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement",
+      "passed": false,
+      "seconds": 180,
+      "scale_routes": 200,
+      "measurement": {
+        "workers": [
+          {
+            "requests": 4283,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4292,
+            "failed_requests": 1,
+            "errors": [
+              "Remote end closed connection without response"
+            ]
+          },
+          {
+            "requests": 264677,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4287,
+            "failed_requests": 1,
+            "errors": [
+              "[Errno 32] Broken pipe"
+            ]
+          },
+          {
+            "requests": 4289,
+            "failed_requests": 1,
+            "errors": [
+              "Remote end closed connection without response"
+            ]
+          },
+          {
+            "requests": 264627,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 546455,
+        "failed_requests": 3,
+        "retained_latency_samples": 37151,
+        "p99_ms": 44.838494970463216
+      }
+    }
+  ],
+  "scope": "Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"
+}

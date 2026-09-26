@@ -1,6 +1,7 @@
 pub mod metrics;
 mod progress;
 use anyhow::{Result, ensure};
+pub(crate) use progress::Samples;
 pub use progress::{Progress, Step};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -272,7 +273,8 @@ impl State {
         unreachable!()
     }
     pub fn completed(&self, backend: &str, failed: bool, elapsed: Duration, stage: usize) -> bool {
-        if stage != self.stage() {
+        let progress = self.progress.lock().unwrap_or_else(|e| e.into_inner());
+        if stage != progress.stage {
             return false;
         }
         let Some(rule) = &self.policy.rollback else {

@@ -1,5 +1,7 @@
 # 运维指标
 
+可选 [XDP 管理员进程](xdp.md#metrics-and-otlp-packet-events)在独立的 `127.0.0.1:9191/metrics` 暴露内核放行/丢包、规则包数/字节数、观察模式、限速预算/竞争、状态容量、发布收敛及 OTLP 输出指标；这些指标不在 HTTP 进程的 9090 端口中。
+
 v0.3.0 扩展了管理端口的 Prometheus `/metrics`，并提供 Helm metrics Service、ServiceMonitor 与告警规则。
 
 ## 接入
@@ -58,7 +60,9 @@ Counter 在进程重启时清零，使用 `rate()` 或 `increase()`；Gauge 是�
 
 | 范围 | 指标 | 含义与标签 |
 |---|---|---|
-| 实例 | `rgnix_build_info{version,mode,arch,os}` | 恒为 1；`mode` 为 standalone/ingress |
+| 副本发布（v0.4.0） | `rgnix_fleet_reporting_active`、`rgnix_fleet_converged`、`rgnix_fleet_observation_healthy`、`rgnix_fleet_observed_timestamp_seconds`、`rgnix_fleet_errors_total` | 启用 reportReplicas 或存在分阶段发布时自动上报；结合 reporting_active 与时间判断观测故障和陈旧数据 |
+| 副本分布（v0.4.0） | `rgnix_fleet_replicas{state}` | converged/drifted/rejected/reconciling/unready/stale/missing，固定七种状态，不含 Pod 名、原始路径或配置摘要标签 |
+| 实例 | `rgnix_build_info{version,mode,arch,os}` | 恒为 1；`mode` 为 standalone/ingress/gateway |
 | 可用性 | `rgnix_healthy`、`rgnix_ready` | 与 `/healthz`、`/readyz` 对应，1 正常/就绪；目标无法抓取请使用 Prometheus 的 `up` |
 | 流量 | `rgnix_requests_total{status}`、`rgnix_request_seconds` | 完成请求数、完整请求耗时 |
 | 路由 | `rgnix_route_requests_total{route,status_class}`、`rgnix_route_request_seconds{route}` | 按配置路由统计；不使用客户端原始路径 |
@@ -144,3 +148,6 @@ rate(process_cpu_seconds_total{job="rgnix"}[5m])
 promtool check rules examples/prometheus-alerts.yaml
 curl -fsS http://127.0.0.1:9090/metrics | promtool check metrics
 ```
+# Admission and drain lifecycle metrics
+
+Admission TLS exposes `rgnix_admission_certificate_expiry_timestamp_seconds`, `rgnix_admission_certificate_valid`, and `rgnix_admission_certificate_reload_errors_total`. Use these for certificate expiry and rejected-update alerts. `rgnix_draining` becomes 1 when irreversible connection draining begins. `rgnix_fleet_reporting_active` is 1 when reporting is requested or required by staged rollouts; use it to gate replica-observation alerts when reporting is disabled.

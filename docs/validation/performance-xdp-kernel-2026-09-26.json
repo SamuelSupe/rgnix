@@ -1,0 +1,584 @@
+{
+  "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535",
+  "architecture": "aarch64",
+  "cpu": 0,
+  "repeat": 100000,
+  "rounds": 7,
+  "method": "Kernel-reported mean ns over repeated identical frames; fresh maps per run; warmed single key, no NIC or contention",
+  "binaries": {
+    "baseline": {
+      "sha256": "8b95ee184a038807e9be8828f2444f0c900ef8fc861176a82841ed515c3ab16b",
+      "cases": {
+        "pass": {
+          "config": {},
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fe7b5cf2c8ddb4a9177981dfbda2ad1beb4de404f9149c1f3ed79703de99f0a8",
+          "runs_ns": [
+            16,
+            16,
+            16,
+            16,
+            18,
+            17,
+            15
+          ],
+          "median_ns": 16
+        },
+        "drop": {
+          "config": {},
+          "source": "function on_xdp() if pkt.is_udp() and pkt.dst_port() == 443 then return xdp.drop(\"udp\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "e71d530978d6053353b23b842b9b1e22600c2056cced85ce9d2290a40b4774df",
+          "runs_ns": [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            18
+          ],
+          "median_ns": 16
+        },
+        "scope_one": {
+          "config": {
+            "scope": {
+              "ports": [
+                443
+              ],
+              "protocols": [
+                6
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fe7b5cf2c8ddb4a9177981dfbda2ad1beb4de404f9149c1f3ed79703de99f0a8",
+          "runs_ns": [
+            38,
+            43,
+            35,
+            35,
+            35,
+            37,
+            37
+          ],
+          "median_ns": 37
+        },
+        "scope_first": {
+          "config": {
+            "scope": {
+              "ports": [
+                443,
+                1000,
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008,
+                1009,
+                1010,
+                1011,
+                1012,
+                1013,
+                1014,
+                1015,
+                1016,
+                1017,
+                1018,
+                1019,
+                1020,
+                1021,
+                1022,
+                1023,
+                1024,
+                1025,
+                1026,
+                1027,
+                1028,
+                1029,
+                1030
+              ],
+              "protocols": [
+                6,
+                100,
+                101,
+                102,
+                103,
+                104,
+                105,
+                106,
+                107,
+                108,
+                109,
+                110,
+                111,
+                112,
+                113,
+                114
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fe7b5cf2c8ddb4a9177981dfbda2ad1beb4de404f9149c1f3ed79703de99f0a8",
+          "runs_ns": [
+            31,
+            34,
+            28,
+            29,
+            30,
+            28,
+            28
+          ],
+          "median_ns": 29
+        },
+        "scope_last": {
+          "config": {
+            "scope": {
+              "ports": [
+                1000,
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008,
+                1009,
+                1010,
+                1011,
+                1012,
+                1013,
+                1014,
+                1015,
+                1016,
+                1017,
+                1018,
+                1019,
+                1020,
+                1021,
+                1022,
+                1023,
+                1024,
+                1025,
+                1026,
+                1027,
+                1028,
+                1029,
+                1030,
+                443
+              ],
+              "protocols": [
+                100,
+                101,
+                102,
+                103,
+                104,
+                105,
+                106,
+                107,
+                108,
+                109,
+                110,
+                111,
+                112,
+                113,
+                114,
+                6
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fe7b5cf2c8ddb4a9177981dfbda2ad1beb4de404f9149c1f3ed79703de99f0a8",
+          "runs_ns": [
+            26,
+            31,
+            27,
+            27,
+            28,
+            27,
+            28
+          ],
+          "median_ns": 27
+        },
+        "scope_bypass": {
+          "config": {
+            "scope": {
+              "ports": [
+                80
+              ],
+              "protocols": [
+                6
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fe7b5cf2c8ddb4a9177981dfbda2ad1beb4de404f9149c1f3ed79703de99f0a8",
+          "runs_ns": [
+            28,
+            32,
+            27,
+            27,
+            27,
+            27,
+            27
+          ],
+          "median_ns": 27
+        },
+        "set_miss": {
+          "config": {
+            "sets": {
+              "blocked": [
+                {
+                  "cidr": "192.0.2.0/24"
+                }
+              ]
+            }
+          },
+          "source": "function on_xdp() if pkt.src_in_set(\"blocked\") then return xdp.drop(\"blocked\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "5a4baf86a3a00ab40bc4a05b7053143b6294aa7863e0e3b347411ddd936b222f",
+          "runs_ns": [
+            20,
+            24,
+            20,
+            20,
+            21,
+            20,
+            20
+          ],
+          "median_ns": 20
+        },
+        "set_hit": {
+          "config": {
+            "sets": {
+              "blocked": [
+                {
+                  "cidr": "198.51.100.0/24"
+                }
+              ]
+            }
+          },
+          "source": "function on_xdp() if pkt.src_in_set(\"blocked\") then return xdp.drop(\"blocked\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "5a4baf86a3a00ab40bc4a05b7053143b6294aa7863e0e3b347411ddd936b222f",
+          "runs_ns": [
+            20,
+            21,
+            20,
+            21,
+            21,
+            21,
+            22
+          ],
+          "median_ns": 21
+        },
+        "per_ip_bucket": {
+          "config": {
+            "ceiling_pps": 1000000000,
+            "ceiling_burst": 1000000000
+          },
+          "source": "function on_xdp() if not xdp.allow(\"client\", \"src_ip\", 1000000000, 1000000000) then return xdp.drop(\"limited\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "e29340be0fd506bcd1191ce1ae9ebcac9e74d4355a4287de71d66c71ab8ea107",
+          "runs_ns": [
+            38,
+            46,
+            38,
+            38,
+            38,
+            38,
+            38
+          ],
+          "median_ns": 38
+        }
+      }
+    },
+    "candidate": {
+      "sha256": "c6049300dd4561446c84d90dba15960469d87c8496e2a5141702a05855ccd7d5",
+      "cases": {
+        "pass": {
+          "config": {},
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fd5167a3fd8ac812755b613648c63aa1942e462d1e3628dba57a614c91688fdb",
+          "runs_ns": [
+            16,
+            16,
+            16,
+            17,
+            16,
+            16,
+            16
+          ],
+          "median_ns": 16
+        },
+        "drop": {
+          "config": {},
+          "source": "function on_xdp() if pkt.is_udp() and pkt.dst_port() == 443 then return xdp.drop(\"udp\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "9042c3d96dbf64957734a79e871602a381116c124b1c43a98ff25a384b62f981",
+          "runs_ns": [
+            16,
+            16,
+            16,
+            16,
+            16,
+            17,
+            17
+          ],
+          "median_ns": 16
+        },
+        "scope_one": {
+          "config": {
+            "scope": {
+              "ports": [
+                443
+              ],
+              "protocols": [
+                6
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fd5167a3fd8ac812755b613648c63aa1942e462d1e3628dba57a614c91688fdb",
+          "runs_ns": [
+            17,
+            16,
+            17,
+            16,
+            17,
+            16,
+            16
+          ],
+          "median_ns": 16
+        },
+        "scope_first": {
+          "config": {
+            "scope": {
+              "ports": [
+                443,
+                1000,
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008,
+                1009,
+                1010,
+                1011,
+                1012,
+                1013,
+                1014,
+                1015,
+                1016,
+                1017,
+                1018,
+                1019,
+                1020,
+                1021,
+                1022,
+                1023,
+                1024,
+                1025,
+                1026,
+                1027,
+                1028,
+                1029,
+                1030
+              ],
+              "protocols": [
+                6,
+                100,
+                101,
+                102,
+                103,
+                104,
+                105,
+                106,
+                107,
+                108,
+                109,
+                110,
+                111,
+                112,
+                113,
+                114
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fd5167a3fd8ac812755b613648c63aa1942e462d1e3628dba57a614c91688fdb",
+          "runs_ns": [
+            16,
+            19,
+            16,
+            16,
+            16,
+            16,
+            17
+          ],
+          "median_ns": 16
+        },
+        "scope_last": {
+          "config": {
+            "scope": {
+              "ports": [
+                1000,
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008,
+                1009,
+                1010,
+                1011,
+                1012,
+                1013,
+                1014,
+                1015,
+                1016,
+                1017,
+                1018,
+                1019,
+                1020,
+                1021,
+                1022,
+                1023,
+                1024,
+                1025,
+                1026,
+                1027,
+                1028,
+                1029,
+                1030,
+                443
+              ],
+              "protocols": [
+                100,
+                101,
+                102,
+                103,
+                104,
+                105,
+                106,
+                107,
+                108,
+                109,
+                110,
+                111,
+                112,
+                113,
+                114,
+                6
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fd5167a3fd8ac812755b613648c63aa1942e462d1e3628dba57a614c91688fdb",
+          "runs_ns": [
+            28,
+            32,
+            29,
+            28,
+            29,
+            28,
+            29
+          ],
+          "median_ns": 29
+        },
+        "scope_bypass": {
+          "config": {
+            "scope": {
+              "ports": [
+                80
+              ],
+              "protocols": [
+                6
+              ]
+            }
+          },
+          "source": "function on_xdp() return xdp.pass(\"allow\") end",
+          "object_sha256": "fd5167a3fd8ac812755b613648c63aa1942e462d1e3628dba57a614c91688fdb",
+          "runs_ns": [
+            17,
+            19,
+            16,
+            17,
+            16,
+            16,
+            17
+          ],
+          "median_ns": 17
+        },
+        "set_miss": {
+          "config": {
+            "sets": {
+              "blocked": [
+                {
+                  "cidr": "192.0.2.0/24"
+                }
+              ]
+            }
+          },
+          "source": "function on_xdp() if pkt.src_in_set(\"blocked\") then return xdp.drop(\"blocked\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "a9c72a94c8036b85bcffb509c46984eb58a0a1c691888f40767c83ad599ee9cf",
+          "runs_ns": [
+            19,
+            21,
+            19,
+            19,
+            19,
+            19,
+            19
+          ],
+          "median_ns": 19
+        },
+        "set_hit": {
+          "config": {
+            "sets": {
+              "blocked": [
+                {
+                  "cidr": "198.51.100.0/24"
+                }
+              ]
+            }
+          },
+          "source": "function on_xdp() if pkt.src_in_set(\"blocked\") then return xdp.drop(\"blocked\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "a9c72a94c8036b85bcffb509c46984eb58a0a1c691888f40767c83ad599ee9cf",
+          "runs_ns": [
+            19,
+            22,
+            20,
+            20,
+            19,
+            20,
+            19
+          ],
+          "median_ns": 20
+        },
+        "per_ip_bucket": {
+          "config": {
+            "ceiling_pps": 1000000000,
+            "ceiling_burst": 1000000000
+          },
+          "source": "function on_xdp() if not xdp.allow(\"client\", \"src_ip\", 1000000000, 1000000000) then return xdp.drop(\"limited\") end return xdp.pass(\"allow\") end",
+          "object_sha256": "4e358b5ae0b073e828f6395fb7c815f23334c8997431852a231a880fb0f91152",
+          "runs_ns": [
+            41,
+            40,
+            41,
+            39,
+            38,
+            39,
+            38
+          ],
+          "median_ns": 39
+        }
+      }
+    }
+  }
+}

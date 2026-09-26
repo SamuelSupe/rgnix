@@ -20,6 +20,13 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Wait for all discovered controller replicas to accept the expected configuration digest.
+    Wait(rgnix::fleet::WaitOptions),
+    /// Compile or run an administrator-owned RGL packet filter in Linux XDP.
+    Xdp {
+        #[command(subcommand)]
+        command: rgnix::xdp::Command,
+    },
     /// Assess or convert existing configurations without changing a running deployment.
     Migrate {
         #[command(subcommand)]
@@ -133,6 +140,8 @@ fn main() -> Result<()> {
     rgnix::logging::init()?;
     let cli = Cli::parse();
     match cli.command {
+        Command::Wait(options) => options.run(),
+        Command::Xdp { command } => rgnix::xdp::run(command),
         Command::Migrate { command } => rgnix::migration::run(command),
         Command::Gateway {
             gateway,
@@ -192,7 +201,7 @@ fn main() -> Result<()> {
                 .collect();
             runtime::serve(
                 RuntimeSnapshot::empty(listeners),
-                Arc::new(Compiler::new()?),
+                Arc::new(Compiler::for_runtime(limits.max_plugin_instances)?),
                 Source::Gateway(options),
                 admin,
                 limits,
@@ -292,7 +301,7 @@ fn main() -> Result<()> {
             otlp,
             diagnostics,
         } => {
-            let compiler = Arc::new(Compiler::new()?);
+            let compiler = Arc::new(Compiler::for_runtime(limits.max_plugin_instances)?);
             let path = path.canonicalize().or_else(|error| {
                 if diagnostics.history_dir.is_some() {
                     Ok(std::env::current_dir()?
@@ -371,7 +380,7 @@ fn main() -> Result<()> {
             };
             runtime::serve(
                 RuntimeSnapshot::empty(listeners),
-                Arc::new(Compiler::new()?),
+                Arc::new(Compiler::for_runtime(limits.max_plugin_instances)?),
                 Source::Ingress(options),
                 admin,
                 limits,

@@ -15,6 +15,15 @@ pub struct Policy {
     pub rewrite: Option<Rewrite>,
     pub backends: Vec<(Option<String>, u32)>,
     pub listener_port: u16,
+    pub mirror: Option<MirrorPolicy>,
+    pub timeouts: super::timeouts::Budgets,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct MirrorPolicy {
+    pub backend: Option<String>,
+    pub numerator: u32,
+    pub denominator: u32,
 }
 impl Policy {
     pub fn select(&self) -> Option<String> {
@@ -186,6 +195,12 @@ impl PathModifier {
 pub fn filters(rule: &Rule, port: u16, prefix: bool) -> Result<Policy> {
     let mut policy = Policy {
         listener_port: port,
+        timeouts: rule
+            .timeouts
+            .as_ref()
+            .map(super::timeouts::Timeouts::budgets)
+            .transpose()?
+            .unwrap_or_default(),
         ..Default::default()
     };
     let mut seen = BTreeSet::new();
@@ -196,6 +211,7 @@ pub fn filters(rule: &Rule, port: u16, prefix: bool) -> Result<Policy> {
                 + usize::from(filter.response_header_modifier.is_some())
                 + usize::from(filter.request_redirect.is_some())
                 + usize::from(filter.url_rewrite.is_some())
+                + usize::from(filter.request_mirror.is_some())
                 == 1,
             "filter must contain exactly one configuration"
         );
@@ -222,6 +238,37 @@ pub fn filters(rule: &Rule, port: u16, prefix: bool) -> Result<Policy> {
             }
             "URLRewrite" => {
                 policy.rewrite = Some(filter.url_rewrite.clone().context("missing urlRewrite")?)
+            }
+            "RequestMirror" => {
+                let mirror = filter
+                    .request_mirror
+                    .as_ref()
+                    .context("missing requestMirror")?;
+                ensure!(
+                    mirror.percent.is_none() || mirror.fraction.is_none(),
+                    "mirror percent and fraction are mutually exclusive"
+                );
+                ensure!(
+                    mirror.backend_ref.weight.is_none() && mirror.backend_ref.filters.is_empty(),
+                    "mirror backendRef cannot have weight or filters"
+                );
+                let (numerator, denominator) = mirror
+                    .fraction
+                    .as_ref()
+                    .map_or((mirror.percent.unwrap_or(100), 100), |f| {
+                        (f.numerator, f.denominator.unwrap_or(100))
+                    });
+                ensure!(
+                    (1..=1_000_000).contains(&denominator)
+                        && numerator <= denominator
+                        && mirror.percent.is_none_or(|p| p <= 100),
+                    "invalid mirror fraction or percent"
+                );
+                policy.mirror = Some(MirrorPolicy {
+                    backend: None,
+                    numerator,
+                    denominator,
+                });
             }
             _ => anyhow::bail!("unsupported filter {}", filter.type_),
         }

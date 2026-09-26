@@ -68,3 +68,33 @@ groups:
           severity: warning
         annotations:
           summary: 'rgnix {{ $labels.instance }} reached its metric cardinality limit'
+      - alert: RgnixPublicationNotConverged
+        expr: (rgnix_fleet_converged == 0) and on (instance, job) (rgnix_fleet_reporting_active == 1)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} replicas have not converged'
+          description: 'Inspect authenticated /v1/fleet for rejected, drifted or missing replicas.'
+      - alert: RgnixPublicationObservationStale
+        expr: (rgnix_fleet_observation_healthy == 0 or time() - rgnix_fleet_observed_timestamp_seconds > 20) and on (instance, job) (rgnix_fleet_reporting_active == 1)
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix {{ $labels.instance }} cannot obtain fresh replica reports'
+          description: 'Check Pod/Lease RBAC, Kubernetes connectivity and controller clock synchronization.'
+      - alert: RgnixAdmissionCertificateExpiring
+        expr: rgnix_admission_certificate_expiry_timestamp_seconds - time() < 14 * 86400
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'rgnix admission TLS certificate expires within 14 days'
+      - alert: RgnixAdmissionCertificateUpdateRejected
+        expr: increase(rgnix_admission_certificate_reload_errors_total[5m]) > 0 or rgnix_admission_certificate_valid == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'rgnix admission TLS certificate requires operator attention'

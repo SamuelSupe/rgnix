@@ -103,7 +103,7 @@ EOF
 helm upgrade --install rgnix-otlp charts/rgnix --kube-context "$context" -n "$ns" \
   --set ingressClass="$ns" --set service.type=ClusterIP --set image.pullPolicy=Never \
   --set "watchNamespaces[0]=$ns" \
-  --set image.tag="${RGNIX_IMAGE_TAG:-0.3.0}" \
+  --set image.tag="${RGNIX_IMAGE_TAG:-0.4.0}" \
   --set otlpLogs.endpoint="https://collector.$ns.svc:4318/v1/logs" \
   --set otlpLogs.serviceName=rgnix-ingress-qa \
   --set otlpLogs.headersSecret.name=otlp-auth --set otlpLogs.caConfigMap.name=otlp-ca \

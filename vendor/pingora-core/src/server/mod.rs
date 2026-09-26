@@ -204,6 +204,7 @@ impl Default for RunArgs {
 /// services (see [crate::services]). The server object handles signals, reading configuration,
 /// zero downtime upgrade and error reporting.
 pub struct Server {
+    graceful_shutdown_check: Option<Box<dyn Fn() -> bool + Send + Sync>>,
     services: HashMap<NodeIndex, ServiceWrapper>,
     shutdown_watch: watch::Sender<bool>,
     // TODO: we many want to drop this copy to let sender call closed()
@@ -229,6 +230,14 @@ pub struct Server {
 // TODO: delete the pid when exit
 
 impl Server {
+    /// Register a nonblocking check for application work that must finish before
+    /// Tokio runtimes are stopped. The configured shutdown timeout bounds both
+    /// this drain and the remaining runtime shutdown; async tasks otherwise get
+    /// cancelled immediately when `Runtime::shutdown_timeout` is called.
+    pub fn set_graceful_shutdown_check(&mut self, check: impl Fn() -> bool + Send + Sync + 'static) {
+        self.graceful_shutdown_check = Some(Box::new(check));
+    }
+
     /// Acquire a receiver for the server's execution phase.
     ///
     /// The receiver will produce values for each transition.
@@ -471,6 +480,7 @@ impl Server {
         )));
 
         Server {
+            graceful_shutdown_check: None,
             services: Default::default(),
             shutdown_watch: tx,
             shutdown_recv: rx,
@@ -519,6 +529,7 @@ impl Server {
         )));
 
         Ok(Server {
+            graceful_shutdown_check: None,
             services: Default::default(),
             shutdown_watch: tx,
             shutdown_recv: rx,
@@ -813,7 +824,7 @@ impl Server {
         }
 
         // Give tokio runtimes time to exit
-        let shutdown_timeout = match shutdown_type {
+        let mut shutdown_timeout = match shutdown_type {
             ShutdownType::Quick => Duration::from_secs(0),
             ShutdownType::Graceful => Duration::from_secs(
                 self.configuration
@@ -822,6 +833,16 @@ impl Server {
                     .unwrap_or(5),
             ),
         };
+
+        if let (ShutdownType::Graceful, Some(complete)) =
+            (&shutdown_type, &self.graceful_shutdown_check)
+        {
+            let started = Instant::now();
+            while !complete() && started.elapsed() < shutdown_timeout {
+                thread::sleep(Duration::from_millis(25));
+            }
+            shutdown_timeout = shutdown_timeout.saturating_sub(started.elapsed());
+        }
 
         self.execution_phase_watch
             .send(ExecutionPhase::ShutdownRuntimes)

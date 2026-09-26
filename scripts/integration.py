@@ -479,7 +479,7 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
         check("configuration rejects invalid body modes, limits and timeouts", True)
         log_path = directory / "server.log"
         with log_path.open("w") as log:
-            process = subprocess.Popen([binary, "serve", "-c", str(conf), "--admin", f"127.0.0.1:{admin}"], stdout=log, stderr=log,
+            process = subprocess.Popen([binary, "serve", "-c", str(conf), "--admin", f"127.0.0.1:{admin}", "--drain-file", str(directory / "drain")], stdout=log, stderr=log,
                                        env={**os.environ, "SSL_CERT_FILE": str(directory / "cert.pem")})
             try:
                 wait_for(lambda: request(admin, "/readyz")[0], 200)
@@ -653,6 +653,25 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                     cancelled.sendall(b"GET /plugin/slow HTTP/1.1\r\nHost: example.test\r\n\r\n")
                 time.sleep(0.8)
                 check("client cancellation preserves service", request(port, "/alive")[2] == b"alive")
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+                connection.request("GET", "/alive")
+                response = connection.getresponse(); response.read()
+                assert not response.will_close
+                with socket.create_connection(("127.0.0.1", port), timeout=3) as websocket:
+                    websocket.sendall(b"GET /ws HTTP/1.1\r\nHost: example.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+                    stream = websocket.makefile("rb")
+                    assert b"101" in stream.readline()
+                    while stream.readline() != b"\r\n": pass
+                    (directory / "drain").touch()
+                    wait_for(lambda: request(admin, "/readyz")[0], 503)
+                    check("drain removes readiness while health stays live", request(admin, "/healthz")[0] == 200)
+                    connection.request("POST", "/api/drain", body=b"drain-once")
+                    response = connection.getresponse(); response.read()
+                    check("drain finishes the next keepalive request and advertises Connection close", response.status == 200 and response.will_close)
+                    websocket.sendall(b"\x81\x82abcd"+bytes([ord('o')^ord('a'),ord('k')^ord('b')]))
+                    check("established WebSocket remains usable during drain", stream.read(4)==b"\x81\x02ok")
+                    stream.close()
+                connection.close()
             except BaseException:
                 print(log_path.read_text()[-15000:], file=sys.stderr)
                 raise

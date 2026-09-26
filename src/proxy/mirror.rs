@@ -2,6 +2,9 @@ use super::*;
 use bytes::BytesMut;
 
 pub(super) struct MirrorRequest {
+    backend: String,
+    timeout: std::time::Duration,
+    preserve_host: bool,
     header: RequestHeader,
     body: BytesMut,
     limit: usize,
@@ -19,14 +22,44 @@ impl Proxy {
         let Some(route) = &ctx.route else {
             return;
         };
-        let Some(policy) = route
-            .rollout
-            .as_ref()
-            .and_then(|r| r.policy.mirror.as_ref())
-        else {
+        let (backend, numerator, denominator, limit, timeout, preserve_host) = if let Some(policy) =
+            route
+                .settings
+                .gateway
+                .as_ref()
+                .and_then(|p| p.mirror.as_ref())
+        {
+            let Some(backend) = &policy.backend else {
+                return;
+            };
+            (
+                backend.clone(),
+                policy.numerator,
+                policy.denominator,
+                64 * 1024,
+                std::time::Duration::from_millis(500),
+                true,
+            )
+        } else if let Some(rollout) = &route.rollout {
+            let Some(policy) = &rollout.policy.mirror else {
+                return;
+            };
+            let Some(backend) = rollout.backends.get(&policy.service) else {
+                return;
+            };
+            (
+                backend.clone(),
+                policy.percent,
+                100,
+                policy.max_body_bytes,
+                std::time::Duration::from_millis(policy.timeout_ms),
+                false,
+            )
+        } else {
             return;
         };
-        if rand::random::<u32>() % 100 >= policy.percent {
+        use rand::Rng;
+        if rand::thread_rng().gen_range(0..denominator) >= numerator {
             return;
         }
         let skip = session.was_upgraded()
@@ -40,7 +73,7 @@ impl Proxy {
                 .headers
                 .get("content-length")
                 .and_then(|v| v.to_str().ok()?.parse::<usize>().ok())
-                .is_some_and(|n| n > policy.max_body_bytes);
+                .is_some_and(|n| n > limit);
         let global = self.shared.mirrors.clone().try_acquire_owned();
         let tenant = route
             .tenant
@@ -64,13 +97,16 @@ impl Proxy {
             return;
         }
         ctx.mirror = Some(MirrorRequest {
+            backend: backend.clone(),
+            timeout,
+            preserve_host,
             header: header.clone(),
             body: BytesMut::new(),
-            limit: policy.max_body_bytes,
+            limit,
             trace: ctx
                 .trace
                 .as_ref()
-                .map(|t| t.client(ctx.request.method.as_str(), &policy.service, "mirror")),
+                .map(|t| t.client(ctx.request.method.as_str(), &backend, "mirror")),
             _global: global.unwrap(),
             _tenant: tenant.unwrap(),
         });
@@ -107,9 +143,10 @@ impl Proxy {
         let telemetry = self.shared.telemetry.clone();
         tokio::spawn(async move {
             let result = async {
-                let rollout = route.rollout.as_ref().unwrap();
-                let policy = rollout.policy.mirror.as_ref().unwrap();
-                let backend = &snapshot.backends[&rollout.backends[&policy.service]];
+                let backend = snapshot
+                    .backends
+                    .get(&mirror.backend)
+                    .ok_or_else(|| anyhow::anyhow!("mirror backend withdrawn"))?;
                 let transport = if route.settings.gateway.is_some() {
                     &backend.profile
                 } else {
@@ -140,13 +177,17 @@ impl Proxy {
                 let mut builder = transport
                     .client_builder()?
                     .resolve(name, lease.address)
-                    .timeout(std::time::Duration::from_millis(policy.timeout_ms))
+                    .timeout(mirror.timeout)
                     .pool_max_idle_per_host(0);
                 if transport.protocol == crate::upstream::Protocol::Http2 {
                     builder = builder.http2_prior_knowledge();
                 }
                 let client = builder.build()?;
                 let mut headers = mirror.header.headers.clone();
+                let host_header = match (mirror.preserve_host, headers.get("host")) {
+                    (true, Some(host)) => host.clone(),
+                    _ => http::HeaderValue::from_str(&backend.host_header)?,
+                };
                 for name in [
                     "host",
                     "content-length",
@@ -164,7 +205,7 @@ impl Proxy {
                 let response = client
                     .request(mirror.header.method.clone(), url)
                     .headers(headers)
-                    .header("Host", &backend.host_header)
+                    .header("Host", host_header)
                     .header("x-rgnix-mirror", "true")
                     .body(mirror.body.to_vec())
                     .send()

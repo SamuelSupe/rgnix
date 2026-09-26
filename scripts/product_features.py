@@ -185,6 +185,8 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
             first.healthy = False
             wait_for(lambda: all(json.loads(request(port, "/health")[2])["port"] == second.server_port for _ in range(4)), True)
             check("active health excludes an unhealthy HTTP endpoint", all(json.loads(request(port, "/health")[2])["port"] == second.server_port for _ in range(4)))
+            # Named and transport-specific pools can finish their probes at different times.
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_backend_endpoints", backend="healthy", state="unready"), 1)
             metrics = request(admin, "/metrics")[2].decode()
             check("backend metrics distinguish total, eligible and unready endpoints", metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="total") == 2 and metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="eligible") == 1 and metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="unready") == 1)
             first.healthy = True

@@ -18,6 +18,7 @@ pub struct Quota {
     pub max_body_bytes: u64,
     pub max_timeout_seconds: u64,
     pub max_script_bytes: usize,
+    pub max_compilations_per_minute: u32,
     pub max_inflight: usize,
     pub max_plugins: usize,
     pub max_auth: usize,
@@ -37,6 +38,7 @@ impl Default for Quota {
             max_body_bytes: 16 * 1024 * 1024,
             max_timeout_seconds: 60,
             max_script_bytes: 256 * 1024,
+            max_compilations_per_minute: 60,
             max_inflight: 64,
             max_plugins: 4,
             max_auth: 16,
@@ -61,7 +63,8 @@ impl Quota {
             self.max_body_bytes > 0
                 && self.max_body_bytes <= 1024 * 1024 * 1024
                 && (1..=3600).contains(&self.max_timeout_seconds)
-                && self.max_script_bytes <= 1024 * 1024,
+                && self.max_script_bytes <= 1024 * 1024
+                && (1..=600).contains(&self.max_compilations_per_minute),
             "invalid namespace body/timeout/script ceiling"
         );
         ensure!(

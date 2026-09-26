@@ -1,27 +1,44 @@
 mod budget;
 mod codegen;
 mod json;
-mod syntax;
+mod queue;
+pub(crate) mod syntax;
 use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, VecDeque},
     io::Read,
     path::Path,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex, OnceLock, Weak},
+    time::Instant,
 };
 use wasmtime::{
-    Caller, Config, Engine, Instance, InstancePre, Linker, Module, Store, StoreLimits,
-    StoreLimitsBuilder, Strategy, Val,
+    Caller, Config, Engine, Instance, InstanceAllocationStrategy, InstancePre, Linker, Module,
+    PoolingAllocationConfig, Store, StoreLimits, StoreLimitsBuilder, Strategy, Val,
 };
 
 pub use codegen::compile;
 const HOST_LIMIT: usize = 1024 * 1024;
 const FUEL: u64 = 100_000;
+const MEMORY_LIMIT: usize = 8 * 1024 * 1024;
+
+#[derive(Debug)]
+pub(crate) struct PendingCompilation(pub &'static str);
+impl std::fmt::Display for PendingCompilation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.0)
+    }
+}
+impl std::error::Error for PendingCompilation {}
 
 pub struct Compiler {
+    pub(crate) changed: tokio::sync::Notify,
+    pub(crate) generation: std::sync::atomic::AtomicU64,
     engine: Engine,
     cache: Mutex<HashMap<[u8; 32], Cached>>,
+    build_lock: Mutex<()>,
+    queue: OnceLock<Arc<queue::Queue>>,
+    warm: Mutex<VecDeque<(Instant, Arc<CompiledScript>)>>,
 }
 enum Cached {
     Ready(Weak<CompiledScript>),
@@ -80,14 +97,48 @@ struct Host {
 
 impl Compiler {
     pub fn new() -> Result<Self> {
+        Self::with_pool(None)
+    }
+    /// Size the Wasm resource pool to the HTTP admission budget. Stores, host
+    /// data and guest state remain private to each execution.
+    pub fn for_runtime(max_plugin_instances: usize) -> Result<Self> {
+        ensure!(
+            (1..=1_000_000).contains(&max_plugin_instances),
+            "max-plugin-instances must be 1..1000000"
+        );
+        // Two simulator permits and one serialized compilation check may run
+        // while every HTTP plugin permit is occupied.
+        Self::with_pool(Some(max_plugin_instances as u32 + 3))
+    }
+    fn with_pool(capacity: Option<u32>) -> Result<Self> {
         let mut config = Config::new();
         config
             .strategy(Strategy::Cranelift)
             .consume_fuel(true)
             .max_wasm_stack(256 * 1024);
+        if let Some(capacity) = capacity {
+            let mut pool = PoolingAllocationConfig::new();
+            pool.total_core_instances(capacity)
+                .total_memories(capacity)
+                .max_memories_per_module(1)
+                .max_memory_size(MEMORY_LIMIT)
+                .total_tables(0)
+                .max_tables_per_module(0)
+                .max_unused_warm_slots(0)
+                .linear_memory_keep_resident(64 * 1024);
+            config
+                .memory_reservation(MEMORY_LIMIT as u64)
+                .memory_guard_size(64 * 1024)
+                .allocation_strategy(InstanceAllocationStrategy::Pooling(pool));
+        }
         Ok(Self {
+            changed: tokio::sync::Notify::new(),
+            generation: std::sync::atomic::AtomicU64::new(0),
             engine: Engine::new(&config)?,
             cache: Mutex::new(HashMap::new()),
+            build_lock: Mutex::new(()),
+            queue: OnceLock::new(),
+            warm: Mutex::new(VecDeque::new()),
         })
     }
     pub fn load(&self, path: &Path) -> Result<Arc<CompiledScript>> {
@@ -101,6 +152,17 @@ impl Compiler {
         digest.update([u8::from(wasm)]);
         digest.update(bytes);
         let key = digest.finalize().into();
+        if let Some(result) = self.cached(&key)? {
+            return result;
+        }
+        let _build = self
+            .build_lock
+            .lock()
+            .map_err(|_| anyhow::anyhow!("compiler lock poisoned"))?;
+        if let Some(result) = self.cached(&key)? {
+            return result;
+        }
+        let result = self.build(bytes, wasm);
         let mut cache = self
             .cache
             .lock()
@@ -124,7 +186,7 @@ impl Compiler {
                 |_, entry| matches!(entry, Cached::Ready(script) if script.strong_count() > 0),
             );
         }
-        match self.build(bytes, wasm) {
+        match result {
             Ok(script) => {
                 cache.retain(|_, entry| match entry {
                     Cached::Ready(script) => script.strong_count() > 0,
@@ -142,6 +204,43 @@ impl Compiler {
                 Err(error)
             }
         }
+    }
+    fn cached(&self, key: &[u8; 32]) -> Result<Option<Result<Arc<CompiledScript>>>> {
+        let cache = self
+            .cache
+            .lock()
+            .map_err(|_| anyhow::anyhow!("compiler cache poisoned"))?;
+        Ok(match cache.get(key) {
+            Some(Cached::Ready(script)) => script.upgrade().map(Ok),
+            Some(Cached::Rejected(message)) => Some(Err(anyhow::anyhow!("{message}"))),
+            None => None,
+        })
+    }
+    pub(crate) fn for_tenant(
+        self: &Arc<Self>,
+        namespace: &str,
+        bytes: &[u8],
+        per_minute: u32,
+        wait: bool,
+    ) -> Result<Arc<CompiledScript>> {
+        ensure!(bytes.len() <= 1024 * 1024, "tenant script exceeds 1 MiB");
+        let mut digest = Sha256::new();
+        digest.update([0]);
+        digest.update(bytes);
+        let key = digest.finalize().into();
+        if let Some(result) = self.cached(&key)? {
+            return result;
+        }
+        let queue = self
+            .queue
+            .get_or_init(|| queue::Queue::start(Arc::downgrade(self)));
+        queue.submit(key, namespace, bytes, per_minute)?;
+        if wait {
+            return queue.wait(self, &key);
+        }
+        bail!(PendingCompilation(
+            "compilation pending; retaining accepted configuration while other updates proceed"
+        ))
     }
     fn build(&self, bytes: &[u8], wasm: bool) -> Result<Arc<CompiledScript>> {
         let binary = if wasm {
@@ -253,7 +352,7 @@ impl CompiledScript {
             strings: vec![],
             allocated: initial,
             limits: StoreLimitsBuilder::new()
-                .memory_size(8 * 1024 * 1024)
+                .memory_size(MEMORY_LIMIT)
                 .memories(1)
                 .tables(0)
                 .instances(1)
@@ -708,6 +807,27 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
 mod tests {
     use super::*;
     #[test]
+    fn tenant_compilation_budget_does_not_block_cached_scripts_or_other_tenants() -> Result<()> {
+        let compiler = Arc::new(Compiler::new()?);
+        let first = b"function on_request() return route.pass() end";
+        let second = b"function on_request() return resp.reply(200, \"other\") end";
+        let script = compiler.for_tenant("one", first, 1, true)?;
+        assert!(compiler.for_tenant("one", second, 1, true).is_err());
+        assert!(Arc::ptr_eq(
+            &script,
+            &compiler.for_tenant("one", first, 1, true)?
+        ));
+        let other = compiler.for_tenant("two", second, 1, true)?;
+        assert_ne!(script.digest, other.digest);
+        assert!(
+            compiler
+                .for_tenant("three", b"invalid RGL", 1, true)
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
     fn body_access_is_bounded_and_json_requires_complete_input() -> Result<()> {
         use crate::body::BodyView;
         use bytes::Bytes;
@@ -771,7 +891,7 @@ end"#,
 
     #[test]
     fn compiled_functions_branches_and_response_hooks() -> Result<()> {
-        let compiler = Compiler::new()?;
+        let compiler = Compiler::for_runtime(1)?;
         let source = br#"
 function choose(value)
     if value == "1" then return route.proxy("canary") end
@@ -821,7 +941,7 @@ end"#;
     fn compiler_rejects_recursion_and_runtime_bounds_loops() -> Result<()> {
         assert!(compile("function on_request() return on_request() end").is_err());
         assert!(compile("function on_request() local x = 1 x = true end").is_err());
-        let compiler = Compiler::new()?;
+        let compiler = Compiler::for_runtime(1)?;
         let script = compiler.from_bytes(b"function on_request() while true do end end", false)?;
         assert!(script.request(RequestData::default()).is_err());
         Ok(())
@@ -829,7 +949,7 @@ end"#;
 
     #[test]
     fn budgets_cover_host_allocations_and_imported_wasm_memory() -> Result<()> {
-        let compiler = Compiler::new()?;
+        let compiler = Compiler::for_runtime(1)?;
         let source = format!(
             "function on_request() local value = \"{}\" local n = 0 while n < 200 do req.set_header(\"x-budget\", value) n = n + 1 end return route.pass() end",
             "a".repeat(8192)
@@ -869,6 +989,126 @@ end"#;
         code.function(&function);
         module.section(&code);
         assert!(compiler.from_bytes(&module.finish(), true).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn pooled_instances_reset_guest_state_and_leave_control_plane_capacity() -> Result<()> {
+        use wasm_encoder::{
+            BlockType, CodeSection, ConstExpr, DataSection, ExportKind, ExportSection, Function,
+            FunctionSection, GlobalSection, GlobalType, Instruction as I, MemArg, MemorySection,
+            MemoryType, Module, TypeSection, ValType,
+        };
+        let mut module = Module::new();
+        let mut types = TypeSection::new();
+        types.ty().function([], [ValType::I64]);
+        module.section(&types);
+        let mut functions = FunctionSection::new();
+        functions.function(0);
+        functions.function(0);
+        module.section(&functions);
+        let mut memory = MemorySection::new();
+        memory.memory(MemoryType {
+            minimum: 1,
+            maximum: None,
+            memory64: false,
+            shared: false,
+            page_size_log2: None,
+        });
+        module.section(&memory);
+        let mut globals = GlobalSection::new();
+        globals.global(
+            GlobalType {
+                val_type: ValType::I32,
+                mutable: true,
+                shared: false,
+            },
+            &ConstExpr::i32_const(7),
+        );
+        module.section(&globals);
+        let mut exports = ExportSection::new();
+        exports.export("memory", ExportKind::Memory, 0);
+        exports.export("on_request", ExportKind::Func, 0);
+        exports.export("on_response", ExportKind::Func, 1);
+        module.section(&exports);
+        let address = MemArg {
+            offset: 0,
+            align: 0,
+            memory_index: 0,
+        };
+        let mut code = CodeSection::new();
+        for response in [false, true] {
+            let mut function = Function::new([]);
+            for instruction in [
+                I::I32Const(0),
+                I::I32Load8U(address),
+                I::I32Const(if response { 99 } else { 7 }),
+                I::I32Ne,
+                I::If(BlockType::Empty),
+                I::Unreachable,
+                I::End,
+                I::GlobalGet(0),
+                I::I32Const(if response { 99 } else { 7 }),
+                I::I32Ne,
+                I::If(BlockType::Empty),
+                I::Unreachable,
+                I::End,
+                I::MemorySize(0),
+                I::I32Const(if response { 2 } else { 1 }),
+                I::I32Ne,
+                I::If(BlockType::Empty),
+                I::Unreachable,
+                I::End,
+            ] {
+                function.instruction(&instruction);
+            }
+            if !response {
+                for instruction in [
+                    I::I32Const(0),
+                    I::I32Const(99),
+                    I::I32Store8(address),
+                    I::I32Const(99),
+                    I::GlobalSet(0),
+                    I::I32Const(1),
+                    I::MemoryGrow(0),
+                    I::Drop,
+                ] {
+                    function.instruction(&instruction);
+                }
+            }
+            function.instruction(&I::I64Const(0)).instruction(&I::End);
+            code.function(&function);
+        }
+        module.section(&code);
+        let mut data = DataSection::new();
+        data.active(0, &ConstExpr::i32_const(0), [7]);
+        module.section(&data);
+
+        let compiler = Compiler::for_runtime(1)?;
+        let script = compiler.from_bytes(&module.finish(), true)?;
+        let mut held = Vec::new();
+        // One HTTP execution and two simulations fill their respective budgets.
+        for _ in 0..3 {
+            held.push(script.request(RequestData::default())?.0);
+        }
+        let other = compiler.from_bytes(b"function on_request() return route.pass() end", false)?;
+        held.push(script.request(RequestData::default())?.0);
+        assert!(script.request(RequestData::default()).is_err());
+        for mut execution in held {
+            execution.response(200, BTreeMap::new())?;
+        }
+        for _ in 0..20 {
+            let (mut execution, _) = script.request(RequestData::default())?;
+            execution.response(200, BTreeMap::new())?;
+            drop(execution);
+            other.request(RequestData::default())?;
+        }
+        // Trap cleanup must also make the slot safe to reuse by another module.
+        let trap = compiler.from_bytes(b"function on_request() while true do end end", false)?;
+        for _ in 0..8 {
+            assert!(trap.request(RequestData::default()).is_err());
+            script.request(RequestData::default())?;
+        }
         Ok(())
     }
 }

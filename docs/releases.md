@@ -6,7 +6,7 @@ Starting with v0.3.0, the `Release` workflow builds native Linux amd64/arm64 arc
 
 1. Native Linux amd64 and arm64 runners build inside Rust 1.98 / Debian bookworm containers, avoiding a newer build-host glibc requirement in the Debian runtime.
 2. Both run formatting, Clippy, unit tests and socket/controller/logging/migration regression suites with locked dependencies as an unprivileged user, so filesystem-permission fault checks exercise the non-root runtime contract.
-3. The amd64 binary runs the Gateway API Kubernetes/TLS/gRPC behavioral harness in Kind with SHA256-verified v1.6.1 CRDs.
+3. The amd64 binary runs the Gateway API Kubernetes/TLS/gRPC behavioral harness in kind with SHA256-verified v1.6.1 CRDs. The current source adds two worker nodes, verifies replica placement, then exercises route scale and mixed load during configuration publication and Pod replacement.
 4. Only after these gates pass, assemble the native binaries into an amd64/arm64 image with BuildKit SBOM and provenance, sign the published digest using Sigstore OIDC, package a chart pointing to the versioned GHCR image, and generate archive SHA256 checksums.
 5. Publish image, OCI chart and GitHub release assets. GitHub artifact attestations cover the binary archives, chart and checksum file. Versions with major zero or a prerelease suffix are GitHub prereleases.
 
@@ -19,7 +19,7 @@ Update Cargo.toml, the rgnix package entry in Cargo.lock, Chart.yaml version/app
 Run a manual `workflow_dispatch` first. It builds candidates and uploads artifacts without pushing registry tags or creating a GitHub release. Once reviewed, push a new `vVERSION` tag on that exact commit. The tag must match both Cargo and chart metadata. Existing releases are not overwritten. The workflow requires the repository's Actions token to have package publication and artifact-attestation permissions.
 
 ```sh
-gh workflow run release.yml --ref YOUR_BRANCH
+gh workflow run release.yml --ref YOUR_BRANCH -f soak_seconds=600 -f scale_routes=200
 gh run list --workflow release.yml
 ```
 
@@ -39,5 +39,7 @@ helm pull oci://ghcr.io/samuelsupe/rgnix/charts/rgnix --version VERSION
 Verify the SHA256 or attestation of the chart archive as well. The OCI chart is published over an authenticated registry connection; this workflow does not claim a separate Helm provenance signature.
 
 Run `check`, migration assessment and request comparisons before standalone upgrades. Back up durable history, policy files and certificate/plugin dependencies. For Kubernetes, review `helm diff` or rendered manifests, keep two replicas and maxUnavailable=0, and watch readiness, rejection/error metrics and resource status. Gateway restores last-good plugins from controller-namespace ConfigMap checkpoints bound to Gateway, Route and source ConfigMap UIDs. Writes are asynchronous: only persisted updates are crash-durable, and live permissions, Secrets and endpoints are always rechecked. Preserve the controller's checkpoint ConfigMaps during upgrades. Upgrades requiring listener/worker changes require a restart.
+
+With v0.4.0+ images, enable `reportReplicas` and use [rgnix wait](publication.md) with the expected configuration digest and minimum replica count before continuing a release. Enable `shutdown.enabled` for the drain marker and configurable shutdown budget. The [production gate](production-readiness.md) lists environment-specific qualification still required.
 
 Rollback uses the previous image/chart version and matching source configuration. Never apply older Gateway CRDs over a newer cluster installation as an application rollback step. Read the release-specific compatibility notes before restoring a durable history directory produced by a newer binary.

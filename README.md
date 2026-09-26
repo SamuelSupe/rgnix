@@ -18,11 +18,15 @@
 
 **rgnix** is a Rust HTTP server, reverse proxy, and Kubernetes Ingress/Gateway API controller in one binary. [Pingora](https://github.com/cloudflare/pingora) and OpenSSL handle transport. **RGL**, a small Lua-style language, compiles to WebAssembly and then to native code through Wasmtime/Cranelift when configuration is loaded.
 
-> **v0.3.0 Preview** adds Gateway API, durable plugin recovery, shared request-rate quotas, business-metric rollback, richer metrics and W3C tracing. [Download](https://github.com/SamuelSupe/rgnix/releases/tag/v0.3.0) · [Release notes](docs/releases/v0.3.0.md) · [Changelog](CHANGELOG.md). Review the [validation scope](#validation) and [NGINX compatibility matrix](docs/compatibility.md) before deployment.
+> **v0.4.0 Preview** adds optional RGL-to-eBPF packet policies, Gateway mirroring and deadlines, replica publication gates, tenant compilation budgets and configurable connection draining. [Download](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0) · [Release notes](docs/releases/v0.4.0.md) · [Changelog](CHANGELOG.md). Review the [validation scope](#validation) and [NGINX compatibility matrix](docs/compatibility.md) before deployment.
 
 ## What you get
 
-**New in 0.3:** [Gateway API](docs/gateway-api.md), [shared rate limits](docs/shared-rate-limits.md), [migration tools](docs/migration.md), and native Linux amd64/arm64 distribution. Gateway uses a pre-provisioned data plane; upstream conformance certification is not claimed.
+**Packet policies before HTTP:** [RGL XDP filters](docs/xdp.md) compile to eBPF for optional Linux ingress filtering and packet-rate budgets. Use observation mode, named packet/byte token buckets, expiring address sets, rule metrics, OTLP packet events, automatic reload, durable rollback and PCAP replay. An optional Helm node agent runs independently of the HTTP Deployment; libxdp artifacts support compatible dispatcher deployments.
+
+**Safer Gateway changes:** standard HTTPRoute mirroring and transaction deadlines, isolated preflight/admission, replica publication status and `rgnix wait`. Admission calls are scoped to the selected controller; certificates reload without restarting Pods. Rollout progression aggregates samples across replicas, compilation has namespace budgets, and draining protects active streams within a configured deadline. See [Gateway contracts](docs/gateway-api.md), [publication status](docs/publication.md) and the [executed record](docs/validation-gateway-hardening-2026-09-26.md).
+
+**One deployable binary:** [Gateway API](docs/gateway-api.md), [shared rate limits](docs/shared-rate-limits.md), [migration tools](docs/migration.md), and native Linux amd64/arm64 distribution. Gateway uses a pre-provisioned data plane; upstream conformance certification is not claimed.
 
 | Area | Capabilities |
 | :--- | :--- |
@@ -36,21 +40,22 @@
 | **Tenant governance** | Administrator quotas and domain grants, namespace-scoped watches/RBAC, named reader/writer identities and audit logs |
 | **Release management** | Service weights, bounded mirrors, stable cohorts, staged canaries, approvals, metric gates, automatic error/latency and business-metric rollback |
 | **Operations** | OTLP logs/traces, local log rotation, Prometheus metrics, simulation, candidate diff/preflight, optional admission webhook, persistent standalone rollback |
+| **Optional XDP** | Compiled packet policies, observation mode, scoped packet/byte budgets, address sets, atomic replacement, persistent links and a separate node agent |
 
 ## Quick start
 
 ### Linux amd64 or arm64
 
-Download the matching archive and **SHA256SUMS** from [v0.3.0](https://github.com/SamuelSupe/rgnix/releases/tag/v0.3.0). For amd64 (use `arch=arm64` on AArch64):
+Download the matching archive and **SHA256SUMS** from [v0.4.0](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0). For amd64 (use `arch=arm64` on AArch64):
 
 ```sh
 arch=amd64
-archive="rgnix-0.3.0-linux-$arch.tar.gz"
-curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.3.0/$archive"
-curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.3.0/SHA256SUMS
+archive="rgnix-0.4.0-linux-$arch.tar.gz"
+curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/$archive"
+curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/SHA256SUMS
 grep " $archive\$" SHA256SUMS | sha256sum -c -
 tar -xzf "$archive"
-cd "rgnix-0.3.0-linux-$arch"
+cd "rgnix-0.4.0-linux-$arch"
 ./rgnix check -c examples/nginx.conf
 ./rgnix serve -c examples/nginx.conf
 ```
@@ -62,10 +67,10 @@ In another terminal, run `curl http://localhost:8080/health`. The static home pa
 The non-root image contains native binaries for **linux/amd64 and linux/arm64**:
 
 ```sh
-git clone --branch v0.3.0 https://github.com/SamuelSupe/rgnix.git
+git clone --branch v0.4.0 https://github.com/SamuelSupe/rgnix.git
 cd rgnix
 docker run --rm -p 8080:8080 -v "$PWD/examples:/etc/rgnix:ro" \
-  ghcr.io/samuelsupe/rgnix:0.3.0 serve -c /etc/rgnix/nginx.conf
+  ghcr.io/samuelsupe/rgnix:0.4.0 serve -c /etc/rgnix/nginx.conf
 ```
 
 To build from source, use **Rust 1.90+** on Linux (`Cargo.lock` pins dependencies; Docker and CI use Rust 1.98.0):
@@ -133,7 +138,8 @@ Install the versioned OCI chart:
 
 ```sh
 helm upgrade --install rgnix oci://ghcr.io/samuelsupe/rgnix/charts/rgnix \
-  --version 0.3.0 --namespace rgnix-system --create-namespace
+  --version 0.4.0 --namespace rgnix-system --create-namespace \
+  --set shutdown.enabled=true
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
 
@@ -201,6 +207,17 @@ The separate management listener exposes `/healthz`, `/readyz` and `/metrics`. T
 
 Operational metrics cover upstream latency phases and connection reuse, body traffic/inspection, live backend and tenant budgets, watch/Lease state, rollout gates, and Linux CPU/RSS/FD metrics. Helm includes a dedicated metrics Service and optional ServiceMonitor. See the [metric catalog and scrape setup](docs/metrics.md) and [Prometheus alerts](examples/prometheus-alerts.yaml).
 
+## Optional XDP packet policies
+
+Compile an administrator-owned RGL policy and inspect the object before attaching it:
+
+```sh
+rgnix xdp compile examples/edge-managed.rgl -o edge.o
+rgnix xdp check edge.o --config examples/xdp-policy.json
+```
+
+Compilation requires Clang with the BPF target. Deployment requires a supported Linux kernel, interface and BPF capabilities; start with the example's observation mode. Precompiled objects run with the normal image. XDP operates on packet addresses and ports; HTTP and body routing remain in Wasm. [Attach, observe and roll back](docs/xdp.md).
+
 ## CLI and architecture
 
 ```text
@@ -213,6 +230,8 @@ rgnix explain -c nginx.conf --host example.com --path /api
 rgnix simulate -c nginx.conf --request request.json
 rgnix ingress --ingress-class rgnix --publish-service namespace/service
 rgnix gateway --gateway namespace/name --publish-service namespace/service
+rgnix wait --admin-url http://127.0.0.1:9090 --token-file /run/secrets/admin --expected-sha256 DIGEST
+rgnix xdp compile edge.rgl -o edge.o
 rgnix migrate nginx -c nginx.conf
 rgnix migrate ingress -f ingress-and-services.yaml -o gateway.yaml
 rgnix migrate compare --before old.conf --after new.conf --requests requests.json
@@ -238,7 +257,7 @@ Compilation occurs on the control plane. Snapshot publication is atomic; in-flig
 
 ## Validation
 
-The [release workflow](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml) gates publication on native **amd64 and arm64** Rust/behavior checks, Clippy and release builds, followed by the amd64 Kubernetes Gateway/TLS/gRPC harness. See [release notes and verification](docs/releases/v0.3.0.md).
+The [release workflow](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml) gates publication on native **amd64 and arm64** Rust/behavior checks, Clippy and release builds, followed by the amd64 Kubernetes Gateway/TLS/gRPC harness. See [release notes and verification](docs/releases/v0.4.0.md).
 
 Pre-release acceptance on **OrbStack Linux arm64** recorded:
 
@@ -253,7 +272,11 @@ Pre-release acceptance on **OrbStack Linux arm64** recorded:
 
 The [P1 validation record](docs/validation-p1-product-2026-09-25.md) identifies the tested binaries and the order of the final Gateway guard regression. Earlier [tracing](docs/validation-tracing-2026-09-25.md), [metrics](docs/validation-metrics-2026-09-25.md) and [v0.2.0 release](docs/validation-release-0.2.0.md) records remain separate historical evidence.
 
+The [current-source record](docs/validation-gateway-hardening-2026-09-26.md) contains 14 Rust, 328 native behavior, 71 Ingress and 2 additional admission-scope checks, plus a complete **115-check Gateway run on the final image**. With 200 additional routes, a three-node, 180-second keepalive workload completed **30,363 requests with zero failures** (P99 **45.67 ms**) during plugin publication and Pod replacement. gRPC draining and admission certificate rotation passed; 24-hour and full upstream conformance qualification remain separate.
+
 **Outside acceptance scope:** upstream Gateway conformance certification, multi-node failure, cloud load balancers, long-duration load, adversarial tenant capacity, and Redis Sentinel/Cluster failover. Historical performance measurements are not a capacity guarantee.
+
+The [performance comparison](docs/validation-performance-2026-09-26.md) uses release builds, native wrk clients, CPU affinity and alternating before/after runs. It includes the RGL resource-pool and XDP scope optimizations shipped in v0.4.0, raw measurements and their qualification limits.
 
 ## Scope and documentation
 
@@ -266,10 +289,11 @@ rgnix implements an explicit NGINX subset. It does not implement full Lua/NGINX 
 | [Traffic policies](docs/product-features.md) | Authentication, load balancing, static serving, compression and traces |
 | [Governance](docs/governance.md) · [Platform policies](docs/platform-policies.md) | Domains, quotas, roles, staged releases, preflight, admission and rollback |
 | [Operations](docs/deployment.md) | Helm, TLS, recovery, metrics and shutdown |
+| [Publication](docs/publication.md) · [Production acceptance](docs/production-readiness.md) | Replica convergence, CLI gates, scale and sustained-load checks |
 | [Gateway API](docs/gateway-api.md) · [Migration](docs/migration.md) | Supported resources, field boundaries and migration candidates |
 | [Release engineering](docs/releases.md) · [Security](SECURITY.md) | Build gates, signed artifacts, versioning and reporting |
 | [OTLP](docs/otlp.md) · [File logs](docs/log-rotation.md) | Export, rotation and delivery limits |
-| [Validation](docs/validation-p1-product-2026-09-25.md) · [Contributing](CONTRIBUTING.md) | Evidence, reproduction and development checks |
+| [Validation](docs/validation-gateway-hardening-2026-09-26.md) · [Contributing](CONTRIBUTING.md) | Evidence, reproduction and development checks |
 
 Most detailed references and validation reports are currently in Chinese. [简体中文 README](README.zh-CN.md).
 

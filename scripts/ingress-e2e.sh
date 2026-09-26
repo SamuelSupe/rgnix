@@ -22,7 +22,7 @@ fi
 helm upgrade --install "$release" charts/rgnix --kube-context "$context" -n "$ns" \
   --set ingressClass="$class" --set service.type=LoadBalancer --set image.pullPolicy=Never \
   --set service.loadBalancerClass=rgnix.io/acceptance --set service.allocateLoadBalancerNodePorts=false \
-  --set image.tag="${RGNIX_IMAGE_TAG:-0.3.0}" --wait --timeout 180s
+  --set image.tag="${RGNIX_IMAGE_TAG:-0.4.0}" --wait --timeout 180s
 "${k[@]}" delete ingress fallback wildcard conflicting --ignore-not-found
 for color in blue green; do
   cat <<EOF | "${k[@]}" apply -f -

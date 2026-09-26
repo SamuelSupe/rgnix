@@ -1,6 +1,6 @@
 [package]
 name = "rgnix"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.90"
 description = "A programmable Rust HTTP server and Kubernetes Ingress controller"
@@ -31,6 +31,7 @@ libc = "0.2"
 log = "0.4"
 memchr = "2"
 openssl = "0.10"
+object = { version = "0.36.7", default-features = false, features = ["read", "elf"] }
 opentelemetry-proto = { version = "0.32", default-features = false, features = ["gen-tonic-messages", "logs", "trace"] }
 percent-encoding = "2"
 pingora = { version = "0.9", features = ["proxy", "openssl"] }
@@ -49,10 +50,14 @@ tokio = { version = "1", features = ["full"] }
 url = "2"
 wasm-encoder = "0.239"
 wasmparser = { version = "0.239", default-features = false, features = ["std"] }
-wasmtime = { version = "38", default-features = false, features = ["cranelift", "runtime", "std"] }
+wasmtime = { version = "38", default-features = false, features = ["cranelift", "runtime", "std", "pooling-allocator"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+aya = "0.14.0"
 
 [patch.crates-io]
 pingora-core = { path = "vendor/pingora-core" }
+pingora-proxy = { path = "vendor/pingora-proxy" }
 
 [profile.release]
 lto = "thin"

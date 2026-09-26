@@ -18,11 +18,15 @@
 
 **rgnix** 将 HTTP 服务、反向代理和 Kubernetes Ingress/Gateway API controller 放进一个 Rust 二进制。数据面基于 [Pingora](https://github.com/cloudflare/pingora) 与 OpenSSL；内置 Lua 风格语言 **RGL → WebAssembly → Wasmtime/Cranelift 机器码**，在加载配置时完成编译。
 
-> **v0.3.0 预览版**新增 Gateway API、持久化插件恢复、跨副本速率配额、业务指标回退，以及更完整的运维指标和 W3C 链路。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.3.0) · [发布说明](docs/releases/v0.3.0.md) · [更新记录](CHANGELOG.md)。部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
+> **v0.4.0 预览版**新增可选的 RGL→eBPF 报文策略、Gateway 镜像与总超时、副本发布门禁、租户编译预算和可配置连接排空。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0) · [发布说明](docs/releases/v0.4.0.md) · [更新记录](CHANGELOG.md)。部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
 
 ## 主要能力
 
-**0.3 新增：**[Gateway API](docs/gateway-api.md)、[共享限流](docs/shared-rate-limits.md)、[迁移工具](docs/migration.md)及 Linux amd64/arm64 原生产物。Gateway 采用预置数据面，尚未取得上游 conformance 认证。
+**HTTP 处理之前的报文策略：**[RGL XDP 入口过滤](docs/xdp.md)将 `on_xdp()` 编译为 eBPF，支持观察模式、作用范围、包和字节令牌桶、可过期地址集合、规则指标、OTLP 报文事件、自动更新、持久化回退和 PCAP 回放。可选 Helm 节点代理独立于 HTTP Deployment 运行；另提供兼容 libxdp dispatcher 的编译产物。
+
+**更可靠的 Gateway 变更：**标准 HTTPRoute 镜像与总超时、隔离预检和准入、副本配置状态及 `rgnix wait`。准入仅作用于指定控制器，证书无须重启即可更新；灰度推进汇总各副本样本，编译受命名空间预算限制，排空在配置期限内保护活跃流。见[Gateway 契约](docs/gateway-api.md)、[发布状态](docs/publication.md)及[实测记录](docs/validation-gateway-hardening-2026-09-26.md)。
+
+**单个二进制交付：**[Gateway API](docs/gateway-api.md)、[共享限流](docs/shared-rate-limits.md)、[迁移工具](docs/migration.md)及 Linux amd64/arm64 原生产物。Gateway 采用预置数据面，尚未取得上游 conformance 认证。
 
 | 领域 | 已实现能力 |
 | :--- | :--- |
@@ -36,21 +40,22 @@
 | **多租户治理** | 管理员配额与域名授权、限定 namespace 的 watch/RBAC、具名读写身份与操作审计 |
 | **发布管理** | Service 权重、受限镜像流量、稳定分组、分阶段灰度、审批、指标门禁、错误率/时延及业务指标自动回退 |
 | **运维** | OTLP 日志/链路、本地日志轮转、Prometheus 指标、模拟、配置 diff/预检、可选准入 Webhook、持久化历史回退 |
+| **可选 XDP** | 编译式报文策略、观察模式、包和字节预算、地址集合、原子替换、持久化链接及独立节点代理 |
 
 ## 快速运行
 
 ### 下载 Linux amd64 或 arm64 版本
 
-从 [v0.3.0 Release](https://github.com/SamuelSupe/rgnix/releases/tag/v0.3.0) 下载对应架构的压缩包与 **SHA256SUMS**。以下为 amd64，AArch64 请设置 `arch=arm64`：
+从 [v0.4.0 Release](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0) 下载对应架构的压缩包与 **SHA256SUMS**。以下为 amd64，AArch64 请设置 `arch=arm64`：
 
 ```sh
 arch=amd64
-archive="rgnix-0.3.0-linux-$arch.tar.gz"
-curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.3.0/$archive"
-curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.3.0/SHA256SUMS
+archive="rgnix-0.4.0-linux-$arch.tar.gz"
+curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/$archive"
+curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/SHA256SUMS
 grep " $archive\$" SHA256SUMS | sha256sum -c -
 tar -xzf "$archive"
-cd "rgnix-0.3.0-linux-$arch"
+cd "rgnix-0.4.0-linux-$arch"
 ./rgnix check -c examples/nginx.conf
 ./rgnix serve -c examples/nginx.conf
 ```
@@ -62,10 +67,10 @@ cd "rgnix-0.3.0-linux-$arch"
 非 root 镜像包含 **linux/amd64 与 linux/arm64** 原生二进制：
 
 ```sh
-git clone --branch v0.3.0 https://github.com/SamuelSupe/rgnix.git
+git clone --branch v0.4.0 https://github.com/SamuelSupe/rgnix.git
 cd rgnix
 docker run --rm -p 8080:8080 -v "$PWD/examples:/etc/rgnix:ro" \
-  ghcr.io/samuelsupe/rgnix:0.3.0 serve -c /etc/rgnix/nginx.conf
+  ghcr.io/samuelsupe/rgnix:0.4.0 serve -c /etc/rgnix/nginx.conf
 ```
 
 源码构建在 Linux 上使用 **Rust 1.90+**；依赖由 `Cargo.lock` 锁定，Docker 与 CI 使用 Rust 1.98.0：
@@ -133,7 +138,8 @@ end
 
 ```sh
 helm upgrade --install rgnix oci://ghcr.io/samuelsupe/rgnix/charts/rgnix \
-  --version 0.3.0 --namespace rgnix-system --create-namespace
+  --version 0.4.0 --namespace rgnix-system --create-namespace \
+  --set shutdown.enabled=true
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
 
@@ -201,6 +207,17 @@ http {
 
 运维指标覆盖上游分阶段耗时/连接复用、body 流量/预读、后端与租户预算占用、watch/Lease 状态、发布门禁及 Linux CPU/RSS/FD 指标。Helm 提供独立 metrics Service 和可选 ServiceMonitor，配套[指标目录与抓取说明](docs/metrics.md)、[Prometheus 告警规则](examples/prometheus-alerts.yaml)。
 
+## 可选 XDP 报文策略
+
+先编译管理员控制的 RGL 策略并检查产物，再按部署文档挂载到网卡：
+
+```sh
+rgnix xdp compile examples/edge-managed.rgl -o edge.o
+rgnix xdp check edge.o --config examples/xdp-policy.json
+```
+
+编译需要带 BPF 目标的 Clang；部署需要支持的 Linux 内核、网卡及 BPF 权限，建议先保留示例的观察模式。预编译对象可使用普通运行镜像加载。XDP 处理报文地址和端口，HTTP 与 body 路由仍使用 Wasm。[挂载、观察与回退](docs/xdp.md)。
+
 ## CLI 与运行架构
 
 ```text
@@ -213,6 +230,8 @@ rgnix explain -c nginx.conf --host example.com --path /api
 rgnix simulate -c nginx.conf --request request.json
 rgnix ingress --ingress-class rgnix --publish-service namespace/service
 rgnix gateway --gateway namespace/name --publish-service namespace/service
+rgnix wait --admin-url http://127.0.0.1:9090 --token-file /run/secrets/admin --expected-sha256 DIGEST
+rgnix xdp compile edge.rgl -o edge.o
 rgnix migrate nginx -c nginx.conf
 rgnix migrate ingress -f ingress-and-services.yaml -o gateway.yaml
 rgnix migrate compare --before old.conf --after new.conf --requests requests.json
@@ -238,7 +257,7 @@ flowchart LR
 
 ## 实际验证
 
-[发布流程](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml)在原生 **amd64 与 arm64** 上执行 Rust/行为回归、Clippy 和 release 构建，再使用 amd64 产物执行真实 Kubernetes Gateway/TLS/gRPC 检查，全部通过后才发布。见[发布说明与校验方法](docs/releases/v0.3.0.md)。
+[发布流程](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml)在原生 **amd64 与 arm64** 上执行 Rust/行为回归、Clippy 和 release 构建，再使用 amd64 产物执行真实 Kubernetes Gateway/TLS/gRPC 检查，全部通过后才发布。见[发布说明与校验方法](docs/releases/v0.4.0.md)。
 
 发布前在 **OrbStack Linux arm64** 上记录的验收结果：
 
@@ -253,7 +272,11 @@ flowchart LR
 
 [P1 验证记录](docs/validation-p1-product-2026-09-25.md)说明实际二进制与最后一次 Gateway 拒绝保护的回归顺序。此前的[链路](docs/validation-tracing-2026-09-25.md)、[指标](docs/validation-metrics-2026-09-25.md)和 [v0.2.0 发布](docs/validation-release-0.2.0.md)记录作为历史证据保留。
 
+[当前源码记录](docs/validation-gateway-hardening-2026-09-26.md)包含 14 项 Rust、328 项原生行为、71 项 Ingress、2 项额外准入范围检查，以及**最终镜像的一次完整 115 项 Gateway 检查**。三节点、追加 200 条路由的 180 秒持久连接负载，在插件更新和 Pod 替换期间完成 **30,363 次请求，零失败**，P99 **45.67 ms**。gRPC 排空和准入证书轮换通过；24 小时浸泡和完整标准认证仍需独立验收。
+
 **验收范围之外：**上游 Gateway conformance 认证、多节点故障、云 LoadBalancer、长期压测、恶意租户容量极限，以及 Redis Sentinel/Cluster 故障转移。历史性能数据不构成容量保证。
+
+[性能对比记录](docs/validation-performance-2026-09-26.md)使用 release 构建、原生 wrk、CPU 绑定和优化前后交替测试，记录 v0.4.0 中 RGL 资源池与 XDP 范围检查优化的结果、原始数据及适用边界。
 
 ## 范围与文档
 
@@ -266,10 +289,11 @@ rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则�
 | [流量策略](docs/product-features.md) | 认证、调度、静态文件、压缩和链路 |
 | [治理](docs/governance.md) · [平台策略](docs/platform-policies.zh-CN.md) | 域名、配额、身份、灰度、预检、准入与回退 |
 | [部署运维](docs/deployment.md) | Helm、TLS、恢复、指标与终止 |
+| [发布状态](docs/publication.md) · [生产验收](docs/production-readiness.md) | 副本收敛、CLI 门禁、规模和持续负载验证 |
 | [Gateway API](docs/gateway-api.md) · [迁移工具](docs/migration.md) | 资源与字段范围、迁移评估及候选配置 |
 | [发行流程](docs/releases.md) · [安全报告](SECURITY.md) | 构建门禁、签名产物、版本与报告渠道 |
 | [OTLP](docs/otlp.md) · [文件日志](docs/log-rotation.md) | 导出、轮转与投递边界 |
-| [验证记录](docs/validation-p1-product-2026-09-25.md) · [参与开发](CONTRIBUTING.md) | 运行证据、复现方法与开发检查 |
+| [验证记录](docs/validation-gateway-hardening-2026-09-26.md) · [参与开发](CONTRIBUTING.md) | 运行证据、复现方法与开发检查 |
 
 ## 许可证
 

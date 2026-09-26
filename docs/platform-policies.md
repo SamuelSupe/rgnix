@@ -15,6 +15,7 @@ Run the Ingress controller with `--tenant-policy-file /etc/rgnix/tenancy/policy.
     "max_body_bytes": 16777216,
     "max_timeout_seconds": 60,
     "max_script_bytes": 262144,
+    "max_compilations_per_minute": 60,
     "max_inflight": 64,
     "max_plugins": 4,
     "max_auth": 16,

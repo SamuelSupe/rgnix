@@ -15,6 +15,13 @@ fn minimum() -> usize {
     20
 }
 
+#[derive(Clone, Copy, Default, Serialize, Deserialize)]
+pub(crate) struct Samples {
+    pub count: u64,
+    pub errors: u64,
+    pub slow: u64,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Progress {
@@ -27,6 +34,45 @@ pub struct Progress {
     pub promoted: bool,
 }
 impl State {
+    pub(crate) fn sample_key(&self) -> String {
+        self.sample_key_at(&self.progress())
+    }
+    fn sample_key_at(&self, progress: &Progress) -> String {
+        use sha2::{Digest, Sha256};
+        format!(
+            "{:x}",
+            Sha256::digest(
+                serde_json::to_vec(&(
+                    &self.kind,
+                    &self.owner,
+                    &self.uid,
+                    self.policy_hash(),
+                    progress.stage,
+                    progress.started_at
+                ))
+                .unwrap()
+            )
+        )
+    }
+    pub(crate) fn sample_report(&self) -> (String, Samples) {
+        let progress = self.progress.lock().unwrap_or_else(|e| e.into_inner());
+        let key = self.sample_key_at(&progress);
+        let mut result = Samples::default();
+        let Some(rule) = &self.policy.rollback else {
+            return (key, result);
+        };
+        let window = self.window.lock().unwrap_or_else(|e| e.into_inner());
+        for (_, failed, elapsed) in window
+            .samples
+            .iter()
+            .filter(|s| s.0.elapsed().as_secs() <= rule.window_seconds)
+        {
+            result.count += 1;
+            result.errors += u64::from(*failed);
+            result.slow += u64::from(rule.max_p95_ms.is_some_and(|limit| *elapsed > limit));
+        }
+        (key, result)
+    }
     pub fn policy_hash(&self) -> String {
         use sha2::{Digest, Sha256};
         format!(
@@ -66,7 +112,6 @@ impl State {
         let mut current = self.progress.lock().unwrap_or_else(|e| e.into_inner());
         let changed = current.stage != progress.stage || current.started_at != progress.started_at;
         *current = progress;
-        drop(current);
         if changed {
             self.window
                 .lock()
@@ -88,7 +133,12 @@ impl State {
             })
             .collect()
     }
-    pub fn next_progress(&self, now: i64, gates_pass: bool) -> Option<Progress> {
+    pub(crate) fn next_progress(
+        &self,
+        now: i64,
+        gates_pass: bool,
+        samples: Option<Samples>,
+    ) -> Option<Progress> {
         if self.policy.steps.is_empty() {
             return None;
         }
@@ -110,42 +160,23 @@ impl State {
         {
             return None;
         }
-        let window = self.window.lock().unwrap_or_else(|e| e.into_inner());
-        if window.rolled_back {
+        if self.rolled_back() {
             return None;
         }
-        let recent: Vec<_> = window
-            .samples
-            .iter()
-            .filter(|s| {
-                s.0.elapsed().as_secs()
-                    <= self
-                        .policy
-                        .rollback
-                        .as_ref()
-                        .map_or(60, |r| r.window_seconds)
-            })
-            .collect();
-        if recent.len() < step.min_requests {
+        let samples = samples?;
+        if samples.count < step.min_requests as u64 {
             return None;
         }
-        if !recent.is_empty()
+        if samples.count > 0
             && let Some(rule) = &self.policy.rollback
         {
-            if recent.iter().filter(|s| s.1).count() * 100
-                >= recent.len() * rule.error_percent as usize
-            {
+            if samples.errors * 100 >= samples.count * u64::from(rule.error_percent) {
                 return None;
             }
-            if let Some(limit) = rule.max_p95_ms {
-                let mut times: Vec<_> = recent.iter().map(|s| s.2).collect();
-                times.sort_unstable();
-                if times[(times.len() * 95).div_ceil(100).saturating_sub(1)] > limit {
-                    return None;
-                }
+            if rule.max_p95_ms.is_some() && samples.slow > samples.count / 20 {
+                return None;
             }
         }
-        drop(window);
         if progress.stage + 1 == self.policy.steps.len() {
             progress.promoted = true;
         } else {

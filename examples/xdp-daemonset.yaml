@@ -1,0 +1,130 @@
+---
+# Source: rgnix/templates/xdp.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rgnix-xdp
+  namespace: rgnix-system
+spec:
+  minReadySeconds: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rgnix-xdp
+      app.kubernetes.io/instance: rgnix
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rgnix-xdp
+        app.kubernetes.io/instance: rgnix
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      nodeSelector:
+        kubernetes.io/os: linux
+        rgnix.io/xdp: enabled
+      tolerations:
+        []
+      initContainers:
+        - name: verify-policy
+          image: "ghcr.io/samuelsupe/rgnix:0.4.0"
+          imagePullPolicy: IfNotPresent
+          args: [xdp, check, "/policy/edge.o", --config, "/policy/policy.json", --kernel]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [BPF, NET_ADMIN, PERFMON]
+            seccompProfile:
+              type: Unconfined
+          volumeMounts:
+            - name: policy
+              mountPath: /policy
+              readOnly: true
+      containers:
+        - name: xdp
+          image: "ghcr.io/samuelsupe/rgnix:0.4.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - xdp
+            - run
+            - "/policy/edge.o"
+            - --config
+            - "/policy/policy.json"
+            - --interface
+            - "eth0"
+            - --mode
+            - "native"
+            - --admin
+            - "127.0.0.1:9191"
+            - --watch-interval
+            - "1"
+            - --history-dir
+            - /var/lib/rgnix-xdp
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: OTEL_SERVICE_NAME
+              value: rgnix-xdp
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "k8s.node.name=$(NODE_NAME)"
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [BPF, NET_ADMIN, PERFMON]
+            seccompProfile:
+              type: Unconfined
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          readinessProbe:
+            exec:
+              command: [rgnix, xdp, status, --ready, --admin, "127.0.0.1:9191"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: [rgnix, xdp, status, --health, --admin, "127.0.0.1:9191"]
+            periodSeconds: 10
+          volumeMounts:
+            - name: policy
+              mountPath: /policy
+              readOnly: true
+            - name: bpf
+              mountPath: /sys/fs/bpf
+            - name: locks
+              mountPath: /run/rgnix-xdp
+            - name: history
+              mountPath: /var/lib/rgnix-xdp
+      volumes:
+        - name: policy
+          configMap:
+            name: rgnix-xdp-policy
+        - name: bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: locks
+          hostPath:
+            path: /run/rgnix-xdp
+            type: DirectoryOrCreate
+        - name: history
+          hostPath:
+            path: /var/lib/rgnix-xdp
+            type: DirectoryOrCreate

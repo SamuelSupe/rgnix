@@ -50,7 +50,8 @@ server.serve_forever()
 def main():
     namespace = sys.argv[1]
     context = sys.argv[2] if len(sys.argv) > 2 else "orbstack"
-    tag = os.environ.get("RGNIX_IMAGE_TAG", "0.3.0")
+    tag = os.environ.get("RGNIX_IMAGE_TAG", "0.4.0")
+    repository = os.environ.get("RGNIX_IMAGE_REPOSITORY", "rgnix")
     kube = ["kubectl", "--context", context, "-n", namespace]
     forwards = []
 
@@ -201,7 +202,9 @@ service:
             k("rollout", "status", "deployment/policy-collector", "--timeout=120s")
             apply("ConfigMap", "namespace-policy", data={"policy.json":json.dumps({"default":{"max_inflight":2,"max_plugins":1,"max_auth":1,"max_mirrors":1,"max_body_bytes":3*1024*1024,"max_limiter_keys":16,"allow_mirroring":True,"requests_per_second":10000,"burst":10000},"namespaces":{namespace+"-tenant":{"max_ingresses":1,"max_routes":1,"max_inflight":2,"max_plugins":1,"max_auth":1,"max_mirrors":1}}})})
             values = {
-                "ingressClass": namespace, "image": {"tag": tag, "pullPolicy": "Never"},
+                "ingressClass": namespace, "image": {"repository": repository, "tag": tag, "pullPolicy": "Never"},
+                "reportReplicas": True,
+                "shutdown": {"enabled": True},
                 "service": {
                     "type": "LoadBalancer", "loadBalancerClass": "rgnix.io/acceptance",
                     "allocateLoadBalancerNodePorts": False,
@@ -248,6 +251,9 @@ service:
                 raise AssertionError(f"unexpected forwarded identity: {identity}")
             check("Helm trusted proxy settings control forwarded identity", identity.get("x-real-ip") == "203.0.113.9" and identity.get("x-forwarded-proto") == "https")
             check("Helm admin token enables protected diagnostics", request("", "/v1/config", admin=True)[0] == 401 and request("", "/v1/config", admin=True, headers={"Authorization": "Bearer " + token})[0] == 200)
+            wait(lambda: json.loads(request("", "/v1/fleet", admin=True, headers={"Authorization": "Bearer " + token})[2]).get("converged"), True)
+            fleet = json.loads(request("", "/v1/fleet", admin=True, headers={"Authorization": "Bearer " + token})[2])
+            check("Ingress replicas report the same accepted configuration", len(fleet["replicas"]) == 2 and fleet["target"]["active_sha256"])
             check("Ingress rejects snapshot rollback in favor of source resources", request("", "/v1/rollback/1", method="POST", admin=True, headers={"Authorization": "Bearer " + token})[0] == 409)
             ingress("rate", {"limit-rate": "1 burst=2 key=header:x-tenant"})
             def rate_limited():
@@ -440,6 +446,10 @@ server.count=0;server.last={};server.serve_forever()
             forced={"revision":"forced-v1","backends":[{"service":"stable:http","weight":0},{"service":"candidate:http","weight":100}],"rollback":{"fallback":"stable:http","min_requests":3,"error_percent":50,"window_seconds":60}}
             ingress("forced-fallback",{"traffic-policy":json.dumps(forced),"script":"forced-route/main.rgl"})
             wait(lambda:"forced-v1" in request("","/v1/routes",admin=True,headers=admin_auth)[2].decode(),True)
+            def forced_candidate_ready():
+                status, _, body = request("forced-fallback")
+                return status == 200 and json.loads(body).get("role") == "candidate"
+            wait(forced_candidate_ready, True)
             for _ in range(10):request("forced-fallback","/fail")
             wait(lambda:json.loads(k("get","ingress","forced-fallback","-o","json"))["metadata"]["annotations"].get("rgnix.io/rolled-back-revision"),"forced-v1")
             for pod in pods():
@@ -612,7 +622,7 @@ server.count=0;server.last={};server.serve_forever()
                 process.terminate()
                 process.wait(timeout=5)
                 output.close()
-    result = {"namespace": namespace, "context": context, "image": "rgnix:" + tag, "passed": len(RESULTS), "checks": RESULTS}
+    result = {"namespace": namespace, "context": context, "image": repository + ":" + tag, "passed": len(RESULTS), "checks": RESULTS}
     Path(".local/product-kubernetes.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
 

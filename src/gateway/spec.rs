@@ -38,6 +38,7 @@ pub struct Rule {
     pub filters: Vec<Filter>,
     #[serde(default)]
     pub backend_refs: Vec<BackendRef>,
+    pub timeouts: Option<super::timeouts::Timeouts>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -100,6 +101,33 @@ pub struct Filter {
     pub response_header_modifier: Option<Headers>,
     pub request_redirect: Option<Redirect>,
     pub url_rewrite: Option<Rewrite>,
+    pub request_mirror: Option<Mirror>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Mirror {
+    pub backend_ref: BackendRef,
+    pub percent: Option<u32>,
+    pub fraction: Option<Fraction>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Fraction {
+    pub numerator: u32,
+    pub denominator: Option<u32>,
+}
+
+impl Rule {
+    pub fn mirror(&self) -> Option<&Mirror> {
+        self.filters.iter().find_map(|f| f.request_mirror.as_ref())
+    }
+    pub fn all_backends(&self) -> impl Iterator<Item = &BackendRef> {
+        self.backend_refs
+            .iter()
+            .chain(self.mirror().map(|m| &m.backend_ref))
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

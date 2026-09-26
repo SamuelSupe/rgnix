@@ -1,0 +1,12 @@
+function on_xdp()
+    if pkt.src_in_set("blocked") then
+        return xdp.drop("blocked-source")
+    end
+    if pkt.tcp_syn() and not xdp.allow("client-syn", "src_ip", 100, 200) then
+        return xdp.drop("syn-budget")
+    end
+    if not xdp.allow_bytes("subnet-bytes", "src_subnet", 10485760, 20971520) then
+        return xdp.drop("subnet-bandwidth")
+    end
+    return xdp.pass("accepted")
+end

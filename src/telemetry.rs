@@ -29,6 +29,7 @@ pub struct Telemetry {
     labels: std::sync::Mutex<std::collections::BTreeSet<String>>,
     pub healthy: AtomicBool,
     pub ready: AtomicBool,
+    pub draining: IntGauge,
     pub registry: Registry,
     pub requests: IntCounterVec,
     pub duration: Histogram,
@@ -60,6 +61,11 @@ pub struct Telemetry {
 impl Telemetry {
     pub fn new(otlp: crate::otlp::Options) -> Result<Arc<Self>> {
         let registry = Registry::new();
+        let draining = prometheus::register_int_gauge_with_registry!(
+            "rgnix_draining",
+            "Process has begun connection draining",
+            registry
+        )?;
         #[cfg(target_os = "linux")]
         registry.register(Box::new(
             prometheus::process_collector::ProcessCollector::for_self(),
@@ -274,6 +280,7 @@ impl Telemetry {
             backend_requests,
             labels: Default::default(),
             healthy: AtomicBool::new(true),
+            draining,
             ready: AtomicBool::new(false),
             registry,
             requests,
@@ -367,7 +374,7 @@ impl Telemetry {
                 }
             }
             "/readyz" => {
-                if self.ready.load(Ordering::Acquire) {
+                if self.ready.load(Ordering::Acquire) && self.draining.get() == 0 {
                     (200, b"ready\n".to_vec(), "text/plain")
                 } else {
                     (503, b"not ready\n".to_vec(), "text/plain")

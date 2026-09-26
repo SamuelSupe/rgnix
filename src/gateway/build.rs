@@ -20,9 +20,11 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct History {
     scripts: BTreeMap<String, GoodScript>,
+    pending_restores: BTreeSet<String>,
+    pub(super) strict: Option<String>,
 }
 #[derive(Clone)]
 struct GoodScript {
@@ -107,30 +109,47 @@ fn script(
         "script exceeds namespace size limit"
     );
     let map_uid = map.uid().unwrap_or_default();
-    if !history.scripts.contains_key(&uid)
+    if history.strict.as_ref() != Some(&uid)
+        && !history.scripts.contains_key(&uid)
         && let Some(accepted) = super::checkpoint::restore(resources, owner.0, object, owner.1)
         && accepted.reference == *reference
         && accepted.configmap_uid == map_uid
         && accepted.source.len() <= quota.map_or(256 * 1024, |q| q.max_script_bytes)
-        && let Ok(script) = shared
-            .compiler
-            .from_bytes(accepted.source.as_bytes(), false)
     {
-        history.scripts.insert(
-            uid.clone(),
-            GoodScript {
-                reference: accepted.reference.clone(),
-                configmap_uid: accepted.configmap_uid.clone(),
-                spec: accepted.spec.clone(),
-                script,
-                source_bytes: accepted.source.len(),
-                annotations: accepted.annotations.clone(),
-                accepted,
-            },
-        );
+        match shared.compiler.for_tenant(
+            &object.namespace().unwrap_or_default(),
+            accepted.source.as_bytes(),
+            quota.map_or(60, |q| q.max_compilations_per_minute),
+            history.strict.is_some(),
+        ) {
+            Ok(script) => {
+                history.scripts.insert(
+                    uid.clone(),
+                    GoodScript {
+                        reference: accepted.reference.clone(),
+                        configmap_uid: accepted.configmap_uid.clone(),
+                        spec: accepted.spec.clone(),
+                        script,
+                        source_bytes: accepted.source.len(),
+                        annotations: accepted.annotations.clone(),
+                        accepted,
+                    },
+                );
+            }
+            Err(error) if error.is::<crate::script::PendingCompilation>() => {
+                history.pending_restores.insert(uid.clone());
+            }
+            Err(_) => {}
+        }
     }
-    match shared.compiler.from_bytes(source.as_bytes(), false) {
+    match shared.compiler.for_tenant(
+        &object.namespace().unwrap_or_default(),
+        source.as_bytes(),
+        quota.map_or(60, |q| q.max_compilations_per_minute),
+        history.strict.is_some(),
+    ) {
         Ok(script) => {
+            history.pending_restores.remove(&uid);
             let accepted = super::checkpoint::Accepted {
                 schema: 1,
                 gateway_uid: find(resources, "Gateway", &owner.0.namespace, &owner.0.name)
@@ -165,6 +184,10 @@ fn script(
             Ok((spec, Some(script), false))
         }
         Err(error) => {
+            ensure!(
+                history.strict.as_ref() != Some(&uid),
+                "plugin compilation failed: {error:#}"
+            );
             let previous = history
                 .scripts
                 .get(&uid)
@@ -212,7 +235,7 @@ fn settings(
     Ok((settings, backend, tls))
 }
 
-fn parent_targets(parent: &Reference, route_ns: &str, options: &Options) -> bool {
+pub(super) fn parent_targets(parent: &Reference, route_ns: &str, options: &Options) -> bool {
     parent.group.as_deref().unwrap_or(GROUP) == GROUP
         && parent.kind.as_deref().unwrap_or("Gateway") == "Gateway"
         && parent.namespace.as_deref().unwrap_or(route_ns) == options.namespace
@@ -225,6 +248,7 @@ pub(super) fn build(
     shared: &Shared,
     mut history: History,
 ) -> (Built, History) {
+    history.pending_restores.clear();
     let mut snapshot = RuntimeSnapshot::empty(shared.snapshot.load().listeners.clone());
     snapshot.ready = false;
     snapshot.gateway = Some(Routing::default());
@@ -469,7 +493,7 @@ pub(super) fn build(
             let backends: BTreeSet<_> = spec
                 .rules
                 .iter()
-                .flat_map(|r| &r.backend_refs)
+                .flat_map(|r| r.all_backends())
                 .map(|b| {
                     format!(
                         "{}/{}:{}",
@@ -500,6 +524,14 @@ pub(super) fn build(
                 accepted_object.metadata.annotations = Some(previous.annotations.clone());
             }
             for rule in &spec.rules {
+                ensure!(
+                    kind != "GRPCRoute" || rule.timeouts.is_none(),
+                    "GRPCRoute timeouts are not supported"
+                );
+                ensure!(
+                    rule.mirror().is_none() || quota.is_none_or(|q| q.allow_mirroring),
+                    "administrator policy forbids mirroring"
+                );
                 ensure!(
                     rule.name
                         .as_deref()
@@ -535,6 +567,10 @@ pub(super) fn build(
                 .map(|v| crate::rollout::Policy::parse(v))
                 .transpose()?;
             if let Some(traffic) = &traffic {
+                ensure!(
+                    traffic.mirror.is_none() || spec.rules.iter().all(|r| r.mirror().is_none()),
+                    "standard RequestMirror and traffic-policy mirror cannot be combined"
+                );
                 ensure!(
                     traffic.mirror.is_none() || quota.is_none_or(|q| q.allow_mirroring),
                     "administrator policy forbids mirroring"
@@ -657,9 +693,16 @@ pub(super) fn build(
                     for (rule_index, rule) in spec.rules.iter().enumerate() {
                         let mut weights = vec![];
                         let mut bindings = BTreeMap::new();
-                        for backend in rule.backend_refs.iter().filter(|_| !failed_policy) {
+                        let mut mirror_backend = None;
+                        for (backend, mirrored) in rule
+                            .backend_refs
+                            .iter()
+                            .map(|b| (b, false))
+                            .chain(rule.mirror().map(|m| (&m.backend_ref, true)))
+                            .filter(|_| !failed_policy)
+                        {
                             let weight = backend.weight.unwrap_or(1);
-                            if weight == 0 && traffic.is_none() {
+                            if weight == 0 && traffic.is_none() && !mirrored {
                                 continue;
                             }
                             let backend_ns = backend.namespace.as_deref().unwrap_or(&ns);
@@ -689,7 +732,9 @@ pub(super) fn build(
                             if let Some(error) = invalid {
                                 resolved = false;
                                 ref_reason = error;
-                                weights.push((None, weight));
+                                if !mirrored {
+                                    weights.push((None, weight));
+                                }
                                 continue;
                             }
                             let reference = IngressServiceBackend {
@@ -705,7 +750,9 @@ pub(super) fn build(
                             if error.is_some() {
                                 resolved = false;
                                 ref_reason = "BackendNotFound";
-                                weights.push((None, weight));
+                                if !mirrored {
+                                    weights.push((None, weight));
+                                }
                                 continue;
                             }
                             backend_value.tls = *backend_tls;
@@ -737,7 +784,9 @@ pub(super) fn build(
                             if tls.is_err() {
                                 resolved = false;
                                 ref_reason = "InvalidCACertificateRef";
-                                weights.push((None, weight));
+                                if !mirrored {
+                                    weights.push((None, weight));
+                                }
                                 continue;
                             }
                             match service_port.and_then(|p| p.app_protocol.as_deref()) {
@@ -750,7 +799,9 @@ pub(super) fn build(
                                 Some(_) => {
                                     resolved = false;
                                     ref_reason = "UnsupportedProtocol";
-                                    weights.push((None, weight));
+                                    if !mirrored {
+                                        weights.push((None, weight));
+                                    }
                                     continue;
                                 }
                             }
@@ -758,6 +809,10 @@ pub(super) fn build(
                                 .backends
                                 .entry(key.clone())
                                 .or_insert_with(|| Arc::new(backend_value));
+                            if mirrored {
+                                mirror_backend = Some(key);
+                                continue;
+                            }
                             bindings.insert(
                                 format!("{backend_ns}/{}:{}", backend.name, backend.port.unwrap()),
                                 key.clone(),
@@ -828,6 +883,17 @@ pub(super) fn build(
                                 policy = Default::default();
                             }
                             policy.backends = weights.clone();
+                            if let Some(mirror) = &mut policy.mirror {
+                                mirror.backend = mirror_backend.clone();
+                            }
+                            if let Some(quota) = quota {
+                                let ceiling =
+                                    std::time::Duration::from_secs(quota.max_timeout_seconds);
+                                policy.timeouts.request =
+                                    policy.timeouts.request.map(|v| v.min(ceiling));
+                                policy.timeouts.backend_request =
+                                    policy.timeouts.backend_request.map(|v| v.min(ceiling));
+                            }
                             let mut settings = settings.clone();
                             settings.gateway = Some(policy);
                             let id = format!(
@@ -904,8 +970,10 @@ pub(super) fn build(
     for (index, status) in listener_statuses.iter_mut().enumerate() {
         status["attachedRoutes"] = json!(domains.get(&index).map_or(0, BTreeSet::len));
     }
-    snapshot.ready = active.iter().any(|(_, _, valid)| *valid);
+    let listeners_ready = active.iter().any(|(_, _, valid)| *valid);
+    snapshot.ready =
+        listeners_ready && (shared.snapshot.load().ready || history.pending_restores.is_empty());
     let programmed = snapshot.ready;
-    updates.push(Update::new("Gateway", gateway, json!({"listeners":listener_statuses,"conditions":[condition(gateway,"Accepted",gateway_valid,if gateway_valid {"Accepted"} else {"UnsupportedValue"},"Pre-provisioned Gateway uses the configured HTTP and HTTPS ports"),condition(gateway,"Programmed",programmed,if programmed {"Programmed"} else {"Invalid"},if programmed {"Configuration published"} else {"No valid listener"})]})));
+    updates.push(Update::new("Gateway", gateway, json!({"listeners":listener_statuses,"conditions":[condition(gateway,"Accepted",gateway_valid,if gateway_valid {"Accepted"} else {"UnsupportedValue"},"Pre-provisioned Gateway uses the configured HTTP and HTTPS ports"),condition(gateway,"Programmed",programmed,if programmed {"Programmed"} else if listeners_ready {"Pending"} else {"Invalid"},if programmed {"Configuration published"} else if listeners_ready {"Waiting for accepted plugins to restore"} else {"No valid listener"})]})));
     (Built { snapshot, updates }, history)
 }
