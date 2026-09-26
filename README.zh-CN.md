@@ -272,7 +272,7 @@ flowchart LR
 
 [P1 验证记录](docs/validation-p1-product-2026-09-25.md)说明实际二进制与最后一次 Gateway 拒绝保护的回归顺序。此前的[链路](docs/validation-tracing-2026-09-25.md)、[指标](docs/validation-metrics-2026-09-25.md)和 [v0.2.0 发布](docs/validation-release-0.2.0.md)记录作为历史证据保留。
 
-[当前源码记录](docs/validation-gateway-hardening-2026-09-26.md)包含 14 项 Rust、328 项原生行为、71 项 Ingress、2 项额外准入范围检查，以及**最终镜像的一次完整 115 项 Gateway 检查**。三节点、追加 200 条路由的 180 秒持久连接负载，在插件更新和 Pod 替换期间完成 **30,363 次请求，零失败**，P99 **45.67 ms**。gRPC 排空和准入证书轮换通过；24 小时浸泡和完整标准认证仍需独立验收。
+[当前源码记录](docs/validation-gateway-hardening-2026-09-26.md)包含 14 项 Rust、327 项原生行为、71 项 Ingress、2 项额外准入范围检查，以及**最终镜像的一次完整 115 项 Gateway 检查**。三节点、追加 200 条路由的 180 秒持久连接负载，在插件更新和 Pod 替换期间完成 **30,363 次请求，零失败**，P99 **45.67 ms**。gRPC 排空和准入证书轮换通过；24 小时浸泡和完整标准认证仍需独立验收。
 
 **验收范围之外：**上游 Gateway conformance 认证、多节点故障、云 LoadBalancer、长期压测、恶意租户容量极限，以及 Redis Sentinel/Cluster 故障转移。历史性能数据不构成容量保证。
 

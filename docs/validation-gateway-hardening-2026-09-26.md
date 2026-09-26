@@ -1,6 +1,6 @@
 # Gateway 产品问题修复与完整主流程验证 — 2026-09-26
 
-最终源码镜像完成 Gateway 全流程 115 项、真实 Kubernetes Ingress 71 项、额外准入范围 2 项，以及 Linux 原生行为 328 项检查，全部通过。Rust 14 项测试、Clippy、Release 构建、Helm lint 和变更格式检查通过。没有用分阶段的局部结果拼成最终 Gateway 通过结论：115 项来自同一最终镜像的一次完整运行。
+最终源码镜像完成 Gateway 全流程 115 项、真实 Kubernetes Ingress 71 项、额外准入范围 2 项，以及 Linux 原生行为 327 项检查，全部通过。Rust 14 项测试、Clippy、Release 构建、Helm lint 和变更格式检查通过。没有用分阶段的局部结果拼成最终 Gateway 通过结论：115 项来自同一最终镜像的一次完整运行。
 
 ## 修复与实际证据
 
@@ -39,7 +39,7 @@
 | 本地日志与轮转 | 20 通过 | 同上 |
 | 访问策略、压缩、JWT/JWKS、管理与发布能力 | 111 通过 | 同上 |
 | 迁移工具 | 10 通过 | 同上 |
-| Redis 共享限流 | 13 通过 | 同上 |
+| Redis 共享限流 | 12 通过 | 同上 |
 | Gateway 完整主流程 | 115 通过 | [Gateway](validation/gateway-hardening-gateway-2026-09-26.json) |
 | 真实 Kubernetes Ingress | 71 通过 | [Ingress](validation/gateway-hardening-ingress-2026-09-26.json) |
 | Ingress 准入故障作用范围 | 2 通过 | [准入范围](validation/gateway-hardening-admission-scope-2026-09-26.json) |
