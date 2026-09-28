@@ -40,7 +40,7 @@ use crate::protocols::http::{
     ReusableHttpStream,
 };
 use crate::protocols::{Digest, SocketAddr, Stream};
-use crate::utils::{BufRef, KVRef};
+use crate::utils::BufRef;
 
 /// Tracks which writer is currently processing a task.
 ///
@@ -344,10 +344,7 @@ impl HttpSession {
                         // `KVRef`s to record the offset of each piece of data, drop `req`, convert
                         // buf, the do the 0 copy update
                         let base = buf.as_ptr() as usize;
-                        let mut header_refs = Vec::<KVRef>::with_capacity(req.headers.len());
-                        // Note: req.headers has the correct number of headers
-                        // while header_refs doesn't as it is still empty
-                        let _num_headers = populate_headers(base, &mut header_refs, req.headers);
+                        let header_refs = parsed_header_refs(base, req.headers);
 
                         let mut request_header = Box::new(RequestHeader::build(
                             req.method.unwrap_or(""),
@@ -980,6 +977,70 @@ impl HttpSession {
         }
     }
 
+    /// Writes a fixed-length file body over a plain socket. Returns false before
+    /// writing any body bytes if transport or framing requires the buffered path.
+    #[cfg(target_os = "linux")]
+    pub async fn write_file_body(
+        &mut self,
+        file: &std::fs::File,
+        offset: u64,
+        length: usize,
+    ) -> Result<bool> {
+        use crate::protocols::l4::stream::Stream as SocketStream;
+        if self.body_writer.content_length_remaining() != Some(length)
+            || !self.body_write_buf.is_empty()
+            || self.has_pending_proxy_tasks()
+            || !self
+                .underlying_stream
+                .as_any()
+                .downcast_ref::<SocketStream>()
+                .is_some_and(SocketStream::supports_sendfile)
+        {
+            return Ok(false);
+        }
+        let mut sent = 0;
+        while sent < length {
+            let count = (length - sent).min(65536);
+            let limit = self.write_timeout(count);
+            let stream = self
+                .underlying_stream
+                .as_any_mut()
+                .downcast_mut::<SocketStream>()
+                .unwrap();
+            let write = stream.send_file_chunk(file, offset + sent as u64, count);
+            let result = if let Some(limit) = limit {
+                match timeout(limit, write).await {
+                    Ok(result) => result,
+                    Err(_) => {
+                        return Error::e_explain(WriteTimedout, "sending file body timed out")
+                    }
+                }
+            } else {
+                write.await
+            };
+            let written = match result {
+                Err(e)
+                    if sent == 0
+                        && matches!(
+                            e.raw_os_error(),
+                            Some(libc::EINVAL | libc::ENOSYS | libc::EOPNOTSUPP)
+                        ) =>
+                {
+                    return Ok(false)
+                }
+                result => result.or_err(WriteError, "sendfile body")?,
+            };
+            if written == 0 {
+                return Error::e_explain(WriteError, "file shortened during transmission");
+            }
+            sent += written;
+            self.body_writer.advance_file_body(written);
+            self.body_bytes_sent += written;
+        }
+        self.finish_body().await?;
+        Ok(true)
+    }
+
     /// Whether the cancel-safe proxy task API is enabled for this session.
     pub fn proxy_tasks_enabled(&self) -> bool {
         self.proxy_tasks_enabled
@@ -1458,27 +1519,34 @@ impl HttpSession {
     /// returned. If there was an error while draining any remaining request body that error will
     /// be returned.
     pub async fn reuse(mut self) -> Result<Option<ReusableHttpStream>> {
+        if self.prepare_reuse().await? {
+            Ok(Some(self.into_reusable_stream()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) async fn prepare_reuse(&mut self) -> Result<bool> {
         if !self.will_keepalive() {
             debug!("HTTP shutdown connection");
             self.shutdown().await;
-            Ok(None)
-        } else {
-            self.drain_request_body().await?;
-            if self.body_reader.has_bytes_overread() && !self.pipelining_enabled {
-                debug!("bytes overread on request, disallowing reuse");
-                Ok(None)
-            } else {
-                let pipelined_prefix = self
-                    .pipelining_enabled
-                    .then(|| self.take_body_overread())
-                    .flatten()
-                    .filter(|prefix| !prefix.is_empty());
-                Ok(Some(ReusableHttpStream::new(
-                    self.underlying_stream,
-                    pipelined_prefix,
-                )))
-            }
+            return Ok(false);
         }
+        self.drain_request_body().await?;
+        if self.body_reader.has_bytes_overread() && !self.pipelining_enabled {
+            debug!("bytes overread on request, disallowing reuse");
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    pub(crate) fn into_reusable_stream(mut self) -> ReusableHttpStream {
+        let pipelined_prefix = self
+            .pipelining_enabled
+            .then(|| self.take_body_overread())
+            .flatten()
+            .filter(|prefix| !prefix.is_empty());
+        ReusableHttpStream::new(self.underlying_stream, pipelined_prefix)
     }
 
     /// Write a `100 Continue` response to the client.
@@ -1560,15 +1628,24 @@ impl HttpSession {
     }
 
     // TODO: use vectored write to avoid copying
-    pub async fn response_duplex_vec(&mut self, mut tasks: Vec<HttpTask>) -> Result<bool> {
+    pub async fn response_duplex_vec(&mut self, tasks: Vec<HttpTask>) -> Result<bool> {
+        self.response_duplex_iter(tasks.into_iter()).await
+    }
+
+    /// Writes a bounded batch in wire order, sharing the body buffer between
+    /// tasks and flushing before returning an upstream error.
+    pub async fn response_duplex_iter<I>(&mut self, mut tasks: I) -> Result<bool>
+    where
+        I: ExactSizeIterator<Item = HttpTask> + Send,
+    {
         let n_tasks = tasks.len();
         if n_tasks == 1 {
             // fallback to single operation to avoid copy
-            return self.response_duplex(tasks.pop().unwrap()).await;
+            return self.response_duplex(tasks.next().unwrap()).await;
         }
 
         let mut end_stream = false;
-        for task in tasks.into_iter() {
+        for task in tasks {
             end_stream = match task {
                 HttpTask::Header(header, end_stream) => {
                     self.write_response_header(header)

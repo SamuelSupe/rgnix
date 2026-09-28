@@ -266,6 +266,10 @@ impl<A: ServerApp + Send + Sync + 'static> Service<A> {
                             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         }
                     }
+                    // A listener whose reactor has stopped can fail immediately
+                    // forever. Yield so the worker can receive its shutdown and
+                    // cancel this task instead of spinning in accept/error/log.
+                    tokio::task::yield_now().await;
                 }
             }
         }
@@ -282,7 +286,9 @@ impl<A: ServerApp + Send + Sync + 'static> ServiceTrait for Service<A> {
         shutdown: ShutdownWatch,
         listeners_per_fd: usize,
     ) {
-        let runtime = current_handle();
+        // Bind and poll listeners on the same reactor. In no-steal mode the
+        // Pingora helper chooses another worker, which may stop independently.
+        let runtime = tokio::runtime::Handle::current();
         let endpoints = self
             .listeners
             .build(

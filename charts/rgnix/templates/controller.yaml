@@ -273,6 +273,9 @@ spec:
             - --admission-controller-user=system:serviceaccount:{{ .Release.Namespace }}:{{ .Release.Name }}
             {{- end }}
             - --threads={{ .Values.threads }}
+            {{- if ne .Values.upstreamKeepalivePoolSize nil }}
+            - --upstream-keepalive-pool-size={{ .Values.upstreamKeepalivePoolSize }}
+            {{- end }}
             {{- if $shutdown.enabled }}
             - --drain-file=/var/run/rgnix/drain
             - --shutdown-grace-seconds={{ $shutdown.graceSeconds }}

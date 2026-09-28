@@ -1,0 +1,306 @@
+{
+  "method": "All cpu-clock samples from perf script; stack scopes are inclusive and may overlap. Flat DSO and thread shares are exclusive. No conversion of sample share into guaranteed throughput gain.",
+  "records": [
+    {
+      "engine": "rgnix",
+      "case": "proxy-1k",
+      "samples": 4001,
+      "thread_pct": {
+        "Pingora HTTP Pr": 99.975,
+        "Timer thread": 0.025
+      },
+      "flat_dso_pct": {
+        "rgnix-candidate": 40.215,
+        "kernel": 38.615,
+        "libc.so.6": 15.921,
+        "vdso": 5.249
+      },
+      "inclusive_scopes_pct": {
+        "header_parse": 10.647,
+        "rgnix_request_filter": 5.924,
+        "clock_gettime": 5.449,
+        "allocation_chain": 2.574,
+        "connection_pool": 2.324,
+        "timer_management": 2.299,
+        "rgnix_logging": 1.675,
+        "rgnix_upstream_peer": 1.125,
+        "prometheus": 0.625
+      },
+      "clock_callers_pct_all_samples": {
+        "unresolved": 4.724,
+        "pingora_core::protocols::http::server::Session::finish_boxed::{{closure}}": 0.275,
+        "tokio::net::unix::stream::UnixStream::poll_read_priv": 0.25,
+        "std::sys::pal::unix::time::Timespec::now": 0.2
+      },
+      "top_flat_pct": {
+        "__wake_up_sync_key": 14.171,
+        "[unknown]": 12.822,
+        "__kernel_clock_gettime": 5.249,
+        "arch_counter_get_cntvct": 3.599,
+        "__arch_copy_to_user": 2.924,
+        "net_rx_action": 1.825,
+        "local_daif_restore": 1.525,
+        "cfree": 1.425,
+        "_raw_spin_unlock_irqrestore": 1.15,
+        "http::header::map::hash_elem_using": 1.05,
+        "pingora_proxy::proxy_h1::<impl pingora_proxy::HttpProxy<SV,C>>::proxy_1to1::{{closure}}": 1.05,
+        "pingora_core::protocols::http::v1::client::HttpSession::read_resp_header_parts::{{closure}}": 1.025,
+        "pingora_core::protocols::http::v1::server::HttpSession::read_request::{{closure}}": 1.0,
+        "<T as pingora_core::apps::ServerApp>::process_new::{{closure}}": 0.975,
+        "tcp_sendmsg": 0.975,
+        "http::header::name::StandardHeader::from_bytes": 0.9,
+        "malloc": 0.85,
+        "__local_bh_enable_ip": 0.825,
+        "local_bh_enable": 0.725,
+        "tcp_ack": 0.725,
+        "__aarch64_cas8_acq_rel": 0.675,
+        "<pingora_proxy::HttpProxy<SV,C> as pingora_core::apps::HttpServerApp>::process_new_http_boxed::{{closure}}": 0.625,
+        "http::header::name::parse_hdr": 0.625,
+        "__do_softirq": 0.575,
+        "pingora_proxy::HttpProxy<SV,C>::process_request::{{closure}}": 0.575,
+        "__kfree_skb": 0.55,
+        "pingora_proxy::proxy_h1::<impl pingora_proxy::HttpProxy<SV,C>>::proxy_handle_downstream::{{closure}}": 0.55,
+        "httparse::parse_headers_iter_uninit": 0.55,
+        "fdget": 0.525,
+        "pingora_timeout::timer::TimerManager::register_timer": 0.5
+      },
+      "record_output": "[ perf record: Woken up 257 times to write data ]\n[ perf record: Captured and wrote 64.197 MB /tmp/rgnix-opportunity-20260928/profile-rgnix-proxy-1k.data (4001 samples) ]\n"
+    },
+    {
+      "engine": "nginx",
+      "case": "proxy-1k",
+      "samples": 3968,
+      "thread_pct": {
+        "nginx": 100.0
+      },
+      "flat_dso_pct": {
+        "kernel": 73.261,
+        "nginx": 16.482,
+        "libc.so.6": 8.997,
+        "inlined": 1.159,
+        "vdso": 0.101
+      },
+      "inclusive_scopes_pct": {
+        "header_parse": 2.394,
+        "allocation_chain": 0.403,
+        "clock_gettime": 0.025
+      },
+      "clock_callers_pct_all_samples": {
+        "ngx_destroy_pool": 0.025
+      },
+      "top_flat_pct": {
+        "__wake_up_sync_key": 16.91,
+        "arch_counter_get_cntvct": 9.375,
+        "[unknown]": 7.208,
+        "__arch_copy_to_user": 4.587,
+        "net_rx_action": 3.478,
+        "__do_softirq": 3.175,
+        "local_daif_restore": 3.075,
+        "ngx_http_parse_header_line": 2.394,
+        "__local_bh_enable_ip": 2.293,
+        "__kfree_skb": 2.243,
+        "tcp_sendmsg": 1.865,
+        "local_bh_enable": 1.638,
+        "tcp_ack": 1.512,
+        "ip_rcv": 1.336,
+        "ip_output": 1.21,
+        "_raw_spin_unlock_irqrestore": 1.159,
+        "ngx_hash_find": 1.159,
+        "tcp_poll": 0.958,
+        "__dev_queue_xmit": 0.932,
+        "tcp_ack_update_rtt": 0.882,
+        "getsockopt": 0.857,
+        "ip_queue_xmit": 0.857,
+        "ngx_rbtree_delete": 0.857,
+        "__arch_copy_from_user": 0.832,
+        "do_el0_svc": 0.781,
+        "dst_release": 0.756,
+        "_raw_spin_lock_irq": 0.731,
+        "ngx_rbtree_insert": 0.68,
+        "ngx_palloc_small": 0.63,
+        "napi_consume_skb": 0.58
+      },
+      "record_output": "[ perf record: Woken up 255 times to write data ]\n[ perf record: Captured and wrote 63.860 MB /tmp/rgnix-opportunity-20260928/profile-nginx-proxy-1k.data (3968 samples) ]\n"
+    },
+    {
+      "engine": "pingora",
+      "case": "proxy-1k",
+      "samples": 3920,
+      "thread_pct": {
+        "Pingora HTTP Pr": 100.0
+      },
+      "flat_dso_pct": {
+        "kernel": 48.291,
+        "minimal-proxy": 33.878,
+        "libc.so.6": 15.306,
+        "vdso": 2.526
+      },
+      "inclusive_scopes_pct": {
+        "header_parse": 9.694,
+        "connection_pool": 3.061,
+        "timer_management": 3.036,
+        "clock_gettime": 2.73,
+        "allocation_chain": 2.5
+      },
+      "clock_callers_pct_all_samples": {
+        "unresolved": 2.27,
+        "tokio::net::unix::stream::UnixStream::poll_read_priv": 0.204,
+        "std::sys::pal::unix::time::Timespec::now": 0.204,
+        "foldhash::seed::gen_per_hasher_seed::PER_HASHER_NONDETERMINISM.0": 0.051
+      },
+      "top_flat_pct": {
+        "__wake_up_sync_key": 15.102,
+        "[unknown]": 12.398,
+        "arch_counter_get_cntvct": 4.668,
+        "__arch_copy_to_user": 3.724,
+        "net_rx_action": 2.628,
+        "__kernel_clock_gettime": 2.526,
+        "local_daif_restore": 1.99,
+        "pingora_core::protocols::http::v1::client::HttpSession::read_resp_header_parts::{{closure}}": 1.48,
+        "__local_bh_enable_ip": 1.327,
+        "pingora_core::protocols::http::v1::server::HttpSession::read_request::{{closure}}": 1.25,
+        "cfree": 1.224,
+        "_raw_spin_unlock_irqrestore": 1.199,
+        "pingora_proxy::proxy_h1::<impl pingora_proxy::HttpProxy<SV,C>>::proxy_1to1::{{closure}}": 1.173,
+        "http::header::map::hash_elem_using": 1.122,
+        "__do_softirq": 1.071,
+        "local_bh_enable": 1.046,
+        "tcp_sendmsg": 1.02,
+        "__kfree_skb": 0.969,
+        "tcp_ack": 0.893,
+        "malloc": 0.791,
+        "fdget": 0.714,
+        "pingora_proxy::proxy_h1::<impl pingora_proxy::HttpProxy<SV,C>>::process_upstream_tasks::{{closure}}": 0.689,
+        "pingora_http::normalize_field_value": 0.663,
+        "pingora_proxy::proxy_h1::<impl pingora_proxy::HttpProxy<SV,C>>::proxy_handle_downstream::{{closure}}": 0.638,
+        "<pingora_proxy::HttpProxy<SV,C> as pingora_core::apps::HttpServerApp>::process_new_http_boxed::{{closure}}": 0.612,
+        "getpeername": 0.587,
+        "do_el0_svc": 0.587,
+        "tcp_poll": 0.561,
+        "http::header::map::HeaderMap<T>::get_all": 0.561,
+        "pingora_core::protocols::http::server::Session::finish_boxed::{{closure}}": 0.536
+      },
+      "record_output": "[ perf record: Woken up 252 times to write data ]\n[ perf record: Captured and wrote 62.928 MB /tmp/rgnix-opportunity-20260928/profile-pingora-proxy-1k.data (3920 samples) ]\n"
+    },
+    {
+      "engine": "rgnix",
+      "case": "return",
+      "samples": 3716,
+      "thread_pct": {
+        "Pingora HTTP Pr": 100.0
+      },
+      "flat_dso_pct": {
+        "rgnix-candidate": 37.325,
+        "kernel": 36.841,
+        "libc.so.6": 21.798,
+        "vdso": 4.037
+      },
+      "inclusive_scopes_pct": {
+        "rgnix_request_filter": 54.44,
+        "header_parse": 8.073,
+        "timer_management": 4.413,
+        "clock_gettime": 4.225,
+        "allocation_chain": 3.902,
+        "rgnix_logging": 1.426
+      },
+      "clock_callers_pct_all_samples": {
+        "unresolved": 2.826,
+        "pingora_core::protocols::http::server::Session::finish_boxed::{{closure}}": 0.915,
+        "std::sys::pal::unix::time::Timespec::now": 0.188,
+        "tokio::net::unix::stream::UnixStream::poll_read_priv": 0.161,
+        "http::header::map::HeaderMap<T>::get_all": 0.108,
+        "tokio::runtime::io::driver::Driver::turn": 0.027
+      },
+      "top_flat_pct": {
+        "[unknown]": 17.465,
+        "__wake_up_sync_key": 10.495,
+        "__kernel_clock_gettime": 4.037,
+        "arch_counter_get_cntvct": 4.01,
+        "__arch_copy_to_user": 2.476,
+        "net_rx_action": 2.018,
+        "malloc": 1.991,
+        "pingora_core::protocols::http::v1::server::HttpSession::read_request::{{closure}}": 1.884,
+        "local_daif_restore": 1.83,
+        "cfree": 1.695,
+        "__do_softirq": 1.319,
+        "pingora_core::protocols::http::v1::server::HttpSession::finish_body::{{closure}}": 1.103,
+        "<rgnix::proxy::Proxy as pingora_proxy::proxy_trait::ProxyHttp>::request_filter::{{closure}}": 1.023,
+        "tcp_ack": 0.969,
+        "tcp_sendmsg": 0.915,
+        "pingora_proxy::HttpProxy<SV,C>::process_request::{{closure}}": 0.888,
+        "__aarch64_cas8_acq_rel": 0.807,
+        "http::header::name::HdrName::from_bytes": 0.727,
+        "napi_consume_skb": 0.7,
+        "fdget": 0.646,
+        "http::header::map::hash_elem_using": 0.619,
+        "__local_bh_enable_ip": 0.592,
+        "__aarch64_ldadd8_rel": 0.592,
+        "do_el0_svc": 0.565,
+        "_raw_spin_unlock_irqrestore": 0.565,
+        "<pingora_proxy::HttpProxy<SV,C> as pingora_core::apps::HttpServerApp>::process_new_http_boxed::{{closure}}": 0.565,
+        "pingora_core::protocols::http::server::Session::finish_boxed::{{closure}}": 0.565,
+        "http::header::map::HeaderMap<T>::try_insert2": 0.538,
+        "http::header::map::HeaderMap<T>::get": 0.538,
+        "alloc::raw_vec::RawVecInner<A>::reserve::do_reserve_and_handle": 0.511
+      },
+      "record_output": "[ perf record: Woken up 237 times to write data ]\n[ perf record: Captured and wrote 59.598 MB /tmp/rgnix-opportunity-20260928/profile-rgnix-return.data (3716 samples) ]\n"
+    },
+    {
+      "engine": "nginx",
+      "case": "return",
+      "samples": 3976,
+      "thread_pct": {
+        "nginx": 100.0
+      },
+      "flat_dso_pct": {
+        "kernel": 75.805,
+        "libc.so.6": 11.595,
+        "nginx": 11.393,
+        "inlined": 1.081,
+        "vdso": 0.126
+      },
+      "inclusive_scopes_pct": {
+        "header_parse": 0.528,
+        "allocation_chain": 0.503,
+        "clock_gettime": 0.075
+      },
+      "clock_callers_pct_all_samples": {
+        "unresolved": 0.05,
+        "ngx_monotonic_time": 0.025
+      },
+      "top_flat_pct": {
+        "arch_counter_get_cntvct": 12.399,
+        "__wake_up_sync_key": 10.589,
+        "[unknown]": 10.287,
+        "net_rx_action": 4.804,
+        "__do_softirq": 4.276,
+        "__arch_copy_to_user": 4.175,
+        "local_daif_restore": 3.521,
+        "__local_bh_enable_ip": 3.244,
+        "tcp_ack": 2.515,
+        "validate_xmit_skb": 1.811,
+        "tcp_sendmsg": 1.786,
+        "__dev_queue_xmit": 1.685,
+        "__kfree_skb": 1.61,
+        "tcp_ack_update_rtt": 1.283,
+        "ngx_http_parse_request_line": 1.182,
+        "local_bh_enable": 1.182,
+        "ip_output": 1.157,
+        "ip_rcv": 1.157,
+        "ip_queue_xmit": 1.107,
+        "_raw_spin_lock_irq": 1.107,
+        "tcp_poll": 1.031,
+        "dst_release": 0.88,
+        "_raw_spin_unlock_irqrestore": 0.83,
+        "do_el0_svc": 0.78,
+        "fdget": 0.578,
+        "ngx_rbtree_delete": 0.578,
+        "cubictcp_cong_avoid": 0.578,
+        "ngx_rbtree_insert": 0.578,
+        "napi_consume_skb": 0.553,
+        "ngx_http_parse_header_line": 0.528
+      },
+      "record_output": "[ perf record: Woken up 256 times to write data ]\n[ perf record: Captured and wrote 63.997 MB /tmp/rgnix-opportunity-20260928/profile-nginx-return.data (3976 samples) ]\n"
+    }
+  ]
+}

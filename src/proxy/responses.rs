@@ -4,7 +4,7 @@ use super::{
 use crate::model::Route;
 use bytes::Bytes;
 use pingora::{http::ResponseHeader, prelude::*};
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 impl Proxy {
@@ -100,31 +100,65 @@ impl Proxy {
         &self,
         session: &mut Session,
         ctx: &mut Context,
-        route: &Route,
+        route: &Arc<Route>,
     ) -> Result<bool> {
         if !["GET", "HEAD"].contains(&ctx.request.method.as_str()) {
             return self
                 .reply(session, ctx, 405, "method not allowed\n".into(), None)
                 .await;
         }
-        let path = ctx
-            .edits
-            .path
-            .clone()
-            .unwrap_or_else(|| ctx.request.path.clone());
-        let path = normalize_decoded_path(&path).map_err(|e| error(400, e.to_string()))?;
-        let settings = route.settings.clone();
+        let path = match &ctx.edits.path {
+            Some(path) => normalize_decoded_path(path).map_err(|e| error(400, e.to_string()))?,
+            None => ctx.request.path.clone(),
+        };
+        let opened_route = route.clone();
         let open_path = path.clone();
-        let prefix = route.matcher.path().to_owned();
-        let opened = tokio::task::spawn_blocking(move || {
-            static_files::open_route(&settings, &open_path, &prefix)
-        })
-        .await
-        .map_err(|e| error(500, e.to_string()))?
-        .map_err(|e| {
-            log::error!("static file: {e}");
-            error(500, "file access failed")
-        })?;
+        let send_file = cfg!(target_os = "linux")
+            && !self.tls
+            && !session.is_http2()
+            && route.settings.compression.gzip == 0
+            && route.settings.compression.brotli == 0;
+        #[cfg(target_os = "linux")]
+        let cached = send_file
+            .then(|| static_files::open_cached(&route.settings, &path))
+            .flatten();
+        #[cfg(not(target_os = "linux"))]
+        let cached: Option<static_files::Opened> = None;
+        let prefetch = !send_file
+            && ctx.request.method == "GET"
+            && !["range", "if-none-match", "if-modified-since"]
+                .iter()
+                .any(|name| ctx.request.headers.contains_key(name));
+        let (opened, initial) = if let Some(opened) = cached {
+            (opened, None)
+        } else {
+            tokio::task::spawn_blocking(move || {
+                let mut opened = static_files::open_route(
+                    &opened_route.settings,
+                    &open_path,
+                    opened_route.matcher.path(),
+                )?;
+                // A bounded small-file read shares the open's blocking job. Large
+                // files and conditional/range requests retain streaming reads.
+                let initial = if prefetch
+                    && let static_files::Opened::File(file) = &mut opened
+                    && file.length <= 65536
+                {
+                    let mut buffer = vec![0; file.length as usize];
+                    std::io::Read::read_exact(&mut file.file, &mut buffer)?;
+                    Some(Bytes::from(buffer))
+                } else {
+                    None
+                };
+                Ok::<_, std::io::Error>((opened, initial))
+            })
+            .await
+            .map_err(|e| error(500, e.to_string()))?
+            .map_err(|e| {
+                log::error!("static file: {e}");
+                error(500, "file access failed")
+            })?
+        };
         let file = match opened {
             static_files::Opened::Status(status) => {
                 return self.reply(session, ctx, status, String::new(), None).await;
@@ -182,7 +216,7 @@ impl Proxy {
         let mut length = file.length;
         let mut content_range = None;
         let if_range = headers.get("if-range").is_none_or(|s| {
-            s == &file.etag
+            s == file.etag
                 || httpdate::parse_http_date(s).ok().is_some_and(|d| {
                     file.modified
                         .duration_since(SystemTime::UNIX_EPOCH)
@@ -232,24 +266,40 @@ impl Proxy {
             .write_response_header(Box::new(response), empty)
             .await?;
         if !empty {
+            #[cfg(target_os = "linux")]
+            if send_file
+                && let Ok(length) = usize::try_from(length)
+                && session
+                    .downstream_session
+                    .write_file_body(&file.file, start, length)
+                    .await?
+            {
+                return Ok(true);
+            }
+            if let Some(initial) = initial {
+                session.write_response_body(Some(initial), true).await?;
+                return Ok(true);
+            }
             let mut file = tokio::fs::File::from_std(file.file);
-            file.seek(std::io::SeekFrom::Start(start))
-                .await
-                .map_err(|e| error(500, e.to_string()))?;
-            let mut buffer = vec![0; 65536];
+            if start != 0 {
+                file.seek(std::io::SeekFrom::Start(start))
+                    .await
+                    .map_err(|e| error(500, e.to_string()))?;
+            }
             let mut remaining = length;
             while remaining > 0 {
-                let count = buffer.len().min(remaining as usize);
+                let mut buffer = vec![0; remaining.min(65536) as usize];
                 let n = file
-                    .read(&mut buffer[..count])
+                    .read(&mut buffer)
                     .await
                     .map_err(|e| error(500, e.to_string()))?;
                 if n == 0 {
                     return Err(error(500, "file changed during transmission"));
                 }
                 remaining -= n as u64;
+                buffer.truncate(n);
                 session
-                    .write_response_body(Some(Bytes::copy_from_slice(&buffer[..n])), remaining == 0)
+                    .write_response_body(Some(Bytes::from(buffer)), remaining == 0)
                     .await?;
             }
         }

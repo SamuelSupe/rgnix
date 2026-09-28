@@ -268,24 +268,22 @@ pub(super) fn is_buf_keepalive(header_value: Option<&HeaderValue>) -> Option<boo
 }
 
 #[inline]
-pub(super) fn populate_headers(
+pub(super) fn parsed_header_refs(
     base: usize,
-    header_ref: &mut Vec<KVRef>,
     headers: &[httparse::Header],
-) -> usize {
-    let mut used_header_index = 0;
-    for header in headers.iter() {
-        if !header.name.is_empty() {
-            header_ref.push(KVRef::new(
+) -> smallvec::SmallVec<[KVRef; 16]> {
+    headers
+        .iter()
+        .filter(|header| !header.name.is_empty())
+        .map(|header| {
+            KVRef::new(
                 header.name.as_ptr() as usize - base,
                 header.name.len(),
                 header.value.as_ptr() as usize - base,
                 header.value.len(),
-            ));
-            used_header_index += 1;
-        }
-    }
-    used_header_index
+            )
+        })
+        .collect()
 }
 
 /// Parse a `Content-Length` field value as an ASCII digit string, matching

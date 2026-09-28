@@ -294,7 +294,9 @@ where
 
         let (tx, rx) = mpsc::channel::<HttpTask>(TASK_BUFFER_SIZE);
 
-        session.as_mut().enable_retry_buffering();
+        if self.max_retries > 1 {
+            session.as_mut().enable_retry_buffering();
+        }
 
         // Shared signal so the upstream half can distinguish an expected task-pipe
         // closure (the downstream half finished and dropped rx) from an unexpected one.

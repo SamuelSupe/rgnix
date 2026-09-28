@@ -64,7 +64,11 @@ impl Key {
         match self {
             Self::Route => String::new(),
             Self::Ip => request.remote_addr.clone(),
-            Self::Header(name) => request.headers.get(name).cloned().unwrap_or_default(),
+            Self::Header(name) => request
+                .headers
+                .get(name)
+                .map(str::to_owned)
+                .unwrap_or_default(),
             Self::Claim(name) => claims.get(name).cloned().unwrap_or_default(),
             Self::Cookie(name) => request
                 .headers
@@ -161,6 +165,9 @@ impl Limiter {
         request: &RequestData,
         claims: &std::collections::BTreeMap<String, String>,
     ) -> std::result::Result<Option<Permit>, u16> {
+        if policy.rate.is_none() && policy.concurrency.is_none() {
+            return Ok(None);
+        }
         let capacity = self.capacity.load(std::sync::atomic::Ordering::Relaxed);
         let now = Instant::now();
         let mut buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());

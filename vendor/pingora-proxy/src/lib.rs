@@ -94,6 +94,7 @@ mod proxy_h2;
 mod proxy_purge;
 mod proxy_trait;
 pub mod subrequest;
+mod task_pipe;
 
 use subrequest::{BodyMode, Ctx as SubrequestCtx};
 
@@ -520,7 +521,7 @@ where
 
     async fn finish(
         &self,
-        mut session: Session,
+        mut session: Box<Session>,
         ctx: &mut SV::CTX,
         reuse: bool,
         error: Option<Box<Error>>,
@@ -545,7 +546,7 @@ where
             }
             session
                 .downstream_session
-                .finish()
+                .finish_boxed()
                 .await
                 .ok()
                 .flatten()
@@ -896,14 +897,29 @@ impl Session {
         }
     }
 
-    pub async fn write_response_tasks(&mut self, mut tasks: Vec<HttpTask>) -> Result<bool> {
+    pub async fn write_response_tasks(&mut self, tasks: Vec<HttpTask>) -> Result<bool> {
+        self.write_response_batch(tasks).await
+    }
+
+    async fn write_response_batch<T>(&mut self, mut tasks: T) -> Result<bool>
+    where
+        T: AsMut<[HttpTask]> + IntoIterator<Item = HttpTask> + Send,
+        T::IntoIter: ExactSizeIterator + Send,
+    {
         let mut seen_upgraded = self.downstream_task_seen_upgraded || self.was_upgraded();
-        for task in tasks.iter_mut() {
+        for task in tasks.as_mut() {
             self.downstream_response_task_filter(task, &mut seen_upgraded)
                 .await?;
         }
         self.downstream_task_seen_upgraded = seen_upgraded;
-        self.downstream_session.response_duplex_vec(tasks).await
+        match self.downstream_session.as_mut() {
+            HttpSession::H1(session) => session.response_duplex_iter(tasks.into_iter()).await,
+            session => {
+                session
+                    .response_duplex_vec(tasks.into_iter().collect())
+                    .await
+            }
+        }
     }
 
     /// Mark the upstream headers as modified by caching. This should lead to range filters being
@@ -1147,8 +1163,8 @@ where
 {
     async fn process_request(
         self: &Arc<Self>,
-        mut session: Session,
-        mut ctx: <SV as ProxyHttp>::CTX,
+        mut session: Box<Session>,
+        mut ctx: Box<<SV as ProxyHttp>::CTX>,
     ) -> Option<ReusedHttpStream>
     where
         SV: ProxyHttp + Send + Sync + 'static,
@@ -1188,8 +1204,12 @@ where
 
         let deadline = self.inner.request_deadline(&session, &mut ctx);
         let filtered = if let Some(deadline) = deadline {
-            tokio::time::timeout_at(deadline.into(), self.inner.request_filter(&mut session, &mut ctx))
-                .await.unwrap_or_else(|_| Err(Error::explain(HTTPStatus(504), "request deadline exceeded")))
+            tokio::time::timeout_at(
+                deadline.into(),
+                self.inner.request_filter(&mut session, &mut ctx),
+            )
+            .await
+            .unwrap_or_else(|_| Err(Error::explain(HTTPStatus(504), "request deadline exceeded")))
         } else {
             self.inner.request_filter(&mut session, &mut ctx).await
         };
@@ -1205,7 +1225,7 @@ where
                     }
                     return session
                         .downstream_session
-                        .finish()
+                        .finish_boxed()
                         .await
                         .ok()
                         .flatten()
@@ -1287,12 +1307,26 @@ where
         while retries < self.max_retries {
             retries += 1;
 
-            let backend_deadline = self.inner.backend_request_timeout(&session, &ctx)
+            let backend_deadline = self
+                .inner
+                .backend_request_timeout(&session, &ctx)
                 .and_then(|timeout| std::time::Instant::now().checked_add(timeout));
             let attempt_deadline = deadline.into_iter().chain(backend_deadline).min();
             let (reuse, e) = if let Some(deadline) = attempt_deadline {
-                tokio::time::timeout_at(deadline.into(), self.proxy_to_upstream(&mut session, &mut ctx))
-                    .await.unwrap_or_else(|_| (false, Some(Error::explain(HTTPStatus(504), "request or backend deadline exceeded").into_up())))
+                tokio::time::timeout_at(
+                    deadline.into(),
+                    self.proxy_to_upstream(&mut session, &mut ctx),
+                )
+                .await
+                .unwrap_or_else(|_| {
+                    (
+                        false,
+                        Some(
+                            Error::explain(HTTPStatus(504), "request or backend deadline exceeded")
+                                .into_up(),
+                        ),
+                    )
+                })
             } else {
                 self.proxy_to_upstream(&mut session, &mut ctx).await
             };
@@ -1381,7 +1415,7 @@ where
 
     async fn handle_error(
         &self,
-        mut session: Session,
+        mut session: Box<Session>,
         ctx: &mut <SV as ProxyHttp>::CTX,
         e: Box<Error>,
         context: &str,
@@ -1411,7 +1445,7 @@ where
             }
             session
                 .downstream_session
-                .finish()
+                .finish_boxed()
                 .await
                 .ok()
                 .flatten()
@@ -1455,13 +1489,13 @@ where
         debug!("starting subrequest");
 
         let mut session = match self.handle_new_request(session).await {
-            Some(downstream_session) => Session::new(
+            Some(downstream_session) => Box::new(Session::new(
                 downstream_session,
                 &self.downstream_modules,
                 #[cfg(feature = "upstream_modules")]
                 &self.upstream_modules,
                 self.shutdown_flag.clone(),
-            ),
+            )),
             None => return, // bad request
         };
 
@@ -1471,7 +1505,7 @@ where
 
         session.subrequest_ctx.replace(sub_req_ctx);
         trace!("processing subrequest");
-        let ctx = self.inner.new_ctx();
+        let ctx = Box::new(self.inner.new_ctx());
         self.process_request(session, ctx).await;
         trace!("subrequest done");
     }
@@ -1574,23 +1608,29 @@ where
 {
     async fn process_new_http(
         self: &Arc<Self>,
-        mut session: HttpSession,
+        session: HttpSession,
         shutdown: &ShutdownWatch,
     ) -> Option<ReusedHttpStream> {
-        // Extract user context from the previous request before the session is moved into the Box
-        let prev_user_ctx = session.take_connection_user_context();
+        self.process_new_http_boxed(Box::new(session), shutdown)
+            .await
+    }
 
-        let session = Box::new(session);
+    async fn process_new_http_boxed(
+        self: &Arc<Self>,
+        mut session: Box<HttpSession>,
+        shutdown: &ShutdownWatch,
+    ) -> Option<ReusedHttpStream> {
+        let prev_user_ctx = session.take_connection_user_context();
 
         // TODO: keepalive pool, use stack
         let mut session = match self.handle_new_request(session).await {
-            Some(downstream_session) => Session::new(
+            Some(downstream_session) => Box::new(Session::new(
                 downstream_session,
                 &self.downstream_modules,
                 #[cfg(feature = "upstream_modules")]
                 &self.upstream_modules,
                 self.shutdown_flag.clone(),
-            ),
+            )),
             None => return None, // bad request
         };
 
@@ -1599,7 +1639,7 @@ where
             session.set_keepalive(None);
         }
 
-        let mut ctx = self.inner.new_ctx();
+        let mut ctx = Box::new(self.inner.new_ctx());
 
         // Deliver user context from the previous request on this reused connection
         if let Some(prev_ctx) = prev_user_ctx {

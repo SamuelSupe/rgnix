@@ -1,0 +1,92 @@
+{
+  "event": "cpu-clock",
+  "frequency_hz": 199,
+  "seconds": 11,
+  "call_graph": "dwarf,16384",
+  "concurrency": 64,
+  "workers": 2,
+  "qualification": "Instrumented CPU samples, separate from throughput runs. Sample percentages are not absolute per-request savings; minimal Pingora omits product policies.",
+  "binaries": {
+    "rgnix": {
+      "path": "/tmp/rgnix-opt2-20260927/rgnix-hotpaths",
+      "sha256": "934174cc5b7eb0ed709b290006baaeb412b21a8602e0b9bffa485bb0c2bfbff7",
+      "version": "rgnix 0.4.0"
+    },
+    "nginx": {
+      "path": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+      "sha256": "d7509a23828ead5af789b69f2042a2eae74d25f740ef3c071dbc35c1b0f41304",
+      "version": "nginx version: nginx/1.30.5\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/nginx --with-http_ssl_module --with-http_v2_module --with-cc-opt=-O2"
+    },
+    "openresty": {
+      "path": "/tmp/rgnix-compare-20260927/openresty/nginx/sbin/nginx",
+      "sha256": "53de7d8583b2932a904f66f7cab088801fa0e7148e3f5c708507fcfc95f9ea18",
+      "version": "nginx version: openresty/1.31.1.1\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/openresty/nginx --with-cc-opt='-O2 -O2' --add-module=../ngx_devel_kit-0.3.4 --add-module=../echo-nginx-module-0.64 --add-module=../xss-nginx-module-0.07 --add-module=../ngx_coolkit-0.2 --add-module=../set-misc-nginx-module-0.33 --add-module=../form-input-nginx-module-0.12 --add-module=../encrypted-session-nginx-module-0.09 --add-module=../srcache-nginx-module-0.33 --add-module=../ngx_lua-0.10.31rc5 --add-module=../ngx_lua_upstream-0.08 --add-module=../headers-more-nginx-module-0.39 --add-module=../array-var-nginx-module-0.06 --add-module=../memc-nginx-module-0.20 --add-module=../redis2-nginx-module-0.15 --add-module=../redis-nginx-module-0.41 --add-module=../rds-json-nginx-module-0.17 --add-module=../rds-csv-nginx-module-0.10 --add-module=../ngx_stream_lua-0.0.19rc4 --with-ld-opt=-Wl,-rpath,/tmp/rgnix-compare-20260927/openresty/luajit/lib --with-http_ssl_module --with-http_v2_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module"
+    },
+    "candidate": {
+      "path": "/tmp/rgnix-opt3-20260927/rgnix-candidate",
+      "sha256": "87adf2fc27d46b44a4c10188749e1f1c16c03632060997bed1a08b5acda84d76",
+      "version": "rgnix 0.4.0"
+    },
+    "pingora": {
+      "path": "/tmp/rgnix-opt3-20260927/minimal-proxy",
+      "sha256": "bc30a29ffd0f14a113a4a6fc08c6207cc9f075b8cd384d7a666ba3b1cba97ef5",
+      "version": "rgnix 0.4.0"
+    }
+  },
+  "profiles": {
+    "candidate": {
+      "server_command": [
+        "/tmp/rgnix-opt3-20260927/rgnix-candidate",
+        "serve",
+        "-c",
+        "/tmp/rgnix-opt3-20260927/framework/rgnix/nginx.conf",
+        "--admin",
+        "127.0.0.1:38987",
+        "--threads",
+        "2",
+        "--max-inflight",
+        "4096",
+        "--max-plugin-instances",
+        "512",
+        "--shutdown-grace-seconds",
+        "0",
+        "--shutdown-timeout-seconds",
+        "5"
+      ],
+      "pids": "112894",
+      "recorder_output": "[ perf record: Woken up 327949 times to write data ]\n[ perf record: Captured and wrote 69.886 MB /tmp/rgnix-opt3-20260927/profile-candidate.data (4356 samples) ]\n",
+      "wrk_output": "Running 12s test @ http://127.0.0.1:34313/proxy-1k\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   694.39us  271.59us   6.20ms   81.24%\n    Req/Sec    23.37k     1.96k   29.27k    68.12%\n  1123108 requests in 12.10s, 1.36GB read\nRequests/sec:  92817.91\nTransfer/sec:    115.34MB\nBENCH_RESULT {\"requests\":1123108,\"seconds\":12.100122,\"bytes\":1463409724,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.643000,\"p95_ms\":1.141000,\"p99_ms\":1.589000}\n",
+      "flat_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 4K of event 'cpu-clock'\n# Event count (approx.): 21889444500\n#\n# Overhead  Command          Shared Object      Symbol                                                                                                                                                                                            \n# ........  ...............  .................  ..................................................................................................................................................................................................\n#\n    12.90%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __wake_up_sync_key\n     5.74%  Pingora HTTP Pr  [vdso]             [.] __kernel_clock_gettime\n     3.58%  Pingora HTTP Pr  libc.so.6          [.] 0x00000000000a9940\n     3.17%  Pingora HTTP Pr  [kernel.kallsyms]  [k] arch_counter_get_cntvct\n     2.41%  Pingora HTTP Pr  libc.so.6          [.] cfree\n     2.34%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __arch_copy_to_user\n     1.81%  Pingora HTTP Pr  [kernel.kallsyms]  [k] local_daif_restore\n     1.70%  Pingora HTTP Pr  [kernel.kallsyms]  [k] net_rx_action\n     1.45%  Pingora HTTP Pr  libc.so.6          [.] malloc\n     1.24%  Pingora HTTP Pr  libc.so.6          [.] 0x000000000009542c\n     1.24%  Pingora HTTP Pr  rgnix-candidate    [.] __aarch64_cas8_acq_rel\n     1.10%  Pingora HTTP Pr  [kernel.kallsyms]  [k] nf_conntrack_tcp_packet\n     0.99%  Pingora HTTP Pr  rgnix-candidate    [.] pingora_core::protocols::http::v1::client::HttpSession::read_resp_header_parts::{{closure}}\n     0.96%  Pingora HTTP Pr  [kernel.kallsyms]  [k] tcp_sendmsg\n     0.94%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __local_bh_enable_ip\n     0.85%  Pingora HTTP Pr  rgnix-candidate    [.] pingora_proxy::proxy_h1::<impl pingora_proxy::HttpProxy<SV,C>>::proxy_1to1::{{closure}}\n     0.73%  Pingora HTTP Pr  [kernel.kallsyms]  [k] ip_rcv\n     0.69%  Pingora HTTP Pr  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore\n     0.69%  Pingora HTTP Pr  libc.so.6          [.] 0x0000000000095428\n     0.67%  Pingora HTTP Pr  [kernel.kallsyms]  [k] nf_nat_inet_fn\n     0.67%  Pingora HTTP Pr  rgnix-candidate    [.] http::header::name::parse_hdr\n     0.64%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __do_softirq\n     0.62%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __kfree_skb\n     0.62%  Pingora HTTP Pr  rgnix-candidate    [.] pingora_core::protocols::http::v1::server::HttpSession::read_request::{{closure}}\n     0.60%  Pingora HTTP Pr  rgnix-candidate    [.] <pingora_proxy::HttpProxy<SV,C> as pingora_core::apps::HttpServerApp>::process_new_http::{{closure}}\n     0.57%  Pingora HTTP Pr  rgnix-candidate    [.] http::header::name::StandardHeader::from_bytes\n     0.55%  Pingora HTTP Pr  [kernel.kallsyms]  [k] tcp_ack\n     0.53%  Pingora HTTP Pr  [kernel.kallsyms]  [k] local_bh_enable\n     0.51%  Pingora HTTP Pr  rgnix-candidate    [.] __aarch64_ldadd8_relax\n     0.51%  Pingora HTTP Pr  rgnix-candidate    [.] tokio::runtime::io::registration::Registration::poll_ready\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+    },
+    "pingora": {
+      "server_command": [
+        "/tmp/rgnix-opt3-20260927/minimal-proxy",
+        "--listen",
+        "127.0.0.1:34313",
+        "--upstream",
+        "127.0.0.1:48499",
+        "--workers",
+        "2"
+      ],
+      "pids": "112938",
+      "recorder_output": "[ perf record: Woken up 270 times to write data ]\n[ perf record: Captured and wrote 67.655 MB /tmp/rgnix-opt3-20260927/profile-pingora.data (4215 samples) ]\n",
+      "wrk_output": "Running 12s test @ http://127.0.0.1:34313/proxy-1k\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.09ms    4.56ms 131.17ms   99.34%\n    Req/Sec    20.49k     3.36k   32.95k    69.02%\n  980694 requests in 12.10s, 1.19GB read\nRequests/sec:  81053.20\nTransfer/sec:    100.72MB\nBENCH_RESULT {\"requests\":980694,\"seconds\":12.099387,\"bytes\":1277844282,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.739000,\"p95_ms\":1.392000,\"p99_ms\":3.528000}\n",
+      "flat_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 4K of event 'cpu-clock'\n# Event count (approx.): 21180901875\n#\n# Overhead  Command          Shared Object      Symbol                                                                                                                                                                                                                                                                                                                                             \n# ........  ...............  .................  ...................................................................................................................................................................................................................................................................................................................................................\n#\n    14.19%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __wake_up_sync_key\n     3.49%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __arch_copy_to_user\n     3.49%  Pingora HTTP Pr  [kernel.kallsyms]  [k] arch_counter_get_cntvct\n     2.37%  Pingora HTTP Pr  libc.so.6          [.] 0x00000000000a9940\n     2.33%  Pingora HTTP Pr  [vdso]             [.] __kernel_clock_gettime\n     2.16%  Pingora HTTP Pr  libc.so.6          [.] cfree\n     2.06%  Pingora HTTP Pr  libc.so.6          [.] 0x000000000009542c\n     1.73%  Pingora HTTP Pr  [kernel.kallsyms]  [k] net_rx_action\n     1.61%  Pingora HTTP Pr  [kernel.kallsyms]  [k] local_daif_restore\n     1.49%  Pingora HTTP Pr  libc.so.6          [.] malloc\n     1.38%  Pingora HTTP Pr  [kernel.kallsyms]  [k] nf_conntrack_tcp_packet\n     1.35%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __local_bh_enable_ip\n     1.30%  Pingora HTTP Pr  minimal-proxy      [.] pingora_core::protocols::http::v1::client::HttpSession::read_resp_header_parts::{{closure}}\n     1.26%  Pingora HTTP Pr  [kernel.kallsyms]  [k] ip_rcv\n     1.16%  Pingora HTTP Pr  minimal-proxy      [.] pingora_proxy::proxy_h1::<impl pingora_proxy::HttpProxy<SV,C>>::proxy_1to1::{{closure}}\n     1.07%  Pingora HTTP Pr  libc.so.6          [.] 0x0000000000095428\n     0.95%  Pingora HTTP Pr  [kernel.kallsyms]  [k] nf_nat_inet_fn\n     0.85%  Pingora HTTP Pr  [kernel.kallsyms]  [k] nf_conntrack_in\n     0.85%  Pingora HTTP Pr  [kernel.kallsyms]  [k] tcp_sendmsg\n     0.85%  Pingora HTTP Pr  minimal-proxy      [.] pingora_core::protocols::http::v1::server::HttpSession::read_request::{{closure}}\n     0.83%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __kfree_skb\n     0.81%  Pingora HTTP Pr  [kernel.kallsyms]  [k] local_bh_enable\n     0.81%  Pingora HTTP Pr  [kernel.kallsyms]  [k] tcp_ack\n     0.78%  Pingora HTTP Pr  [kernel.kallsyms]  [k] __do_softirq\n     0.66%  Pingora HTTP Pr  minimal-proxy      [.] __aarch64_cas8_acq_rel\n     0.64%  Pingora HTTP Pr  minimal-proxy      [.] pingora_http::normalize_field_value\n     0.62%  Pingora HTTP Pr  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore\n     0.62%  Pingora HTTP Pr  minimal-proxy      [.] httparse::parse_headers_iter_uninit\n     0.59%  Pingora HTTP Pr  minimal-proxy      [.] <pingora_proxy::HttpProxy<SV,C> as pingora_core::apps::HttpServerApp>::process_new_http::{{closure}}\n     0.57%  Pingora HTTP Pr  [kernel.kallsyms]  [k] ip_output\n     0.55%  Pingora HTTP Pr  libc.so.6          [.] getpeername\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+    },
+    "nginx": {
+      "server_command": [
+        "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+        "-p",
+        "/tmp/rgnix-opt3-20260927/framework/nginx",
+        "-c",
+        "/tmp/rgnix-opt3-20260927/framework/nginx/nginx.conf",
+        "-g",
+        "daemon off;"
+      ],
+      "pids": "112968,112969,112970",
+      "recorder_output": "[ perf record: Woken up 277 times to write data ]\n[ perf record: Captured and wrote 69.378 MB /tmp/rgnix-opt3-20260927/profile-nginx.data (4310 samples) ]\n",
+      "wrk_output": "Running 12s test @ http://127.0.0.1:34313/proxy-1k\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   757.80us    5.27ms 129.84ms   99.40%\n    Req/Sec    39.41k     5.91k   80.93k    75.52%\n  1890348 requests in 12.10s, 2.28GB read\nRequests/sec: 156229.37\nTransfer/sec:    193.24MB\nBENCH_RESULT {\"requests\":1890348,\"seconds\":12.099825,\"bytes\":2451781356,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.376000,\"p95_ms\":0.818000,\"p99_ms\":2.539000}\n",
+      "flat_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 4K of event 'cpu-clock'\n# Event count (approx.): 21658288750\n#\n# Overhead  Command  Shared Object      Symbol                                            \n# ........  .......  .................  ..................................................\n#\n    17.33%  nginx    [kernel.kallsyms]  [k] __wake_up_sync_key\n     6.33%  nginx    [kernel.kallsyms]  [k] arch_counter_get_cntvct\n     4.73%  nginx    [kernel.kallsyms]  [k] __arch_copy_to_user\n     3.50%  nginx    libc.so.6          [.] 0x0000000000087d20\n     3.11%  nginx    [kernel.kallsyms]  [k] net_rx_action\n     2.83%  nginx    [kernel.kallsyms]  [k] __local_bh_enable_ip\n     2.76%  nginx    [kernel.kallsyms]  [k] local_daif_restore\n     2.60%  nginx    [kernel.kallsyms]  [k] __do_softirq\n     2.20%  nginx    nginx              [.] ngx_http_parse_header_line\n     2.18%  nginx    [kernel.kallsyms]  [k] __kfree_skb\n     1.74%  nginx    [kernel.kallsyms]  [k] nf_conntrack_tcp_packet\n     1.62%  nginx    [kernel.kallsyms]  [k] ip_rcv\n     1.62%  nginx    [kernel.kallsyms]  [k] local_bh_enable\n     1.51%  nginx    [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore\n     1.35%  nginx    [kernel.kallsyms]  [k] tcp_sendmsg\n     1.30%  nginx    [kernel.kallsyms]  [k] nf_conntrack_in\n     1.28%  nginx    [kernel.kallsyms]  [k] tcp_ack_update_rtt\n     1.14%  nginx    [kernel.kallsyms]  [k] nf_nat_inet_fn\n     1.09%  nginx    [kernel.kallsyms]  [k] tcp_poll\n     1.04%  nginx    [kernel.kallsyms]  [k] tcp_ack\n     1.04%  nginx    [kernel.kallsyms]  [k] validate_xmit_skb\n     1.00%  nginx    [kernel.kallsyms]  [k] _raw_spin_lock_irq\n     0.95%  nginx    [kernel.kallsyms]  [k] ip_output\n     0.88%  nginx    libc.so.6          [.] 0x0000000000087d1c\n     0.84%  nginx    nginx              [.] ngx_hash_find\n     0.77%  nginx    [kernel.kallsyms]  [k] __siphash_unaligned\n     0.77%  nginx    [kernel.kallsyms]  [k] do_el0_svc\n     0.77%  nginx    nginx              [.] ngx_rbtree_delete\n     0.74%  nginx    [kernel.kallsyms]  [k] __arch_copy_from_user\n     0.70%  nginx    [kernel.kallsyms]  [k] dst_release\n     0.70%  nginx    [kernel.kallsyms]  [k] ip_queue_xmit\n     0.67%  nginx    nginx              [.] ngx_http_proxy_create_request\n     0.67%  nginx    nginx              [.] ngx_palloc\n     0.58%  nginx    [kernel.kallsyms]  [k] nf_hook_slow\n     0.58%  nginx    libc.so.6          [.] getsockopt\n     0.56%  nginx    nginx              [.] ngx_rbtree_insert_timer_value\n     0.51%  nginx    [kernel.kallsyms]  [k] tcp_v4_rcv\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+    }
+  }
+}

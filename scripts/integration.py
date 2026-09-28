@@ -125,6 +125,11 @@ class Upstream(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
+        if self.path == "/base/many-headers":
+            for i in range(40):
+                self.send_header(f"X-Reply-{i}", f"value-{i}")
+            self.send_header("Set-Cookie", "first=1")
+            self.send_header("Set-Cookie", "second=2")
         self.end_headers()
         try:
             self.wfile.write(payload)
@@ -151,14 +156,19 @@ def free_port():
 def exercise_limits(binary, directory, upstream):
     port, admin, unavailable = free_port(), free_port(), free_port()
     script = directory / "budget.rgl"
-    script.write_text("function on_request() return route.pass() end")
+    script.write_text('function on_request() return route.pass() end function on_response() resp.set_header("x-hook", "ran") end')
+    request_only = directory / "request-only.rgl"
+    request_only.write_text("function on_request() return route.pass() end")
     conf = directory / "budget.conf"
     conf.write_text(f'''events {{}} http {{ access_log off;
 upstream app {{ server 127.0.0.1:{upstream}; }}
 upstream balanced {{ server 127.0.0.1:{unavailable}; server 127.0.0.1:{upstream}; }}
+upstream single {{ server 127.0.0.1:{unavailable}; }}
 server {{ listen 127.0.0.1:{port};
 location /plugin/ {{ rgnix_script {script}; proxy_pass http://app/; }}
+location /request-only/ {{ rgnix_script {request_only}; proxy_pass http://app/; }}
 location /balanced {{ proxy_pass http://balanced; }}
+location /single {{ proxy_pass http://single; }}
 location / {{ proxy_pass http://app; }}
 }} }}''')
     recovered = None
@@ -187,6 +197,19 @@ location / {{ proxy_pass http://app; }}
             check("completed requests release resource permits", request(port, "/plugin/")[0] == 200)
             wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
             check("live metrics release permits after requests finish", metric_value(request(admin, "/metrics")[2].decode(), "rgnix_backend_inflight", backend="app") == 0)
+            HELD_ENTERED.clear()
+            HELD_RELEASE.clear()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                pending = pool.submit(request, port, "/request-only/held")
+                try:
+                    assert HELD_ENTERED.wait(3)
+                    status, _, _ = request(port, "/request-only/")
+                    metrics = request(admin, "/metrics")[2].decode()
+                    check("request-only hooks release the plugin budget before a slow upstream completes", status == 200 and not pending.done() and metric_value(metrics, "rgnix_budget_in_use", budget="plugin") == 0)
+                finally:
+                    HELD_RELEASE.set()
+                assert pending.result()[0] == 200
+            check("single endpoint still ejects failed connections without retrying", [request(port, "/single")[0] for _ in range(4)] == [502, 502, 502, 503])
             statuses = [request(port, "/balanced")[0] for _ in range(8)]
             check("failed endpoint is excluded without replaying its requests", statuses.count(502) == 3 and statuses[-3:] == [200] * 3)
             recovered = http.server.ThreadingHTTPServer(("127.0.0.1", unavailable), Upstream)
@@ -195,6 +218,7 @@ location / {{ proxy_pass http://app; }}
             time.sleep(1.1)
             reached = {json.loads(request(port, "/balanced")[2])["port"] for _ in range(6)}
             check("excluded endpoint re-enters rotation after cooldown", reached == {upstream, unavailable})
+            check("single endpoint also recovers after cooldown", request(port, "/single")[0] == 200)
         except BaseException:
             print((directory / "budget.log").read_text()[-6000:], file=sys.stderr)
             raise
@@ -203,6 +227,25 @@ location / {{ proxy_pass http://app; }}
             process.terminate()
             process.wait(timeout=35)
             if recovered: recovered.shutdown()
+
+
+def exercise_fast_shutdown(binary, directory):
+    ports = [free_port() for _ in range(3)]
+    config = directory / "fast-shutdown.conf"
+    config.write_text(f"http {{ access_log off; server {{ listen 127.0.0.1:{ports[0]}; listen 127.0.0.1:{ports[1]}; location / {{ return 200 ok; }} }} }}")
+    with (directory / "fast-shutdown.log").open("w") as log:
+        for _ in range(12):
+            process = subprocess.Popen([binary, "serve", "-c", str(config), "--threads", "4", "--admin", f"127.0.0.1:{ports[2]}"], stdout=log, stderr=log)
+            try:
+                wait_for(lambda: request(ports[2], "/readyz")[0], 200)
+                assert all(request(port)[0] == 200 for port in ports[:2])
+                process.send_signal(signal.SIGINT)
+                assert process.wait(timeout=3) == 0
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+    check("repeated SIGINT exits all listener workers without spinning on a stopped reactor", True)
 
 
 def wait_for(fn, expected=True, timeout=10):
@@ -245,6 +288,9 @@ def exercise_body_routing(port, tls_port, upstream, canary, directory, admin):
     result, _ = upload("/body-large/", json.dumps({"tenant": "vip", "padding": "a" * 100000}).encode())
     check("full inspection can replay bodies larger than Pingora's original 64 KiB buffer", result["port"] == canary)
     payload = b"route=vip;" + bytes(range(256)) * 4096
+    # Reading the response can precede the previous request's completion hook.
+    # Wait for its permit to be released before taking an exact byte baseline.
+    wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
     before = metric_value(request(admin, "/metrics")[2].decode(), "rgnix_request_body_bytes_total")
     result, _ = upload("/body-prefix/", payload)
     check("prefix inspection routes binary uploads and preserves the entire body", result["port"] == canary and result["headers"].get("x-body-state") == "truncated")
@@ -442,13 +488,14 @@ http {{
         location /plugin/ {{ proxy_pass http://app/; rgnix_script {plugin}; }}
         location /wasm/ {{ proxy_pass http://app/; rgnix_script {wasm}; }}
         location /static-plugin/ {{ rgnix_script {plugin}; }}
-        location /loop/ {{ rgnix_script {directory / 'loop.rgl'}; return 200 ok; }}
+        location /loop/ {{ rgnix_script {directory / 'loop.rgl'}; access_log {directory / 'plugin-fail.log'}; return 200 ok; }}
         location = /commit {{ proxy_pass http://app; }}
         location = /events {{ proxy_pass http://app; }}
         location = /ws {{ proxy_pass http://app; }}
         location /limited/ {{ client_max_body_size 16k; proxy_pass http://app/; }}
         location /timeout/ {{ proxy_pass http://app/slow; proxy_read_timeout 100ms; }}
         location = /alive {{ return 200 alive; }}
+        location = /header-view {{ return 200 "$http_x_view"; }}
     }}
     server {{
         listen 127.0.0.1:{tls_port} ssl;
@@ -483,9 +530,43 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                                        env={**os.environ, "SSL_CERT_FILE": str(directory / "cert.pem")})
             try:
                 wait_for(lambda: request(admin, "/readyz")[0], 200)
+                with socket.create_connection(("127.0.0.1", port), timeout=3) as sock:
+                    sock.sendall(b"GET /header-view HTTP/1.1\r\nHost: example.test\r\nX-View: first\r\nX-View: last\r\nX-View: \xff\r\nConnection: close\r\n\r\n")
+                    response = http.client.HTTPResponse(sock)
+                    response.begin()
+                    check("header variables retain the last valid repeated value", response.status == 200 and response.read() == b"last")
                 check("static GET", request(port)[2] == b"hello rgnix\n")
                 status, headers, body = request(port, "/data.txt", "HEAD")
                 check("static HEAD", status == 200 and headers["content-length"] == "10" and body == b"")
+                for size in (0, 65536, 65537, 196731):
+                    content = (bytes(range(256)) * ((size + 255) // 256))[:size]
+                    (root / "sized.bin").write_bytes(content)
+                    status, sized_headers, data = request(port, "/sized.bin")
+                    assert status == 200 and data == content and int(sized_headers["content-length"]) == size
+                    status, _, data = request(port, "/sized.bin", "HEAD")
+                    assert status == 200 and not data
+                    if size:
+                        status, _, data = request(port, "/sized.bin", headers={"Range": "bytes=0-7"})
+                        assert status == 206 and data == content[:8]
+                        status, _, data = request(port, "/sized.bin", headers={"Range": "bytes=65000-65536"})
+                        assert status == 206 and data == content[65000:65537]
+                    assert request(port, "/sized.bin", headers={"If-None-Match": sized_headers["etag"]})[0] == 304
+                check("static small and streamed files preserve lengths, ranges and conditional responses across file changes", True)
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                try:
+                    for revision in range(12):
+                        content = (f"revision-{revision}|".encode() * 9000)
+                        (root / "replacement.tmp").write_bytes(content)
+                        os.replace(root / "replacement.tmp", root / "replaced.bin")
+                        connection.request("GET", "/replaced.bin", headers={"Host": "example.test"})
+                        response = connection.getresponse()
+                        assert response.status == 200 and response.read() == content
+                        connection.request("GET", "/replaced.bin", headers={"Host": "example.test", "Range": "bytes=65500-65600"})
+                        response = connection.getresponse()
+                        assert response.status == 206 and response.read() == content[65500:65601]
+                finally:
+                    connection.close()
+                check("atomic file replacement and ranges remain fresh across persistent requests", True)
                 check("static single range", request(port, "/data.txt", headers={"Range": "bytes=2-5"})[2] == b"2345")
                 check("unsatisfiable range", request(port, "/data.txt", headers={"Range": "bytes=20-"})[0] == 416)
                 etag = request(port, "/data.txt")[1]["etag"]
@@ -502,6 +583,22 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 check("path traversal rejection", request(port, "/%2e%2e/key.pem")[0] == 400)
                 reply = json.loads(request(port, "/api/item?q=1")[2])
                 check("proxy_pass URI replacement", reply["path"] == "/base/item?q=1" and reply["headers"]["Host"] == "example.test")
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                try:
+                    fields = {f"X-Request-{i}": f"value-{i}" for i in range(40)}
+                    connection.request("GET", "/api/many-headers", headers={"Host": "example.test", **fields})
+                    response = connection.getresponse()
+                    replies = response.getheaders()
+                    echoed = json.loads(response.read())["headers"]
+                    preserved = response.status == 200 and all(echoed.get(k) == v for k, v in fields.items())
+                    preserved &= all(dict((k.lower(), v) for k, v in replies).get(f"x-reply-{i}") == f"value-{i}" for i in range(40))
+                    preserved &= [v for k, v in replies if k.lower() == "set-cookie"] == ["first=1", "second=2"]
+                    connection.request("GET", "/api/next", headers={"Host": "example.test"})
+                    response = connection.getresponse()
+                    next_fields = json.loads(response.read())["headers"]
+                    check("large header sets preserve duplicates and isolate keepalive requests", preserved and response.status == 200 and "X-Request-0" not in next_fields and response.getheader("X-Reply-0") is None)
+                finally:
+                    connection.close()
                 reply = json.loads(request(port, "/raw/%61?q=2")[2])
                 check("proxy_pass preserves original URI", reply["path"] == "/raw/%61?q=2")
                 check("IPv6 upstream", json.loads(request(port, "/v6/hello")[2])["path"] == "/hello")
@@ -579,6 +676,9 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 check("script backend alias preserves HTTPS and forwarded headers", status == 200 and json.loads(body)["port"] == secure_server.server_port and json.loads(body)["headers"]["Authorization"] == "Bearer test-marker")
                 check("script HTTPS backend still verifies certificates", request(port, "/plugin/item", headers={"x-backend": "example.test"})[0] == 502)
                 check("fuel limits infinite loops", request(port, "/loop/")[0] == 500 and request(port, "/alive")[0] == 200)
+                failed_log = directory / "plugin-fail.log"
+                wait_for(lambda: failed_log.exists() and '"GET /loop/ HTTP/1.1" 500' in failed_log.read_text())
+                check("trapped request-only hook retains client identity in access logs", failed_log.read_text().startswith("127.0.0.1 "))
                 status, headers, _ = request(port, "/response-fail")
                 check("response hook failure returns 500 without staged edits", status == 500 and "x-partial" not in headers)
                 check("upstream disconnect never replays POST", request(port, "/commit", "POST", body=b"side effect")[0] == 502 and COMMITS == 1)
@@ -648,6 +748,7 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 wait_for(lambda: b"rgnix_reload_errors_total 2" in request(admin, "/metrics")[2])
                 check("deep AST reload cannot abort the data plane", process.poll() is None and request(port, "/plugin/item")[1].get("x-generation") == "two")
                 exercise_limits(binary, directory, upstream)
+                exercise_fast_shutdown(binary, directory)
                 check("metrics are exposed", b"rgnix_plugin_errors_total" in request(admin, "/metrics")[2])
                 with socket.create_connection(("127.0.0.1", port)) as cancelled:
                     cancelled.sendall(b"GET /plugin/slow HTTP/1.1\r\nHost: example.test\r\n\r\n")

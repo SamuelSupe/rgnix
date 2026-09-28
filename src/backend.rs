@@ -1,16 +1,18 @@
 use crate::{model::Endpoint, traffic::Key};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     net::SocketAddr,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex, OnceLock,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
+
+mod selection;
+use selection::Selection;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub enum Balance {
@@ -80,18 +82,24 @@ pub struct Backend {
     pub profile: crate::upstream::Transport,
     cursor: AtomicU64,
     active: AtomicUsize,
+    health_revision: AtomicU64,
     pool: Mutex<Pool>,
+    http_probe_client: OnceLock<reqwest::Client>,
 }
 #[derive(Debug)]
 struct Pool {
-    endpoints: Vec<(Endpoint, Arc<State>)>,
+    endpoints: Arc<[(Endpoint, Arc<State>)]>,
+    selection: Option<Arc<Selection>>,
     next_dns: Instant,
     dns_success: Instant,
     next_health: Instant,
 }
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct State {
+    hash_address: String,
     active: AtomicUsize,
+    // False implies no passive failures or cooldown; transitions hold the health lock.
+    has_failures: AtomicBool,
     health: Mutex<Health>,
 }
 #[derive(Debug, Default)]
@@ -104,6 +112,60 @@ pub struct Lease {
     pub address: SocketAddr,
     state: Arc<State>,
     backend: Arc<Backend>,
+}
+impl Lease {
+    pub fn record_result(&self, failed: bool, max_fails: usize, cooldown: Duration) -> bool {
+        self.state
+            .record_result(failed, max_fails, cooldown, &self.backend.health_revision)
+    }
+}
+
+impl State {
+    fn new(address: SocketAddr) -> Self {
+        Self {
+            hash_address: address.to_string(),
+            active: AtomicUsize::new(0),
+            has_failures: AtomicBool::new(false),
+            health: Mutex::new(Health::default()),
+        }
+    }
+
+    fn record_result(
+        &self,
+        failed: bool,
+        max_fails: usize,
+        cooldown: Duration,
+        revision: &AtomicU64,
+    ) -> bool {
+        if (!failed && !self.has_failures.load(Ordering::Acquire)) || (failed && max_fails == 0) {
+            return false;
+        }
+        let mut health = self.health.lock().unwrap_or_else(|e| e.into_inner());
+        if !failed {
+            health.failures = 0;
+            if health.blocked_until.take().is_some() {
+                revision.fetch_add(1, Ordering::Release);
+            }
+            self.has_failures.store(false, Ordering::Release);
+            return false;
+        }
+        health.failures = health.failures.saturating_add(1);
+        self.has_failures.store(true, Ordering::Release);
+        if health.failures >= max_fails && health.blocked_until.is_none() {
+            health.blocked_until = Some(Instant::now() + cooldown);
+            revision.fetch_add(1, Ordering::Release);
+            return true;
+        }
+        false
+    }
+
+    fn set_active_health(&self, ok: bool, revision: &AtomicU64) {
+        let mut health = self.health.lock().unwrap_or_else(|e| e.into_inner());
+        if health.active_ok != Some(ok) {
+            health.active_ok = Some(ok);
+            revision.fetch_add(1, Ordering::Release);
+        }
+    }
 }
 pub(crate) struct Observation {
     pub endpoints: usize,
@@ -127,8 +189,12 @@ impl Backend {
             endpoints: endpoints
                 .iter()
                 .cloned()
-                .map(|e| (e, Arc::new(State::default())))
+                .map(|e| {
+                    let state = Arc::new(State::new(e.address));
+                    (e, state)
+                })
                 .collect(),
+            selection: None,
             next_dns: now,
             dns_success: now,
             next_health: now,
@@ -144,7 +210,9 @@ impl Backend {
             profile: Default::default(),
             cursor: AtomicU64::new(0),
             active: AtomicUsize::new(0),
+            health_revision: AtomicU64::new(0),
             pool: Mutex::new(pool),
+            http_probe_client: OnceLock::new(),
         }
     }
     pub fn transport(&self, tls: bool, hostname: String, host_header: String) -> Self {
@@ -165,69 +233,6 @@ impl Backend {
             && self.ca_pem == previous.ca_pem
             && self.profile.pool_key() == previous.profile.pool_key()
     }
-    pub fn select(self: &Arc<Self>, key: &str) -> Option<Lease> {
-        let pool = self.pool.lock().unwrap_or_else(|e| e.into_inner());
-        if self.options.max_inflight > 0
-            && self.active.load(Ordering::Relaxed) >= self.options.max_inflight
-        {
-            return None;
-        }
-        let now = Instant::now();
-        let eligible: Vec<_> = pool
-            .endpoints
-            .iter()
-            .filter(|(_, state)| {
-                let mut health = state.health.lock().unwrap_or_else(|e| e.into_inner());
-                if health.blocked_until.is_some_and(|until| until <= now) {
-                    health.blocked_until = None;
-                    health.failures = 0;
-                }
-                health.blocked_until.is_none()
-                    && (self.options.health.is_none() || health.active_ok == Some(true))
-            })
-            .collect();
-        let total: u64 = eligible.iter().map(|(e, _)| u64::from(e.weight)).sum();
-        if total == 0 {
-            return None;
-        }
-        let chosen = match &self.options.balance {
-            Balance::RoundRobin => {
-                let mut n = self.cursor.fetch_add(1, Ordering::Relaxed) % total;
-                eligible
-                    .iter()
-                    .find(|(e, _)| {
-                        if n < u64::from(e.weight) {
-                            true
-                        } else {
-                            n -= u64::from(e.weight);
-                            false
-                        }
-                    })
-                    .copied()
-            }
-            Balance::LeastConnections => {
-                // Rotate ties to avoid concentrating fresh requests on one endpoint.
-                let offset = self.cursor.fetch_add(1, Ordering::Relaxed) as usize % eligible.len();
-                (0..eligible.len())
-                    .map(|i| eligible[(i + offset) % eligible.len()])
-                    .min_by(|(a, sa), (b, sb)| {
-                        (sa.active.load(Ordering::Relaxed) as u64 * u64::from(b.weight))
-                            .cmp(&(sb.active.load(Ordering::Relaxed) as u64 * u64::from(a.weight)))
-                    })
-            }
-            Balance::Hash(_) | Balance::Sticky(_) => eligible
-                .iter()
-                .min_by(|(a, _), (b, _)| hash_score(key, a).total_cmp(&hash_score(key, b)))
-                .copied(),
-        }?;
-        chosen.1.active.fetch_add(1, Ordering::Relaxed);
-        self.active.fetch_add(1, Ordering::Relaxed);
-        Some(Lease {
-            address: chosen.0.address,
-            state: chosen.1.clone(),
-            backend: self.clone(),
-        })
-    }
     pub fn record_result(
         &self,
         address: SocketAddr,
@@ -239,21 +244,7 @@ impl Backend {
         let Some((_, state)) = pool.endpoints.iter().find(|(e, _)| e.address == address) else {
             return false;
         };
-        let mut health = state.health.lock().unwrap_or_else(|e| e.into_inner());
-        if !failed {
-            health.failures = 0;
-            health.blocked_until = None;
-            return false;
-        }
-        if max_fails == 0 {
-            return false;
-        }
-        health.failures = health.failures.saturating_add(1);
-        if health.failures >= max_fails && health.blocked_until.is_none() {
-            health.blocked_until = Some(Instant::now() + cooldown);
-            return true;
-        }
-        false
+        state.record_result(failed, max_fails, cooldown, &self.health_revision)
     }
     pub fn diagnostic(&self) -> serde_json::Value {
         let pool = self.pool.lock().unwrap_or_else(|e| e.into_inner());
@@ -275,7 +266,7 @@ impl Backend {
                 .any(|o| o.host.parse::<std::net::IpAddr>().is_err())
                 .then(|| pool.dns_success.elapsed().as_secs_f64()),
         };
-        for (endpoint, state) in &pool.endpoints {
+        for (endpoint, state) in pool.endpoints.iter() {
             let health = state.health.lock().unwrap_or_else(|e| e.into_inner());
             let ejected = health.blocked_until.is_some_and(|until| until > now);
             let unready = self.options.health.is_some() && health.active_ok != Some(true);
@@ -336,22 +327,27 @@ impl Backend {
             if !failed {
                 let previous: BTreeMap<_, _> = pool
                     .endpoints
-                    .drain(..)
-                    .map(|(e, s)| (e.address, s))
+                    .iter()
+                    .map(|(e, s)| (e.address, s.clone()))
                     .collect();
                 pool.endpoints = endpoints
                     .into_iter()
                     .map(|(address, weight)| {
                         (
                             Endpoint { address, weight },
-                            previous.get(&address).cloned().unwrap_or_default(),
+                            previous
+                                .get(&address)
+                                .cloned()
+                                .unwrap_or_else(|| Arc::new(State::new(address))),
                         )
                     })
                     .collect();
+                pool.selection = None;
                 pool.next_dns = until.max(now + Duration::from_secs(1));
                 pool.dns_success = now;
             } else if now.duration_since(pool.dns_success) > Duration::from_secs(60) {
-                pool.endpoints.clear();
+                pool.endpoints = Arc::from([]);
+                pool.selection = None;
             }
         }
         if let Some(check) = health {
@@ -360,17 +356,13 @@ impl Backend {
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .endpoints
-                .clone();
+                .to_vec();
             use futures::{StreamExt, stream};
             let mut checks = stream::iter(endpoints.into_iter().map(|(endpoint, state)| {
                 let check = &check;
                 async move {
                     let ok = self.probe(endpoint.address, check).await;
-                    state
-                        .health
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .active_ok = Some(ok);
+                    state.set_active_health(ok, &self.health_revision);
                 }
             }))
             .buffer_unordered(8);
@@ -388,122 +380,47 @@ impl Backend {
         } else {
             name.into()
         };
-        let url = format!(
-            "{}://{host}:{}{}",
-            if self.tls { "https" } else { "http" },
-            address.port(),
-            check.path
-        );
-        let Ok(client) = self.profile.client_builder() else {
-            return false;
+        let url = if self.tls {
+            format!("https://{host}:{}{}", address.port(), check.path)
+        } else {
+            format!("http://{address}{}", check.path)
         };
-        let client = client
-            .timeout(check.timeout)
-            .resolve(name, address)
-            .pool_max_idle_per_host(0);
-        let Ok(client) = client.build() else {
+        let Some(client) = self.probe_client(name, address) else {
             return false;
         };
         client
             .get(url)
             .header("Host", &self.host_header)
+            .timeout(check.timeout)
             .send()
             .await
             .is_ok_and(|r| r.status().as_u16() == check.status)
     }
-}
 
-fn hash_score(key: &str, endpoint: &Endpoint) -> f64 {
-    let bytes = Sha256::digest(format!("{key}\0{}", endpoint.address).as_bytes());
-    let value = u64::from_be_bytes(bytes[..8].try_into().unwrap());
-    let uniform = (value as f64 + 1.0) / (u64::MAX as f64 + 2.0);
-    -uniform.ln() / f64::from(endpoint.weight)
+    fn probe_client(&self, name: &str, address: SocketAddr) -> Option<reqwest::Client> {
+        if !self.tls
+            && let Some(client) = self.http_probe_client.get()
+        {
+            return Some(client.clone());
+        }
+        let Ok(client) = self.profile.client_builder() else {
+            return None;
+        };
+        let mut client = client.pool_max_idle_per_host(0);
+        if self.tls {
+            // HTTPS needs the configured name for SNI and verification, while
+            // the resolver override keeps this probe on the selected endpoint.
+            client = client.resolve(name, address);
+        }
+        let client = client.build().ok()?;
+        if !self.tls {
+            // HTTP URLs carry the target IP, so one client can probe every
+            // endpoint without pinning future DNS generations to an old address.
+            let _ = self.http_probe_client.set(client.clone());
+        };
+        Some(client)
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[tokio::test]
-    async fn dns_ttl_refresh_replaces_endpoints_without_invalidating_active_leases() -> Result<()> {
-        use hickory_resolver::{
-            config::{LookupIpStrategy, NameServerConfigGroup, ResolverConfig},
-            name_server::TokioConnectionProvider,
-        };
-        let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
-        let address = socket.local_addr()?;
-        let generation = Arc::new(AtomicUsize::new(1));
-        let answer = generation.clone();
-        let task = tokio::spawn(async move {
-            let mut buffer = [0; 512];
-            loop {
-                let Ok((length, peer)) = socket.recv_from(&mut buffer).await else {
-                    break;
-                };
-                let mut end = 12;
-                while buffer[end] != 0 {
-                    end += 1 + usize::from(buffer[end]);
-                }
-                end += 5;
-                if end > length {
-                    continue;
-                }
-                let mut response = buffer[..end].to_vec();
-                response[2..12].copy_from_slice(&[0x81, 0x80, 0, 1, 0, 1, 0, 0, 0, 0]);
-                response.extend_from_slice(&[
-                    0xc0,
-                    0x0c,
-                    0,
-                    1,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    4,
-                    127,
-                    0,
-                    0,
-                    answer.load(Ordering::Relaxed) as u8,
-                ]);
-                let _ = socket.send_to(&response, peer).await;
-            }
-        });
-        let config = ResolverConfig::from_parts(
-            None,
-            vec![],
-            NameServerConfigGroup::from_ips_clear(&[address.ip()], address.port(), true),
-        );
-        let mut builder = hickory_resolver::Resolver::builder_with_config(
-            config,
-            TokioConnectionProvider::default(),
-        );
-        builder.options_mut().ip_strategy = LookupIpStrategy::Ipv4Only;
-        let resolver = builder.build();
-        let mut backend = Backend::new(vec![], false, "backend.test".into(), "backend.test".into());
-        backend.origins = vec![Origin {
-            host: "backend.test".into(),
-            port: 8080,
-            weight: 1,
-        }];
-        let backend = Arc::new(backend);
-        backend.maintain(Some(&resolver)).await;
-        let lease = backend.select("").expect("initial DNS answer");
-        assert_eq!(lease.address, "127.0.0.1:8080".parse()?);
-        generation.store(2, Ordering::Relaxed);
-        backend.maintain(Some(&resolver)).await;
-        assert_eq!(backend.select("").unwrap().address, lease.address);
-        tokio::time::sleep(Duration::from_millis(1100)).await;
-        backend.maintain(Some(&resolver)).await;
-        assert_eq!(
-            backend.select("").unwrap().address,
-            "127.0.0.2:8080".parse()?
-        );
-        assert_eq!(lease.address, "127.0.0.1:8080".parse()?);
-        drop(lease);
-        assert_eq!(backend.active.load(Ordering::Relaxed), 0);
-        task.abort();
-        Ok(())
-    }
-}
+mod tests;

@@ -16,6 +16,7 @@ use pingora::{
 };
 use std::{
     collections::BTreeMap,
+    hash::{Hash, Hasher},
     net::SocketAddr,
     sync::Arc,
     time::{Instant, SystemTime},
@@ -28,6 +29,8 @@ pub struct Proxy {
 }
 pub struct Context {
     snapshot: Option<Arc<RuntimeSnapshot>>,
+    prepared: bool,
+    prepared_route: Option<Arc<Route>>,
     route: Option<Arc<Route>>,
     request: RequestData,
     server_name: String,
@@ -87,6 +90,9 @@ fn normalize_decoded_path(decoded: &str) -> anyhow::Result<String> {
         decoded.starts_with('/') && !decoded.contains(['\0', '\\', '\r', '\n']),
         "invalid path"
     );
+    if !decoded.contains("//") && !decoded.split('/').any(|c| matches!(c, "." | "..")) {
+        return Ok(decoded.to_owned());
+    }
     let mut components = vec![];
     for c in decoded.split('/') {
         match c {
@@ -133,9 +139,14 @@ impl ProxyHttp for Proxy {
                 .collect(),
             ..Default::default()
         };
-        let route = snapshot.route_request(self.listener, &request)?;
-        ctx.started
-            .checked_add(route.settings.gateway.as_ref()?.timeouts.request?)
+        let route = snapshot.route_request(self.listener, &request);
+        let timeout = route
+            .as_ref()
+            .and_then(|route| route.settings.gateway.as_ref()?.timeouts.request);
+        ctx.request = request;
+        ctx.prepared = true;
+        ctx.prepared_route = route;
+        ctx.started.checked_add(timeout?)
     }
     fn backend_request_timeout(
         &self,
@@ -153,6 +164,8 @@ impl ProxyHttp for Proxy {
     fn new_ctx(&self) -> Context {
         Context {
             snapshot: None,
+            prepared: false,
+            prepared_route: None,
             route: None,
             request: RequestData::default(),
             server_name: String::new(),
@@ -198,7 +211,9 @@ impl ProxyHttp for Proxy {
             .path_and_query()
             .map_or("/", |p| p.as_str())
             .to_string();
-        ctx.request.method = session.req_header().method.to_string();
+        if !ctx.prepared {
+            ctx.request.method = session.req_header().method.to_string();
+        }
         ctx.request.remote_addr = session
             .client_addr()
             .and_then(|a| a.as_inet())
@@ -224,7 +239,8 @@ impl ProxyHttp for Proxy {
             .flat_map(|s| s.split(','))
             .any(|v| {
                 ["content-length", "transfer-encoding", "host"]
-                    .contains(&v.trim().to_ascii_lowercase().as_str())
+                    .iter()
+                    .any(|name| v.trim().eq_ignore_ascii_case(name))
             })
         {
             return Err(error(
@@ -232,53 +248,33 @@ impl ProxyHttp for Proxy {
                 "connection header names a framing or routing field",
             ));
         }
-        let path = normalized_path(request.uri.path()).map_err(|e| error(400, e.to_string()))?;
-        let host = request_host(request)?;
-        if host.is_empty() {
+        if !ctx.prepared {
+            ctx.request.path =
+                normalized_path(request.uri.path()).map_err(|e| error(400, e.to_string()))?;
+            ctx.request.host = request_host(request)?;
+            ctx.request.query = request.uri.query().unwrap_or("").to_string();
+            ctx.request.headers = script::RequestHeaders::from_http(&request.headers);
+        }
+        if ctx.request.host.is_empty() {
             ctx.server_name = snapshot
                 .hostless_server_name(self.listener)
                 .unwrap_or_default()
                 .to_owned();
         }
-        ctx.original_uri = request
-            .uri
-            .path_and_query()
-            .map(|p| p.as_str())
-            .unwrap_or("/")
-            .to_string();
-        ctx.request = RequestData {
-            claims: BTreeMap::new(),
-            method: request.method.to_string(),
-            path: path.clone(),
-            query: request.uri.query().unwrap_or("").to_string(),
-            host: host.clone(),
-            remote_addr: session
-                .client_addr()
-                .and_then(|a| a.as_inet())
-                .map(|a| a.ip().to_string())
-                .unwrap_or_default(),
-            headers: header_map(&request.headers),
-            body: None,
+        let route = if ctx.prepared {
+            ctx.prepared_route.take()
+        } else {
+            snapshot.route_request(self.listener, &ctx.request)
         };
-        if snapshot.gateway.is_some() {
-            for name in request.headers.keys() {
-                if let Some(value) = request.headers.get(name) {
-                    ctx.request.headers.insert(
-                        name.as_str().into(),
-                        String::from_utf8_lossy(value.as_bytes()).into_owned(),
-                    );
-                }
-            }
-        }
-        let Some(mut route) = snapshot.route_request(self.listener, &ctx.request) else {
+        let Some(mut route) = route else {
             return self
                 .reply(session, ctx, 404, "not found\n".into(), None)
                 .await;
         };
         let mut redirect = false;
-        if !path.ends_with('/') && !matches!(route.matcher, PathMatch::Exact(_)) {
-            let slash_path = format!("{path}/");
-            if let Some(with_slash) = snapshot.route(self.listener, &host, &slash_path)
+        if !ctx.request.path.ends_with('/') && !matches!(route.matcher, PathMatch::Exact(_)) {
+            let slash_path = format!("{}/", ctx.request.path);
+            if let Some(with_slash) = snapshot.route(self.listener, &ctx.request.host, &slash_path)
                 && matches!(&with_slash.matcher, PathMatch::NginxPrefix(p) if p == &slash_path)
                 && matches!(with_slash.action, Action::Proxy { .. })
             {
@@ -514,7 +510,10 @@ impl ProxyHttp for Proxy {
                     ctx,
                     301,
                     String::new(),
-                    Some(format!("{}{query}", encode_path(&format!("{path}/")))),
+                    Some(format!(
+                        "{}{query}",
+                        encode_path(&format!("{}/", ctx.request.path))
+                    )),
                 )
                 .await;
         }
@@ -530,7 +529,6 @@ impl ProxyHttp for Proxy {
             return Err(error(413, "request body too large"));
         }
         ctx.rollout_stage = route.rollout.as_ref().map_or(0, |r| r.stage());
-        let action = route.action.clone();
         if let Some(plugin) = &route.script {
             ctx.tenant_plugin = route
                 .tenant
@@ -553,7 +551,6 @@ impl ProxyHttp for Proxy {
                     error(503, "plugin instance budget exhausted")
                 },
             )?);
-            let mut plugin_request = ctx.request.clone();
             let started = Instant::now();
             let inspected =
                 body::inspect(session, route.settings.body_policy, route.settings.max_body).await;
@@ -587,15 +584,32 @@ impl ProxyHttp for Proxy {
                     .with_label_values(&[mode, result])
                     .observe(started.elapsed().as_secs_f64());
             }
-            plugin_request.body = inspected?;
+            let inspected = inspected?;
+            let mut plugin_request = std::mem::take(&mut ctx.request);
+            plugin_request.body = inspected;
+            let plugin_request = Arc::new(plugin_request);
             self.shared.telemetry.plugin_calls.inc();
             let result = {
                 let _timer = self.shared.telemetry.plugin_duration.start_timer();
-                plugin.request(plugin_request)
+                plugin.request(plugin_request.clone())
             };
-            match result {
-                Ok((execution, outcome)) => {
+            let result = result.map(|(execution, outcome)| {
+                if plugin.has_response_hook {
                     ctx.execution = Some(execution);
+                } else {
+                    drop(execution);
+                    ctx.plugin_permit.take();
+                    ctx.tenant_plugin.take();
+                }
+                outcome
+            });
+            // Request-only hooks release their instance before recovering the
+            // input, avoiding a deep copy. Response hooks retain an immutable
+            // view, and errors still restore the original metadata for logging.
+            ctx.request = Arc::unwrap_or_clone(plugin_request);
+            ctx.request.body = None;
+            match result {
+                Ok(outcome) => {
                     ctx.edits.path = outcome.edits.path;
                     ctx.edits.query = outcome.edits.query;
                     ctx.edits.headers.extend(outcome.edits.headers);
@@ -646,25 +660,25 @@ impl ProxyHttp for Proxy {
             );
             return Ok(false);
         }
-        match action {
+        match &route.action {
             Action::Proxy { backend, uri } => {
                 ctx.backend = Some(
                     route
                         .rollout
                         .as_ref()
-                        .map_or(backend, |r| r.select(&ctx.request)),
+                        .map_or_else(|| backend.clone(), |r| r.select(&ctx.request)),
                 );
-                ctx.uri = uri;
+                ctx.uri = uri.clone();
                 Ok(false)
             }
             Action::Return { status, text } => {
-                let text = expand(&text, ctx, self.tls, "");
-                let redirect = (300..400).contains(&status) && !text.is_empty();
+                let text = expand(text, ctx, self.tls, "");
+                let redirect = (300..400).contains(status) && !text.is_empty();
                 let location = if redirect { Some(text.clone()) } else { None };
                 self.reply(
                     session,
                     ctx,
-                    status,
+                    *status,
                     if redirect { String::new() } else { text },
                     location,
                 )
@@ -727,7 +741,7 @@ impl ProxyHttp for Proxy {
         ctx.upstream_label = ctx
             .backend
             .as_ref()
-            .map(|b| self.shared.telemetry.label("backend", b));
+            .map(|b| self.shared.telemetry.label("backend", b).to_owned());
         let settings = &ctx.route.as_ref().unwrap().settings;
         let transport = if settings.gateway.is_some() {
             &backend.profile
@@ -748,7 +762,12 @@ impl ProxyHttp for Proxy {
         peer.client_cert_key = transport.identity.clone();
         // Pingora's reuse key omits the custom CA and ALPN policy. Keep pools
         // separate so a CA withdrawal cannot reuse a previously trusted socket.
-        peer.group_key = transport.pool_key();
+        // Connection tasks stay on one worker. Reuse on that worker keeps the
+        // socket reactor and idle monitor local while retaining TLS isolation.
+        let mut pool_key = std::collections::hash_map::DefaultHasher::new();
+        transport.pool_key().hash(&mut pool_key);
+        std::thread::current().id().hash(&mut pool_key);
+        peer.group_key = pool_key.finish();
         peer.options.connection_timeout = Some(settings.connect_timeout);
         peer.options.read_timeout = Some(settings.read_timeout);
         peer.options.write_timeout = Some(settings.write_timeout);
@@ -821,17 +840,24 @@ impl ProxyHttp for Proxy {
         {
             edits.path = Some(path.apply(&ctx.request.path, &route.matcher));
         }
-        let target = planning::outbound_uri(
-            &ctx.original_uri,
-            &ctx.request,
-            &edits,
-            &route.matcher,
-            ctx.uri.as_deref(),
-        );
-        let target: http::Uri = target
-            .parse()
-            .map_err(|_| error(500, "invalid rewritten URI"))?;
-        request.set_uri(target);
+        if edits.path.is_some()
+            || edits.query.is_some()
+            || ctx.uri.is_some()
+            || request.uri.scheme().is_some()
+            || request.uri.authority().is_some()
+        {
+            let target = planning::outbound_uri(
+                &ctx.original_uri,
+                &ctx.request,
+                &edits,
+                &route.matcher,
+                ctx.uri.as_deref(),
+            );
+            let target: http::Uri = target
+                .parse()
+                .map_err(|_| error(500, "invalid rewritten URI"))?;
+            request.set_uri(target);
+        }
         strip_hop_headers(request);
         if ctx.request.headers.get("te").is_some_and(|v| {
             v.split(',')
@@ -843,7 +869,7 @@ impl ProxyHttp for Proxy {
             if let Some(host) = policy.rewrite.as_ref().and_then(|r| r.hostname.as_deref()) {
                 request.insert_header("Host", host)?;
             } else if let Some(host) = ctx.request.headers.get("host") {
-                request.insert_header("Host", host.as_str())?;
+                request.insert_header("Host", host)?;
             } else {
                 request.insert_header("Host", ctx.request.host.as_str())?;
             }
@@ -1018,6 +1044,8 @@ impl ProxyHttp for Proxy {
         }
     }
     async fn logging(&self, session: &mut Session, e: Option<&pingora::Error>, ctx: &mut Context) {
+        let finished = Instant::now();
+        let duration = finished.saturating_duration_since(ctx.started);
         let traffic = &self.shared.telemetry.traffic;
         traffic
             .request_bytes
@@ -1032,17 +1060,12 @@ impl ProxyHttp for Proxy {
             traffic
                 .upstream_duration
                 .with_label_values(&[backend])
-                .observe(started.elapsed().as_secs_f64());
+                .observe(finished.saturating_duration_since(started).as_secs_f64());
         }
-        if let Some(address) = ctx.upstream_address
-            && let Some(backend) = ctx
-                .snapshot
-                .as_ref()
-                .and_then(|s| ctx.backend.as_ref().and_then(|name| s.backends.get(name)))
+        if let Some(lease) = &ctx.upstream_lease
             && (e.is_none()
                 || e.is_some_and(|error| error.esource() == &pingora::ErrorSource::Upstream))
-            && backend.record_result(
-                address,
+            && lease.record_result(
                 e.is_some(),
                 self.shared.upstream_max_fails,
                 self.shared.upstream_fail_timeout,
@@ -1050,22 +1073,19 @@ impl ProxyHttp for Proxy {
         {
             self.shared.telemetry.upstream_ejections.inc();
             log::warn!(
-                "temporarily excluding upstream {address} after repeated transport failures"
+                "temporarily excluding upstream {} after repeated transport failures",
+                lease.address
             );
         }
         let status = session
             .response_written()
             .map(|r| r.status.as_u16())
             .unwrap_or(if ctx.status != 0 { ctx.status } else { 502 });
-        self.shared
-            .telemetry
-            .requests
-            .with_label_values(&[&status.to_string()])
-            .inc();
+        self.shared.telemetry.request_completed(status);
         self.shared
             .telemetry
             .duration
-            .observe(ctx.started.elapsed().as_secs_f64());
+            .observe(duration.as_secs_f64());
         let route_id = ctx.route.as_ref().map_or("_unmatched", |r| r.id.as_str());
         let upstream_failed = e.is_some_and(|e| e.esource() == &pingora::ErrorSource::Upstream);
         let grpc = ctx
@@ -1087,7 +1107,7 @@ impl ProxyHttp for Proxy {
             && rollout.completed(
                 backend,
                 upstream_failed || status >= 500 || grpc_status.is_some_and(|s| s != 0),
-                ctx.started.elapsed(),
+                duration,
                 ctx.rollout_stage,
             )
         {
@@ -1099,10 +1119,10 @@ impl ProxyHttp for Proxy {
             );
         }
         self.shared.telemetry.completed(
-            route_id,
+            ctx.route.as_deref(),
             ctx.backend.as_deref(),
             status,
-            ctx.started.elapsed().as_secs_f64(),
+            duration.as_secs_f64(),
             upstream_failed || status >= 500 || grpc_status.is_some_and(|s| s != 0),
             grpc_status,
         );
@@ -1168,7 +1188,7 @@ impl ProxyHttp for Proxy {
                     tls: self.tls,
                     status,
                     response_bytes: session.body_bytes_sent(),
-                    duration: ctx.started.elapsed(),
+                    duration,
                     route: ctx.route.as_ref().map_or("-", |r| r.id.as_str()),
                     backend: ctx.backend.as_deref(),
                     upstream: ctx.upstream_address,
@@ -1193,8 +1213,8 @@ impl ProxyHttp for Proxy {
                 "timestamp": chrono::DateTime::<chrono::Utc>::from(SystemTime::now()).format("%d/%b/%Y:%H:%M:%S +0000").to_string(),
                 "client":ctx.request.remote_addr,"method":ctx.request.method,"uri":ctx.original_uri,
                 "protocol":format!("{:?}",session.req_header().version),"status":status,"bytes":session.body_bytes_sent(),
-                "referer":ctx.request.headers.get("referer").map_or("-",String::as_str),
-                "user_agent":ctx.request.headers.get("user-agent").map_or("-",String::as_str),
+                "referer":ctx.request.headers.get("referer").unwrap_or("-"),
+                "user_agent":ctx.request.headers.get("user-agent").unwrap_or("-"),
                 "route":route_id,"backend":ctx.backend.as_deref().unwrap_or("-"),
                 "upstream":ctx.upstream_address.map_or_else(||"-".into(),|a|a.to_string()),
                 "config":ctx.snapshot.as_ref().map_or("-",|s|s.content_hash.as_str()),

@@ -29,7 +29,7 @@ use super::body::{BodyReader, BodyWriter};
 use super::common::*;
 use crate::protocols::http::HttpTask;
 use crate::protocols::{Digest, SocketAddr, Stream, UniqueID, UniqueIDType};
-use crate::utils::{BufRef, KVRef};
+use crate::utils::BufRef;
 
 /// The HTTP 1.x client session
 pub struct HttpSession {
@@ -278,11 +278,7 @@ impl HttpSession {
                     HeaderParseState::Complete(s) => {
                         let total_read = self.response_header_read_buf.len();
                         let base = self.response_header_read_buf.as_ptr() as usize;
-                        let mut header_refs = Vec::<KVRef>::with_capacity(resp.headers.len());
-
-                        // Note: resp.headers has the correct number of headers
-                        // while header_refs doesn't as it is still empty
-                        let _num_headers = populate_headers(base, &mut header_refs, resp.headers);
+                        let header_refs = parsed_header_refs(base, resp.headers);
 
                         let mut response_header = match ResponseHeader::build(
                             resp.code.unwrap(),

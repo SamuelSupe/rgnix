@@ -16,6 +16,8 @@ SIGHUP 在控制线程重读 include、证书和脚本，全部完成后发布�
 
 相对 root、include、证书、脚本和日志路径均基于主配置文件目录。挂载示例目录只读时无需其他数据卷；日志默认写 stdout/stderr。使用文件日志时预先创建可写目录；显式错误日志在加载配置时检查可打开，访问日志按需打开，两者通过有界后台队列写入。`rgnix_log_rotation` 提供大小/UTC 时间轮转、保留份数及 gzip；SIGUSR1 重开文件，可配合外部 logrotate。独立模式成功的 SIGHUP 也应用轮转策略并重开文件，失败保留旧配置。见[本地日志与轮转](log-rotation.md)。
 
+v0.5.0 将连接任务固定在分配的 worker 上，HTTP/2 流仍分配到不同 worker；上游连接池按 worker 和 TLS 策略隔离。`--threads` 是每个数据面监听服务的 worker 数，不能当作进程总线程数。阻塞池每个 worker 最多两个线程，并在 worker 增多时继续分摊原有 16 线程预算（每个 worker 至少一个）；池按需创建线程，管理和后台服务另有运行时。进程及租户的请求/插件并发预算仍共享执行。固定 worker 减少了任务迁移，但少量长连接的负载可能不均；较小的阻塞池保护 socket 调度，冷文件存储的排队性能仍需针对部署环境验证。增加监听地址也会增加线程与连接池资源，部署时应结合 CPU、线程数、内存和请求预算调整。
+
 独立模式可用 `--shutdown-grace-seconds`（0..3600）、`--shutdown-timeout-seconds`（1..86400）调整停机预算。配置 `--drain-file /path/to/marker` 后，管理员创建该文件即可先让 `/readyz` 返回 503；`/healthz` 仍保持存活，`rgnix_draining` 变为 1。HTTP/1.1 后续响应带 `Connection: close`，已建立的 WebSocket 不因 marker 被直接中断。排空不可通过删除 marker 撤销，启动前需移除旧 marker。HTTP/2 在 SIGTERM 时沿 Pingora 的 GOAWAY/流排空流程退出；超过总停机预算的流仍会关闭。
 
 使用 v0.4.0+ 镜像并设置 `shutdown.enabled: true` 后，Helm 的 `shutdown.preStopSeconds/graceSeconds/timeoutSeconds/terminationGracePeriodSeconds` 控制相同流程；旧 v0.3.0 镜像不接受新增参数，因此开关默认关闭。preStop 在专用 emptyDir 写 marker，再等待端点撤下和存量 HTTP/1.1 连接有机会收到关闭提示，随后发送 SIGTERM。terminationGracePeriodSeconds 必须大于前三项之和。慢客户端、长期空闲连接和无限 WebSocket 不具备无期限连续性保证。
@@ -25,18 +27,18 @@ SIGHUP 在控制线程重读 include、证书和脚本，全部完成后发布�
 `Dockerfile` 使用 Rust 1.98 / Debian bookworm 多阶段构建，运行阶段非 root 用户 UID/GID 10101。Rust 依赖使用 `--locked`。有企业 TLS 根证书的构建环境可使用 BuildKit secret，不关闭证书校验：
 
 ```sh
-docker build --secret id=build_ca,src=/path/to/ca-bundle.pem -t rgnix:0.4.0 .
+docker build --secret id=build_ca,src=/path/to/ca-bundle.pem -t rgnix:0.5.0 .
 ```
 
 双架构 OCI 镜像构建（需要 buildx 以及本机或远端相应架构 builder）：
 
 ```sh
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t YOUR_REGISTRY/rgnix:0.4.0 \
-  --output type=oci,dest=rgnix-0.4.0.oci.tar .
+  -t YOUR_REGISTRY/rgnix:0.5.0 \
+  --output type=oci,dest=rgnix-0.5.0.oci.tar .
 ```
 
-本地单架构加载使用 `docker build` 或 buildx `--load`。普通 CI 在原生 amd64/arm64 runner 分别构建镜像但不推送；Release 工作流在双架构测试和 Gateway Kubernetes 验证通过后，发布 `ghcr.io/samuelsupe/rgnix:0.4.0` 签名镜像与 OCI Chart，见[发行流程](releases.md)。构建缓存分架构；显式重新构建项目 crate，防止源文件 mtime 导致旧二进制被误复用。
+本地单架构加载使用 `docker build` 或 buildx `--load`。普通 CI 在原生 amd64/arm64 runner 分别构建镜像但不推送；Release 工作流在双架构测试和 Gateway Kubernetes 验证通过后，发布 `ghcr.io/samuelsupe/rgnix:0.5.0` 签名镜像与 OCI Chart，见[发行流程](releases.md)。构建缓存分架构；显式重新构建项目 crate，防止源文件 mtime 导致旧二进制被误复用。
 
 当前源码可开启 `reportReplicas: true`，用 [多副本发布状态与 CLI 等待门禁](publication.md)验证实际采用的配置；v0.3.0 旧镜像需保持关闭。
 
@@ -138,16 +140,21 @@ rgnix ingress --ingress-class rgnix \
 
 ## 资源与上游故障保护
 
-`serve` 和 `ingress` 均支持以下参数；修改需要重启：
+`serve`、`ingress` 和 `gateway` 均支持以下参数；修改需要重启：
 
 | CLI / Helm 值 | 默认值 | 行为 |
 |---|---|---|
+| `--upstream-keepalive-pool-size` / `upstreamKeepalivePoolSize` | 128 | 每 worker 的上游空闲连接预算，范围 1–65,536；每个业务监听服务及 HTTP/1、HTTP/2 空闲池分别计数 |
 | `--max-inflight` / `maxInflight` | 1,024 | 请求头读取后限制并发请求数，含流式请求；超额返回 503，管理接口独立 |
 | `--max-plugin-instances` / `maxPluginInstances` | 32 | 限制同时存活的请求插件实例；不排队，超额返回 503 |
 | `--upstream-max-fails` / `upstreamMaxFails` | 3 | 同一端点连续传输错误达到阈值后暂时摘除；0 关闭 |
 | `--upstream-fail-timeout-secs` / `upstreamFailTimeoutSeconds` | 10 | 摘除时长，之后重新参与加权轮询 |
 
 健康状态按端点统计；正常完成的响应清除连续失败计数，客户端取消不计为上游失败，HTTP 5xx 本身不触发摘除。相同后端配置在快照更新间保留健康状态。所有端点不可选时返回 503，失败的当前请求不会自动重试。以上为默认被动故障隔离；可另外启用主动 HTTP 健康检查。Ingress 始终检查 EndpointSlice 就绪状态。默认被动策略与 NGINX max_fails 参数不同。
+
+v0.5.0 提供可调的上游空闲池预算，默认保持每 worker 128。每个监听服务、每种 HTTP 协议的池容量为 `--threads × --upstream-keepalive-pool-size`，各后端和传输策略共享该容量；连接按实际流量建立，不预先创建。它限制空闲连接，不限制在途连接。多个监听服务和较大的池会增加可保留的文件描述符、TLS 状态及内存；可通过 `--upstream-keepalive-pool-size 1024` 增加复用容量，但多后端轮询实测同时出现吞吐增长和 P99 回升，应按实际延迟目标评估；默认 128 保留旧预算。修改需要重启，路由热更新不会调整池容量。Helm 的 `upstreamKeepalivePoolSize` 默认留空；仅在使用 v0.5.0 或更新镜像时设置；回退到 v0.4.0 时必须清空该值，旧镜像不接受该参数。
+
+端点多时，过小的池会频繁淘汰仍有流量的连接。可通过 `rgnix_upstream_connect_seconds_count{reused="false"}` 与 `reused="true"` 的增量观察建连与复用比例，并结合文件描述符和内存监控调节。
 
 并发上限应与容器内存、请求体和插件复杂度一起调整；它不限制尚未完成请求头的空闲 TCP 连接总数，也不是生产容量保证。
 
@@ -190,7 +197,7 @@ Linux 构建/验证在 OrbStack 中执行，避免用 macOS 编译结果代表 L
 
 ```sh
 orb -m ubuntu bash -lc 'cd /PATH/TO/rgnix && CARGO_TARGET_DIR=/tmp/rgnix-target bash scripts/check.sh'
-docker build -t rgnix:0.4.0 .
+docker build -t rgnix:0.5.0 .
 RGNIX_IMAGE_TAG=0.4.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
 RGNIX_IMAGE_TAG=0.4.0 python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
 ```
@@ -209,3 +216,9 @@ kubectl --context orbstack delete namespace rgnix-qa-example
 ## 共享请求速率配额
 
 当前源码可通过 `globalRateLimit.secret.name/key` 挂载 Redis 协调器配置；同一部署的副本共享 route 与 namespace 请求速率，故障模式默认 503，支持显式放行或本地降级。配置、Redis 权限及持久性边界见[跨副本速率限制](shared-rate-limits.md)。并发、CPU/内存保护仍按进程执行。
+
+## 静态文件 I/O
+
+Linux 上未配置压缩的明文 HTTP/1 静态响应使用 sendfile，保留写超时、Range 偏移和响应字节统计。路径已在内核缓存中时，通过 openat2 的 RESOLVE_CACHED 固定并检查 inode，避免进入阻塞工作线程。缓存未命中、不支持的内核或文件系统、目录索引、alias 和 try_files 继续使用原来的 capability 文件访问路径。
+
+没有增加文件内容缓存或路径结果 TTL，每次请求都会检查替换和删除。发布静态资源应使用原子替换；已打开的文件保持原 inode，原地修改文件内容不提供快照语义。TLS、HTTP/2 和压缩继续使用缓冲传输。冷文件页在 sendfile 中仍可能等待内核文件 I/O，需要严格尾延迟时应选择适合的本地存储。

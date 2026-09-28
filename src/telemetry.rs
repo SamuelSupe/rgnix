@@ -1,5 +1,7 @@
 mod controller;
+mod request;
 mod runtime;
+pub(crate) use request::RouteMetrics;
 pub(crate) mod traffic;
 use anyhow::Result;
 use prometheus::{
@@ -26,7 +28,11 @@ pub struct Telemetry {
     grpc_requests: IntCounterVec,
     route_duration: HistogramVec,
     backend_requests: IntCounterVec,
-    labels: std::sync::Mutex<std::collections::BTreeSet<String>>,
+    status_counts: Vec<std::sync::OnceLock<IntCounter>>,
+    unmatched: std::sync::OnceLock<RouteMetrics>,
+    labels: std::sync::RwLock<
+        std::collections::BTreeMap<&'static str, std::collections::BTreeSet<String>>,
+    >,
     pub healthy: AtomicBool,
     pub ready: AtomicBool,
     pub draining: IntGauge,
@@ -278,6 +284,8 @@ impl Telemetry {
             grpc_requests,
             route_duration,
             backend_requests,
+            status_counts: (0..1000).map(|_| std::sync::OnceLock::new()).collect(),
+            unmatched: Default::default(),
             labels: Default::default(),
             healthy: AtomicBool::new(true),
             draining,
@@ -309,21 +317,39 @@ impl Telemetry {
     pub fn access(&self, path: PathBuf, line: String) {
         self.files.access(path, line);
     }
-    pub(crate) fn label(&self, kind: &str, value: &str) -> String {
-        let mut labels = self.labels.lock().unwrap_or_else(|e| e.into_inner());
-        let key = format!("{kind}:{value}");
-        if labels.contains(&key) || labels.len() < 2048 {
-            labels.insert(key);
-            value.to_owned()
-        } else {
+    pub(crate) fn label<'a>(&self, kind: &'static str, value: &'a str) -> &'a str {
+        let label = self.resolve_label(kind, value);
+        if label != value {
             self.label_overflow.with_label_values(&[kind]).inc();
-            "_overflow".into()
+        }
+        label
+    }
+    fn resolve_label<'a>(&self, kind: &'static str, value: &'a str) -> &'a str {
+        if self
+            .labels
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(kind)
+            .is_some_and(|labels| labels.contains(value))
+        {
+            return value;
+        }
+        let mut labels = self.labels.write().unwrap_or_else(|e| e.into_inner());
+        if labels
+            .get(kind)
+            .is_some_and(|labels| labels.contains(value))
+            || labels.values().map(|values| values.len()).sum::<usize>() < 2048
+        {
+            labels.entry(kind).or_default().insert(value.to_owned());
+            value
+        } else {
+            "_overflow"
         }
     }
     pub(crate) fn namespace_rejected(&self, namespace: &str, resource: &str) {
         let namespace = self.label("namespace", namespace);
         self.tenant_rejected
-            .with_label_values(&[namespace.as_str(), resource])
+            .with_label_values(&[namespace, resource])
             .inc();
     }
     pub(crate) fn observe_runtime(
@@ -338,29 +364,26 @@ impl Telemetry {
     }
     pub fn completed(
         &self,
-        route: &str,
+        route: Option<&crate::model::Route>,
         backend: Option<&str>,
         status: u16,
         seconds: f64,
         failed: bool,
         grpc_status: Option<u16>,
     ) {
-        let route = self.label("route", route);
-        if let Some(code) = grpc_status {
-            self.grpc_requests
-                .with_label_values(&[&route, &code.to_string()])
-                .inc();
-        }
-        self.route_requests
-            .with_label_values(&[&route, &format!("{}xx", status / 100)])
-            .inc();
-        self.route_duration
-            .with_label_values(&[&route])
-            .observe(seconds);
+        let metrics = match route {
+            Some(route) => route
+                .metrics
+                .get_or_init(|| RouteMetrics::new(self, &route.id)),
+            None => self
+                .unmatched
+                .get_or_init(|| RouteMetrics::new(self, "_unmatched")),
+        };
+        metrics.completed(self, status, seconds, grpc_status);
         if let Some(backend) = backend {
             let backend = self.label("backend", backend);
             self.backend_requests
-                .with_label_values(&[backend.as_str(), if failed { "error" } else { "ok" }])
+                .with_label_values(&[backend, if failed { "error" } else { "ok" }])
                 .inc();
         }
     }

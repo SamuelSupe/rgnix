@@ -1,0 +1,2430 @@
+{
+  "network_namespace": "net:[4026553324]",
+  "platform": "Linux-7.0.14-orbstack-00380-ga7e0a2dc9535-aarch64-with-glibc2.42",
+  "settings": {
+    "source": "/tmp/rgnix-opt7-20260927/source",
+    "baseline": "/tmp/rgnix-opt7-20260927/rgnix-baseline",
+    "candidate": "/tmp/rgnix-opt7-20260927/rgnix-final",
+    "nginx": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+    "work_dir": "/tmp/rgnix-opt7-20260927/final-aa-two-default",
+    "rounds": 3,
+    "seconds": 8,
+    "warmup": 3,
+    "workers": 2,
+    "aa": true,
+    "cases": [
+      "rr-64"
+    ],
+    "baseline_pool_size": null,
+    "candidate_pool_size": null,
+    "wrk": "wrk",
+    "client_threads": 2,
+    "client_cpus": "2,3",
+    "connection_close": false
+  },
+  "binaries": {
+    "aa-a": {
+      "path": "/tmp/rgnix-opt7-20260927/rgnix-final",
+      "sha256": "a5ae6cb44ba537b18e2c4995438aafd51827cdbbdc0f2af87ac06bb5c2ee36e3"
+    },
+    "aa-b": {
+      "path": "/tmp/rgnix-opt7-20260927/rgnix-final",
+      "sha256": "a5ae6cb44ba537b18e2c4995438aafd51827cdbbdc0f2af87ac06bb5c2ee36e3"
+    }
+  },
+  "ports": {
+    "origin": 52863,
+    "http": 44195,
+    "admin": 39109
+  },
+  "server_cpus": "10,11",
+  "origin_cpus": "6,7",
+  "qualification": "Distinct loopback endpoint addresses share one NGINX origin process, not separate Kubernetes Pods. No frontend NGINX comparison. No profiler or builds during measured windows.",
+  "fixtures": {
+    "rr-64.lua": "local requests = {}\nlocal counter = 0\nrequests[1] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000000\"})\nrequests[2] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000001\"})\nrequests[3] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000002\"})\nrequests[4] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000003\"})\nrequests[5] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000004\"})\nrequests[6] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000005\"})\nrequests[7] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000006\"})\nrequests[8] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000007\"})\nrequests[9] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000008\"})\nrequests[10] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000009\"})\nrequests[11] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000000a\"})\nrequests[12] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000000b\"})\nrequests[13] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000000c\"})\nrequests[14] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000000d\"})\nrequests[15] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000000e\"})\nrequests[16] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000000f\"})\nrequests[17] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000010\"})\nrequests[18] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000011\"})\nrequests[19] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000012\"})\nrequests[20] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000013\"})\nrequests[21] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000014\"})\nrequests[22] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000015\"})\nrequests[23] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000016\"})\nrequests[24] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000017\"})\nrequests[25] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000018\"})\nrequests[26] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000019\"})\nrequests[27] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000001a\"})\nrequests[28] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000001b\"})\nrequests[29] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000001c\"})\nrequests[30] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000001d\"})\nrequests[31] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000001e\"})\nrequests[32] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000001f\"})\nrequests[33] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000020\"})\nrequests[34] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000021\"})\nrequests[35] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000022\"})\nrequests[36] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000023\"})\nrequests[37] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000024\"})\nrequests[38] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000025\"})\nrequests[39] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000026\"})\nrequests[40] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000027\"})\nrequests[41] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000028\"})\nrequests[42] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000029\"})\nrequests[43] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000002a\"})\nrequests[44] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000002b\"})\nrequests[45] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000002c\"})\nrequests[46] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000002d\"})\nrequests[47] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000002e\"})\nrequests[48] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000002f\"})\nrequests[49] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000030\"})\nrequests[50] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000031\"})\nrequests[51] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000032\"})\nrequests[52] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000033\"})\nrequests[53] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000034\"})\nrequests[54] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000035\"})\nrequests[55] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000036\"})\nrequests[56] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000037\"})\nrequests[57] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000038\"})\nrequests[58] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"00000000000000000000000000000039\"})\nrequests[59] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000003a\"})\nrequests[60] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000003b\"})\nrequests[61] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000003c\"})\nrequests[62] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000003d\"})\nrequests[63] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000003e\"})\nrequests[64] = wrk.format(\"GET\", \"/\", {Host=\"localhost\", [\"x-session\"]=\"0000000000000000000000000000003f\"})\nfunction request()\n counter = counter % 64 + 1\n return requests[counter]\nend\n\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n",
+    "rr-64.conf": "events {} http { access_log off; keepalive_timeout 60s;\nupstream pool { \nserver 127.0.0.1:52863 weight=1;\nserver 127.0.0.2:52863 weight=2;\nserver 127.0.0.3:52863 weight=3;\nserver 127.0.0.4:52863 weight=4;\nserver 127.0.0.5:52863 weight=5;\nserver 127.0.0.6:52863 weight=1;\nserver 127.0.0.7:52863 weight=2;\nserver 127.0.0.8:52863 weight=3;\nserver 127.0.0.9:52863 weight=4;\nserver 127.0.0.10:52863 weight=5;\nserver 127.0.0.11:52863 weight=1;\nserver 127.0.0.12:52863 weight=2;\nserver 127.0.0.13:52863 weight=3;\nserver 127.0.0.14:52863 weight=4;\nserver 127.0.0.15:52863 weight=5;\nserver 127.0.0.16:52863 weight=1;\nserver 127.0.0.17:52863 weight=2;\nserver 127.0.0.18:52863 weight=3;\nserver 127.0.0.19:52863 weight=4;\nserver 127.0.0.20:52863 weight=5;\nserver 127.0.0.21:52863 weight=1;\nserver 127.0.0.22:52863 weight=2;\nserver 127.0.0.23:52863 weight=3;\nserver 127.0.0.24:52863 weight=4;\nserver 127.0.0.25:52863 weight=5;\nserver 127.0.0.26:52863 weight=1;\nserver 127.0.0.27:52863 weight=2;\nserver 127.0.0.28:52863 weight=3;\nserver 127.0.0.29:52863 weight=4;\nserver 127.0.0.30:52863 weight=5;\nserver 127.0.0.31:52863 weight=1;\nserver 127.0.0.32:52863 weight=2;\nserver 127.0.0.33:52863 weight=3;\nserver 127.0.0.34:52863 weight=4;\nserver 127.0.0.35:52863 weight=5;\nserver 127.0.0.36:52863 weight=1;\nserver 127.0.0.37:52863 weight=2;\nserver 127.0.0.38:52863 weight=3;\nserver 127.0.0.39:52863 weight=4;\nserver 127.0.0.40:52863 weight=5;\nserver 127.0.0.41:52863 weight=1;\nserver 127.0.0.42:52863 weight=2;\nserver 127.0.0.43:52863 weight=3;\nserver 127.0.0.44:52863 weight=4;\nserver 127.0.0.45:52863 weight=5;\nserver 127.0.0.46:52863 weight=1;\nserver 127.0.0.47:52863 weight=2;\nserver 127.0.0.48:52863 weight=3;\nserver 127.0.0.49:52863 weight=4;\nserver 127.0.0.50:52863 weight=5;\nserver 127.0.0.51:52863 weight=1;\nserver 127.0.0.52:52863 weight=2;\nserver 127.0.0.53:52863 weight=3;\nserver 127.0.0.54:52863 weight=4;\nserver 127.0.0.55:52863 weight=5;\nserver 127.0.0.56:52863 weight=1;\nserver 127.0.0.57:52863 weight=2;\nserver 127.0.0.58:52863 weight=3;\nserver 127.0.0.59:52863 weight=4;\nserver 127.0.0.60:52863 weight=5;\nserver 127.0.0.61:52863 weight=1;\nserver 127.0.0.62:52863 weight=2;\nserver 127.0.0.63:52863 weight=3;\nserver 127.0.0.64:52863 weight=4;\n}\nserver { listen 127.0.0.1:44195; server_name localhost;\nlocation / { proxy_pass http://pool; } } }\n",
+    "origin.conf": "worker_processes 2;\npid /tmp/rgnix-opt7-20260927/final-aa-two-default/origin.pid;\nerror_log /tmp/rgnix-opt7-20260927/final-aa-two-default/origin-error.log error;\nevents { worker_connections 4096; }\nhttp { access_log off; keepalive_timeout 60s; keepalive_requests 1000000;\nserver {\nlisten 127.0.0.1:52863;\nlisten 127.0.0.2:52863;\nlisten 127.0.0.3:52863;\nlisten 127.0.0.4:52863;\nlisten 127.0.0.5:52863;\nlisten 127.0.0.6:52863;\nlisten 127.0.0.7:52863;\nlisten 127.0.0.8:52863;\nlisten 127.0.0.9:52863;\nlisten 127.0.0.10:52863;\nlisten 127.0.0.11:52863;\nlisten 127.0.0.12:52863;\nlisten 127.0.0.13:52863;\nlisten 127.0.0.14:52863;\nlisten 127.0.0.15:52863;\nlisten 127.0.0.16:52863;\nlisten 127.0.0.17:52863;\nlisten 127.0.0.18:52863;\nlisten 127.0.0.19:52863;\nlisten 127.0.0.20:52863;\nlisten 127.0.0.21:52863;\nlisten 127.0.0.22:52863;\nlisten 127.0.0.23:52863;\nlisten 127.0.0.24:52863;\nlisten 127.0.0.25:52863;\nlisten 127.0.0.26:52863;\nlisten 127.0.0.27:52863;\nlisten 127.0.0.28:52863;\nlisten 127.0.0.29:52863;\nlisten 127.0.0.30:52863;\nlisten 127.0.0.31:52863;\nlisten 127.0.0.32:52863;\nlisten 127.0.0.33:52863;\nlisten 127.0.0.34:52863;\nlisten 127.0.0.35:52863;\nlisten 127.0.0.36:52863;\nlisten 127.0.0.37:52863;\nlisten 127.0.0.38:52863;\nlisten 127.0.0.39:52863;\nlisten 127.0.0.40:52863;\nlisten 127.0.0.41:52863;\nlisten 127.0.0.42:52863;\nlisten 127.0.0.43:52863;\nlisten 127.0.0.44:52863;\nlisten 127.0.0.45:52863;\nlisten 127.0.0.46:52863;\nlisten 127.0.0.47:52863;\nlisten 127.0.0.48:52863;\nlisten 127.0.0.49:52863;\nlisten 127.0.0.50:52863;\nlisten 127.0.0.51:52863;\nlisten 127.0.0.52:52863;\nlisten 127.0.0.53:52863;\nlisten 127.0.0.54:52863;\nlisten 127.0.0.55:52863;\nlisten 127.0.0.56:52863;\nlisten 127.0.0.57:52863;\nlisten 127.0.0.58:52863;\nlisten 127.0.0.59:52863;\nlisten 127.0.0.60:52863;\nlisten 127.0.0.61:52863;\nlisten 127.0.0.62:52863;\nlisten 127.0.0.63:52863;\nlisten 127.0.0.64:52863;\nlisten 127.0.0.65:52863;\nlisten 127.0.0.66:52863;\nlisten 127.0.0.67:52863;\nlisten 127.0.0.68:52863;\nlisten 127.0.0.69:52863;\nlisten 127.0.0.70:52863;\nlisten 127.0.0.71:52863;\nlisten 127.0.0.72:52863;\nlisten 127.0.0.73:52863;\nlisten 127.0.0.74:52863;\nlisten 127.0.0.75:52863;\nlisten 127.0.0.76:52863;\nlisten 127.0.0.77:52863;\nlisten 127.0.0.78:52863;\nlisten 127.0.0.79:52863;\nlisten 127.0.0.80:52863;\nlisten 127.0.0.81:52863;\nlisten 127.0.0.82:52863;\nlisten 127.0.0.83:52863;\nlisten 127.0.0.84:52863;\nlisten 127.0.0.85:52863;\nlisten 127.0.0.86:52863;\nlisten 127.0.0.87:52863;\nlisten 127.0.0.88:52863;\nlisten 127.0.0.89:52863;\nlisten 127.0.0.90:52863;\nlisten 127.0.0.91:52863;\nlisten 127.0.0.92:52863;\nlisten 127.0.0.93:52863;\nlisten 127.0.0.94:52863;\nlisten 127.0.0.95:52863;\nlisten 127.0.0.96:52863;\nlisten 127.0.0.97:52863;\nlisten 127.0.0.98:52863;\nlisten 127.0.0.99:52863;\nlisten 127.0.0.100:52863;\nlisten 127.0.0.101:52863;\nlisten 127.0.0.102:52863;\nlisten 127.0.0.103:52863;\nlisten 127.0.0.104:52863;\nlisten 127.0.0.105:52863;\nlisten 127.0.0.106:52863;\nlisten 127.0.0.107:52863;\nlisten 127.0.0.108:52863;\nlisten 127.0.0.109:52863;\nlisten 127.0.0.110:52863;\nlisten 127.0.0.111:52863;\nlisten 127.0.0.112:52863;\nlisten 127.0.0.113:52863;\nlisten 127.0.0.114:52863;\nlisten 127.0.0.115:52863;\nlisten 127.0.0.116:52863;\nlisten 127.0.0.117:52863;\nlisten 127.0.0.118:52863;\nlisten 127.0.0.119:52863;\nlisten 127.0.0.120:52863;\nlisten 127.0.0.121:52863;\nlisten 127.0.0.122:52863;\nlisten 127.0.0.123:52863;\nlisten 127.0.0.124:52863;\nlisten 127.0.0.125:52863;\nlisten 127.0.0.126:52863;\nlisten 127.0.0.127:52863;\nlisten 127.0.0.128:52863;\nlisten 127.0.0.129:52863;\nlisten 127.0.0.130:52863;\nlisten 127.0.0.131:52863;\nlisten 127.0.0.132:52863;\nlisten 127.0.0.133:52863;\nlisten 127.0.0.134:52863;\nlisten 127.0.0.135:52863;\nlisten 127.0.0.136:52863;\nlisten 127.0.0.137:52863;\nlisten 127.0.0.138:52863;\nlisten 127.0.0.139:52863;\nlisten 127.0.0.140:52863;\nlisten 127.0.0.141:52863;\nlisten 127.0.0.142:52863;\nlisten 127.0.0.143:52863;\nlisten 127.0.0.144:52863;\nlisten 127.0.0.145:52863;\nlisten 127.0.0.146:52863;\nlisten 127.0.0.147:52863;\nlisten 127.0.0.148:52863;\nlisten 127.0.0.149:52863;\nlisten 127.0.0.150:52863;\nlisten 127.0.0.151:52863;\nlisten 127.0.0.152:52863;\nlisten 127.0.0.153:52863;\nlisten 127.0.0.154:52863;\nlisten 127.0.0.155:52863;\nlisten 127.0.0.156:52863;\nlisten 127.0.0.157:52863;\nlisten 127.0.0.158:52863;\nlisten 127.0.0.159:52863;\nlisten 127.0.0.160:52863;\nlisten 127.0.0.161:52863;\nlisten 127.0.0.162:52863;\nlisten 127.0.0.163:52863;\nlisten 127.0.0.164:52863;\nlisten 127.0.0.165:52863;\nlisten 127.0.0.166:52863;\nlisten 127.0.0.167:52863;\nlisten 127.0.0.168:52863;\nlisten 127.0.0.169:52863;\nlisten 127.0.0.170:52863;\nlisten 127.0.0.171:52863;\nlisten 127.0.0.172:52863;\nlisten 127.0.0.173:52863;\nlisten 127.0.0.174:52863;\nlisten 127.0.0.175:52863;\nlisten 127.0.0.176:52863;\nlisten 127.0.0.177:52863;\nlisten 127.0.0.178:52863;\nlisten 127.0.0.179:52863;\nlisten 127.0.0.180:52863;\nlisten 127.0.0.181:52863;\nlisten 127.0.0.182:52863;\nlisten 127.0.0.183:52863;\nlisten 127.0.0.184:52863;\nlisten 127.0.0.185:52863;\nlisten 127.0.0.186:52863;\nlisten 127.0.0.187:52863;\nlisten 127.0.0.188:52863;\nlisten 127.0.0.189:52863;\nlisten 127.0.0.190:52863;\nlisten 127.0.0.191:52863;\nlisten 127.0.0.192:52863;\nlisten 127.0.0.193:52863;\nlisten 127.0.0.194:52863;\nlisten 127.0.0.195:52863;\nlisten 127.0.0.196:52863;\nlisten 127.0.0.197:52863;\nlisten 127.0.0.198:52863;\nlisten 127.0.0.199:52863;\nlisten 127.0.0.200:52863;\nlisten 127.0.0.201:52863;\nlisten 127.0.0.202:52863;\nlisten 127.0.0.203:52863;\nlisten 127.0.0.204:52863;\nlisten 127.0.0.205:52863;\nlisten 127.0.0.206:52863;\nlisten 127.0.0.207:52863;\nlisten 127.0.0.208:52863;\nlisten 127.0.0.209:52863;\nlisten 127.0.0.210:52863;\nlisten 127.0.0.211:52863;\nlisten 127.0.0.212:52863;\nlisten 127.0.0.213:52863;\nlisten 127.0.0.214:52863;\nlisten 127.0.0.215:52863;\nlisten 127.0.0.216:52863;\nlisten 127.0.0.217:52863;\nlisten 127.0.0.218:52863;\nlisten 127.0.0.219:52863;\nlisten 127.0.0.220:52863;\nlisten 127.0.0.221:52863;\nlisten 127.0.0.222:52863;\nlisten 127.0.0.223:52863;\nlisten 127.0.0.224:52863;\nlisten 127.0.0.225:52863;\nlisten 127.0.0.226:52863;\nlisten 127.0.0.227:52863;\nlisten 127.0.0.228:52863;\nlisten 127.0.0.229:52863;\nlisten 127.0.0.230:52863;\nlisten 127.0.0.231:52863;\nlisten 127.0.0.232:52863;\nlisten 127.0.0.233:52863;\nlisten 127.0.0.234:52863;\nlisten 127.0.0.235:52863;\nlisten 127.0.0.236:52863;\nlisten 127.0.0.237:52863;\nlisten 127.0.0.238:52863;\nlisten 127.0.0.239:52863;\nlisten 127.0.0.240:52863;\nlisten 127.0.0.241:52863;\nlisten 127.0.0.242:52863;\nlisten 127.0.0.243:52863;\nlisten 127.0.0.244:52863;\nlisten 127.0.0.245:52863;\nlisten 127.0.0.246:52863;\nlisten 127.0.0.247:52863;\nlisten 127.0.0.248:52863;\nlisten 127.0.0.249:52863;\nlisten 127.0.0.250:52863;\nlisten 127.0.1.1:52863;\nlisten 127.0.1.2:52863;\nlisten 127.0.1.3:52863;\nlisten 127.0.1.4:52863;\nlisten 127.0.1.5:52863;\nlisten 127.0.1.6:52863;\nlocation / { add_header X-Origin $server_addr; return 200 \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"; }\n} }\n"
+  },
+  "preflight": [
+    {
+      "round": 1,
+      "case": "rr-64",
+      "engine": "aa-a",
+      "keys_checked": 64,
+      "body_bytes": 1024
+    },
+    {
+      "round": 1,
+      "case": "rr-64",
+      "engine": "aa-b",
+      "keys_checked": 64,
+      "body_bytes": 1024
+    },
+    {
+      "round": 2,
+      "case": "rr-64",
+      "engine": "aa-b",
+      "keys_checked": 64,
+      "body_bytes": 1024
+    },
+    {
+      "round": 2,
+      "case": "rr-64",
+      "engine": "aa-a",
+      "keys_checked": 64,
+      "body_bytes": 1024
+    },
+    {
+      "round": 3,
+      "case": "rr-64",
+      "engine": "aa-a",
+      "keys_checked": 64,
+      "body_bytes": 1024
+    },
+    {
+      "round": 3,
+      "case": "rr-64",
+      "engine": "aa-b",
+      "keys_checked": 64,
+      "body_bytes": 1024
+    }
+  ],
+  "runs": [
+    {
+      "requests": 604206,
+      "seconds": 8.099568,
+      "bytes": 722550876,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.791,
+      "p95_ms": 1.493,
+      "p99_ms": 2.475,
+      "errors": 0,
+      "rps": 74597.31185663235,
+      "server_cpu_cores": 1.9507213224211466,
+      "server_cpu_us_per_request": 26.15002168134709,
+      "origin_cpu_cores": 0.7642382902396772,
+      "client_cpu_cores": 0.5066141799167563,
+      "peak_pss_kib": 31278,
+      "peak_rss_kib": 32720,
+      "server_pids": [
+        180223
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          2898,
+          0,
+          923,
+          10012,
+          14,
+          0,
+          920,
+          0
+        ],
+        "cpu0": [
+          96,
+          0,
+          19,
+          675,
+          9,
+          0,
+          78,
+          0
+        ],
+        "cpu1": [
+          159,
+          0,
+          18,
+          631,
+          1,
+          0,
+          47,
+          0
+        ],
+        "cpu2": [
+          102,
+          0,
+          84,
+          537,
+          0,
+          0,
+          65,
+          0
+        ],
+        "cpu3": [
+          109,
+          0,
+          87,
+          537,
+          0,
+          0,
+          62,
+          0
+        ],
+        "cpu4": [
+          145,
+          0,
+          17,
+          641,
+          0,
+          0,
+          32,
+          0
+        ],
+        "cpu5": [
+          140,
+          0,
+          20,
+          644,
+          0,
+          0,
+          29,
+          0
+        ],
+        "cpu6": [
+          151,
+          0,
+          144,
+          425,
+          0,
+          0,
+          76,
+          0
+        ],
+        "cpu7": [
+          126,
+          0,
+          138,
+          447,
+          0,
+          0,
+          74,
+          0
+        ],
+        "cpu8": [
+          132,
+          0,
+          20,
+          657,
+          0,
+          0,
+          20,
+          0
+        ],
+        "cpu9": [
+          122,
+          0,
+          15,
+          669,
+          0,
+          0,
+          16,
+          0
+        ],
+        "cpu10": [
+          467,
+          0,
+          142,
+          22,
+          0,
+          0,
+          195,
+          0
+        ],
+        "cpu11": [
+          449,
+          0,
+          143,
+          41,
+          0,
+          0,
+          190,
+          0
+        ],
+        "cpu12": [
+          150,
+          0,
+          14,
+          642,
+          1,
+          0,
+          12,
+          0
+        ],
+        "cpu13": [
+          128,
+          0,
+          16,
+          663,
+          1,
+          0,
+          9,
+          0
+        ],
+        "cpu14": [
+          133,
+          0,
+          15,
+          657,
+          1,
+          0,
+          7,
+          0
+        ],
+        "cpu15": [
+          154,
+          0,
+          16,
+          639,
+          1,
+          0,
+          6,
+          0
+        ],
+        "cpu16": [
+          133,
+          0,
+          15,
+          660,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          826,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "180223": {
+          "name": "rgnix-final",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180224": {
+          "name": "file-logs",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180225": {
+          "name": "BG control",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180226": {
+          "name": "BG rollout-metr",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180227": {
+          "name": "BG access-polic",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180228": {
+          "name": "BG upstream-mai",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180229": {
+          "name": "admin",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180230": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 7.91,
+          "last_cpu": 11
+        },
+        "180231": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 7.869999999999999,
+          "last_cpu": 10
+        },
+        "180232": {
+          "name": "BG connection-d",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180233": {
+          "name": "Server",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180234": {
+          "name": "tokio-rt-worker",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180235": {
+          "name": "Timer thread",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        }
+      },
+      "load_before": "11.21 12.37 12.25 2/7729 180238",
+      "load_after": "11.20 12.35 12.25 1/7733 180244",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3",
+        "wrk",
+        "-t",
+        "2",
+        "-c",
+        "64",
+        "-d",
+        "8s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-opt7-20260927/final-aa-two-default/rr-64.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:44195/"
+      ],
+      "wrk_output": "Running 8s test @ http://127.0.0.1:44195/\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     0.88ms  403.70us   8.76ms   86.55%\n    Req/Sec    37.48k     3.33k   42.52k    72.22%\n  Latency Distribution\n     50%  791.00us\n     75%    0.98ms\n     90%    1.26ms\n     99%    2.48ms\n  604206 requests in 8.10s, 689.08MB read\nRequests/sec:  74597.31\nTransfer/sec:     85.08MB\nBENCH_RESULT {\"requests\":604206,\"seconds\":8.099568,\"bytes\":722550876,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.791000,\"p95_ms\":1.493000,\"p99_ms\":2.475000}\n",
+      "upstream_connections": {
+        "false": 216299.0,
+        "true": 387968.0
+      },
+      "network_counters": {
+        "ListenOverflows": 0,
+        "ListenDrops": 0,
+        "TCPTimeWaitOverflow": 204111,
+        "TCPSynRetrans": 0
+      },
+      "warmup": {
+        "rps": 83188.07504457759,
+        "requests": 257854,
+        "errors": 0,
+        "p99_ms": 1.383
+      },
+      "engine": "aa-a",
+      "case": "rr-64",
+      "concurrency": 64,
+      "round": 1
+    },
+    {
+      "requests": 684212,
+      "seconds": 8.099575,
+      "bytes": 818227533,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.718,
+      "p95_ms": 1.216,
+      "p99_ms": 1.969,
+      "errors": 0,
+      "rps": 84475.04961680088,
+      "server_cpu_cores": 1.9717083921069931,
+      "server_cpu_us_per_request": 23.340718958451472,
+      "origin_cpu_cores": 0.7284332819931908,
+      "client_cpu_cores": 0.5357161332539052,
+      "peak_pss_kib": 31166,
+      "peak_rss_kib": 32588,
+      "server_pids": [
+        180252
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          3201,
+          0,
+          962,
+          9689,
+          18,
+          0,
+          884,
+          0
+        ],
+        "cpu0": [
+          116,
+          0,
+          20,
+          653,
+          11,
+          0,
+          78,
+          0
+        ],
+        "cpu1": [
+          157,
+          0,
+          20,
+          625,
+          0,
+          0,
+          37,
+          0
+        ],
+        "cpu2": [
+          122,
+          0,
+          107,
+          489,
+          1,
+          0,
+          65,
+          0
+        ],
+        "cpu3": [
+          139,
+          0,
+          92,
+          518,
+          1,
+          0,
+          56,
+          0
+        ],
+        "cpu4": [
+          159,
+          0,
+          18,
+          621,
+          0,
+          0,
+          29,
+          0
+        ],
+        "cpu5": [
+          135,
+          0,
+          19,
+          649,
+          1,
+          0,
+          28,
+          0
+        ],
+        "cpu6": [
+          146,
+          0,
+          130,
+          442,
+          0,
+          0,
+          69,
+          0
+        ],
+        "cpu7": [
+          135,
+          0,
+          136,
+          442,
+          0,
+          0,
+          72,
+          0
+        ],
+        "cpu8": [
+          148,
+          0,
+          22,
+          637,
+          1,
+          0,
+          20,
+          0
+        ],
+        "cpu9": [
+          173,
+          0,
+          20,
+          615,
+          0,
+          0,
+          16,
+          0
+        ],
+        "cpu10": [
+          481,
+          0,
+          137,
+          24,
+          0,
+          0,
+          181,
+          0
+        ],
+        "cpu11": [
+          484,
+          0,
+          135,
+          22,
+          0,
+          0,
+          182,
+          0
+        ],
+        "cpu12": [
+          166,
+          0,
+          23,
+          617,
+          1,
+          0,
+          13,
+          0
+        ],
+        "cpu13": [
+          183,
+          0,
+          24,
+          601,
+          1,
+          0,
+          11,
+          0
+        ],
+        "cpu14": [
+          176,
+          0,
+          17,
+          614,
+          1,
+          0,
+          8,
+          0
+        ],
+        "cpu15": [
+          147,
+          0,
+          18,
+          644,
+          0,
+          0,
+          9,
+          0
+        ],
+        "cpu16": [
+          135,
+          0,
+          24,
+          650,
+          0,
+          0,
+          6,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          826,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "180252": {
+          "name": "rgnix-final",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180253": {
+          "name": "file-logs",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180254": {
+          "name": "BG control",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180255": {
+          "name": "BG rollout-metr",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180256": {
+          "name": "BG access-polic",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180257": {
+          "name": "BG upstream-mai",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180258": {
+          "name": "admin",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180259": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 7.979999999999999,
+          "last_cpu": 11
+        },
+        "180260": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 7.99,
+          "last_cpu": 10
+        },
+        "180261": {
+          "name": "BG connection-d",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180262": {
+          "name": "Server",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180263": {
+          "name": "tokio-rt-worker",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180264": {
+          "name": "Timer thread",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        }
+      },
+      "load_before": "11.34 12.36 12.25 4/7728 180267",
+      "load_after": "11.82 12.43 12.28 3/7737 180273",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3",
+        "wrk",
+        "-t",
+        "2",
+        "-c",
+        "64",
+        "-d",
+        "8s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-opt7-20260927/final-aa-two-default/rr-64.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:44195/"
+      ],
+      "wrk_output": "Running 8s test @ http://127.0.0.1:44195/\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   775.27us  492.38us  19.03ms   94.79%\n    Req/Sec    42.71k     5.27k   80.66k    85.71%\n  Latency Distribution\n     50%  718.00us\n     75%    0.86ms\n     90%    1.05ms\n     99%    1.97ms\n  684212 requests in 8.10s, 780.32MB read\nRequests/sec:  84475.05\nTransfer/sec:     96.34MB\nBENCH_RESULT {\"requests\":684212,\"seconds\":8.099575,\"bytes\":818227533,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.718000,\"p95_ms\":1.216000,\"p99_ms\":1.969000}\n",
+      "upstream_connections": {
+        "false": 159375.0,
+        "true": 524899.0
+      },
+      "network_counters": {
+        "ListenOverflows": 0,
+        "ListenDrops": 0,
+        "TCPTimeWaitOverflow": 146184,
+        "TCPSynRetrans": 0
+      },
+      "warmup": {
+        "rps": 81060.22653701848,
+        "requests": 251285,
+        "errors": 0,
+        "p99_ms": 1.897
+      },
+      "engine": "aa-b",
+      "case": "rr-64",
+      "concurrency": 64,
+      "round": 1
+    },
+    {
+      "requests": 666188,
+      "seconds": 8.099296,
+      "bytes": 796673209,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.766,
+      "p95_ms": 1.219,
+      "p99_ms": 2.138,
+      "errors": 0,
+      "rps": 82252.58096506164,
+      "server_cpu_cores": 1.9569602098750307,
+      "server_cpu_us_per_request": 23.792082715389647,
+      "origin_cpu_cores": 0.7235196738086864,
+      "client_cpu_cores": 0.5228291446565236,
+      "peak_pss_kib": 31222,
+      "peak_rss_kib": 32644,
+      "server_pids": [
+        180281
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          2939,
+          0,
+          883,
+          10048,
+          18,
+          0,
+          909,
+          0
+        ],
+        "cpu0": [
+          112,
+          0,
+          17,
+          663,
+          11,
+          0,
+          85,
+          0
+        ],
+        "cpu1": [
+          150,
+          0,
+          18,
+          637,
+          0,
+          0,
+          46,
+          0
+        ],
+        "cpu2": [
+          128,
+          0,
+          90,
+          508,
+          0,
+          0,
+          66,
+          0
+        ],
+        "cpu3": [
+          114,
+          0,
+          96,
+          524,
+          0,
+          0,
+          63,
+          0
+        ],
+        "cpu4": [
+          128,
+          0,
+          20,
+          657,
+          0,
+          0,
+          34,
+          0
+        ],
+        "cpu5": [
+          120,
+          0,
+          15,
+          672,
+          1,
+          0,
+          30,
+          0
+        ],
+        "cpu6": [
+          138,
+          0,
+          128,
+          453,
+          0,
+          0,
+          70,
+          0
+        ],
+        "cpu7": [
+          142,
+          0,
+          127,
+          453,
+          0,
+          0,
+          71,
+          0
+        ],
+        "cpu8": [
+          128,
+          0,
+          16,
+          662,
+          1,
+          0,
+          17,
+          0
+        ],
+        "cpu9": [
+          157,
+          0,
+          19,
+          629,
+          1,
+          0,
+          15,
+          0
+        ],
+        "cpu10": [
+          480,
+          0,
+          136,
+          22,
+          0,
+          0,
+          185,
+          0
+        ],
+        "cpu11": [
+          487,
+          0,
+          125,
+          27,
+          0,
+          0,
+          182,
+          0
+        ],
+        "cpu12": [
+          139,
+          0,
+          15,
+          652,
+          0,
+          0,
+          16,
+          0
+        ],
+        "cpu13": [
+          135,
+          0,
+          16,
+          660,
+          1,
+          0,
+          10,
+          0
+        ],
+        "cpu14": [
+          111,
+          0,
+          13,
+          685,
+          1,
+          0,
+          8,
+          0
+        ],
+        "cpu15": [
+          131,
+          0,
+          15,
+          662,
+          1,
+          0,
+          6,
+          0
+        ],
+        "cpu16": [
+          141,
+          0,
+          18,
+          651,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          827,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "180281": {
+          "name": "rgnix-final",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180282": {
+          "name": "file-logs",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180283": {
+          "name": "BG control",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180284": {
+          "name": "BG rollout-metr",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180285": {
+          "name": "BG access-polic",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180286": {
+          "name": "BG upstream-mai",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180287": {
+          "name": "admin",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180288": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 7.84,
+          "last_cpu": 11
+        },
+        "180289": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 8.0,
+          "last_cpu": 10
+        },
+        "180290": {
+          "name": "BG connection-d",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180291": {
+          "name": "Server",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180292": {
+          "name": "tokio-rt-worker",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180293": {
+          "name": "Timer thread",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        }
+      },
+      "load_before": "11.82 12.43 12.28 5/7730 180296",
+      "load_after": "11.46 12.34 12.25 4/7731 180302",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3",
+        "wrk",
+        "-t",
+        "2",
+        "-c",
+        "64",
+        "-d",
+        "8s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-opt7-20260927/final-aa-two-default/rr-64.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:44195/"
+      ],
+      "wrk_output": "Running 8s test @ http://127.0.0.1:44195/\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     0.86ms    1.79ms  59.67ms   99.33%\n    Req/Sec    41.59k     5.14k   83.84k    88.20%\n  Latency Distribution\n     50%  766.00us\n     75%    0.90ms\n     90%    1.08ms\n     99%    2.14ms\n  666188 requests in 8.10s, 759.77MB read\nRequests/sec:  82252.58\nTransfer/sec:     93.81MB\nBENCH_RESULT {\"requests\":666188,\"seconds\":8.099296,\"bytes\":796673209,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.766000,\"p95_ms\":1.219000,\"p99_ms\":2.138000}\n",
+      "upstream_connections": {
+        "false": 152727.0,
+        "true": 513521.0
+      },
+      "network_counters": {
+        "ListenOverflows": 0,
+        "ListenDrops": 0,
+        "TCPTimeWaitOverflow": 140854,
+        "TCPSynRetrans": 0
+      },
+      "warmup": {
+        "rps": 83395.54730767815,
+        "requests": 258486,
+        "errors": 0,
+        "p99_ms": 2.275
+      },
+      "engine": "aa-b",
+      "case": "rr-64",
+      "concurrency": 64,
+      "round": 2
+    },
+    {
+      "requests": 651379,
+      "seconds": 8.099554,
+      "bytes": 778963584,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.753,
+      "p95_ms": 1.304,
+      "p99_ms": 1.888,
+      "errors": 0,
+      "rps": 80421.58864549827,
+      "server_cpu_cores": 1.9828252271668292,
+      "server_cpu_us_per_request": 24.655384960215173,
+      "origin_cpu_cores": 0.7605357035708391,
+      "client_cpu_cores": 0.516891176970979,
+      "peak_pss_kib": 31160,
+      "peak_rss_kib": 32576,
+      "server_pids": [
+        180310
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          2636,
+          0,
+          833,
+          10389,
+          8,
+          0,
+          920,
+          0
+        ],
+        "cpu0": [
+          98,
+          0,
+          14,
+          689,
+          5,
+          0,
+          74,
+          0
+        ],
+        "cpu1": [
+          141,
+          0,
+          13,
+          653,
+          0,
+          0,
+          54,
+          0
+        ],
+        "cpu2": [
+          112,
+          0,
+          82,
+          540,
+          0,
+          0,
+          61,
+          0
+        ],
+        "cpu3": [
+          89,
+          0,
+          93,
+          542,
+          0,
+          0,
+          65,
+          0
+        ],
+        "cpu4": [
+          114,
+          0,
+          12,
+          679,
+          1,
+          0,
+          38,
+          0
+        ],
+        "cpu5": [
+          131,
+          0,
+          11,
+          664,
+          0,
+          0,
+          26,
+          0
+        ],
+        "cpu6": [
+          111,
+          0,
+          122,
+          474,
+          0,
+          0,
+          71,
+          0
+        ],
+        "cpu7": [
+          126,
+          0,
+          130,
+          454,
+          0,
+          0,
+          75,
+          0
+        ],
+        "cpu8": [
+          118,
+          0,
+          13,
+          678,
+          0,
+          0,
+          17,
+          0
+        ],
+        "cpu9": [
+          95,
+          0,
+          10,
+          703,
+          0,
+          0,
+          15,
+          0
+        ],
+        "cpu10": [
+          468,
+          0,
+          137,
+          20,
+          0,
+          0,
+          199,
+          0
+        ],
+        "cpu11": [
+          476,
+          0,
+          138,
+          21,
+          0,
+          0,
+          189,
+          0
+        ],
+        "cpu12": [
+          113,
+          0,
+          13,
+          684,
+          0,
+          0,
+          13,
+          0
+        ],
+        "cpu13": [
+          107,
+          0,
+          10,
+          696,
+          1,
+          0,
+          8,
+          0
+        ],
+        "cpu14": [
+          112,
+          0,
+          10,
+          687,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu15": [
+          122,
+          0,
+          13,
+          675,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu16": [
+          101,
+          0,
+          9,
+          702,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          826,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "180310": {
+          "name": "rgnix-final",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180311": {
+          "name": "file-logs",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180312": {
+          "name": "BG control",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180313": {
+          "name": "BG rollout-metr",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180314": {
+          "name": "BG access-polic",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180315": {
+          "name": "BG upstream-mai",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180316": {
+          "name": "admin",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180317": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 8.03,
+          "last_cpu": 10
+        },
+        "180318": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 8.04,
+          "last_cpu": 11
+        },
+        "180319": {
+          "name": "BG connection-d",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180320": {
+          "name": "Server",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180321": {
+          "name": "tokio-rt-worker",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180322": {
+          "name": "Timer thread",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        }
+      },
+      "load_before": "11.91 12.41 12.27 1/7729 180325",
+      "load_after": "12.16 12.46 12.29 3/7731 180329",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3",
+        "wrk",
+        "-t",
+        "2",
+        "-c",
+        "64",
+        "-d",
+        "8s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-opt7-20260927/final-aa-two-default/rr-64.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:44195/"
+      ],
+      "wrk_output": "Running 8s test @ http://127.0.0.1:44195/\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   804.11us  318.96us   6.94ms   83.02%\n    Req/Sec    40.43k     3.70k   45.75k    89.51%\n  Latency Distribution\n     50%  753.00us\n     75%    0.91ms\n     90%    1.12ms\n     99%    1.89ms\n  651379 requests in 8.10s, 742.88MB read\nRequests/sec:  80421.59\nTransfer/sec:     91.72MB\nBENCH_RESULT {\"requests\":651379,\"seconds\":8.099554,\"bytes\":778963584,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.753000,\"p95_ms\":1.304000,\"p99_ms\":1.888000}\n",
+      "upstream_connections": {
+        "false": 199298.0,
+        "true": 452142.0
+      },
+      "network_counters": {
+        "ListenOverflows": 0,
+        "ListenDrops": 0,
+        "TCPTimeWaitOverflow": 183838,
+        "TCPSynRetrans": 0
+      },
+      "warmup": {
+        "rps": 89284.89050489722,
+        "requests": 276767,
+        "errors": 0,
+        "p99_ms": 1.444
+      },
+      "engine": "aa-a",
+      "case": "rr-64",
+      "concurrency": 64,
+      "round": 2
+    },
+    {
+      "requests": 635736,
+      "seconds": 8.099532,
+      "bytes": 760256606,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.754,
+      "p95_ms": 1.461,
+      "p99_ms": 16.074,
+      "errors": 0,
+      "rps": 78490.46093033523,
+      "server_cpu_cores": 1.9248025688397798,
+      "server_cpu_us_per_request": 24.522757874337774,
+      "origin_cpu_cores": 0.7222639530283974,
+      "client_cpu_cores": 0.4981540908783365,
+      "peak_pss_kib": 31158,
+      "peak_rss_kib": 32584,
+      "server_pids": [
+        180337
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          2693,
+          0,
+          876,
+          10341,
+          13,
+          0,
+          866,
+          0
+        ],
+        "cpu0": [
+          109,
+          0,
+          15,
+          673,
+          8,
+          0,
+          75,
+          0
+        ],
+        "cpu1": [
+          134,
+          0,
+          15,
+          657,
+          1,
+          0,
+          44,
+          0
+        ],
+        "cpu2": [
+          131,
+          0,
+          77,
+          525,
+          0,
+          0,
+          54,
+          0
+        ],
+        "cpu3": [
+          104,
+          0,
+          94,
+          521,
+          1,
+          0,
+          62,
+          0
+        ],
+        "cpu4": [
+          119,
+          0,
+          16,
+          673,
+          1,
+          0,
+          40,
+          0
+        ],
+        "cpu5": [
+          118,
+          0,
+          15,
+          674,
+          1,
+          0,
+          31,
+          0
+        ],
+        "cpu6": [
+          127,
+          0,
+          126,
+          467,
+          0,
+          0,
+          69,
+          0
+        ],
+        "cpu7": [
+          119,
+          0,
+          140,
+          463,
+          0,
+          0,
+          69,
+          0
+        ],
+        "cpu8": [
+          100,
+          0,
+          13,
+          695,
+          1,
+          0,
+          19,
+          0
+        ],
+        "cpu9": [
+          113,
+          0,
+          15,
+          684,
+          1,
+          0,
+          11,
+          0
+        ],
+        "cpu10": [
+          474,
+          0,
+          139,
+          26,
+          0,
+          0,
+          185,
+          0
+        ],
+        "cpu11": [
+          480,
+          0,
+          143,
+          25,
+          0,
+          0,
+          177,
+          0
+        ],
+        "cpu12": [
+          105,
+          0,
+          13,
+          694,
+          1,
+          0,
+          10,
+          0
+        ],
+        "cpu13": [
+          108,
+          0,
+          16,
+          685,
+          1,
+          0,
+          9,
+          0
+        ],
+        "cpu14": [
+          123,
+          0,
+          13,
+          676,
+          1,
+          0,
+          5,
+          0
+        ],
+        "cpu15": [
+          101,
+          0,
+          13,
+          699,
+          1,
+          0,
+          4,
+          0
+        ],
+        "cpu16": [
+          123,
+          0,
+          15,
+          673,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          828,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "180337": {
+          "name": "rgnix-final",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180338": {
+          "name": "file-logs",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180339": {
+          "name": "BG control",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180340": {
+          "name": "BG rollout-metr",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180341": {
+          "name": "BG access-polic",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180342": {
+          "name": "BG upstream-mai",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180343": {
+          "name": "admin",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180344": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 7.76,
+          "last_cpu": 11
+        },
+        "180345": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 7.82,
+          "last_cpu": 10
+        },
+        "180346": {
+          "name": "BG connection-d",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180347": {
+          "name": "Server",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180348": {
+          "name": "tokio-rt-worker",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180349": {
+          "name": "Timer thread",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        }
+      },
+      "load_before": "12.06 12.43 12.28 3/7731 180352",
+      "load_after": "12.45 12.50 12.30 3/7708 180362",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3",
+        "wrk",
+        "-t",
+        "2",
+        "-c",
+        "64",
+        "-d",
+        "8s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-opt7-20260927/final-aa-two-default/rr-64.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:44195/"
+      ],
+      "wrk_output": "Running 8s test @ http://127.0.0.1:44195/\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.49ms    7.41ms 140.77ms   98.80%\n    Req/Sec    39.70k     6.95k   84.47k    92.55%\n  Latency Distribution\n     50%  754.00us\n     75%    0.92ms\n     90%    1.18ms\n     99%   16.07ms\n  635736 requests in 8.10s, 725.04MB read\nRequests/sec:  78490.46\nTransfer/sec:     89.52MB\nBENCH_RESULT {\"requests\":635736,\"seconds\":8.099532,\"bytes\":760256606,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.754000,\"p95_ms\":1.461000,\"p99_ms\":16.074000}\n",
+      "upstream_connections": {
+        "false": 194136.0,
+        "true": 441662.0
+      },
+      "network_counters": {
+        "ListenOverflows": 0,
+        "ListenDrops": 0,
+        "TCPTimeWaitOverflow": 179265,
+        "TCPSynRetrans": 0
+      },
+      "warmup": {
+        "rps": 81388.72509996142,
+        "requests": 252321,
+        "errors": 0,
+        "p99_ms": 1.862
+      },
+      "engine": "aa-a",
+      "case": "rr-64",
+      "concurrency": 64,
+      "round": 3
+    },
+    {
+      "requests": 660030,
+      "seconds": 8.099927,
+      "bytes": 789309030,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.685,
+      "p95_ms": 1.414,
+      "p99_ms": 1.896,
+      "errors": 0,
+      "rps": 81485.91956446027,
+      "server_cpu_cores": 1.9852030765215543,
+      "server_cpu_us_per_request": 24.36252897595564,
+      "origin_cpu_cores": 0.7407474166125202,
+      "client_cpu_cores": 0.5316940510698456,
+      "peak_pss_kib": 31266,
+      "peak_rss_kib": 32676,
+      "server_pids": [
+        180370
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          2622,
+          0,
+          829,
+          10380,
+          11,
+          0,
+          912,
+          0
+        ],
+        "cpu0": [
+          96,
+          0,
+          14,
+          688,
+          8,
+          0,
+          75,
+          0
+        ],
+        "cpu1": [
+          116,
+          0,
+          15,
+          671,
+          0,
+          0,
+          53,
+          0
+        ],
+        "cpu2": [
+          129,
+          0,
+          81,
+          508,
+          0,
+          0,
+          55,
+          0
+        ],
+        "cpu3": [
+          102,
+          0,
+          94,
+          529,
+          0,
+          0,
+          61,
+          0
+        ],
+        "cpu4": [
+          110,
+          0,
+          10,
+          686,
+          0,
+          0,
+          35,
+          0
+        ],
+        "cpu5": [
+          119,
+          0,
+          13,
+          676,
+          1,
+          0,
+          31,
+          0
+        ],
+        "cpu6": [
+          121,
+          0,
+          127,
+          449,
+          0,
+          0,
+          81,
+          0
+        ],
+        "cpu7": [
+          111,
+          0,
+          116,
+          488,
+          0,
+          0,
+          66,
+          0
+        ],
+        "cpu8": [
+          126,
+          0,
+          14,
+          670,
+          0,
+          0,
+          18,
+          0
+        ],
+        "cpu9": [
+          107,
+          0,
+          11,
+          690,
+          0,
+          0,
+          13,
+          0
+        ],
+        "cpu10": [
+          477,
+          0,
+          136,
+          19,
+          0,
+          0,
+          191,
+          0
+        ],
+        "cpu11": [
+          478,
+          0,
+          133,
+          18,
+          0,
+          0,
+          196,
+          0
+        ],
+        "cpu12": [
+          118,
+          0,
+          12,
+          679,
+          0,
+          0,
+          12,
+          0
+        ],
+        "cpu13": [
+          107,
+          0,
+          16,
+          690,
+          0,
+          0,
+          9,
+          0
+        ],
+        "cpu14": [
+          108,
+          0,
+          12,
+          691,
+          0,
+          0,
+          6,
+          0
+        ],
+        "cpu15": [
+          84,
+          0,
+          11,
+          715,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu16": [
+          114,
+          0,
+          14,
+          686,
+          1,
+          0,
+          3,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          827,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "180370": {
+          "name": "rgnix-final",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180371": {
+          "name": "file-logs",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180372": {
+          "name": "BG control",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180373": {
+          "name": "BG rollout-metr",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180374": {
+          "name": "BG access-polic",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180375": {
+          "name": "BG upstream-mai",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180376": {
+          "name": "admin",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180377": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 8.040000000000001,
+          "last_cpu": 11
+        },
+        "180378": {
+          "name": "Pingora HTTP Pr",
+          "cpu_seconds": 8.040000000000001,
+          "last_cpu": 10
+        },
+        "180379": {
+          "name": "BG connection-d",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180380": {
+          "name": "Server",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        },
+        "180381": {
+          "name": "tokio-rt-worker",
+          "cpu_seconds": 0.0,
+          "last_cpu": 10
+        },
+        "180382": {
+          "name": "Timer thread",
+          "cpu_seconds": 0.0,
+          "last_cpu": 11
+        }
+      },
+      "load_before": "12.45 12.50 12.30 2/7708 180385",
+      "load_after": "12.79 12.57 12.33 10/7708 180388",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3",
+        "wrk",
+        "-t",
+        "2",
+        "-c",
+        "64",
+        "-d",
+        "8s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-opt7-20260927/final-aa-two-default/rr-64.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:44195/"
+      ],
+      "wrk_output": "Running 8s test @ http://127.0.0.1:44195/\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   788.49us  347.89us   7.49ms   80.63%\n    Req/Sec    41.21k     3.24k   72.34k    88.20%\n  Latency Distribution\n     50%  685.00us\n     75%    0.95ms\n     90%    1.23ms\n     99%    1.90ms\n  660030 requests in 8.10s, 752.74MB read\nRequests/sec:  81485.92\nTransfer/sec:     92.93MB\nBENCH_RESULT {\"requests\":660030,\"seconds\":8.099927,\"bytes\":789309030,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.685000,\"p95_ms\":1.414000,\"p99_ms\":1.896000}\n",
+      "upstream_connections": {
+        "false": 170838.0,
+        "true": 489232.0
+      },
+      "network_counters": {
+        "ListenOverflows": 0,
+        "ListenDrops": 0,
+        "TCPTimeWaitOverflow": 144380,
+        "TCPSynRetrans": 0
+      },
+      "warmup": {
+        "rps": 78107.7458348052,
+        "requests": 242118,
+        "errors": 0,
+        "p99_ms": 2.314
+      },
+      "engine": "aa-b",
+      "case": "rr-64",
+      "concurrency": 64,
+      "round": 3
+    }
+  ],
+  "origin_baselines": [
+    {
+      "requests": 5267830,
+      "seconds": 8.099394,
+      "bytes": 6295056850,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.072,
+      "p95_ms": 0.114,
+      "p99_ms": 0.158,
+      "errors": 0,
+      "rps": 650398.0421251269,
+      "server_cpu_cores": 1.9631098326615546,
+      "server_cpu_us_per_request": 3.0183206367707385,
+      "origin_cpu_cores": 1.9631098326615546,
+      "client_cpu_cores": 1.9927099484233022,
+      "peak_pss_kib": 8921,
+      "peak_rss_kib": 20396,
+      "server_pids": [
+        180190,
+        180191,
+        180192
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          2569,
+          0,
+          1334,
+          9672,
+          10,
+          0,
+          1341,
+          0
+        ],
+        "cpu0": [
+          109,
+          0,
+          15,
+          676,
+          5,
+          0,
+          71,
+          0
+        ],
+        "cpu1": [
+          134,
+          0,
+          16,
+          656,
+          0,
+          0,
+          43,
+          0
+        ],
+        "cpu2": [
+          224,
+          0,
+          333,
+          10,
+          0,
+          0,
+          258,
+          0
+        ],
+        "cpu3": [
+          228,
+          0,
+          336,
+          10,
+          0,
+          0,
+          251,
+          0
+        ],
+        "cpu4": [
+          139,
+          0,
+          12,
+          657,
+          0,
+          0,
+          32,
+          0
+        ],
+        "cpu5": [
+          122,
+          0,
+          12,
+          676,
+          0,
+          0,
+          29,
+          0
+        ],
+        "cpu6": [
+          259,
+          0,
+          255,
+          26,
+          0,
+          0,
+          282,
+          0
+        ],
+        "cpu7": [
+          263,
+          0,
+          246,
+          28,
+          0,
+          0,
+          282,
+          0
+        ],
+        "cpu8": [
+          122,
+          0,
+          13,
+          676,
+          0,
+          0,
+          23,
+          0
+        ],
+        "cpu9": [
+          132,
+          0,
+          11,
+          668,
+          1,
+          0,
+          18,
+          0
+        ],
+        "cpu10": [
+          134,
+          0,
+          12,
+          666,
+          1,
+          0,
+          12,
+          0
+        ],
+        "cpu11": [
+          124,
+          0,
+          12,
+          678,
+          1,
+          0,
+          11,
+          0
+        ],
+        "cpu12": [
+          117,
+          0,
+          12,
+          682,
+          1,
+          0,
+          10,
+          0
+        ],
+        "cpu13": [
+          105,
+          0,
+          11,
+          695,
+          1,
+          0,
+          6,
+          0
+        ],
+        "cpu14": [
+          121,
+          0,
+          11,
+          681,
+          0,
+          0,
+          6,
+          0
+        ],
+        "cpu15": [
+          119,
+          0,
+          13,
+          680,
+          0,
+          0,
+          5,
+          0
+        ],
+        "cpu16": [
+          118,
+          0,
+          14,
+          682,
+          1,
+          0,
+          5,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          826,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "180190": {
+          "name": "nginx",
+          "cpu_seconds": 0.0,
+          "last_cpu": 7
+        },
+        "180191": {
+          "name": "nginx",
+          "cpu_seconds": 7.87,
+          "last_cpu": 6
+        },
+        "180192": {
+          "name": "nginx",
+          "cpu_seconds": 8.030000000000001,
+          "last_cpu": 7
+        }
+      },
+      "load_before": "10.34 12.27 12.22 3/7723 180219",
+      "load_after": "10.88 12.33 12.24 12/7716 180222",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3",
+        "wrk",
+        "-t",
+        "2",
+        "-c",
+        "64",
+        "-d",
+        "8s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-opt7-20260927/final-aa-two-default/rr-64.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:52863/"
+      ],
+      "wrk_output": "Running 8s test @ http://127.0.0.1:52863/\n  2 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    70.56us   71.62us   3.62ms   98.09%\n    Req/Sec   327.07k    13.88k  342.23k    86.42%\n  Latency Distribution\n     50%   72.00us\n     75%   88.00us\n     90%   97.00us\n     99%  158.00us\n  5267830 requests in 8.10s, 5.86GB read\nRequests/sec: 650398.04\nTransfer/sec:    741.22MB\nBENCH_RESULT {\"requests\":5267830,\"seconds\":8.099394,\"bytes\":6295056850,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.072000,\"p95_ms\":0.114000,\"p99_ms\":0.158000}\n",
+      "case": "rr-64"
+    }
+  ],
+  "summary": {
+    "aa-a/rr-64/c64": {
+      "samples": 3,
+      "requests": 1891321,
+      "errors": 0,
+      "rps": {
+        "median": 78490.46093033523,
+        "min": 74597.31185663235,
+        "max": 80421.58864549827
+      },
+      "p50_ms": {
+        "median": 0.754,
+        "min": 0.753,
+        "max": 0.791
+      },
+      "p95_ms": {
+        "median": 1.461,
+        "min": 1.304,
+        "max": 1.493
+      },
+      "p99_ms": {
+        "median": 2.475,
+        "min": 1.888,
+        "max": 16.074
+      },
+      "server_cpu_cores": {
+        "median": 1.9507213224211466,
+        "min": 1.9248025688397798,
+        "max": 1.9828252271668292
+      },
+      "server_cpu_us_per_request": {
+        "median": 24.655384960215173,
+        "min": 24.522757874337774,
+        "max": 26.15002168134709
+      },
+      "client_cpu_cores": {
+        "median": 0.5066141799167563,
+        "min": 0.4981540908783365,
+        "max": 0.516891176970979
+      },
+      "origin_cpu_cores": {
+        "median": 0.7605357035708391,
+        "min": 0.7222639530283974,
+        "max": 0.7642382902396772
+      },
+      "peak_pss_kib": {
+        "median": 31160,
+        "min": 31158,
+        "max": 31278
+      },
+      "peak_rss_kib": {
+        "median": 32584,
+        "min": 32576,
+        "max": 32720
+      },
+      "rps_cv_pct": 3.8114607927530053
+    },
+    "aa-b/rr-64/c64": {
+      "samples": 3,
+      "requests": 2010430,
+      "errors": 0,
+      "rps": {
+        "median": 82252.58096506164,
+        "min": 81485.91956446027,
+        "max": 84475.04961680088
+      },
+      "p50_ms": {
+        "median": 0.718,
+        "min": 0.685,
+        "max": 0.766
+      },
+      "p95_ms": {
+        "median": 1.219,
+        "min": 1.216,
+        "max": 1.414
+      },
+      "p99_ms": {
+        "median": 1.969,
+        "min": 1.896,
+        "max": 2.138
+      },
+      "server_cpu_cores": {
+        "median": 1.9717083921069931,
+        "min": 1.9569602098750307,
+        "max": 1.9852030765215543
+      },
+      "server_cpu_us_per_request": {
+        "median": 23.792082715389647,
+        "min": 23.340718958451472,
+        "max": 24.36252897595564
+      },
+      "client_cpu_cores": {
+        "median": 0.5316940510698456,
+        "min": 0.5228291446565236,
+        "max": 0.5357161332539052
+      },
+      "origin_cpu_cores": {
+        "median": 0.7284332819931908,
+        "min": 0.7235196738086864,
+        "max": 0.7407474166125202
+      },
+      "peak_pss_kib": {
+        "median": 31222,
+        "min": 31166,
+        "max": 31266
+      },
+      "peak_rss_kib": {
+        "median": 32644,
+        "min": 32588,
+        "max": 32676
+      },
+      "rps_cv_pct": 1.8764407190181982
+    }
+  },
+  "aa_gate": {
+    "max_pair_difference_pct": 13.241412477640521,
+    "max_rps_cv_pct": 3.8114607927530053,
+    "passed": false
+  }
+}

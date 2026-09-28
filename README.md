@@ -18,7 +18,7 @@
 
 **rgnix** is a Rust HTTP server, reverse proxy, and Kubernetes Ingress/Gateway API controller in one binary. [Pingora](https://github.com/cloudflare/pingora) and OpenSSL handle transport. **RGL**, a small Lua-style language, compiles to WebAssembly and then to native code through Wasmtime/Cranelift when configuration is loaded.
 
-> **v0.4.0 Preview** adds optional RGL-to-eBPF packet policies, Gateway mirroring and deadlines, replica publication gates, tenant compilation budgets and configurable connection draining. [Download](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0) · [Release notes](docs/releases/v0.4.0.md) · [Changelog](CHANGELOG.md). Review the [validation scope](#validation) and [NGINX compatibility matrix](docs/compatibility.md) before deployment.
+> **v0.5.0 Preview** updates HTTP/1 execution, backend selection, Gateway route indexing, RGL request state and Linux static-file delivery. It publishes the measured NGINX/OpenResty gap and unresolved performance limits; it does not claim performance parity. [Download](https://github.com/SamuelSupe/rgnix/releases/tag/v0.5.0) · [Release notes](docs/releases/v0.5.0.md) · [Changelog](CHANGELOG.md). Review the [validation scope](#validation) and [NGINX compatibility matrix](docs/compatibility.md) before deployment.
 
 ## What you get
 
@@ -46,16 +46,16 @@
 
 ### Linux amd64 or arm64
 
-Download the matching archive and **SHA256SUMS** from [v0.4.0](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0). For amd64 (use `arch=arm64` on AArch64):
+Download the matching archive and **SHA256SUMS** from [v0.5.0](https://github.com/SamuelSupe/rgnix/releases/tag/v0.5.0). For amd64 (use `arch=arm64` on AArch64):
 
 ```sh
 arch=amd64
-archive="rgnix-0.4.0-linux-$arch.tar.gz"
-curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/$archive"
-curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/SHA256SUMS
+archive="rgnix-0.5.0-linux-$arch.tar.gz"
+curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.5.0/$archive"
+curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.5.0/SHA256SUMS
 grep " $archive\$" SHA256SUMS | sha256sum -c -
 tar -xzf "$archive"
-cd "rgnix-0.4.0-linux-$arch"
+cd "rgnix-0.5.0-linux-$arch"
 ./rgnix check -c examples/nginx.conf
 ./rgnix serve -c examples/nginx.conf
 ```
@@ -67,10 +67,10 @@ In another terminal, run `curl http://localhost:8080/health`. The static home pa
 The non-root image contains native binaries for **linux/amd64 and linux/arm64**:
 
 ```sh
-git clone --branch v0.4.0 https://github.com/SamuelSupe/rgnix.git
+git clone --branch v0.5.0 https://github.com/SamuelSupe/rgnix.git
 cd rgnix
 docker run --rm -p 8080:8080 -v "$PWD/examples:/etc/rgnix:ro" \
-  ghcr.io/samuelsupe/rgnix:0.4.0 serve -c /etc/rgnix/nginx.conf
+  ghcr.io/samuelsupe/rgnix:0.5.0 serve -c /etc/rgnix/nginx.conf
 ```
 
 To build from source, use **Rust 1.90+** on Linux (`Cargo.lock` pins dependencies; Docker and CI use Rust 1.98.0):
@@ -138,7 +138,7 @@ Install the versioned OCI chart:
 
 ```sh
 helm upgrade --install rgnix oci://ghcr.io/samuelsupe/rgnix/charts/rgnix \
-  --version 0.4.0 --namespace rgnix-system --create-namespace \
+  --version 0.5.0 --namespace rgnix-system --create-namespace \
   --set shutdown.enabled=true
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
@@ -257,26 +257,19 @@ Compilation occurs on the control plane. Snapshot publication is atomic; in-flig
 
 ## Validation
 
-The [release workflow](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml) gates publication on native **amd64 and arm64** Rust/behavior checks, Clippy and release builds, followed by the amd64 Kubernetes Gateway/TLS/gRPC harness. See [release notes and verification](docs/releases/v0.4.0.md).
+The [release workflow](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml) requires native **amd64 and arm64** Rust/behavior checks, Clippy and Debian release builds, then the amd64 Kubernetes Gateway/TLS/gRPC harness before publishing artifacts. See [v0.5.0 release notes](docs/releases/v0.5.0.md) and the [release verification guide](docs/releases.md).
 
-Pre-release acceptance on **OrbStack Linux arm64** recorded:
+The pre-release round-nine source passed **640 distinct checks** across application/RGL, Pingora proxy/HTTP/1/timer and native HTTP/product suites. This is a source-validation record, not a claim that all 640 checks run in the release workflow. [Exact scope and artifact identities](docs/validation-performance-round9-2026-09-27.md).
 
-| Suite | Passed |
-| :--- | ---: |
-| Kubernetes Gateway / Ingress policies | **73 / 70** |
-| Cross-process shared rates | **12** |
-| HTTP / standalone product behaviors | **82 / 111** |
-| Controller recovery / migration | **57 / 10** |
-| OTLP / local log rotation | **32 / 20** |
-| Rust unit and boundary tests | **12** |
+### Performance: measured gap, remaining work
 
-The [P1 validation record](docs/validation-p1-product-2026-09-25.md) identifies the tested binaries and the order of the final Gateway guard regression. Earlier [tracing](docs/validation-tracing-2026-09-25.md), [metrics](docs/validation-metrics-2026-09-25.md) and [v0.2.0 release](docs/validation-release-0.2.0.md) records remain separate historical evidence.
+The [performance guide](docs/performance.md) separates implemented changes, historical benchmark artifacts and pending Pingora experiments. In the round-nine, two-worker / 64-connection HTTP/1 comparison, ordinary 1 KiB proxy medians were **103,596 req/s for rgnix vs 194,876 for NGINX 1.30.5**. The same-binary A/A control failed at 64 connections (**12.23%** paired difference), and a separate 256-connection window had **40.911 ms P99**. These observations establish neither stable capacity nor a small percentage improvement.
 
-The [current-source record](docs/validation-gateway-hardening-2026-09-26.md) contains 14 Rust, 327 native behavior, 71 Ingress and 2 additional admission-scope checks, plus a complete **115-check Gateway run on the final image**. With 200 additional routes, a three-node, 180-second keepalive workload completed **30,363 requests with zero failures** (P99 **45.67 ms**) during plugin publication and Pod replacement. gRPC draining and admission certificate rotation passed; 24-hour and full upstream conformance qualification remain separate.
+A later [one-worker diagnosis](docs/validation-pingora-audit-2026-09-28.md) found that the minimal proxy using our **modified vendor dependencies** also remained behind NGINX. It is not an unmodified upstream Pingora benchmark. The newly identified header-array, body-ownership and vectored-write ideas are **not implemented in v0.5.0**.
 
-**Outside acceptance scope:** upstream Gateway conformance certification, multi-node failure, cloud load balancers, long-duration load, adversarial tenant capacity, and Redis Sentinel/Cluster failover. Historical performance measurements are not a capacity guarantee.
+The [original NGINX/OpenResty comparison](docs/validation-nginx-openresty-2026-09-27.md) tested released v0.4.0. Later NGINX reruns used OpenResty only as the common origin; they are not updated OpenResty frontend results. All raw windows, rejected experiments and limitations remain in the linked reports.
 
-The [performance comparison](docs/validation-performance-2026-09-26.md) uses release builds, native wrk clients, CPU affinity and alternating before/after runs. It includes the RGL resource-pool and XDP scope optimizations shipped in v0.4.0, raw measurements and their qualification limits.
+**Outside acceptance scope:** stable production capacity, full upstream Gateway conformance, 24-hour soak, physical-node/network failures, cloud load balancers, production CNI interoperability and Redis Sentinel/Cluster failover. Earlier [Gateway](docs/validation-gateway-hardening-2026-09-26.md), [tracing](docs/validation-tracing-2026-09-25.md) and [metrics](docs/validation-metrics-2026-09-25.md) records retain their original version and scope.
 
 ## Scope and documentation
 

@@ -18,7 +18,7 @@
 
 **rgnix** 将 HTTP 服务、反向代理和 Kubernetes Ingress/Gateway API controller 放进一个 Rust 二进制。数据面基于 [Pingora](https://github.com/cloudflare/pingora) 与 OpenSSL；内置 Lua 风格语言 **RGL → WebAssembly → Wasmtime/Cranelift 机器码**，在加载配置时完成编译。
 
-> **v0.4.0 预览版**新增可选的 RGL→eBPF 报文策略、Gateway 镜像与总超时、副本发布门禁、租户编译预算和可配置连接排空。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0) · [发布说明](docs/releases/v0.4.0.md) · [更新记录](CHANGELOG.md)。部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
+> **v0.5.0 预览版**更新 HTTP/1 执行路径、后端选择、Gateway 路由索引、RGL 请求状态及 Linux 静态文件传输，同时公开 NGINX/OpenResty 对照差距和未解决的性能限制；不宣称已达到性能对等。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.5.0) · [发布说明](docs/releases/v0.5.0.md) · [更新记录](CHANGELOG.md)。部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
 
 ## 主要能力
 
@@ -46,16 +46,16 @@
 
 ### 下载 Linux amd64 或 arm64 版本
 
-从 [v0.4.0 Release](https://github.com/SamuelSupe/rgnix/releases/tag/v0.4.0) 下载对应架构的压缩包与 **SHA256SUMS**。以下为 amd64，AArch64 请设置 `arch=arm64`：
+从 [v0.5.0 Release](https://github.com/SamuelSupe/rgnix/releases/tag/v0.5.0) 下载对应架构的压缩包与 **SHA256SUMS**。以下为 amd64，AArch64 请设置 `arch=arm64`：
 
 ```sh
 arch=amd64
-archive="rgnix-0.4.0-linux-$arch.tar.gz"
-curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/$archive"
-curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.4.0/SHA256SUMS
+archive="rgnix-0.5.0-linux-$arch.tar.gz"
+curl -fLO "https://github.com/SamuelSupe/rgnix/releases/download/v0.5.0/$archive"
+curl -fLO https://github.com/SamuelSupe/rgnix/releases/download/v0.5.0/SHA256SUMS
 grep " $archive\$" SHA256SUMS | sha256sum -c -
 tar -xzf "$archive"
-cd "rgnix-0.4.0-linux-$arch"
+cd "rgnix-0.5.0-linux-$arch"
 ./rgnix check -c examples/nginx.conf
 ./rgnix serve -c examples/nginx.conf
 ```
@@ -67,10 +67,10 @@ cd "rgnix-0.4.0-linux-$arch"
 非 root 镜像包含 **linux/amd64 与 linux/arm64** 原生二进制：
 
 ```sh
-git clone --branch v0.4.0 https://github.com/SamuelSupe/rgnix.git
+git clone --branch v0.5.0 https://github.com/SamuelSupe/rgnix.git
 cd rgnix
 docker run --rm -p 8080:8080 -v "$PWD/examples:/etc/rgnix:ro" \
-  ghcr.io/samuelsupe/rgnix:0.4.0 serve -c /etc/rgnix/nginx.conf
+  ghcr.io/samuelsupe/rgnix:0.5.0 serve -c /etc/rgnix/nginx.conf
 ```
 
 源码构建在 Linux 上使用 **Rust 1.90+**；依赖由 `Cargo.lock` 锁定，Docker 与 CI 使用 Rust 1.98.0：
@@ -138,7 +138,7 @@ end
 
 ```sh
 helm upgrade --install rgnix oci://ghcr.io/samuelsupe/rgnix/charts/rgnix \
-  --version 0.4.0 --namespace rgnix-system --create-namespace \
+  --version 0.5.0 --namespace rgnix-system --create-namespace \
   --set shutdown.enabled=true
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
@@ -257,26 +257,19 @@ flowchart LR
 
 ## 实际验证
 
-[发布流程](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml)在原生 **amd64 与 arm64** 上执行 Rust/行为回归、Clippy 和 release 构建，再使用 amd64 产物执行真实 Kubernetes Gateway/TLS/gRPC 检查，全部通过后才发布。见[发布说明与校验方法](docs/releases/v0.4.0.md)。
+[发布流程](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml)要求原生 **amd64 与 arm64** Rust/行为回归、Clippy 和 Debian release 构建通过，再使用 amd64 产物执行 Kubernetes Gateway/TLS/gRPC 检查，之后才发布。见 [v0.5.0 发布说明](docs/releases/v0.5.0.md)和[产物校验方法](docs/releases.md)。
 
-发布前在 **OrbStack Linux arm64** 上记录的验收结果：
+发布前第九轮源码通过 **640 项不同检查**，覆盖应用/RGL、Pingora 代理/HTTP/1/计时器及真实 HTTP/产品行为。这是源码验证记录，不表示发布工作流执行了同样的全部 640 项检查。[具体范围与产物身份](docs/validation-performance-round9-2026-09-27.md)。
 
-| 套件 | 通过数 |
-| :--- | ---: |
-| Kubernetes Gateway / Ingress 策略 | **73 / 70** |
-| 跨进程共享速率 | **12** |
-| HTTP / 独立模式产品行为 | **82 / 111** |
-| 控制器恢复 / 迁移工具 | **57 / 10** |
-| OTLP / 本地日志轮转 | **32 / 20** |
-| Rust 单元与边界测试 | **12** |
+### 性能：公开差距与剩余工作
 
-[P1 验证记录](docs/validation-p1-product-2026-09-25.md)说明实际二进制与最后一次 Gateway 拒绝保护的回归顺序。此前的[链路](docs/validation-tracing-2026-09-25.md)、[指标](docs/validation-metrics-2026-09-25.md)和 [v0.2.0 发布](docs/validation-release-0.2.0.md)记录作为历史证据保留。
+[性能指南](docs/performance.md)区分已实现改动、历史测试产物和待实施的 Pingora 实验。第九轮双 worker、64 连接 HTTP/1 对照中，1 KiB 普通代理中位数为 **rgnix 103,596 req/s、NGINX 1.30.5 194,876 req/s**。64 连接相同二进制 A/A 校准仍失败（配对差异 **12.23%**），另有一个 256 连接窗口出现 **40.911 ms P99**。这些观测不能证明稳定容量或小幅百分比收益。
 
-[当前源码记录](docs/validation-gateway-hardening-2026-09-26.md)包含 14 项 Rust、327 项原生行为、71 项 Ingress、2 项额外准入范围检查，以及**最终镜像的一次完整 115 项 Gateway 检查**。三节点、追加 200 条路由的 180 秒持久连接负载，在插件更新和 Pod 替换期间完成 **30,363 次请求，零失败**，P99 **45.67 ms**。gRPC 排空和准入证书轮换通过；24 小时浸泡和完整标准认证仍需独立验收。
+后续[单 worker 诊断](docs/validation-pingora-audit-2026-09-28.md)发现，使用我们**修改过的 vendor 依赖**的最小代理也明显慢于 NGINX；它不是官方原版 Pingora 的基准。新发现的头部数组、body 所有权和 vectored write 优化均**尚未实现，不属于 v0.5.0 的能力或收益**。
 
-**验收范围之外：**上游 Gateway conformance 认证、多节点故障、云 LoadBalancer、长期压测、恶意租户容量极限，以及 Redis Sentinel/Cluster 故障转移。历史性能数据不构成容量保证。
+[最初的 NGINX/OpenResty 对照](docs/validation-nginx-openresty-2026-09-27.md)针对已发布的 v0.4.0。后续 NGINX 重测中 OpenResty 仅作为共同上游，不是更新后的 OpenResty 前端成绩。报告保留所有原始窗口、被否决的实验与适用限制。
 
-[性能对比记录](docs/validation-performance-2026-09-26.md)使用 release 构建、原生 wrk、CPU 绑定和优化前后交替测试，记录 v0.4.0 中 RGL 资源池与 XDP 范围检查优化的结果、原始数据及适用边界。
+**仍未完成的验收：**稳定生产容量、完整 Gateway conformance、24 小时压力、物理节点/网络故障、云负载均衡、生产 CNI 兼容及 Redis Sentinel/Cluster 故障切换。此前 [Gateway](docs/validation-gateway-hardening-2026-09-26.md)、[tracing](docs/validation-tracing-2026-09-25.md)及[metrics](docs/validation-metrics-2026-09-25.md)记录保持其原版本与范围。
 
 ## 范围与文档
 

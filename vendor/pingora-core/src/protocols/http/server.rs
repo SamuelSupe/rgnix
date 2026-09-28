@@ -266,24 +266,35 @@ impl Session {
     /// For H2, always return None because H2 stream is not reusable.
     /// For subrequests, there is no true underlying stream to return.
     pub async fn finish(self) -> Result<Option<ReusableHttpStream>> {
-        match self {
-            Self::H1(mut s) => {
-                // need to flush body due to buffering
+        Box::new(self).finish_boxed().await
+    }
+
+    /// Finishes in place so cancellation-safe I/O state stays in its allocation
+    /// until all response writes and request draining have completed.
+    pub async fn finish_boxed(mut self: Box<Self>) -> Result<Option<ReusableHttpStream>> {
+        match self.as_mut() {
+            Self::H1(s) => {
                 s.finish_body().await?;
-                s.reuse().await
+                if !s.prepare_reuse().await? {
+                    return Ok(None);
+                }
             }
-            Self::H2(mut s) => {
+            Self::H2(s) => {
                 s.finish()?;
-                Ok(None)
+                return Ok(None);
             }
-            Self::Subrequest(mut s) => {
+            Self::Subrequest(s) => {
                 s.finish().await?;
-                Ok(None)
+                return Ok(None);
             }
-            Self::Custom(mut s) => {
+            Self::Custom(s) => {
                 s.finish().await?;
-                Ok(None)
+                return Ok(None);
             }
+        }
+        match *self {
+            Self::H1(s) => Ok(Some(s.into_reusable_stream())),
+            _ => unreachable!(),
         }
     }
 
@@ -575,6 +586,21 @@ impl Session {
             Self::H2(s) => s.is_body_done(),
             Self::Subrequest(s) => s.is_body_done(),
             Self::Custom(s) => s.is_body_done(),
+        }
+    }
+
+    /// Bypasses body filters and sends a fixed-length file only when the HTTP/1
+    /// framing and plain transport support it. False means no body was written.
+    #[cfg(target_os = "linux")]
+    pub async fn write_file_body(
+        &mut self,
+        file: &std::fs::File,
+        offset: u64,
+        length: usize,
+    ) -> Result<bool> {
+        match self {
+            Self::H1(session) => session.write_file_body(file, offset, length).await,
+            _ => Ok(false),
         }
     }
 

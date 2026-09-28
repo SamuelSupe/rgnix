@@ -141,6 +141,7 @@ impl Default for Settings {
 #[derive(Clone)]
 pub struct Route {
     pub id: String,
+    pub(crate) metrics: std::sync::OnceLock<crate::telemetry::RouteMetrics>,
     pub tenant: Option<Arc<crate::tenancy::Tenant>>,
     pub rollout: Option<Arc<crate::rollout::State>>,
     pub matcher: PathMatch,
@@ -260,6 +261,9 @@ impl RuntimeSnapshot {
     }
     pub fn reindex(&mut self) {
         self.routing = crate::routing::Index::build(&self.hosts);
+        if let Some(gateway) = &mut self.gateway {
+            gateway.reindex();
+        }
     }
     pub fn route(&self, listener: SocketAddr, host: &str, path: &str) -> Option<Arc<Route>> {
         if let Some(gateway) = &self.gateway {

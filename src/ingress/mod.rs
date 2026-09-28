@@ -1011,6 +1011,7 @@ fn build(
                         .unwrap_or(Action::Unavailable)
                 };
                 let route = Arc::new(Route {
+                    metrics: Default::default(),
                     id: format!(
                         "{ns}/{}:{}:{}",
                         ingress.name_any(),

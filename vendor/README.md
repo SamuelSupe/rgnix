@@ -4,6 +4,35 @@
 The original Apache-2.0 license and notices are retained. Registry metadata and
 the nested Cargo.lock are omitted; the root Cargo.lock pins the build.
 
+## HTTP/1 transient state and lazy timers
+
+`pingora-proxy` joins both directions of an HTTP/1 exchange in one future.
+Its two task pipes now borrow fixed-capacity queues from that future instead
+of allocating general multi-producer channels. Capacity remains four tasks per
+direction; a read still reserves space before consuming a body chunk. A mutex
+preserves `Send` when the parent future migrates, and cancellation releases
+reservations and wakes the other half. Custom-message and HTTP/2 channels are
+unchanged. Successful async sends and receives consume Tokio's cooperative
+budget, preserving its yield behavior when operations stay continuously ready.
+Normal full-queue backpressure no longer allocates an error object.
+Retain bounded exchange, reservation cancellation, early response, large upload,
+WebSocket and drain tests when updating this patch.
+
+HTTP/1 parsed header offsets use inline storage for sixteen fields and grow on
+the heap for larger messages. Response task batches use inline storage sized for
+the pipe and one saved task. Header limits, duplicate values, original casing,
+framing checks and filter order are unchanged. Existing Vec-based public methods
+remain available; the HTTP/1 writer additionally accepts an exact-size iterator.
+Retain large-header, duplicate-header and keepalive isolation checks.
+
+`pingora-timeout` is based on crates.io 0.9.0 under its original Apache-2.0
+license. A fast timeout checks its timer-thread watchdog when the wrapped I/O
+first returns Pending, instead of reading the clock even for immediately ready
+I/O. The callback already returns a pinned boxed timer, so the timeout no longer
+boxes it a second time. Deadline rounding, the long-duration Tokio fallback and
+watchdog recovery are preserved. Retain ready/pending/expired timer, fallback and
+watchdog tests; remove these patches when equivalent upstream behavior exists.
+
 ## Request inspection replay
 
 `enable_retry_buffering_with_limit` is added in `protocols/http/server.rs`,
@@ -21,6 +50,55 @@ An unexpectedly larger read fails closed before selecting an upstream. Keep
 the full-body/hash, fragmented/chunked upload, HTTP/2 and no-retry integration
 checks when upgrading Pingora. Remove this patch when upstream provides an
 equivalent public API.
+
+`pingora-proxy/src/proxy_h1.rs` and `proxy_h2.rs` only enable an automatic
+retry buffer when `max_retries > 1` (the budget includes the first attempt).
+Explicit inspection buffers are preserved: their pre-read bytes must still be
+forwarded on the initial attempt. Ordinary single-attempt uploads no longer
+retain an unused retry copy. Keep full-body/hash, HTTP/2 and no-replay checks
+when upgrading this guard.
+
+## Request state and idle connections
+
+The additive `HttpServerApp::process_new_http_boxed` hook transfers the existing
+session allocation through dispatch; its default preserves the original API.
+`finish_boxed` completes writes and drains in place before extracting a reusable
+stream. The proxy keeps its session and application context boxed across async
+calls, avoiding repeated copies of their large state machines.
+
+HTTP/1 transport pooling now reuses bounded peer-group queues instead of
+allocating a watcher task, mutex and notifications on every return. One weakly
+owned maintenance task per connector checks idle sockets every 100 ms. Checkout
+also checks the exact deadline, socket peer, EOF and unsolicited data before
+reuse; expired sockets cannot be borrowed between sweeps. Capacity remains a
+global connection cap, with oldest connections evicted from the least recently
+used peer group. Empty group indexes are bounded and retained for reuse; index
+churn reclaims an empty group instead of displacing live idle connections.
+Checkout evaluates expiry after acquiring the pool lock. rgnix
+continues to include worker ID and TLS trust policy in the pool key. HTTP/2's
+multiplexed pool is unchanged. Keep pool-capacity/expiry, upstream EOF, hostile
+idle data, trust rotation and cancellation checks when updating these patches.
+
+## Linux file responses
+
+The additive HTTP/1 `write_file_body` operation uses sendfile only for fixed
+lengths on plain TCP/Unix sockets, after flushing buffered headers. It preserves
+write timeouts and payload byte accounting, handles partial writes, and treats
+an early EOF as failure. Unsupported transport/framing returns false without
+writing body bytes; unsupported kernel/filesystem operations may fall back only
+before the first body byte. TLS, HTTP/2 and compression retain buffered writes.
+This API bypasses body filters and must only be used when the caller has ruled
+out transformations. As with conventional sendfile, cold file data can require
+kernel filesystem I/O; it is not an asynchronous disk-I/O guarantee.
+
+## Listener reactor ownership
+
+`services/listening.rs` starts each accept loop on the Tokio runtime that built
+its listener. In no-steal mode, picking a different runtime can leave the loop
+polling a stopped reactor during immediate shutdown. Failed accepts also yield
+so an immediately failing socket cannot starve shutdown. Accepted connections
+still distribute across workers. Keep the repeated multi-listener SIGINT check
+when upgrading this patch.
 
 ## PROXY protocol before HTTP or TLS
 

@@ -229,6 +229,19 @@ pub trait HttpServerApp {
         shutdown: &ShutdownWatch,
     ) -> Option<ReusedHttpStream>;
 
+    /// Keeps large session state out of the async dispatch future. Implementations
+    /// that retain the session can consume the existing allocation here.
+    async fn process_new_http_boxed(
+        self: &Arc<Self>,
+        session: Box<ServerSession>,
+        shutdown: &ShutdownWatch,
+    ) -> Option<ReusedHttpStream>
+    where
+        Self: Send + Sync,
+    {
+        self.process_new_http(*session, shutdown).await
+    }
+
     /// Provide options on how HTTP/2 connection should be established. This function will be called
     /// every time a new HTTP/2 **connection** needs to be established.
     ///
@@ -334,8 +347,11 @@ where
                         // loop's idle timeout sees this connection as busy.
                         let _guard = guard;
                         // Note, `PersistentSettings` not currently relevant for h2
-                        app.process_new_http(ServerSession::new_http2(h2_stream), &shutdown)
-                            .await;
+                        app.process_new_http_boxed(
+                            Box::new(ServerSession::new_http2(h2_stream)),
+                            &shutdown,
+                        )
+                        .await;
                     });
                 },
             )
@@ -344,7 +360,7 @@ where
             return self.clone().process_custom_session(stream, shutdown).await;
         } else {
             // No ALPN or ALPN::H1 and h2c was not configured, fallback to HTTP/1.1
-            let mut session = ServerSession::new_http1(stream);
+            let mut session = Box::new(ServerSession::new_http1(stream));
             if *shutdown.borrow() {
                 // stop downstream from reusing if this service is shutting down soon
                 session.set_keepalive(None);
@@ -357,14 +373,14 @@ where
                     .and_then(|opts| opts.keepalive_request_limit),
             );
 
-            let mut result = self.process_new_http(session, shutdown).await;
+            let mut result = self.process_new_http_boxed(session, shutdown).await;
             while let Some((stream, persistent_settings)) = result.map(|r| r.consume()) {
-                let mut session = ServerSession::new_http1(stream);
+                let mut session = Box::new(ServerSession::new_http1(stream));
                 if let Some(persistent_settings) = persistent_settings {
                     persistent_settings.apply_to_session(&mut session);
                 }
 
-                result = self.process_new_http(session, shutdown).await;
+                result = self.process_new_http_boxed(session, shutdown).await;
             }
         }
         None

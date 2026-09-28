@@ -28,6 +28,11 @@ pub const BUILTINS: &[Builtin] = &[
         result: String,
     },
     Builtin {
+        name: "constant",
+        args: &[Int, Int],
+        result: String,
+    },
+    Builtin {
         name: "req.method",
         args: &[],
         result: String,
@@ -242,6 +247,34 @@ fn compile_inner(source: &str) -> Result<Vec<u8>> {
     } else {
         None
     };
+    let compiled = builder
+        .functions
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .context("incomplete function")?;
+    let mut used = vec![false; BUILTINS.len()];
+    for function in &compiled {
+        for instruction in &function.code {
+            if let Instruction::Call(index) = instruction
+                && let Some(used) = used.get_mut(*index as usize)
+            {
+                *used = true;
+            }
+        }
+    }
+    // Resolve the builder's stable function IDs after dropping unused imports.
+    // Each retained host function otherwise adds per-instance Wasmtime state.
+    let mut indices = vec![0; BUILTINS.len() + compiled.len()];
+    let mut import_count = 0;
+    for (index, used) in used.iter().enumerate() {
+        if *used {
+            indices[index] = import_count;
+            import_count += 1;
+        }
+    }
+    for index in 0..compiled.len() {
+        indices[BUILTINS.len() + index] = import_count + index as u32;
+    }
     let mut module = Module::new();
     module.section(&CustomSection {
         name: Cow::Borrowed("rgnix.abi"),
@@ -250,48 +283,45 @@ fn compile_inner(source: &str) -> Result<Vec<u8>> {
     let mut types = TypeSection::new();
     let mut imports = ImportSection::new();
     for (i, b) in BUILTINS.iter().enumerate() {
+        if !used[i] {
+            continue;
+        }
         types
             .ty()
             .function(vec![ValType::I64; b.args.len()], [ValType::I64]);
-        imports.import("rgnix_v1", b.name, EntityType::Function(i as u32));
+        imports.import("rgnix_v1", b.name, EntityType::Function(indices[i]));
     }
     let mut functions = FunctionSection::new();
     let mut code = CodeSection::new();
-    for (i, f) in builder.functions.into_iter().enumerate() {
-        let f = f.context("incomplete function")?;
+    for (i, f) in compiled.into_iter().enumerate() {
         types
             .ty()
             .function(vec![ValType::I64; f.params], [ValType::I64]);
-        functions.function((BUILTINS.len() + i) as u32);
+        functions.function(import_count + i as u32);
         let mut body = wasm_encoder::Function::new([(f.locals, ValType::I64)]);
         for instruction in &f.code {
-            body.instruction(instruction);
+            if let Instruction::Call(index) = instruction {
+                body.instruction(&Instruction::Call(indices[*index as usize]));
+            } else {
+                body.instruction(instruction);
+            }
         }
         code.function(&body);
     }
     module.section(&types);
     module.section(&imports);
     module.section(&functions);
-    let mut memory = MemorySection::new();
-    memory.memory(MemoryType {
-        minimum: (builder.data.len() as u64).div_ceil(65536).max(1),
-        maximum: Some(128),
-        memory64: false,
-        shared: false,
-        page_size_log2: None,
-    });
-    module.section(&memory);
     let mut exports = ExportSection::new();
-    exports.export("memory", ExportKind::Memory, 0);
-    exports.export("on_request", ExportKind::Func, request);
+    exports.export("on_request", ExportKind::Func, indices[request as usize]);
     if let Some(id) = response {
-        exports.export("on_response", ExportKind::Func, id);
+        exports.export("on_response", ExportKind::Func, indices[id as usize]);
     }
     module.section(&exports);
     module.section(&code);
-    let mut data = DataSection::new();
-    data.active(0, &ConstExpr::i32_const(0), builder.data);
-    module.section(&data);
+    module.section(&CustomSection {
+        name: Cow::Borrowed("rgnix.constants"),
+        data: Cow::Owned(builder.data),
+    });
     Ok(module.finish())
 }
 
@@ -537,7 +567,7 @@ impl FunctionCompiler<'_> {
                     Instruction::I64Const(offset as i64),
                     Instruction::I64Const(s.len() as i64),
                 ]);
-                self.call_builtin("literal")
+                self.call_builtin("constant")
             }
             Expr::Var(n) => {
                 let (id, ty) = self
@@ -553,7 +583,13 @@ impl FunctionCompiler<'_> {
                     .iter()
                     .map(|e| self.expr(e))
                     .collect::<Result<Vec<_>>>()?;
-                if let Some((id, b)) = BUILTINS.iter().enumerate().find(|(_, b)| b.name == name) {
+                // The constant import is compiler-only. Do not reserve an
+                // ordinary function name that existing RGL programs may use.
+                if let Some((id, b)) = BUILTINS
+                    .iter()
+                    .enumerate()
+                    .find(|(_, b)| b.name == name && b.name != "constant")
+                {
                     ensure!(
                         b.args.len() == types.len()
                             && b.args.iter().zip(&types).all(|(a, b)| compatible(*a, *b)),

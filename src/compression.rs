@@ -32,8 +32,6 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
     if response.status.is_informational() {
         return;
     }
-    let mut req = session.req_header().clone();
-    let encoding = negotiated_encoding(&req.headers, policy);
     let Some(compression) = session
         .downstream_modules_ctx
         .get_mut::<ResponseCompression>()
@@ -44,6 +42,13 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
         return;
     }
     compression.adjust_level(0);
+    if policy.gzip == 0 && policy.brotli == 0 {
+        return;
+    }
+    let req = session.req_header();
+    let Some(encoding) = negotiated_encoding(&req.headers, policy) else {
+        return;
+    };
     let content_type = response
         .headers
         .get("content-type")
@@ -52,8 +57,7 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
         .split(';')
         .next()
         .unwrap_or("")
-        .trim()
-        .to_ascii_lowercase();
+        .trim();
     let no_transform = response
         .headers
         .get_all("cache-control")
@@ -77,21 +81,25 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
         || response.headers.contains_key("content-range")
         || no_transform
         || small
-        || content_type == "text/event-stream"
-        || content_type.starts_with("application/grpc")
+        || content_type.eq_ignore_ascii_case("text/event-stream")
+        || content_type
+            .get(.."application/grpc".len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("application/grpc"))
         || !policy
             .types
             .iter()
-            .any(|t| t.eq_ignore_ascii_case(&content_type))
+            .any(|t| t.eq_ignore_ascii_case(content_type))
     {
         return;
     }
-    let Some(encoding) = encoding else {
-        return;
-    };
     // Pingora's parser ignores quality values. Pass only the negotiated coding
     // to the compression module, without changing the upstream request headers.
+    let mut req = req.clone();
     req.insert_header("accept-encoding", encoding).unwrap();
+    let compression = session
+        .downstream_modules_ctx
+        .get_mut::<ResponseCompression>()
+        .unwrap();
     compression.adjust_algorithm_level(Algorithm::Gzip, policy.gzip);
     compression.adjust_algorithm_level(Algorithm::Brotli, policy.brotli);
     compression.request_filter(&req);

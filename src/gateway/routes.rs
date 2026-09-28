@@ -1,3 +1,5 @@
+mod index;
+
 use super::spec::*;
 use crate::{
     model::{PathMatch, Route},
@@ -317,6 +319,8 @@ pub fn filters(rule: &Rule, port: u16, prefix: bool) -> Result<Policy> {
 #[derive(Clone, Default, Serialize)]
 pub struct Routing {
     pub listeners: Vec<ListenerRoutes>,
+    #[serde(skip)]
+    index: Arc<index::Index>,
 }
 #[derive(Clone, Serialize)]
 pub struct ListenerRoutes {
@@ -428,7 +432,8 @@ impl Match {
             _ => anyhow::bail!("regular expression paths are unsupported"),
         }
     }
-    fn matches(&self, entry: &Entry, request: &RequestData) -> bool {
+    fn matches(&self, entry: &Entry, input: &index::Input<'_>, headers: &[String]) -> bool {
+        let request = input.request;
         if !entry.route.matcher.matches(&request.path) {
             return false;
         }
@@ -471,11 +476,15 @@ impl Match {
         if self
             .headers
             .iter()
-            .any(|h| request.headers.get(&h.name.to_ascii_lowercase()) != Some(&h.value))
+            .zip(headers)
+            .any(|(h, name)| request.headers.get(name) != Some(h.value.as_str()))
         {
             return false;
         }
-        let query: Vec<_> = url::form_urlencoded::parse(request.query.as_bytes()).collect();
+        if self.query_params.is_empty() {
+            return true;
+        }
+        let query = input.query();
         self.query_params.iter().all(|q| {
             query
                 .iter()
@@ -485,7 +494,7 @@ impl Match {
     }
 }
 impl Entry {
-    fn rank(&self, host: &str) -> Option<(usize, bool, usize, usize, usize, usize)> {
+    fn priority(&self) -> (bool, usize, usize, usize, usize) {
         let (length, exact) = self.route.matcher.rank();
         let method = if self.grpc {
             self.matcher.method.as_ref().map_or(0, |m| {
@@ -494,137 +503,23 @@ impl Entry {
         } else {
             usize::from(self.matcher.method.is_some())
         };
-        Some((
-            host_rank(&self.hostname, host)?,
+        (
             exact,
             length,
             method,
             self.matcher.headers.len(),
             self.matcher.query_params.len(),
-        ))
+        )
     }
 }
 impl Routing {
+    pub fn reindex(&mut self) {
+        self.index = Arc::new(index::Index::build(&self.listeners));
+    }
     pub fn route(&self, address: SocketAddr, request: &RequestData) -> Option<Arc<Route>> {
-        let host = request.host.to_ascii_lowercase();
-        let listener = self
-            .listeners
-            .iter()
-            .filter(|l| l.address == address)
-            .filter_map(|l| host_rank(&l.hostname, &host).map(|rank| (rank, l)))
-            .max_by_key(|(rank, _)| *rank)?
-            .1;
-        listener
-            .entries
-            .iter()
-            .filter(|e| e.matcher.matches(e, request))
-            .filter_map(|e| e.rank(&host).map(|rank| (rank, e)))
-            .max_by(|(rank_a, a), (rank_b, b)| {
-                rank_a.cmp(rank_b).then_with(|| b.order.cmp(&a.order))
-            })
-            .map(|(_, e)| e.route.clone())
+        self.index.route(&self.listeners, address, request)
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::model::{Action, Settings};
-    use serde_json::json;
-    fn entry(id: &str, hostname: &str, matcher: serde_json::Value) -> Entry {
-        let matcher: Match = serde_json::from_value(matcher).unwrap();
-        let path = matcher.path_match(false).unwrap();
-        Entry {
-            hostname: hostname.into(),
-            matcher,
-            grpc: false,
-            order: ("2026-01-01".into(), "test".into(), id.into(), 0, 0),
-            route_id: id.into(),
-            route: Arc::new(Route {
-                id: id.into(),
-                tenant: None,
-                rollout: None,
-                matcher: path,
-                action: Action::Unavailable,
-                settings: Settings::default(),
-                script: None,
-                allowed_backends: Default::default(),
-            }),
-        }
-    }
-    #[test]
-    fn request_predicates_and_listener_isolation() {
-        let address = "127.0.0.1:8080".parse().unwrap();
-        let mut routing = Routing {
-            listeners: vec![
-                ListenerRoutes {
-                    address,
-                    hostname: "*.example.test".into(),
-                    entries: vec![entry("wildcard", "", json!({}))],
-                },
-                ListenerRoutes {
-                    address,
-                    hostname: "api.example.test".into(),
-                    entries: vec![
-                        entry("prefix", "", json!({"path":{"value":"/api"}})),
-                        entry(
-                            "predicate",
-                            "",
-                            json!({"path":{"type":"Exact","value":"/api"},"method":"POST","headers":[{"name":"X-Canary","value":"1"}],"queryParams":[{"name":"v","value":"2"}]}),
-                        ),
-                    ],
-                },
-            ],
-        };
-        let mut request = RequestData {
-            host: "api.example.test".into(),
-            path: "/api".into(),
-            method: "POST".into(),
-            query: "v=2&v=3".into(),
-            headers: [("x-canary".into(), "1".into())].into(),
-            ..Default::default()
-        };
-        assert_eq!(routing.route(address, &request).unwrap().id, "predicate");
-        request.query = "v=3&v=2".into();
-        assert_eq!(routing.route(address, &request).unwrap().id, "prefix");
-        request.path = "/apix".into();
-        assert!(routing.route(address, &request).is_none());
-        request.host = "a.b.example.test".into();
-        assert_eq!(routing.route(address, &request).unwrap().id, "wildcard");
-        routing.listeners[1].entries.clear();
-        request.host = "api.example.test".into();
-        assert!(routing.route(address, &request).is_none());
-    }
-    #[test]
-    fn invalid_backends_keep_their_weight_and_path_rewrite_preserves_boundaries() {
-        let policy = Policy {
-            backends: vec![
-                (Some("valid".into()), 9),
-                (None, 1),
-                (Some("disabled".into()), 0),
-            ],
-            ..Default::default()
-        };
-        assert_eq!(
-            (0..100)
-                .filter(|sample| policy.select_at(*sample).is_none())
-                .count(),
-            10
-        );
-        let modifier = PathModifier {
-            type_: "ReplacePrefixMatch".into(),
-            replace_prefix_match: Some("/new/".into()),
-            replace_full_path: None,
-        };
-        modifier.validate(true).unwrap();
-        assert!(modifier.validate(false).is_err());
-        assert_eq!(
-            modifier.apply("/old/a", &PathMatch::IngressPrefix("/old/".into())),
-            "/new/a"
-        );
-        assert_eq!(
-            modifier.apply("/old", &PathMatch::IngressPrefix("/old/".into())),
-            "/new/"
-        );
-    }
-}
+mod tests;

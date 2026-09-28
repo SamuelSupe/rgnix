@@ -38,7 +38,8 @@ class Backend(Upstream):
             return
         if self.path in ("/authorize", "/health"):
             if self.path == "/health":
-                status = 200 if self.server.healthy else 503
+                host = getattr(self.server, "expected_health_host", None)
+                status = 200 if self.server.healthy and (host is None or self.headers.get("Host") == host) else 503
             else:
                 status = {"Bearer yes": 200, "Bearer unavailable": 503}.get(self.headers.get("Authorization"), 401)
             self.send_response(status)
@@ -96,6 +97,7 @@ def proxy_request(port, preamble):
 def main():
     binary = str(Path(sys.argv[1]).resolve())
     first, second = start_backend(), start_backend()
+    first.expected_health_host = second.expected_health_host = "healthy"
     process = None
     with tempfile.TemporaryDirectory(prefix="rgnix-product-") as temp:
         root = Path(temp)
@@ -184,12 +186,18 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
             wait_for(lambda: request(port, "/health")[0], 200)
             first.healthy = False
             wait_for(lambda: all(json.loads(request(port, "/health")[2])["port"] == second.server_port for _ in range(4)), True)
-            check("active health excludes an unhealthy HTTP endpoint", all(json.loads(request(port, "/health")[2])["port"] == second.server_port for _ in range(4)))
+            check("active health preserves the virtual Host and excludes the specific unhealthy endpoint", all(json.loads(request(port, "/health")[2])["port"] == second.server_port for _ in range(4)))
             # Named and transport-specific pools can finish their probes at different times.
             wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_backend_endpoints", backend="healthy", state="unready"), 1)
             metrics = request(admin, "/metrics")[2].decode()
             check("backend metrics distinguish total, eligible and unready endpoints", metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="total") == 2 and metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="eligible") == 1 and metric_value(metrics, "rgnix_backend_endpoints", backend="healthy", state="unready") == 1)
-            first.healthy = True
+            second.healthy = False
+            wait_for(lambda: request(port, "/health")[0], 503)
+            check("active health invalidates the cached selection when every endpoint is withdrawn", all(request(port, "/health")[0] == 503 for _ in range(4)))
+            first.healthy = second.healthy = True
+            wait_for(lambda: request(port, "/health")[0], 200)
+            wait_for(lambda: {json.loads(request(port, "/health")[2])["port"] for _ in range(8)}, {first.server_port, second.server_port})
+            check("active health restores both endpoints after an empty selection", {json.loads(request(port, "/health")[2])["port"] for _ in range(8)} == {first.server_port, second.server_port})
             body = json.dumps({"count": 7, "enabled": True})
             check("compiled RGL reads typed JSON, decoded args and cookies", request(port, "/body?tenant=a+b", "POST", {"Cookie": "group=blue"}, body)[0] == 201)
             check("typed JSON getters use fallbacks for wrong types", request(port, "/body?tenant=a+b", "POST", {"Cookie": "group=blue"}, '{"count":7.2,"enabled":true}')[0] == 202)
@@ -263,6 +271,7 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
             wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_config_version"), 5)
             metrics = request(admin, "/metrics")[2].decode()
             check("removed backends disappear from current-state metrics while historical counters remain", 'rgnix_backend_endpoints{backend="bounded"' not in metrics and 'rgnix_backend_endpoints{backend="http://bounded"' not in metrics and 'rgnix_backend_requests_total{backend="http://bounded"' in metrics)
+            keepalive_pool_cases(binary, root, first, second)
             grpc_cases(binary, root, first)
             observability_cases(binary, root, first)
             security_transport_cases(binary, root)
@@ -282,6 +291,43 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
     Path(".local").mkdir(exist_ok=True)
     Path(".local/product-features.json").write_text(result+"\n")
     print(result)
+
+
+def keepalive_pool_cases(binary, root, first, second):
+    results = {}
+    for capacity in (1, 8):
+        port, admin = free_port(), free_port()
+        config = root / f"keepalive-{capacity}.conf"
+        config.write_text(f"""http {{ access_log off;
+upstream pool {{ server 127.0.0.1:{first.server_port}; server 127.0.0.1:{second.server_port}; }}
+server {{ listen 127.0.0.1:{port}; location / {{ proxy_pass http://pool; }} }}
+}}""")
+        with (root / f"keepalive-{capacity}.log").open("w") as output:
+            process = subprocess.Popen([
+                binary, "serve", "-c", str(config), "--admin", f"127.0.0.1:{admin}",
+                "--threads", "1", "--upstream-keepalive-pool-size", str(capacity),
+                "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "5",
+            ], stdout=output, stderr=output)
+            try:
+                wait_for(lambda: request(admin, "/readyz")[0], 200)
+                targets = []
+                for _ in range(10):
+                    status, _, body = request(port)
+                    assert status == 200
+                    targets.append(json.loads(body)["port"])
+                assert targets == [first.server_port, second.server_port] * 5
+                metrics = request(admin, "/metrics")[2].decode()
+                results[capacity] = {
+                    reused: metric_value(metrics, "rgnix_upstream_connect_seconds_count",
+                                         backend="http://pool", reused=reused)
+                    for reused in ("true", "false")
+                }
+            finally:
+                process.send_signal(signal.SIGINT)
+                process.wait(timeout=10)
+    check("configured upstream idle capacity controls eviction and connection reuse",
+          results[1]["false"] == 10 and results[1]["true"] == 0
+          and results[8]["false"] == 2 and results[8]["true"] == 8)
 
 
 def security_transport_cases(binary, root):

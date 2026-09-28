@@ -1,6 +1,6 @@
 # 生产验收与发布门禁
 
-功能存在、行为测试通过和生产容量经过认证是不同的结论。v0.4.0 的范围与升级要求见[发行说明](releases/v0.4.0.md)；v0.3.0 发行记录保持其原有范围。源码验证见[Gateway 完整主流程与修复验证](validation-gateway-hardening-2026-09-26.md)，发行产物的原生双架构与 Kubernetes 门禁见 GitHub Release workflow；此前的[产品验证记录](validation-product-2026-09-26.md)保留为历史证据。
+功能存在、行为测试通过和生产容量经过认证是不同的结论。v0.5.0 的范围与升级要求见[发行说明](releases/v0.5.0.md)；历史版本记录保持其原有范围。v0.5.0 是功能预览发布，未通过稳定性能/容量认证；A/A 波动及尾延迟限制见[性能指南](performance.md)。源码验证见[Gateway 完整主流程与修复验证](validation-gateway-hardening-2026-09-26.md)，发行产物的原生双架构与 Kubernetes 门禁见 GitHub Release workflow；此前的[产品验证记录](validation-product-2026-09-26.md)保留为历史证据。
 
 ## 可重复的行为门禁
 

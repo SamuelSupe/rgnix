@@ -1280,6 +1280,22 @@ impl Default for BodyWriter {
 }
 
 impl BodyWriter {
+    #[cfg(target_os = "linux")]
+    pub(crate) fn content_length_remaining(&self) -> Option<usize> {
+        match self.body_mode {
+            BM::ContentLength(total, written) => Some(total - written),
+            _ => None,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn advance_file_body(&mut self, bytes: usize) {
+        if let BM::ContentLength(total, written) = &mut self.body_mode {
+            assert!(bytes <= *total - *written);
+            *written += bytes;
+        }
+    }
+
     pub fn new() -> Self {
         BodyWriter {
             body_mode: BM::ToSelect,

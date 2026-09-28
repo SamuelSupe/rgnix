@@ -49,7 +49,7 @@ impl Simulation {
             host: self.host.clone(),
             path: crate::proxy::normalized_path(path)?,
             query: query.into(),
-            headers,
+            headers: headers.into(),
             remote_addr: self.client.clone(),
             ..Default::default()
         })

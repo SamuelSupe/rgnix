@@ -1,0 +1,101 @@
+{
+  "method": "Heaptrack raw allocation events (+). Four persistent connections with 2000 requests, subtracting a separate same-case/config zero-request process. Both binaries use one worker and explicit idle capacity 1024 to avoid eviction during this diagnostic. Instrumented data, not throughput or retained-memory measurements.",
+  "binaries": {
+    "before": {
+      "path": "/tmp/rgnix-opt7-20260927/rgnix-baseline",
+      "sha256": "b0ab0508c0a79231ee74a93d8374562ec802fc99a40d39bbb15df828018ab629"
+    },
+    "after": {
+      "path": "/tmp/rgnix-opt7-20260927/rgnix-final",
+      "sha256": "a5ae6cb44ba537b18e2c4995438aafd51827cdbbdc0f2af87ac06bb5c2ee36e3"
+    }
+  },
+  "runs": [
+    {
+      "case": "rr-1",
+      "engine": "before",
+      "requests": 0,
+      "allocations": 179335
+    },
+    {
+      "case": "rr-1",
+      "engine": "before",
+      "requests": 2000,
+      "allocations": 400356
+    },
+    {
+      "case": "rr-1",
+      "engine": "after",
+      "requests": 0,
+      "allocations": 179337
+    },
+    {
+      "case": "rr-1",
+      "engine": "after",
+      "requests": 2000,
+      "allocations": 400078
+    },
+    {
+      "case": "rr-64",
+      "engine": "before",
+      "requests": 0,
+      "allocations": 183269
+    },
+    {
+      "case": "rr-64",
+      "engine": "before",
+      "requests": 2000,
+      "allocations": 415575
+    },
+    {
+      "case": "rr-64",
+      "engine": "after",
+      "requests": 0,
+      "allocations": 183269
+    },
+    {
+      "case": "rr-64",
+      "engine": "after",
+      "requests": 2000,
+      "allocations": 405567
+    },
+    {
+      "case": "hash-64",
+      "engine": "before",
+      "requests": 0,
+      "allocations": 183301
+    },
+    {
+      "case": "hash-64",
+      "engine": "before",
+      "requests": 2000,
+      "allocations": 416678
+    },
+    {
+      "case": "hash-64",
+      "engine": "after",
+      "requests": 0,
+      "allocations": 183302
+    },
+    {
+      "case": "hash-64",
+      "engine": "after",
+      "requests": 2000,
+      "allocations": 406722
+    }
+  ],
+  "per_request": {
+    "rr-1": {
+      "before": 110.5105,
+      "after": 110.3705
+    },
+    "rr-64": {
+      "before": 116.153,
+      "after": 111.149
+    },
+    "hash-64": {
+      "before": 116.6885,
+      "after": 111.71
+    }
+  }
+}

@@ -1,3 +1,5 @@
+mod headers;
+pub use headers::RequestHeaders;
 mod budget;
 mod codegen;
 mod json;
@@ -14,7 +16,7 @@ use std::{
 };
 use wasmtime::{
     Caller, Config, Engine, Instance, InstanceAllocationStrategy, InstancePre, Linker, Module,
-    PoolingAllocationConfig, Store, StoreLimits, StoreLimitsBuilder, Strategy, Val,
+    PoolingAllocationConfig, Store, StoreLimits, StoreLimitsBuilder, Strategy,
 };
 
 pub use codegen::compile;
@@ -46,8 +48,11 @@ enum Cached {
 }
 pub struct CompiledScript {
     pub digest: String,
+    pub has_response_hook: bool,
     engine: Engine,
     instance_pre: InstancePre<Host>,
+    constants: Arc<str>,
+    requires_memory: bool,
 }
 #[derive(Clone, Debug, Default)]
 pub struct RequestData {
@@ -57,7 +62,7 @@ pub struct RequestData {
     pub query: String,
     pub host: String,
     pub remote_addr: String,
-    pub headers: BTreeMap<String, String>,
+    pub headers: RequestHeaders,
     pub body: Option<crate::body::BodyView>,
 }
 #[derive(Clone, Debug, Default)]
@@ -83,7 +88,8 @@ pub struct Execution {
     instance: Instance,
 }
 struct Host {
-    request: RequestData,
+    constants: Arc<str>,
+    request: Arc<RequestData>,
     outcome: RequestOutcome,
     decision_set: bool,
     response: bool,
@@ -259,13 +265,32 @@ impl Compiler {
                 import.name()
             );
         }
+        let mut constants = None;
+        for payload in wasmparser::Parser::new(0).parse_all(&binary) {
+            if let wasmparser::Payload::CustomSection(section) = payload?
+                && section.name() == "rgnix.constants"
+            {
+                ensure!(constants.is_none(), "duplicate constant pool");
+                ensure!(
+                    section.data().len() <= MEMORY_LIMIT,
+                    "constant pool exceeds 8 MiB"
+                );
+                constants = Some(Arc::<str>::from(
+                    std::str::from_utf8(section.data()).context("constant pool is not UTF-8")?,
+                ));
+            }
+        }
+        let requires_memory = module.imports().any(|import| import.name() == "literal");
         let linker = make_linker(&self.engine)?;
         let script = Arc::new(CompiledScript {
             digest: format!("{:x}", Sha256::digest(&binary)),
+            has_response_hook: module.get_export("on_response").is_some(),
             engine: self.engine.clone(),
             instance_pre: linker.instantiate_pre(&module)?,
+            constants: constants.unwrap_or_default(),
+            requires_memory,
         });
-        let mut execution = script.instantiate(RequestData::default())?;
+        let mut execution = script.instantiate(Arc::default())?;
         execution
             .instance
             .get_typed_func::<(), i64>(&mut execution.store, "on_request")
@@ -305,22 +330,32 @@ fn make_linker(engine: &Engine) -> Result<Linker<Host>> {
     let mut linker = Linker::new(engine);
     for builtin in codegen::BUILTINS {
         let name = builtin.name;
-        let ty = wasmtime::FuncType::new(
-            engine,
-            vec![wasmtime::ValType::I64; builtin.args.len()],
-            [wasmtime::ValType::I64],
-        );
-        linker.func_new("rgnix_v1", name, ty, move |mut caller, params, results| {
-            let args: Vec<_> = params.iter().map(|v| v.i64().unwrap()).collect();
-            results[0] = Val::I64(host_call(&mut caller, name, &args)?);
-            Ok(())
-        })?;
+        // All v1 values cross the ABI as i64. Typed trampolines avoid boxing
+        // arguments and allocating an argument vector on every host call.
+        match builtin.args.len() {
+            0 => linker.func_wrap("rgnix_v1", name, move |mut caller: Caller<'_, Host>| {
+                host_call(&mut caller, name, &[])
+            })?,
+            1 => linker.func_wrap(
+                "rgnix_v1",
+                name,
+                move |mut caller: Caller<'_, Host>, a: i64| host_call(&mut caller, name, &[a]),
+            )?,
+            2 => linker.func_wrap(
+                "rgnix_v1",
+                name,
+                move |mut caller: Caller<'_, Host>, a: i64, b: i64| {
+                    host_call(&mut caller, name, &[a, b])
+                },
+            )?,
+            count => bail!("unsupported host ABI arity: {name}/{count}"),
+        };
     }
     Ok(linker)
 }
 
 impl CompiledScript {
-    fn instantiate(&self, request: RequestData) -> Result<Execution> {
+    fn instantiate(&self, request: Arc<RequestData>) -> Result<Execution> {
         let initial = request.method.len()
             + request.path.len()
             + request.query.len()
@@ -332,16 +367,13 @@ impl CompiledScript {
                 .iter()
                 .map(|(k, v)| k.len() + v.len() + 64)
                 .sum::<usize>()
-            + request
-                .headers
-                .iter()
-                .map(|(k, v)| k.len() + v.len() + 64)
-                .sum::<usize>();
+            + request.headers.host_bytes();
         ensure!(
             initial <= HOST_LIMIT,
             "request metadata exceeds plugin host limit"
         );
         let host = Host {
+            constants: self.constants.clone(),
             request,
             outcome: RequestOutcome::default(),
             decision_set: false,
@@ -364,16 +396,19 @@ impl CompiledScript {
         store.set_fuel(FUEL)?;
         let instance = self.instance_pre.instantiate(&mut store)?;
         ensure!(
-            instance.get_memory(&mut store, "memory").is_some(),
-            "plugin must export memory"
+            !self.requires_memory || instance.get_memory(&mut store, "memory").is_some(),
+            "literal import requires an exported memory"
         );
         // Instantiation may execute a start function. No start-time edits survive into a request.
         store.data_mut().outcome = RequestOutcome::default();
         store.data_mut().decision_set = false;
         Ok(Execution { store, instance })
     }
-    pub fn request(&self, request: RequestData) -> Result<(Execution, RequestOutcome)> {
-        let mut execution = self.instantiate(request)?;
+    pub fn request(
+        &self,
+        request: impl Into<Arc<RequestData>>,
+    ) -> Result<(Execution, RequestOutcome)> {
+        let mut execution = self.instantiate(request.into())?;
         execution.store.set_fuel(FUEL)?;
         let func = execution
             .instance
@@ -451,7 +486,19 @@ impl Host {
         Ok(())
     }
     fn string(&self, handle: i64) -> Result<&str> {
-        ensure!(handle > 0, "nil string");
+        ensure!(handle != 0, "nil string");
+        if handle < 0 {
+            let offset = ((handle as u64 >> 32) & 0x7fff_ffff) as usize;
+            let length = (handle as u64 & 0xffff_ffff) as usize;
+            ensure!(length <= 65536, "constant exceeds 64 KiB");
+            let end = offset
+                .checked_add(length)
+                .context("invalid constant range")?;
+            return self
+                .constants
+                .get(offset..end)
+                .context("invalid constant bounds or UTF-8 boundary");
+        }
         self.strings
             .get((handle - 1) as usize)
             .map(String::as_str)
@@ -483,6 +530,20 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
     let fuel = caller.get_fuel()?;
     ensure!(fuel >= 100, "plugin host-call fuel exhausted");
     caller.set_fuel(fuel - 100)?;
+    if name == "constant" {
+        let offset = u32::try_from(args[0])?;
+        let length = u32::try_from(args[1])?;
+        ensure!(
+            offset <= i32::MAX as u32 && length <= 65536,
+            "invalid constant range"
+        );
+        // Negative handles name immutable module bytes, positive handles name
+        // request-owned strings. Neither can address another request's data.
+        let handle = (i64::MIN as u64 | (u64::from(offset) << 32) | u64::from(length)) as i64;
+        caller.data().string(handle)?;
+        caller.data_mut().charge(length as usize + 32)?;
+        return Ok(handle);
+    }
     if name == "literal" {
         let ptr = usize::try_from(args[0])?;
         let len = usize::try_from(args[1])?;
@@ -518,7 +579,7 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
                     .request
                     .headers
                     .get("cookie")
-                    .map_or(0, String::len)
+                    .map_or(0, str::len)
                     + caller
                         .data()
                         .outcome
@@ -635,7 +696,7 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
                         if host.outcome.edits.headers.contains_key("cookie") {
                             None
                         } else {
-                            host.request.headers.get("cookie").map(String::as_str)
+                            host.request.headers.get("cookie")
                         }
                     });
                 cookie.and_then(|v| {
@@ -684,7 +745,7 @@ fn host_call(caller: &mut Caller<'_, Host>, name: &str, args: &[i64]) -> Result<
                     .headers
                     .get(&key)
                     .cloned()
-                    .unwrap_or_else(|| host.request.headers.get(&key).cloned())
+                    .unwrap_or_else(|| host.request.headers.get(&key).map(str::to_owned))
             } else {
                 host.response_phase()?;
                 host.response_edits
@@ -893,6 +954,9 @@ end"#,
     fn compiled_functions_branches_and_response_hooks() -> Result<()> {
         let compiler = Compiler::for_runtime(1)?;
         let source = br#"
+function constant(value)
+    return value
+end
 function choose(value)
     if value == "1" then return route.proxy("canary") end
     return route.pass()
@@ -903,7 +967,7 @@ function on_request()
     if n == 3 and req.header("absent") == nil then
         req.set_header("x-count", "three")
     end
-    return choose(req.header("x-canary"))
+    return choose(constant(req.header("x-canary")))
 end
 function on_response()
     resp.set_header("x-result", str.lower("OK"))
@@ -989,6 +1053,95 @@ end"#;
         code.function(&function);
         module.section(&code);
         assert!(compiler.from_bytes(&module.finish(), true).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn constant_pool_and_legacy_memory_literals_obey_the_same_host_contract() -> Result<()> {
+        use wasm_encoder::{
+            CodeSection, ConstExpr, CustomSection, DataSection, EntityType, ExportKind,
+            ExportSection, Function, FunctionSection, ImportSection, Instruction as I,
+            MemorySection, MemoryType, Module, TypeSection, ValType,
+        };
+        let compiler = Compiler::for_runtime(1)?;
+        for (legacy, offset, length, success) in [
+            (false, 0, 3, true),
+            (false, 1, 2, true),
+            (false, 2, 1, false),
+            (false, 0, 4, false),
+            (false, -1, 1, false),
+            (false, 0, 65537, false),
+            (true, 0, 3, true),
+            (true, 65535, 3, false),
+        ] {
+            let mut module = Module::new();
+            let mut types = TypeSection::new();
+            types
+                .ty()
+                .function([ValType::I64, ValType::I64], [ValType::I64]);
+            types.ty().function([], [ValType::I64]);
+            module.section(&types);
+            let mut imports = ImportSection::new();
+            imports.import(
+                "rgnix_v1",
+                if legacy { "literal" } else { "constant" },
+                EntityType::Function(0),
+            );
+            imports.import("rgnix_v1", "resp.reply", EntityType::Function(0));
+            module.section(&imports);
+            let mut functions = FunctionSection::new();
+            functions.function(1);
+            module.section(&functions);
+            if legacy {
+                let mut memory = MemorySection::new();
+                memory.memory(MemoryType {
+                    minimum: 1,
+                    maximum: Some(1),
+                    memory64: false,
+                    shared: false,
+                    page_size_log2: None,
+                });
+                module.section(&memory);
+            }
+            let mut exports = ExportSection::new();
+            exports.export("on_request", ExportKind::Func, 2);
+            if legacy {
+                exports.export("memory", ExportKind::Memory, 0);
+            }
+            module.section(&exports);
+            let mut code = CodeSection::new();
+            let mut function = Function::new([]);
+            function
+                .instruction(&I::I64Const(200))
+                .instruction(&I::I64Const(offset))
+                .instruction(&I::I64Const(length))
+                .instruction(&I::Call(0))
+                .instruction(&I::Call(1))
+                .instruction(&I::End);
+            code.function(&function);
+            module.section(&code);
+            if legacy {
+                let mut data = DataSection::new();
+                data.active(0, &ConstExpr::i32_const(0), "aé".as_bytes().iter().copied());
+                module.section(&data);
+            } else {
+                module.section(&CustomSection {
+                    name: "rgnix.constants".into(),
+                    data: "aé".as_bytes().into(),
+                });
+            }
+            let script = compiler.from_bytes(&module.finish(), true)?;
+            for _ in 0..3 {
+                let result = script.request(RequestData::default());
+                assert_eq!(result.is_ok(), success);
+                if let Ok((_, outcome)) = result {
+                    let expected = if offset == 0 { "aé" } else { "é" };
+                    assert!(
+                        matches!(outcome.decision, Decision::Reply(200, body) if body == expected)
+                    );
+                }
+            }
+        }
         Ok(())
     }
 

@@ -901,6 +901,7 @@ pub(super) fn build(
                                 object.name_any()
                             );
                             let route = Arc::new(Route {
+                                metrics: Default::default(),
                                 id: id.clone(),
                                 tenant: quota.map(|q| shared.tenants.tenant(&ns, q)),
                                 rollout: rollout.clone(),

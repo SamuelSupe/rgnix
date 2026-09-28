@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — 2026-09-28 · Preview
+
+HTTP data-plane changes and reproducible performance diagnostics. See [release notes](docs/releases/v0.5.0.md) for Wasm compatibility, upgrade requirements and the unresolved performance qualification.
+
+- Index Gateway listener/host/path matching and reuse the completed request match; cache backend selection data, weighted hash inputs and health-check clients while preserving eligibility and admission budgets.
+- Reduce repeated request-header construction, metric lookup and RGL host state; compile new string literals into immutable constants and release request-only instances after their hook.
+- Keep admitted connection tasks on their worker, bound blocking pools and add configurable idle upstream capacity with the existing 128-per-worker default.
+- Add guarded Linux sendfile for eligible static responses, preserving buffered paths for TLS, HTTP/2 and transformations.
+- Update vendored HTTP/1 session dispatch, bounded idle transport pooling, borrowed task queues with cooperative scheduling, and lazy timeout checks. Preserve body inspection replay while avoiding unused single-attempt retry buffers.
+- Add the benchmark harness, all nine optimization records, NGINX/OpenResty comparisons and the Pingora audit. Small gains remain unqualified where A/A variation or tail latency failed; proposed parser/body/vectored-write changes are not implemented in this version.
+
 ## 0.4.0 — 2026-09-26 · Preview
 
 Optional RGL XDP packet policies, Gateway publication controls and resilient lifecycle handling. See the [release notes](docs/releases/v0.4.0.md) for installation, upgrade requirements and validation boundaries.

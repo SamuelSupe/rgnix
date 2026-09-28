@@ -361,9 +361,11 @@ impl Collector for RuntimeCollector {
             shared
                 .telemetry
                 .labels
-                .lock()
+                .read()
                 .unwrap_or_else(|e| e.into_inner())
-                .len() as f64,
+                .values()
+                .map(|values| values.len())
+                .sum::<usize>() as f64,
         );
         set("rgnix_metric_label_limit", &[], LIMIT as f64);
         metrics.values().flat_map(Collector::collect).collect()

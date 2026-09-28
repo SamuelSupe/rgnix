@@ -445,6 +445,49 @@ pub struct Stream {
 }
 
 impl Stream {
+    #[cfg(target_os = "linux")]
+    pub(crate) fn supports_sendfile(&self) -> bool {
+        matches!(
+            self.stream.as_ref().unwrap().get_ref().stream,
+            RawStream::Tcp(_) | RawStream::Unix(_)
+        )
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn send_file_chunk(
+        &mut self,
+        file: &std::fs::File,
+        offset: u64,
+        length: usize,
+    ) -> std::io::Result<usize> {
+        self.flush().await?;
+        let offset = i64::try_from(offset)
+            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidInput))?;
+        let raw = &self.stream.as_ref().unwrap().get_ref().stream;
+        let copy = || {
+            let mut offset = offset;
+            // Both descriptors are borrowed for this call; sendfile changes the
+            // explicit offset, never the file cursor shared by other readers.
+            let count =
+                unsafe { libc::sendfile(raw.as_raw_fd(), file.as_raw_fd(), &mut offset, length) };
+            if count < 0 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(count as usize)
+            }
+        };
+        loop {
+            let result = match raw {
+                RawStream::Tcp(socket) => socket.async_io(Interest::WRITABLE, copy).await,
+                RawStream::Unix(socket) => socket.async_io(Interest::WRITABLE, copy).await,
+                RawStream::Virtual(_) => return Err(std::io::ErrorKind::Unsupported.into()),
+            };
+            if !matches!(&result, Err(error) if error.kind() == std::io::ErrorKind::Interrupted) {
+                return result;
+            }
+        }
+    }
+
     fn stream(&self) -> &BufStream<RawStreamWrapper> {
         self.stream.as_ref().expect("stream should always be set")
     }

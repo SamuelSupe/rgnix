@@ -68,6 +68,9 @@ pub struct Limits {
     pub global_rate_limit_file: Option<PathBuf>,
     #[arg(long, default_value_t = 2)]
     pub threads: usize,
+    /// Idle upstream pool budget per worker; each listener/protocol pool shares threads times this size.
+    #[arg(long, default_value_t = 128)]
+    pub upstream_keepalive_pool_size: usize,
     #[arg(long, default_value_t = 1024)]
     pub max_inflight: usize,
     #[arg(long, default_value_t = 32)]
@@ -371,6 +374,10 @@ pub fn serve(
         "drain marker exists at startup; remove it before starting a new process"
     );
     ensure!(
+        (1..=65536).contains(&limits.upstream_keepalive_pool_size),
+        "upstream keepalive pool size must be 1..65536 per worker"
+    );
+    ensure!(
         limits.max_inflight > 0 && limits.max_inflight <= 1_000_000,
         "max-inflight must be 1..1000000"
     );
@@ -437,12 +444,19 @@ pub fn serve(
     Telemetry::observe_runtime(&shared, &limits)?;
     let conf = ServerConf {
         threads,
+        upstream_keepalive_pool_size: limits.upstream_keepalive_pool_size,
+        // Pingora distributes accepted connections and HTTP/2 streams across
+        // workers; keep each task on its reactor after admission.
+        work_stealing: false,
         daemon: false,
         // Pingora includes the first attempt in this budget.
         max_retries: 1,
         grace_period_seconds: Some(limits.shutdown_grace_seconds),
         graceful_shutdown_timeout_seconds: Some(limits.shutdown_timeout_seconds),
-        max_blocking_threads: Some(16),
+        // Each no-steal worker owns a blocking pool. Keep cached-file jobs from
+        // starving socket polling on a small CPU allocation, and share the
+        // former per-service ceiling as the worker count grows.
+        max_blocking_threads: Some((16 / threads).clamp(1, 2)),
         ..ServerConf::default()
     };
     let mut server = Server::new_with_opt_and_conf(None, conf);

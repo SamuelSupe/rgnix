@@ -1,0 +1,33 @@
+{
+  "status": "ENVIRONMENT_BLOCKED",
+  "validated_gateway_flow": false,
+  "kubernetes_context": "orbstack",
+  "kubernetes_version": "v1.35.6+orb1",
+  "image": "rgnix:performance-r3-20260927",
+  "candidate_sha256": "87adf2fc27d46b44a4c10188749e1f1c16c03632060997bed1a08b5acda84d76",
+  "command": [
+    "python3",
+    "scripts/gateway_e2e.py",
+    "--context",
+    "orbstack",
+    "--namespace",
+    "rgnix-perf-r3-20260927",
+    "--image",
+    "rgnix:performance-r3-20260927",
+    "--soak-seconds",
+    "30",
+    "--scale-routes",
+    "100",
+    "--output",
+    ".local/optimization3-20260927/gateway.json"
+  ],
+  "exit_code": 1,
+  "error": "failed to allocate a serviceIP: range is full",
+  "phase": "Creating the first fixture Service, before controller deployment and Gateway assertions",
+  "output": "Traceback (most recent call last):\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/gateway_e2e.py\", line 139, in <module>\n    apply({\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": name, \"namespace\": namespace}, \"spec\": {\"replicas\": 1, \"selector\": {\"matchLabels\": {\"qa-origin\": name}}, \"template\": {\"metadata\": {\"labels\": {\"qa-origin\": name}}, \"spec\": {\"containers\": [{\"name\": \"origin\", \"image\": \"python:3.13-alpine\", \"command\": [\"python\", \"/app/server.py\"], \"env\": [{\"name\": \"BACKEND\", \"value\": name}], \"ports\": [{\"containerPort\": 8080}], \"volumeMounts\": [{\"name\": \"origin\", \"mountPath\": \"/app\"}]}], \"volumes\": [{\"name\": \"origin\", \"configMap\": {\"name\": \"origin\"}}]}}}},\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/gateway_e2e.py\", line 46, in apply\n    return command(*kubectl, \"apply\", \"-f\", \"-\", data=json.dumps({\"apiVersion\": \"v1\", \"kind\": \"List\", \"items\": objects}))\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/gateway_e2e.py\", line 41, in command\n    raise RuntimeError(result.stderr or result.stdout)\nRuntimeError: Error from server (InternalError): error when creating \"STDIN\": Internal error occurred: failed to allocate a serviceIP: range is full\n\n",
+  "cleanup": "Only the two new test namespaces were deleted. Existing QA workloads were retained pending explicit permission.",
+  "local_image_id": "sha256:c025874b4c40bf96ab012ef9b6ad64147d7003869325cb471be870f5075e4241",
+  "image_binary_sha256": "87adf2fc27d46b44a4c10188749e1f1c16c03632060997bed1a08b5acda84d76",
+  "own_namespaces_absent_verified": true,
+  "image_published": false
+}

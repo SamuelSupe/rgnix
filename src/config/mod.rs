@@ -417,6 +417,7 @@ fn build_route(
         .map(|key| (key.clone(), key.clone()))
         .collect();
     Ok(Arc::new(Route {
+        metrics: Default::default(),
         id,
         tenant: None,
         rollout: None,

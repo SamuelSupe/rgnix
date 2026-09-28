@@ -1,0 +1,177 @@
+{
+  "scope": "Read-only current-source diagnosis. Uninstrumented 1-worker comparisons and instrumented 2-worker CPU samples are separate experiments, not subtractable cost budgets. Minimal Pingora removes features and is a diagnostic baseline, not a deployable replacement.",
+  "aa": {
+    "requests": 2713541,
+    "errors": 0,
+    "max_paired_difference_pct": 5.63440942167444,
+    "engines": {
+      "candidate": {
+        "median_rps": 57842.31824134165,
+        "median_cpu_us": 17.29014355088319,
+        "cv_pct": 4.561372749521183,
+        "median_p99_ms": 2.146,
+        "median_cpu_cores": 1.000032099795796
+      },
+      "rgnix": {
+        "median_rps": 55080.106281577035,
+        "median_cpu_us": 18.134662760279486,
+        "cv_pct": 2.5295580441475707,
+        "median_p99_ms": 2.626,
+        "median_cpu_cores": 1.0000469157812344
+      }
+    },
+    "gate": "PASS scoped 1-worker/64-connection throughput calibration (10% threshold); not a qualification of 2-worker or tail-latency results"
+  },
+  "comparison": {
+    "requests": 5619283,
+    "errors": 0,
+    "engines": {
+      "nginx": {
+        "median_rps": 114027.20004800314,
+        "median_cpu_us": 8.759582485166096,
+        "cv_pct": 8.838313850889776,
+        "median_p99_ms": 1.256,
+        "median_cpu_cores": 0.9988306643730189
+      },
+      "pingora": {
+        "median_rps": 61779.05921707231,
+        "median_cpu_us": 16.187567947816078,
+        "cv_pct": 16.82440181396872,
+        "median_p99_ms": 2.38,
+        "median_cpu_cores": 1.000052718828511
+      },
+      "rgnix": {
+        "median_rps": 60019.92964250972,
+        "median_cpu_us": 16.641604834910755,
+        "cv_pct": 10.967042642512013,
+        "median_p99_ms": 1.921,
+        "median_cpu_cores": 0.9999692602042235
+      }
+    },
+    "gate": "Comparison variability gate failed: rgnix sample CV 10.97%, minimal Pingora sample CV 16.82% exceed 10%; its 2.93% median difference is not established as a throughput benefit. NGINX outperformed both Rust binaries in all 3 rounds. This is a diagnostic screen, not a qualified capacity or improvement claim.",
+    "paired_ratios": [
+      {
+        "round": 1,
+        "nginx_vs_rgnix": 1.8998222878162494,
+        "minimal_vs_rgnix": 1.0293090909143063,
+        "nginx_vs_minimal": 1.8457257441772816
+      },
+      {
+        "round": 2,
+        "nginx_vs_rgnix": 2.0333311515322934,
+        "minimal_vs_rgnix": 1.1763519565465044,
+        "nginx_vs_minimal": 1.7285057760278486
+      },
+      {
+        "round": 3,
+        "nginx_vs_rgnix": 2.081239977243826,
+        "minimal_vs_rgnix": 1.0224572072676377,
+        "nginx_vs_minimal": 2.035527709570971
+      }
+    ]
+  },
+  "profile": [
+    {
+      "engine": "rgnix",
+      "case": "proxy-1k",
+      "requests": 863276,
+      "errors": 0,
+      "samples": 4001,
+      "cpu_us": 23.30656707704141,
+      "kernel_cpu_us_approx": 8.99983087679954,
+      "user_cpu_us_approx": 14.30673620024187,
+      "scopes_overlap": {
+        "header_parse": 10.647,
+        "rgnix_request_filter": 5.924,
+        "clock_gettime": 5.449,
+        "allocation_chain": 2.574,
+        "connection_pool": 2.324,
+        "timer_management": 2.299,
+        "rgnix_logging": 1.675,
+        "rgnix_upstream_peer": 1.125,
+        "prometheus": 0.625
+      },
+      "unresolved_leaf_pct": 12.822,
+      "sample_loss_zero": true,
+      "record_output": "[ perf record: Woken up 257 times to write data ]\n[ perf record: Captured and wrote 64.197 MB /tmp/rgnix-opportunity-20260928/profile-rgnix-proxy-1k.data (4001 samples) ]\n"
+    },
+    {
+      "engine": "nginx",
+      "case": "proxy-1k",
+      "requests": 2111758,
+      "errors": 0,
+      "samples": 3968,
+      "cpu_us": 9.451840599159564,
+      "kernel_cpu_us_approx": 6.9245129413502875,
+      "user_cpu_us_approx": 2.527327657809276,
+      "scopes_overlap": {
+        "header_parse": 2.394,
+        "allocation_chain": 0.403,
+        "clock_gettime": 0.025
+      },
+      "unresolved_leaf_pct": 7.208,
+      "sample_loss_zero": true,
+      "record_output": "[ perf record: Woken up 255 times to write data ]\n[ perf record: Captured and wrote 63.860 MB /tmp/rgnix-opportunity-20260928/profile-nginx-proxy-1k.data (3968 samples) ]\n"
+    },
+    {
+      "engine": "pingora",
+      "case": "proxy-1k",
+      "requests": 1326682,
+      "errors": 0,
+      "samples": 3920,
+      "cpu_us": 14.879225013982254,
+      "kernel_cpu_us_approx": 7.185326551502169,
+      "user_cpu_us_approx": 7.693898462480084,
+      "scopes_overlap": {
+        "header_parse": 9.694,
+        "connection_pool": 3.061,
+        "timer_management": 3.036,
+        "clock_gettime": 2.73,
+        "allocation_chain": 2.5
+      },
+      "unresolved_leaf_pct": 12.398,
+      "sample_loss_zero": true,
+      "record_output": "[ perf record: Woken up 252 times to write data ]\n[ perf record: Captured and wrote 62.928 MB /tmp/rgnix-opportunity-20260928/profile-pingora-proxy-1k.data (3920 samples) ]\n"
+    },
+    {
+      "engine": "rgnix",
+      "case": "return",
+      "requests": 1976612,
+      "errors": 0,
+      "samples": 3716,
+      "cpu_us": 9.496046770939365,
+      "kernel_cpu_us_approx": 3.4984385908817717,
+      "user_cpu_us_approx": 5.997608180057593,
+      "scopes_overlap": {
+        "rgnix_request_filter": 54.44,
+        "header_parse": 8.073,
+        "timer_management": 4.413,
+        "clock_gettime": 4.225,
+        "allocation_chain": 3.902,
+        "rgnix_logging": 1.426
+      },
+      "unresolved_leaf_pct": 17.465,
+      "sample_loss_zero": true,
+      "record_output": "[ perf record: Woken up 237 times to write data ]\n[ perf record: Captured and wrote 59.598 MB /tmp/rgnix-opportunity-20260928/profile-rgnix-return.data (3716 samples) ]\n"
+    },
+    {
+      "engine": "nginx",
+      "case": "return",
+      "requests": 6581199,
+      "errors": 0,
+      "samples": 3976,
+      "cpu_us": 3.0435183619276662,
+      "kernel_cpu_us_approx": 2.3071390942592678,
+      "user_cpu_us_approx": 0.7363792676683985,
+      "scopes_overlap": {
+        "header_parse": 0.528,
+        "allocation_chain": 0.503,
+        "clock_gettime": 0.075
+      },
+      "unresolved_leaf_pct": 10.287,
+      "sample_loss_zero": true,
+      "record_output": "[ perf record: Woken up 256 times to write data ]\n[ perf record: Captured and wrote 63.997 MB /tmp/rgnix-opportunity-20260928/profile-nginx-return.data (3976 samples) ]\n"
+    }
+  ],
+  "cv_method": "Sample standard deviation / mean, matching benchmark_compare.py; no population-CV substitution."
+}

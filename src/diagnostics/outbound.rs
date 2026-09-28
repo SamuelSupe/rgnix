@@ -99,7 +99,7 @@ impl Preview<'_> {
             .backends
             .get(&backend)
             .ok_or_else(|| anyhow::anyhow!("selected backend unavailable"))?;
-        let mut headers = self.request.headers.clone();
+        let mut headers = self.request.headers.to_map();
         if let Some(connection) = headers.get("connection").cloned() {
             for token in connection.split(',') {
                 headers.remove(&token.trim().to_ascii_lowercase());

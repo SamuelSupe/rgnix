@@ -53,45 +53,47 @@ impl Variables<'_> {
                 .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
                 .unwrap_or(rest.len());
             let key = &rest[..end];
-            let value = match key {
-                "host" if self.request.host.is_empty() => self.server_name.to_owned(),
-                "host" => self.request.host.clone(),
+            let value: std::borrow::Cow<'_, str> = match key {
+                "host" if self.request.host.is_empty() => self.server_name.into(),
+                "host" => self.request.host.as_str().into(),
                 "http_host" => self
                     .request
                     .headers
                     .get("host")
-                    .cloned()
+                    .map(std::borrow::Cow::Borrowed)
                     .unwrap_or_default(),
                 "scheme" => {
                     if self.scheme.is_empty() {
                         "http".into()
                     } else {
-                        self.scheme.to_owned()
+                        self.scheme.into()
                     }
                 }
-                "request_uri" => self.original_uri.to_owned(),
+                "request_uri" => self.original_uri.into(),
                 "uri" => self
                     .edits
                     .path
                     .as_ref()
                     .unwrap_or(&self.request.path)
-                    .clone(),
+                    .as_str()
+                    .into(),
                 "args" => self
                     .edits
                     .query
                     .as_ref()
                     .unwrap_or(&self.request.query)
-                    .clone(),
-                "request_method" => self.request.method.clone(),
-                "remote_addr" => self.request.remote_addr.clone(),
-                "realip_remote_addr" => self.original_peer.to_owned(),
+                    .as_str()
+                    .into(),
+                "request_method" => self.request.method.as_str().into(),
+                "remote_addr" => self.request.remote_addr.as_str().into(),
+                "realip_remote_addr" => self.original_peer.into(),
                 "proxy_host" => proxy_host.into(),
                 "proxy_add_x_forwarded_for" => self
                     .request
                     .headers
                     .get("x-forwarded-for")
-                    .map(|v| format!("{v}, {}", self.request.remote_addr))
-                    .unwrap_or_else(|| self.request.remote_addr.clone()),
+                    .map(|v| format!("{v}, {}", self.request.remote_addr).into())
+                    .unwrap_or_else(|| self.request.remote_addr.as_str().into()),
                 _ => key
                     .strip_prefix("http_")
                     .and_then(|s| {
@@ -99,7 +101,7 @@ impl Variables<'_> {
                             .headers
                             .get(&s.replace('_', "-").to_ascii_lowercase())
                     })
-                    .cloned()
+                    .map(std::borrow::Cow::Borrowed)
                     .unwrap_or_default(),
             };
             output.push_str(&value);

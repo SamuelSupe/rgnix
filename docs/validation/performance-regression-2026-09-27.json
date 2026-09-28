@@ -1,0 +1,261 @@
+{
+  "binary": "/tmp/rgnix-opt-20260927/rgnix-after",
+  "sha256": "b9791d82e50853376c5a49e31891242d5491d7f4b45de303b1e2083c6ee1deab",
+  "stages": [
+    {
+      "name": "unit",
+      "command": [
+        "cargo",
+        "test",
+        "--release",
+        "--locked",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0,
+      "seconds": 48.535670912999194,
+      "log": "/tmp/rgnix-opt-20260927/validation-unit.log",
+      "output": "   Compiling rgnix v0.4.0 (/tmp/rgnix-opt-20260927/source)\n    Finished `release` profile [optimized] target(s) in 46.85s\n     Running unittests src/lib.rs (/home/livesite/.cache/rgnix-opt-target/release/deps/rgnix-69c83f28bc0ea3a3)\n\nrunning 14 tests\ntest model::tests::prefix_and_wildcard_boundaries_are_source_specific ... ok\ntest gateway::routes::tests::request_predicates_and_listener_isolation ... ok\ntest proxy::static_files::tests::capability_root_blocks_symlink_escape_and_ranges_are_bounded ... ok\ntest rollout::metrics::tests::stale_or_reconfigured_observations_cannot_trigger_rollback ... ok\ntest rollout::metrics::tests::sustained_business_failure_resets_on_recovery_and_rolls_back_http_success ... ok\ntest gateway::routes::tests::invalid_backends_keep_their_weight_and_path_rewrite_preserves_boundaries ... ok\ntest rollout::metrics::tests::unavailable_provider_requires_explicit_rollback_policy ... ok\ntest script::tests::compiler_rejects_recursion_and_runtime_bounds_loops ... ok\ntest script::tests::budgets_cover_host_allocations_and_imported_wasm_memory ... ok\ntest script::tests::tenant_compilation_budget_does_not_block_cached_scripts_or_other_tenants ... ok\ntest script::tests::body_access_is_bounded_and_json_requires_complete_input ... ok\ntest script::tests::pooled_instances_reset_guest_state_and_leave_control_plane_capacity ... ok\ntest script::tests::compiled_functions_branches_and_response_hooks ... ok\ntest backend::tests::dns_ttl_refresh_replaces_endpoints_without_invalidating_active_leases ... ok\n\ntest result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s\n\n     Running unittests src/main.rs (/home/livesite/.cache/rgnix-opt-target/release/deps/rgnix-77d3bb93fa5944db)\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Doc-tests rgnix\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+      "passed_checks": 14
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--release",
+        "--locked",
+        "--all-targets",
+        "-j",
+        "2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 8.220727822999834,
+      "log": "/tmp/rgnix-opt-20260927/validation-clippy.log",
+      "output": "    Checking rgnix v0.4.0 (/tmp/rgnix-opt-20260927/source)\n    Finished `release` profile [optimized] target(s) in 8.11s\n"
+    },
+    {
+      "name": "integration",
+      "command": [
+        "python3",
+        "scripts/integration.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 23.36326770099913,
+      "log": "/tmp/rgnix-opt-20260927/validation-integration.log",
+      "output": "compiled /tmp/rgnix-acceptance-59etedrs/routes.rgl -> /tmp/rgnix-acceptance-59etedrs/routes.wasm (786 bytes)\nconfiguration valid: 2 listeners, 2 virtual hosts, 8 backends\nPASS script aliases reject upstreams with conflicting transport protocols\nPASS configuration rejects invalid body modes, limits and timeouts\nPASS static GET\nPASS static HEAD\nPASS static small and streamed files preserve lengths, ranges and conditional responses across file changes\nPASS static single range\nPASS unsatisfiable range\nPASS conditional GET\nPASS If-Range HTTP date retains partial response\nPASS directory redirect and index\nPASS symlink containment\nPASS contained symlink still serves a regular file\nPASS FIFO files and indexes cannot exhaust the static file pool\nPASS path traversal rejection\nPASS proxy_pass URI replacement\nPASS proxy_pass preserves original URI\nPASS IPv6 upstream\nPASS trusted HTTPS upstream\nPASS HTTPS upstream rejects hostname mismatch\nPASS HTTPS upstream rejects untrusted certificate\nPASS Connection cannot remove framing or Host\nPASS inherited response header\nPASS streaming request body\nPASS valid chunked request keeps its connection reusable\nPASS TE plus Content-Length cannot re-enable connection reuse\nPASS HTTP/1.0 without keep-alive closes after the response\nPASS request body limit\nPASS chunked HTTP body limit\nPASS chunked HTTP body limit before a requested WebSocket upgrade\nPASS compiled request and response hooks\nPASS query-only edits preserve raw paths and can clear the query\nPASS query edits retain proxy URI replacement and explicit path rewrites\nPASS compiled Wasm artifact loads independently\nPASS static plugin redirect preserves literal percent and rewritten query\nPASS informational responses do not consume the final response hook\nPASS plugin direct response\nPASS superseded plugin decisions fail instead of selecting another backend\nPASS script backend alias preserves HTTPS and forwarded headers\nPASS script HTTPS backend still verifies certificates\nPASS fuel limits infinite loops\nPASS response hook failure returns 500 without staged edits\nPASS upstream disconnect never replays POST\nPASS upstream read timeout returns 504\nPASS TLS listener\nPASS HTTP/2 negotiation\nPASS JSON body routes to the selected HTTPS backend without changing bytes\nPASS JSON routing is isolated between requests\nPASS invalid JSON, incomplete JSON and non-string fields do not match\nPASS full inspection can replay bodies larger than Pingora's original 64 KiB buffer\nPASS prefix inspection routes binary uploads and preserves the entire body\nPASS body byte metrics count prefix replay once and inspection only includes the prefix\nPASS content beyond the configured prefix cannot influence routing\nPASS a closed JSON object in a truncated prefix is not treated as complete JSON\nPASS short prefix-inspected bodies may use JSON routing when fully read\nPASS UTF-8 cut at the prefix boundary is nil as text but searchable as bytes\nPASS body inspection remains opt-in\nPASS full inspection rejects oversized known-length bodies\nPASS fragmented and chunked prefix uploads replay once and keep the next request aligned\nPASS full inspection rejects oversized chunked bodies before proxying\nPASS prefix decisions do not wait for the tail; incomplete prefixes have a total timeout\nPASS Expect 100-continue works before inspection without a second upstream expectation\nPASS HTTP/2 full and prefix routing preserve the original body\nPASS body inspection does not enable upstream POST retries\nPASS cancelled body inspection leaves the service available\nPASS in-flight body inspection retains its policy across reload\nPASS SSE first event is streamed\nPASS WebSocket upgrade and bidirectional frames\nPASS WebSocket streams beyond the HTTP body limit (3 MiB)\nPASS WebSocket close frame survives the long stream\nPASS reload keeps in-flight snapshot\nPASS invalid reload retains active configuration\nPASS compiler rejects a flat expression with excessive AST depth\nPASS deep AST reload cannot abort the data plane\nPASS plugin budget rejects excess instances while plain routes work\nPASS inflight budget sheds requests without blocking admin\nPASS live gauges show occupied process, plugin and backend permits\nPASS completed requests release resource permits\nPASS live metrics release permits after requests finish\nPASS request-only hooks release the plugin budget before a slow upstream completes\nPASS failed endpoint is excluded without replaying its requests\nPASS excluded endpoint re-enters rotation after cooldown\nPASS repeated SIGINT exits all listener workers without spinning on a stopped reactor\nPASS metrics are exposed\nPASS client cancellation preserves service\nPASS drain removes readiness while health stays live\nPASS drain finishes the next keepalive request and advertises Connection close\nPASS established WebSocket remains usable during drain\nPASS failed controller is neither healthy nor ready\n88 integration checks passed; .local/acceptance.json\n",
+      "passed_checks": 88
+    },
+    {
+      "name": "product_features",
+      "command": [
+        "python3",
+        "scripts/product_features.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 43.88570688400068,
+      "log": "/tmp/rgnix-opt-20260927/validation-product_features.log",
+      "output": "PASS trusted XFF resolves the last untrusted hop and retains socket peer\nPASS untrusted forwarding headers do not change client identity\nPASS malformed trusted forwarding chain falls back to socket peer\nPASS Forwarded supports quoted IPv6 with ports\nPASS CIDR rules apply to resolved client identity\nPASS rate bucket enforces burst and isolates tenants\nPASS route concurrency rejects excess requests\nPASS concurrency permit releases after completion\nPASS backend metrics expose concurrency occupancy and its configured limit\nPASS backend concurrency covers the upstream request lifetime\nPASS least connections selects a different idle endpoint\nPASS cookie hash affinity is stable across connections\nPASS managed affinity issues a cookie and preserves the chosen backend\nPASS active health excludes an unhealthy HTTP endpoint\nPASS backend metrics distinguish total, eligible and unready endpoints\nPASS compiled RGL reads typed JSON, decoded args and cookies\nPASS typed JSON getters use fallbacks for wrong types\nPASS JWT verifies signatures and makes claims available to RGL\nPASS JWT rejects missing, wrong audience, expired and tampered tokens\nPASS external auth replaces spoofed identity headers\nPASS external auth fails closed on deny and service failure\nPASS alias maps the matched prefix to its directory\nPASS SPA fallback serves the shell within its root\nPASS gzip transforms streamed responses and adjusts framing\nPASS Brotli negotiation produces a valid stream\nPASS compression respects quality weights and explicit wildcard exclusions\nPASS request no-transform prevents response compression\nPASS compression preserves range representation boundaries\nPASS PROXY v1 is consumed before HTTP and preserves original peer\nPASS PROXY v2 accepts bounded IPv6 TCP addresses\nPASS mTLS accepts a client issued by the configured CA\nPASS mTLS rejects an anonymous TLS client\nPASS admin diagnostics require a token\nPASS effective configuration and backend state are inspectable\nPASS route explain reports the selected prefix\nPASS authenticated rollback republishes an immutable file version\nPASS rollback increments configuration version\nPASS CA rotation also rejects old clients on reused TLS connections\nPASS offline simulation executes the compiled plugin\nPASS metrics distinguish configured routes and backends\nPASS metrics expose upstream phases, pool reuse and response bytes\nPASS metrics expose active config and successful update timing\nPASS Linux metrics expose real process memory, file descriptors and threads\nPASS removed backends disappear from current-state metrics while historical counters remain\nPASS gRPC h2c upstream returns data before client request EOF\nPASS gRPC bidirectional stream and trailers survive proxying\nPASS HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule\nPASS gRPC failure status survives proxy trailers\nPASS gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200\nPASS OTLP marks both server and client spans as failed for gRPC errors\nPASS OTLP exports linked server and client spans\nPASS traceparent propagates the upstream client span identity\nPASS tracestate reaches the backend and both OTLP spans\nPASS span flags identify remote server parents and local client parents\nPASS proxy client span timestamps are contained by the server span\nPASS OTLP access logs correlate with the server span\nPASS local access logs include trace, parent and outbound span IDs\nPASS parent sampling decisions are preserved without exporting unsampled spans\nPASS pre-routing rejected requests are logged\nPASS trace payload excludes query and credential content\nPASS future traceparent versions preserve the trace while forwarding supported fields\nPASS invalid tracestate is dropped without breaking a valid traceparent\nPASS oversized tracestate retains whole vendor entries within the propagation limit\nPASS multiple tracestate headers preserve vendor order and ignore empty members\nPASS route header edits cannot detach propagation from the recorded spans\nPASS external authorization creates a distinct child span and propagates W3C context\nPASS HTTP 401 marks the client span as error and leaves server status unset\nPASS two proxy hops form one trace with four linked spans and forward the last client ID\nPASS both hops OTLP and JSON access logs correlate with their own server spans\nPASS duplicate parents start a new trace and cannot retain old tracestate\nPASS unsampled W3C context and correlated logs survive both proxy hops\nPASS invalid versions, zero IDs and malformed context start clean traces\nPASS disabled tracing preserves incoming sampling in correlated OTLP logs\nPASS HTTPS upstream validates a private CA and explicit server name\nPASS upstream pool cannot reuse a connection across different CA policies\nPASS PROXY identity is consumed before the TLS handshake\nPASS remote HTTPS JWKS authenticates a signed token\nPASS remote JWKS rotation takes effect without config reload and revokes old keys\nPASS upstream CA reload prevents reuse of previously trusted connections\nPASS archived configuration compilation preserves original include diagnostics\nPASS HTTPS health probes reuse route SNI and private CA\nPASS mTLS health probes accept traditional PEM private keys\nPASS upstream mTLS presents client identity and isolates anonymous pools\nPASS pre-auth rate admission protects the auth service\nPASS JSON local logs redact URI and Referer query credentials\nPASS local log client suppression is applied\nPASS read-only admin can inspect but cannot roll back\nPASS management simulation includes pre-auth rate budgets\nPASS simulation verifies actual JWT signatures and claims\nPASS durable publication captures plugin dependencies\nPASS rollback restores the archived plugin and configuration\nPASS restart restores committed rollback despite broken or missing source files\nPASS durable history preserves version identity across restart\nPASS historical versions remain usable after restart\nPASS management audit records denied and committed changes without tokens\nPASS durable history protects private assets with owner-only permissions\nPASS TLS configuration rejects certificates for a different hostname\nPASS TLS configuration rejects expired certificates\nPASS Named management identities authenticate independently\nPASS Namespace-scoped identity cannot inspect standalone routes or history\nPASS Scoped identity cannot simulate an unauthorized route\nPASS Candidate preflight reports changes without publishing\nPASS Preflight rejects a stale base version\nPASS CLI configuration diff agrees with management preflight\nPASS Simulation reports the actual proxy_pass URI replacement\nPASS Outgoing simulation keeps configured private header values redacted\nPASS Certificate diagnostics expose hostname validity and expiration\nPASS Legacy management token rotates without restarting the process\nPASS Invalid identity updates retain the last valid authorization policy\nPASS Removing a named identity revokes it without restart\nPASS Management audit identifies the named operator without recording credentials\n{\n  \"passed\": 111,\n  \"checks\": [\n    \"trusted XFF resolves the last untrusted hop and retains socket peer\",\n    \"untrusted forwarding headers do not change client identity\",\n    \"malformed trusted forwarding chain falls back to socket peer\",\n    \"Forwarded supports quoted IPv6 with ports\",\n    \"CIDR rules apply to resolved client identity\",\n    \"rate bucket enforces burst and isolates tenants\",\n    \"route concurrency rejects excess requests\",\n    \"concurrency permit releases after completion\",\n    \"backend metrics expose concurrency occupancy and its configured limit\",\n    \"backend concurrency covers the upstream request lifetime\",\n    \"least connections selects a different idle endpoint\",\n    \"cookie hash affinity is stable across connections\",\n    \"managed affinity issues a cookie and preserves the chosen backend\",\n    \"active health excludes an unhealthy HTTP endpoint\",\n    \"backend metrics distinguish total, eligible and unready endpoints\",\n    \"compiled RGL reads typed JSON, decoded args and cookies\",\n    \"typed JSON getters use fallbacks for wrong types\",\n    \"JWT verifies signatures and makes claims available to RGL\",\n    \"JWT rejects missing, wrong audience, expired and tampered tokens\",\n    \"external auth replaces spoofed identity headers\",\n    \"external auth fails closed on deny and service failure\",\n    \"alias maps the matched prefix to its directory\",\n    \"SPA fallback serves the shell within its root\",\n    \"gzip transforms streamed responses and adjusts framing\",\n    \"Brotli negotiation produces a valid stream\",\n    \"compression respects quality weights and explicit wildcard exclusions\",\n    \"request no-transform prevents response compression\",\n    \"compression preserves range representation boundaries\",\n    \"PROXY v1 is consumed before HTTP and preserves original peer\",\n    \"PROXY v2 accepts bounded IPv6 TCP addresses\",\n    \"mTLS accepts a client issued by the configured CA\",\n    \"mTLS rejects an anonymous TLS client\",\n    \"admin diagnostics require a token\",\n    \"effective configuration and backend state are inspectable\",\n    \"route explain reports the selected prefix\",\n    \"authenticated rollback republishes an immutable file version\",\n    \"rollback increments configuration version\",\n    \"CA rotation also rejects old clients on reused TLS connections\",\n    \"offline simulation executes the compiled plugin\",\n    \"metrics distinguish configured routes and backends\",\n    \"metrics expose upstream phases, pool reuse and response bytes\",\n    \"metrics expose active config and successful update timing\",\n    \"Linux metrics expose real process memory, file descriptors and threads\",\n    \"removed backends disappear from current-state metrics while historical counters remain\",\n    \"gRPC h2c upstream returns data before client request EOF\",\n    \"gRPC bidirectional stream and trailers survive proxying\",\n    \"HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule\",\n    \"gRPC failure status survives proxy trailers\",\n    \"gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200\",\n    \"OTLP marks both server and client spans as failed for gRPC errors\",\n    \"OTLP exports linked server and client spans\",\n    \"traceparent propagates the upstream client span identity\",\n    \"tracestate reaches the backend and both OTLP spans\",\n    \"span flags identify remote server parents and local client parents\",\n    \"proxy client span timestamps are contained by the server span\",\n    \"OTLP access logs correlate with the server span\",\n    \"local access logs include trace, parent and outbound span IDs\",\n    \"parent sampling decisions are preserved without exporting unsampled spans\",\n    \"pre-routing rejected requests are logged\",\n    \"trace payload excludes query and credential content\",\n    \"future traceparent versions preserve the trace while forwarding supported fields\",\n    \"invalid tracestate is dropped without breaking a valid traceparent\",\n    \"oversized tracestate retains whole vendor entries within the propagation limit\",\n    \"multiple tracestate headers preserve vendor order and ignore empty members\",\n    \"route header edits cannot detach propagation from the recorded spans\",\n    \"external authorization creates a distinct child span and propagates W3C context\",\n    \"HTTP 401 marks the client span as error and leaves server status unset\",\n    \"two proxy hops form one trace with four linked spans and forward the last client ID\",\n    \"both hops OTLP and JSON access logs correlate with their own server spans\",\n    \"duplicate parents start a new trace and cannot retain old tracestate\",\n    \"unsampled W3C context and correlated logs survive both proxy hops\",\n    \"invalid versions, zero IDs and malformed context start clean traces\",\n    \"disabled tracing preserves incoming sampling in correlated OTLP logs\",\n    \"HTTPS upstream validates a private CA and explicit server name\",\n    \"upstream pool cannot reuse a connection across different CA policies\",\n    \"PROXY identity is consumed before the TLS handshake\",\n    \"remote HTTPS JWKS authenticates a signed token\",\n    \"remote JWKS rotation takes effect without config reload and revokes old keys\",\n    \"upstream CA reload prevents reuse of previously trusted connections\",\n    \"archived configuration compilation preserves original include diagnostics\",\n    \"HTTPS health probes reuse route SNI and private CA\",\n    \"mTLS health probes accept traditional PEM private keys\",\n    \"upstream mTLS presents client identity and isolates anonymous pools\",\n    \"pre-auth rate admission protects the auth service\",\n    \"JSON local logs redact URI and Referer query credentials\",\n    \"local log client suppression is applied\",\n    \"read-only admin can inspect but cannot roll back\",\n    \"management simulation includes pre-auth rate budgets\",\n    \"simulation verifies actual JWT signatures and claims\",\n    \"durable publication captures plugin dependencies\",\n    \"rollback restores the archived plugin and configuration\",\n    \"restart restores committed rollback despite broken or missing source files\",\n    \"durable history preserves version identity across restart\",\n    \"historical versions remain usable after restart\",\n    \"management audit records denied and committed changes without tokens\",\n    \"durable history protects private assets with owner-only permissions\",\n    \"TLS configuration rejects certificates for a different hostname\",\n    \"TLS configuration rejects expired certificates\",\n    \"Named management identities authenticate independently\",\n    \"Namespace-scoped identity cannot inspect standalone routes or history\",\n    \"Scoped identity cannot simulate an unauthorized route\",\n    \"Candidate preflight reports changes without publishing\",\n    \"Preflight rejects a stale base version\",\n    \"CLI configuration diff agrees with management preflight\",\n    \"Simulation reports the actual proxy_pass URI replacement\",\n    \"Outgoing simulation keeps configured private header values redacted\",\n    \"Certificate diagnostics expose hostname validity and expiration\",\n    \"Legacy management token rotates without restarting the process\",\n    \"Invalid identity updates retain the last valid authorization policy\",\n    \"Removing a named identity revokes it without restart\",\n    \"Management audit identifies the named operator without recording credentials\"\n  ]\n}\n",
+      "passed_checks": 111
+    },
+    {
+      "name": "otlp_integration",
+      "command": [
+        "python3",
+        "scripts/otlp_integration.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 25.118279145999622,
+      "log": "/tmp/rgnix-opt-20260927/validation-otlp_integration.log",
+      "output": "PASS application response is unchanged\nPASS standard endpoint suffix and protobuf content type\nPASS signal auth headers override generic and decode escaped values\nPASS structured access and resource attributes are exported\nPASS query body auth cookies and disabled route stay out of OTLP\nPASS local access logging remains enabled with credential redaction\nPASS SIGHUP access_log off also disables OTLP\nPASS transient 503 retries identical batch\nPASS disconnected exporter retries identical batch\nPASS permanent 400 is not retried\nPASS authentication failure is not retried\nPASS non-retryable 500 is not retried\nPASS redirect is not followed\nPASS malformed success is counted as failure\nPASS oversized response is rejected\nPASS HTML success is not mistaken for OTLP success\nPASS partial rejection is counted without replay\nPASS Retry-After obeys total export deadline\nPASS full export queue does not block requests\nPASS queue memory and loss are bounded and visible\nPASS collector timeout drains as counted drops\nPASS TLS trust=True host=localhost accepted=True\nPASS TLS trust=False host=localhost accepted=False\nPASS TLS trust=True host=127.0.0.1 accepted=False\nPASS shutdown flushes an unfinished batch\nPASS SIGTERM drains in-flight requests before flushing their logs\nPASS stalled collector cannot extend shutdown indefinitely\nPASS explicit exporter disable preserves local logs\nPASS invalid exporter config is rejected without leaking credentials\nPASS invalid exporter config is rejected without leaking credentials\nPASS invalid exporter config is rejected without leaking credentials\nPASS invalid exporter config is rejected without leaking credentials\n{\n  \"passed\": 32,\n  \"checks\": [\n    \"application response is unchanged\",\n    \"standard endpoint suffix and protobuf content type\",\n    \"signal auth headers override generic and decode escaped values\",\n    \"structured access and resource attributes are exported\",\n    \"query body auth cookies and disabled route stay out of OTLP\",\n    \"local access logging remains enabled with credential redaction\",\n    \"SIGHUP access_log off also disables OTLP\",\n    \"transient 503 retries identical batch\",\n    \"disconnected exporter retries identical batch\",\n    \"permanent 400 is not retried\",\n    \"authentication failure is not retried\",\n    \"non-retryable 500 is not retried\",\n    \"redirect is not followed\",\n    \"malformed success is counted as failure\",\n    \"oversized response is rejected\",\n    \"HTML success is not mistaken for OTLP success\",\n    \"partial rejection is counted without replay\",\n    \"Retry-After obeys total export deadline\",\n    \"full export queue does not block requests\",\n    \"queue memory and loss are bounded and visible\",\n    \"collector timeout drains as counted drops\",\n    \"TLS trust=True host=localhost accepted=True\",\n    \"TLS trust=False host=localhost accepted=False\",\n    \"TLS trust=True host=127.0.0.1 accepted=False\",\n    \"shutdown flushes an unfinished batch\",\n    \"SIGTERM drains in-flight requests before flushing their logs\",\n    \"stalled collector cannot extend shutdown indefinitely\",\n    \"explicit exporter disable preserves local logs\",\n    \"invalid exporter config is rejected without leaking credentials\",\n    \"invalid exporter config is rejected without leaking credentials\",\n    \"invalid exporter config is rejected without leaking credentials\",\n    \"invalid exporter config is rejected without leaking credentials\"\n  ]\n}\n",
+      "passed_checks": 32
+    },
+    {
+      "name": "ingress_recovery",
+      "command": [
+        "python3",
+        "scripts/ingress_recovery.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 66.05288069000017,
+      "log": "/tmp/rgnix-opt-20260927/validation-ingress_recovery.log",
+      "output": "PASS initial configuration is not ready before durable acknowledgement\nPASS accepted configuration is persisted outside the tenant namespace\nPASS controller metrics expose synchronized watches and cached resources\nPASS follower metrics report Lease contention without claiming leadership\nPASS watch failure and resynchronization are observable without losing ready routes\nPASS pending checkpoint retains the previously served plugin\nPASS Event API rejection is counted without withdrawing the accepted route\nPASS unchanged failed Event is retried on the periodic report\nPASS Event is delivered after permission recovery without a resource edit\nPASS successfully published Event is deduplicated\nPASS Ingress status API rejection is counted\nPASS Ingress status is retried after permission recovery\nPASS successful Lease claims are observable on the leader\nPASS stalled Events cannot block Ingress address updates\nPASS Lease renews while Event timeouts remain observable\nPASS stalled Ingress reads cannot starve another namespace status\nPASS status batches renew the Lease while progressing past stalled entries\nPASS an Ingress read rejection does not cancel other status updates\nPASS failed Ingress status catches up after API recovery\nPASS fresh replica restores accepted plugin and route\nPASS unrelated and status-only updates do not publish snapshots\nPASS endpoint withdrawal is independent of stalled Event writes\nPASS fresh replica without a usable checkpoint stays unready\nPASS existing replicas continue serving accepted configuration\nPASS a rejected tenant does not withdraw another accepted route\nPASS valid replacement unblocks initial readiness\nPASS Ingress deletion removes routing and its checkpoint\nPASS oversize checkpoint cannot block another tenant publication\nPASS reject checkpoint cannot block another tenant publication\nPASS stall checkpoint cannot block another tenant publication\nPASS earlier namespace owns its TLS hostname and rejects an overlapping wildcard claim\nPASS withdrawn TLS claim cannot fall back to an unauthorized namespace certificate\nPASS invalid certificate retains exclusive TLS ownership\nPASS valid replacement restores the owned certificate\nPASS deleting the owning Ingress releases TLS ownership\nPASS hostless root rule takes precedence over its default backend\nPASS explicit root rule overrides an older Ingress default backend\nPASS default backend applies only after explicit paths miss\nPASS recreated Service rejects slices owned by its previous UID\nPASS owner-only EndpointSlice updates restore a matching Service\nPASS stale and current slices never mix after Service recreation\nPASS Service owner name must agree with the slice label\nPASS manually managed slices without a Service owner remain supported\nPASS Ingress JSON body annotation routes to a declared Service and preserves bytes\nPASS annotation-only prefix update streams the full upload\nPASS invalid body policy retains the accepted policy and plugin\nPASS fresh replica restores the body policy with its accepted plugin\nPASS bad plugin and body policy cannot freeze endpoint withdrawal\nPASS body-inspected Ingress deletion takes effect despite invalid updates\nPASS Ingress body size policy works without a routing plugin\nPASS Ingress route timeout is configurable\nPASS invalid policy without a plugin retains its accepted configuration\nPASS new replica restores a policy-only checkpoint\nPASS invalid policy cannot freeze live endpoint withdrawal\nPASS deleting policy-only Ingress removes its route\nPASS Ingress preflight warns about unavailable endpoints without publishing a candidate\nPASS Ingress preflight rejects a class reassigned to another controller\n",
+      "passed_checks": 57
+    },
+    {
+      "name": "migration_integration",
+      "command": [
+        "python3",
+        "scripts/migration_integration.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 0.12119028799861553,
+      "log": "/tmp/rgnix-opt-20260927/validation-migration_integration.log",
+      "output": "PASS process-model differences require an explicit choice\nPASS candidate preserves the original default root across directories\nPASS generated NGINX candidate loads\nPASS request comparison detects changed responses\nPASS unsupported directives are inventoried together\nPASS unresolved named Service ports block conversion\nPASS multi-document YAML converts with Service port resolution\nPASS unmapped authentication is never silently dropped\nPASS wildcard conversion cannot widen hostname access\nPASS default backend overlap cannot silently change fallback precedence\n{\"passed\": 10, \"checks\": [\"process-model differences require an explicit choice\", \"candidate preserves the original default root across directories\", \"generated NGINX candidate loads\", \"request comparison detects changed responses\", \"unsupported directives are inventoried together\", \"unresolved named Service ports block conversion\", \"multi-document YAML converts with Service port resolution\", \"unmapped authentication is never silently dropped\", \"wildcard conversion cannot widen hostname access\", \"default backend overlap cannot silently change fallback precedence\"]}\n",
+      "passed_checks": 10
+    },
+    {
+      "name": "global_rate_limit",
+      "command": [
+        "python3",
+        "scripts/global_rate_limit.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 1.261956629999986,
+      "log": "/tmp/rgnix-opt-20260927/validation-global_rate_limit.log",
+      "output": "PASS Two processes share one token bucket instead of doubling burst\nPASS Shared buckets isolate request identities\nPASS Deployment scopes isolate identical routes and identities\nPASS Atomic concurrent debit across processes bounds accepted requests\nPASS Shared limiter exports bounded outcome and latency metrics\nPASS Unavailable coordinator fails closed by default\nPASS Explicit open mode bypasses only the shared rate gate\nPASS Explicit local mode retains per-process rate protection\nPASS Routes without a rate gate remain available during Redis outage\nPASS Coordinator recovery reconnects without a process restart\nPASS Invalid hot configuration retains the accepted coordinator\nPASS Coordinator credentials stay out of logs and metrics\nPASS 12 shared-rate checks\n",
+      "passed_checks": 13
+    },
+    {
+      "name": "log_rotation",
+      "command": [
+        "python3",
+        "scripts/log_rotation.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 3.2029571579987532,
+      "log": "/tmp/rgnix-opt-20260927/validation-log_rotation.log",
+      "output": "PASS concurrent size rotation preserves each complete access record once\nPASS rotated files are valid gzip with the configured size bound\nPASS single oversized records remain intact and file mode is preserved\nPASS retention is bounded after a policy reload without deleting unrelated files\nPASS invalid reload preserves the working rotation policy\nPASS rotation can be disabled by SIGHUP\nPASS time rotation splits records at the next occupied UTC interval\nPASS access and error logs sharing one file rotate through the same writer\nPASS shutdown drains queued local log records\nPASS rotation failure preserves the active file and reports I/O errors\nPASS rotation resumes after directory permissions are repaired\nPASS symlink log destinations are written without renaming or pruning the target\nPASS inherited stdout/stderr work when filesystem permissions forbid reopening\nPASS USR1 reopens access and error files without restarting the server\nPASS valid SIGHUP also reopens local log files\nPASS failed reopen keeps the old descriptor writable and reports the error\nPASS reopen recovers after the filesystem is repaired\nPASS real logrotate rename/create/USR1 with delayed compression works\nPASS full local log queue drops records instead of blocking HTTP\nPASS USR1 is not lost when the record queue is full\n20 log rotation checks passed; .local/log-rotation.json\n",
+      "passed_checks": 20
+    },
+    {
+      "name": "nginx_parity",
+      "command": [
+        "python3",
+        "scripts/nginx_parity.py",
+        "/tmp/rgnix-opt-20260927/rgnix-after"
+      ],
+      "exit_code": 0,
+      "seconds": 6.052434592998907,
+      "log": "/tmp/rgnix-opt-20260927/validation-nginx_parity.log",
+      "output": "PASS parity / {}\nPASS parity /plain {}\nPASS parity /plain-more {}\nPASS parity /headers {}\nPASS parity /data.txt {}\nPASS parity /data.txt {'Range': 'bytes=3-5'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 14 Nov 2023 22:13:20 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 02 Jan 2024 00:00:00 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Mon, 01 Jan 2001 00:00:00 GMT'}\nPASS parity /slash {}\nPASS parity /api/a?x=1 {}\nPASS parity /api/a%20b?x=1 {}\nPASS parity /api/%61%2Fb {}\nPASS parity /api/a%3Fb%25c {}\nPASS parity /raw/%61?x=1 {}\nPASS parity /api {}\nPASS parity /api?x=1 {}\nPASS parity /redirect {}\nPASS parity / {'Host': 'a.b.wild.test'}\nPASS parity /a%23b?x=%23 {}\nPASS parity /a%3Fb?x=1 {}\nPASS parity /a%20b {}\nPASS parity /a%25b {}\nPASS parity /a%252Fb {}\nPASS parity /%E4%B8%AD%E6%96%87 {}\nPASS parity /proxy%23b?x=%3F {}\nPASS parity / {'Host': 'unknown.test'}\nPASS parity / {'Host': 'closed.test'}\nPASS parity / {'Host': 'duplicate.test'}\nPASS parity /error {}\nPASS parity /timeout/ {}\nPASS parity /denied {}\nPASS parity /denied-late {}\nPASS parity missing HTTP/1.1 Host\nPASS parity empty HTTP/1.1 Host\nPASS parity invalid HTTP/1.1 Host\nPASS parity duplicate Host\nPASS parity absolute URI still requires Host\nPASS parity absolute URI cannot hide an invalid Host\nPASS parity HTTP/1.0 without Host\nPASS parity Host with port\nPASS parity IPv6 Host with port\nPASS parity absolute URI with matching Host\n46 NGINX parity scenarios passed\n",
+      "passed_checks": 46
+    }
+  ],
+  "source": {
+    "source_base": "464a43a4e6f40bd2b219848b6b54237d7048d8d6",
+    "source_patch_sha256": "7a32fb66ab2713edf7cf9e77962bbcea20ad3cc912e9b1f05553c521c3dfbaaf",
+    "baseline_sha256": "0d0883e1a6817993cd140a3d39ee8ec6d7a7ba1c5f7ad999678d5ac04236c7bf",
+    "candidate_sha256": "b9791d82e50853376c5a49e31891242d5491d7f4b45de303b1e2083c6ee1deab",
+    "cargo_lock_sha256": "a0e1e51c67cb7828e8608875effd2078e2c37881d84f63e76b0ec25574bd0d88",
+    "build_command": "CARGO_TARGET_DIR=/home/livesite/.cache/rgnix-opt-target cargo build --release --locked -j 2",
+    "release_status": "unreleased local working tree",
+    "qualification": "native aarch64 OrbStack build; before and after use identical Cargo.lock, release flags and compiler; no performance conclusions from instrumented profiles or screening runs",
+    "source_files_sha256": {
+      "src/backend.rs": "5dfcf4adf9bf58168f45db315c13c7da94b13f22511a1f858b41837e28a985a5",
+      "src/proxy/mod.rs": "022c0bda9728846addb0f021956e490fb1266c10cfb38483f0407a4647f428ef",
+      "src/proxy/responses.rs": "f359ec295991cf62f7a14b89bc62c8a95838169815ca958f4eb049f4f6464c4b",
+      "src/proxy/static_files.rs": "e7446579c549ad077e546b4baba856c1d37cbc2e4f5917310fc92fc08fadf5ed",
+      "src/runtime.rs": "13298f3597b258efbb533e52714f292c1f18f1705c1a101539bf440ef093e671",
+      "src/script/codegen.rs": "3d522c213b62f7e6d0d7b20901866bbd782a6cce75c584422073ab88fc377e1a",
+      "src/script/mod.rs": "87a3f61bacbea6721975d9c7c6ea2f4bf6036f9f253ff0144d1c40ff673157d5",
+      "src/telemetry.rs": "18d518b8453c2bec289206adb0417219803b09a5fb7cdfb7a69c0d8d6eb2915d",
+      "src/telemetry/runtime.rs": "82ac58110b68d3f0505852d76770573835203a519b870eb4b7948760615e7355",
+      "src/traffic.rs": "849365aa7b698d2f15d567a86173018da07a5b839a260658af8b93aa0df0eefd",
+      "vendor/pingora-core/src/connectors/mod.rs": "fbf40c32271b9db0c01de97b3f43d7ab9c2efaeac3fd74471c773601096c6c33",
+      "vendor/pingora-core/src/services/listening.rs": "cee8c2e9ebe6956564eb3ace104c048bbd9bc108ec56320c59d6c869805f537a",
+      "vendor/pingora-proxy/src/proxy_h1.rs": "6f462bb094665b2cb808f1731693884fd1917a5d107e27ae98109562d0a4840c",
+      "vendor/pingora-proxy/src/proxy_h2.rs": "4a3114fc823528257a7d7464e95b720e35af159f0e84da2715bab47f19a01864",
+      "Cargo.toml": "760a0a081c742caee2c8df8cf7c03d61737e192e6343f0b6a529397ae4f3e34b",
+      "Cargo.lock": "a0e1e51c67cb7828e8608875effd2078e2c37881d84f63e76b0ec25574bd0d88"
+    },
+    "toolchain": "rustc 1.90.0 (1159e78c4 2025-09-14), LLVM 20.1.8, aarch64-unknown-linux-gnu",
+    "runtime": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64; Ubuntu 25.10; /tmp is native tmpfs",
+    "source_verified_file_count": 16,
+    "otlp_environment_keys": [],
+    "benchmark_script_sha256": "b0bb470395236cb80155f649fcc4fb7bc7dbbc415d40882ce0ef4f13ca10b394"
+  },
+  "shutdown_stress": {
+    "cycles": 100,
+    "exit_code": 0,
+    "output": "stopped 1\nstopped 11\nstopped 21\nstopped 31\nstopped 41\nstopped 51\nstopped 61\nstopped 71\nstopped 81\nstopped 91\n100 stop cycles passed\n",
+    "scenario": "Repeated actual OTLP HTTP 401 request/drop followed by SIGINT; original 15 second stop deadline unchanged."
+  },
+  "initial_failure": {
+    "result": "FAIL before listener ownership/yield fix; preserved and fixed, not a performance sample",
+    "classification": "no-steal accept loop could run on a different Tokio runtime than its socket reactor; shutdown caused immediate repeated accept errors without a cooperative yield",
+    "original_validation": {
+      "binary": "/tmp/rgnix-opt-20260927/rgnix-after",
+      "sha256": "1ca6738c21123a47606bc1ed94549262dff18df474823d3385e8584f3f134e0a",
+      "stages": [
+        {
+          "name": "unit",
+          "command": [
+            "cargo",
+            "test",
+            "--release",
+            "--locked",
+            "-j",
+            "2"
+          ],
+          "exit_code": 0,
+          "seconds": 51.65963999900032,
+          "log": "/tmp/rgnix-opt-20260927/validation-unit.log"
+        },
+        {
+          "name": "clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--release",
+            "--locked",
+            "--all-targets",
+            "-j",
+            "2",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 0,
+          "seconds": 42.09268254899962,
+          "log": "/tmp/rgnix-opt-20260927/validation-clippy.log"
+        },
+        {
+          "name": "integration",
+          "command": [
+            "python3",
+            "scripts/integration.py",
+            "/tmp/rgnix-opt-20260927/rgnix-after"
+          ],
+          "exit_code": 0,
+          "seconds": 22.894067680999797,
+          "log": "/tmp/rgnix-opt-20260927/validation-integration.log"
+        },
+        {
+          "name": "product_features",
+          "command": [
+            "python3",
+            "scripts/product_features.py",
+            "/tmp/rgnix-opt-20260927/rgnix-after"
+          ],
+          "exit_code": 0,
+          "seconds": 44.378481280000415,
+          "log": "/tmp/rgnix-opt-20260927/validation-product_features.log"
+        },
+        {
+          "name": "otlp_integration",
+          "command": [
+            "python3",
+            "scripts/otlp_integration.py",
+            "/tmp/rgnix-opt-20260927/rgnix-after"
+          ],
+          "exit_code": 1,
+          "seconds": 18.30060430499998,
+          "log": "/tmp/rgnix-opt-20260927/validation-otlp_integration.log"
+        }
+      ]
+    },
+    "original_output": "RUN unit\nunit: 0 (51.7s)\nRUN clippy\nclippy: 0 (42.1s)\nRUN integration\nintegration: 0 (22.9s)\nRUN product_features\nproduct_features: 0 (44.4s)\nRUN otlp_integration\notlp_integration: 1 (18.3s)\nPASS application response is unchanged\nPASS standard endpoint suffix and protobuf content type\nPASS signal auth headers override generic and decode escaped values\nPASS structured access and resource attributes are exported\nPASS query body auth cookies and disabled route stay out of OTLP\nPASS local access logging remains enabled with credential redaction\nPASS SIGHUP access_log off also disables OTLP\nPASS transient 503 retries identical batch\nPASS disconnected exporter retries identical batch\nPASS permanent 400 is not retried\nPASS authentication failure is not retried\nTraceback (most recent call last):\n  File \"/tmp/rgnix-opt-20260927/source/scripts/otlp_integration.py\", line 208, in <module>\n    with receiver([response, {}]) as sink, running(root, sink) as proc:\n                                           ~~~~~~~^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/contextlib.py\", line 148, in __exit__\n    next(self.gen)\n    ~~~~^^^^^^^^^^\n  File \"/tmp/rgnix-opt-20260927/source/scripts/otlp_integration.py\", line 151, in running\n    proc.stop()\n    ~~~~~~~~~^^\n  File \"/tmp/rgnix-opt-20260927/source/scripts/otlp_integration.py\", line 136, in stop\n    self.process.wait(timeout=15)\n    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 1280, in wait\n    return self._wait(timeout=timeout)\n           ~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 2058, in _wait\n    raise TimeoutExpired(self.args, timeout)\nsubprocess.TimeoutExpired: Command '['/tmp/rgnix-opt-20260927/rgnix-after', 'serve', '-c', '/tmp/rgnix-otlp-l_lw6dvh/50853.conf', '--admin', '127.0.0.1:33795']' timed out after 15 seconds\n\n"
+  },
+  "scope": "Native OrbStack Linux arm64 runtime checks. Ingress recovery uses a simulated Kubernetes API; no new full-cluster Gateway conformance or image deployment run."
+}

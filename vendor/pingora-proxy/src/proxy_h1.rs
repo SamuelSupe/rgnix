@@ -18,6 +18,7 @@ use futures::StreamExt;
 use super::*;
 use crate::proxy_cache::{range_filter::RangeBodyFilter, ServeFromCache};
 use crate::proxy_common::*;
+use crate::task_pipe;
 use pingora_cache::CachePhase;
 use pingora_core::protocols::http::{
     authority::{raw_target_authority, validate_request_authority},
@@ -139,14 +140,20 @@ where
             Err(e) => return (false, false, Some(e)),
         };
 
-        let (tx_upstream, rx_upstream) = mpsc::channel::<HttpTask>(TASK_BUFFER_SIZE);
-        let (tx_downstream, rx_downstream) = mpsc::channel::<HttpTask>(TASK_BUFFER_SIZE);
+        let mut upstream_pipe = task_pipe::TaskPipe::new();
+        let mut downstream_pipe = task_pipe::TaskPipe::new();
+        let (tx_upstream, rx_upstream) = upstream_pipe.split();
+        let (tx_downstream, rx_downstream) = downstream_pipe.split();
 
-        session.as_mut().enable_retry_buffering();
+        // The budget includes the initial attempt. A single-attempt proxy
+        // never consumes a retry copy of the uploaded body.
+        if self.max_retries > 1 {
+            session.as_mut().enable_retry_buffering();
+        }
 
         // Shared signal so the upstream half can distinguish an expected task-pipe
         // closure (the downstream half finished and dropped rx) from an unexpected one.
-        let pipe_state = Arc::new(AtomicU8::new(PipeState::Active as u8));
+        let pipe_state = AtomicU8::new(PipeState::Active as u8);
 
         // start bi-directional streaming
         let ret = tokio::try_join!(
@@ -157,9 +164,9 @@ where
                 ctx,
                 &mut downstream_custom_message_writer,
                 &mut downstream_custom_message_reader,
-                pipe_state.clone(),
+                &pipe_state,
             ),
-            self.proxy_handle_upstream(client_session, tx_upstream, rx_downstream, pipe_state),
+            self.proxy_handle_upstream(client_session, tx_upstream, rx_downstream, &pipe_state),
         );
 
         if let Some(custom_session) = session.downstream_session.as_custom_mut() {
@@ -248,9 +255,9 @@ where
     async fn proxy_handle_upstream(
         &self,
         client_session: &mut HttpSessionV1,
-        tx: mpsc::Sender<HttpTask>,
-        mut rx: mpsc::Receiver<HttpTask>,
-        pipe_state: Arc<AtomicU8>,
+        tx: task_pipe::Sender<'_>,
+        mut rx: task_pipe::Receiver<'_>,
+        pipe_state: &AtomicU8,
     ) -> Result<bool>
     where
         SV: ProxyHttp + Send + Sync,
@@ -365,7 +372,7 @@ where
         session: &mut Session,
         ctx: &mut SV::CTX,
         initial_task: HttpTask,
-        rx: &mut mpsc::Receiver<HttpTask>,
+        rx: &mut task_pipe::Receiver<'_>,
         serve_from_cache: &mut ServeFromCache,
         range_body_filter: &mut proxy_cache::range_filter::RangeBodyFilter,
         response_state: &mut ResponseStateMachine,
@@ -382,7 +389,7 @@ where
         }
 
         // Batch: pull as many tasks as we can from rx
-        let mut tasks = Vec::with_capacity(TASK_BUFFER_SIZE);
+        let mut tasks = smallvec::SmallVec::<[HttpTask; TASK_BUFFER_SIZE + 1]>::new();
         tasks.push(initial_task);
         // tokio::task::unconstrained because now_or_never may yield None when the future is ready
         while let Some(maybe_task) = tokio::task::unconstrained(rx.recv()).now_or_never() {
@@ -395,7 +402,7 @@ where
         }
 
         /* run filters before sending to downstream */
-        let mut filtered_tasks = Vec::with_capacity(TASK_BUFFER_SIZE);
+        let mut filtered_tasks = smallvec::SmallVec::<[HttpTask; TASK_BUFFER_SIZE + 1]>::new();
         for mut t in tasks {
             if self.revalidate_or_stale(session, &mut t, ctx).await {
                 serve_from_cache.enable();
@@ -433,7 +440,7 @@ where
             return Ok(None);
         }
 
-        let response_done = session.write_response_tasks(filtered_tasks).await?;
+        let response_done = session.write_response_batch(filtered_tasks).await?;
 
         Ok(Some(response_done))
     }
@@ -444,14 +451,14 @@ where
     async fn proxy_handle_downstream(
         &self,
         session: &mut Session,
-        tx: mpsc::Sender<HttpTask>,
-        mut rx: mpsc::Receiver<HttpTask>,
+        tx: task_pipe::Sender<'_>,
+        mut rx: task_pipe::Receiver<'_>,
         ctx: &mut SV::CTX,
         downstream_custom_message_writer: &mut Option<Box<dyn CustomMessageWrite>>,
         downstream_custom_message_reader: &mut Option<
             Box<dyn futures::Stream<Item = Result<Bytes>> + Unpin + Send + Sync + 'static>,
         >,
-        pipe_state: Arc<AtomicU8>,
+        pipe_state: &AtomicU8,
     ) -> Result<bool>
     where
         SV: ProxyHttp + Send + Sync,
@@ -531,9 +538,7 @@ where
         {
             // reserve tx capacity ahead to avoid deadlock, see below
 
-            let send_permit = tx
-                .try_reserve()
-                .or_err(InternalError, "try_reserve() body pipe for upstream");
+            let send_permit = tx.try_reserve();
 
             // Use optional futures to allow using optional channels in select branches
             let custom_inject_rx_recv: OptionFuture<_> = downstream_custom_message_inject_rx
@@ -1022,7 +1027,7 @@ where
         session: &mut Session,
         mut data: Option<Bytes>,
         end_of_body: bool,
-        tx: mpsc::Permit<'_, HttpTask>,
+        tx: task_pipe::Permit<'_>,
         ctx: &mut SV::CTX,
     ) -> Result<bool>
     where
