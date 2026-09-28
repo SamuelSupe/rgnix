@@ -18,6 +18,7 @@ from integration import certificate, free_port, request, wait_for
 
 
 CASES = ["return", "static", "proxy-1k", "proxy-16k", "header", "body", "tls"]
+MINIMAL_ENGINES = {"pingora", "hyper", "hyper-control"}
 PATHS = {"return": "/return", "static": "/static.bin", "proxy-1k": "/proxy-1k",
          "proxy-16k": "/proxy-16k", "header": "/route-header", "body": "/route-body", "tls": "/proxy-1k"}
 BODY_SIZE = 65536
@@ -313,7 +314,7 @@ end
 def preflight(engine, ports):
     results = []
     for case in CASES:
-        if engine == "pingora" and case not in ["proxy-1k", "proxy-16k"]:
+        if engine in MINIMAL_ENGINES and case not in ["proxy-1k", "proxy-16k"]:
             continue
         if engine == "nginx" and case == "body":
             continue
@@ -333,7 +334,7 @@ def preflight(engine, ports):
             expected = b"ok" if case == "return" else b"x" * (16384 if case in ["static", "proxy-16k"] else 1024)
             assert status == 200 and payload == expected, (engine, case, status, payload[:100])
             results.append(f"{case}:200 and exact payload")
-    if engine == "pingora":
+    if engine in MINIMAL_ENGINES:
         return results
     import socket
     with socket.create_connection(("127.0.0.1", ports["tls"])) as raw:
@@ -368,7 +369,9 @@ def main():
         parser.add_argument(f"--{engine}", type=Path, required=True)
     parser.add_argument("--candidate", type=Path, help="additional rgnix binary using exactly the same configuration")
     parser.add_argument("--pingora", type=Path, help="minimal_proxy example; diagnostic proxy-only baseline without product policies")
-    parser.add_argument("--engines", nargs="+", choices=["rgnix", "candidate", "nginx", "openresty", "pingora"],
+    parser.add_argument("--hyper", type=Path, help="experimental Hyper HTTP/1 proxy; no product policies")
+    parser.add_argument("--hyper-control", type=Path, help="same Hyper binary for interleaved A/A calibration")
+    parser.add_argument("--engines", nargs="+", choices=["rgnix", "candidate", "nginx", "openresty", "pingora", "hyper", "hyper-control"],
                         help="engines to measure; defaults to all supplied binaries")
     parser.add_argument("--wrk", default="wrk")
     parser.add_argument("--work-dir", type=Path, required=True, help="new directory on a native Linux filesystem")
@@ -391,6 +394,9 @@ def main():
         parser.error("--engines candidate requires --candidate")
     if args.engines and "pingora" in args.engines and not args.pingora:
         parser.error("--engines pingora requires --pingora")
+    for name in ["hyper", "hyper-control"]:
+        if args.engines and name in args.engines and not getattr(args, name.replace("-", "_")):
+            parser.error(f"--engines {name} requires --{name}")
     if min(args.rounds, args.seconds, args.warmup, args.workers, args.origin_workers, args.client_threads, *args.concurrency) < 1:
         parser.error("counts and durations must be positive")
     if args.client_threads > min(args.concurrency):
@@ -413,14 +419,16 @@ def main():
     binaries = {name: str(getattr(args, name).resolve()) for name in ["rgnix", "nginx", "openresty"]}
     if args.candidate:
         binaries["candidate"] = str(args.candidate.resolve())
-    if args.pingora:
-        binaries["pingora"] = str(args.pingora.resolve())
-        (directory / "pingora").mkdir()
+    for name in sorted(MINIMAL_ENGINES):
+        binary = getattr(args, name.replace("-", "_"))
+        if binary:
+            binaries[name] = str(binary.resolve())
+            (directory / name).mkdir()
     output = {"started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "platform": platform.platform(),
               "os_release": Path("/etc/os-release").read_text(), "lscpu": command_output(["lscpu"]),
               "settings": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
               "binaries": {name: {"path": binary, "sha256": hashlib.sha256(Path(binary).read_bytes()).hexdigest(),
-                                   "version": command_output([binary, "--version" if name in ["rgnix", "candidate", "pingora"] else "-V"])} for name, binary in binaries.items()},
+                                   "version": command_output([binary, "--version" if name in {"rgnix", "candidate"} | MINIMAL_ENGINES else "-V"])} for name, binary in binaries.items()},
               "wrk_version": command_output([args.wrk, "--version"], accepted=(0, 1)).splitlines()[0],
               "ports": ports, "preflight": {}, "runs": [], "origin_baselines": []}
     fixtures(args, directory, ports)
@@ -452,7 +460,7 @@ def main():
                        if args.interleave else [(engine, windows) for engine in ordered_engines])
             for batch_index, (engine, batch) in enumerate(batches):
                 batch = [(concurrency, case) for concurrency, case in batch if engine != "nginx" or case != "body"]
-                if engine == "pingora":
+                if engine in MINIMAL_ENGINES:
                     batch = [(concurrency, case) for concurrency, case in batch if case in ["proxy-1k", "proxy-16k"]]
                 if not batch:
                     continue
@@ -463,14 +471,14 @@ def main():
                     command = [binaries[engine], "serve", "-c", str(config), "--admin", f"127.0.0.1:{ports['admin']}",
                                "--threads", str(args.workers), "--max-inflight", "4096", "--max-plugin-instances", "512",
                                "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "5"]
-                elif engine == "pingora":
+                elif engine in MINIMAL_ENGINES:
                     command = [binaries[engine], "--listen", f"127.0.0.1:{ports['http']}",
                                "--upstream", f"127.0.0.1:{ports['primary']}", "--workers", str(args.workers)]
                 else:
                     command = [binaries[engine], "-p", str(engine_dir), "-c", str(config), "-g", "daemon off;"]
                 suffix = f"-batch{batch_index + 1}" if args.interleave else ""
                 frontend = start([*affinity(args.server_cpus), *command], engine_dir / f"{engine}-process-{round_index + 1}{suffix}.log")
-                ready_path = "/readyz" if is_rgnix else "/proxy-1k" if engine == "pingora" else "/return"
+                ready_path = "/readyz" if is_rgnix else "/proxy-1k" if engine in MINIMAL_ENGINES else "/return"
                 wait_for(lambda: request(ports["admin"] if is_rgnix else ports["http"], ready_path)[0], 200, timeout=30)
                 output["preflight"][f"{engine}/round{round_index + 1}{suffix}"] = preflight(engine, ports)
                 for concurrency, case in batch:

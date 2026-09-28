@@ -17,6 +17,8 @@ These are observations, not guaranteed rates. The 64-connection identical-binary
 
 A [later one-worker diagnostic](validation-pingora-audit-2026-09-28.md) retained the gap in all three rounds; the modest difference between rgnix and its minimal vendor-based proxy was below a reliable attribution threshold. A successful scoped one-worker A/A check does not resolve the earlier multi-worker or tail-latency qualification.
 
+The experimental branch also includes a [standalone Hyper transport feasibility study](validation-hyper-prototype-2026-09-28.md). It preserves streaming and connection reuse but omits product features. Its exploratory results and failed calibration are not a performance claim for rgnix, and the production engine remains Pingora.
+
 ## Implemented versus proposed
 
 Implemented: backend selection and Gateway indexing, lazy request/header state, request metric handles, RGL constants and request-only instance lifetimes, guarded sendfile, bounded idle-connection groups, smaller repeated session transfers, borrowed HTTP/1 task queues and lazy timer checks. See [vendor patch contracts](../vendor/README.md), [deployment budgets](deployment.md) and [Wasm compatibility](rgl.md).
