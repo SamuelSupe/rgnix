@@ -259,6 +259,8 @@ Compilation occurs on the control plane. Snapshot publication is atomic; in-flig
 
 The [release workflow](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml) requires native **amd64 and arm64** Rust/behavior checks, Clippy and Debian release builds, then the amd64 Kubernetes Gateway/TLS/gRPC harness before publishing artifacts. See [v0.5.0 release notes](docs/releases/v0.5.0.md) and the [release verification guide](docs/releases.md).
 
+The v0.5.0 candidate passed **22 Rust tests and 340 native behavior checks on each architecture**, plus **61 XDP checks** and **115 Kubernetes Gateway checks**. Its 600-second, 200-extra-route mixed workload completed **105,806 requests with zero failures** during publication and Pod replacement. These are bounded behavior/continuity results. [Candidate identity, raw results and limits](docs/validation-release-0.5.0.md).
+
 The pre-release round-nine source passed **640 distinct checks** across application/RGL, Pingora proxy/HTTP/1/timer and native HTTP/product suites. This is a source-validation record, not a claim that all 640 checks run in the release workflow. [Exact scope and artifact identities](docs/validation-performance-round9-2026-09-27.md).
 
 ### Performance: measured gap, remaining work

@@ -259,6 +259,8 @@ flowchart LR
 
 [发布流程](https://github.com/SamuelSupe/rgnix/actions/workflows/release.yml)要求原生 **amd64 与 arm64** Rust/行为回归、Clippy 和 Debian release 构建通过，再使用 amd64 产物执行 Kubernetes Gateway/TLS/gRPC 检查，之后才发布。见 [v0.5.0 发布说明](docs/releases/v0.5.0.md)和[产物校验方法](docs/releases.md)。
 
+v0.5.0 候选版在两种架构上分别通过 **22 项 Rust 测试、340 项原生行为检查**，另通过 **61 项 XDP 检查和 115 项 Kubernetes Gateway 检查**。600 秒、200 条额外路由的混合负载完成 **105,806 次请求，零失败**，包含配置发布与 Pod 替换。这些是限定环境的行为和连续性结果。[候选产物身份、原始结果与限制](docs/validation-release-0.5.0.md)。
+
 发布前第九轮源码通过 **640 项不同检查**，覆盖应用/RGL、Pingora 代理/HTTP/1/计时器及真实 HTTP/产品行为。这是源码验证记录，不表示发布工作流执行了同样的全部 640 项检查。[具体范围与产物身份](docs/validation-performance-round9-2026-09-27.md)。
 
 ### 性能：公开差距与剩余工作
