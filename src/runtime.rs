@@ -22,6 +22,8 @@ use std::{
 };
 
 pub struct Shared {
+    #[cfg(feature = "hyper-experimental")]
+    pub(crate) experimental_hyper: bool,
     pub(crate) fleet: crate::fleet::State,
     pub audit: Arc<crate::audit::Audit>,
     pub snapshot: ArcSwap<RuntimeSnapshot>,
@@ -47,6 +49,10 @@ pub struct Shared {
 }
 #[derive(Clone, clap::Args)]
 pub struct Limits {
+    /// Experimental HTTP/1 data plane; rejects unsupported configuration.
+    #[cfg(feature = "hyper-experimental")]
+    #[arg(long)]
+    pub experimental_hyper: bool,
     /// Optional administrator-owned marker file; creation starts connection draining.
     #[arg(long)]
     pub drain_file: Option<PathBuf>,
@@ -95,6 +101,8 @@ struct Publication {
 impl Shared {
     pub(crate) fn preview(&self) -> Self {
         Self {
+            #[cfg(feature = "hyper-experimental")]
+            experimental_hyper: self.experimental_hyper,
             fleet: Default::default(),
             audit: self.audit.clone(),
             snapshot: ArcSwap::from(self.snapshot.load_full()),
@@ -160,6 +168,10 @@ impl Shared {
         mut snapshot: RuntimeSnapshot,
         publication: &mut Publication,
     ) -> Result<()> {
+        #[cfg(feature = "hyper-experimental")]
+        if self.experimental_hyper {
+            crate::proxy::hyper::validate(&snapshot)?;
+        }
         let current = self.snapshot.load_full();
         ensure!(
             current.listeners == snapshot.listeners,
@@ -330,6 +342,20 @@ pub fn serve(
     otlp: crate::otlp::Options,
     diagnostics: crate::diagnostics::Options,
 ) -> Result<()> {
+    #[cfg(feature = "hyper-experimental")]
+    if limits.experimental_hyper {
+        ensure!(
+            matches!(source, Source::File(_)),
+            "experimental Hyper supports standalone mode only"
+        );
+        ensure!(
+            limits.tenant_policy_file.is_none()
+                && limits.global_rate_limit_file.is_none()
+                && limits.rollout_metrics_file.is_none(),
+            "experimental Hyper does not support external tenant/rate/rollout policies"
+        );
+        crate::proxy::hyper::validate(&snapshot)?;
+    }
     ensure!(
         !limits.report_replicas || !matches!(source, Source::File(_)),
         "report-replicas requires Ingress or Gateway mode"
@@ -413,6 +439,8 @@ pub fn serve(
         publication.durable = Some(durable);
     }
     let shared = Arc::new(Shared {
+        #[cfg(feature = "hyper-experimental")]
+        experimental_hyper: limits.experimental_hyper,
         fleet: crate::fleet::State::new(limits.report_replicas),
         audit: audit.clone(),
         snapshot: ArcSwap::from_pointee(snapshot),
@@ -442,12 +470,16 @@ pub fn serve(
         upstream_fail_timeout: std::time::Duration::from_secs(limits.upstream_fail_timeout_secs),
     });
     Telemetry::observe_runtime(&shared, &limits)?;
+    let work_stealing = false;
+    #[cfg(feature = "hyper-experimental")]
+    let work_stealing = limits.experimental_hyper || work_stealing;
     let conf = ServerConf {
         threads,
         upstream_keepalive_pool_size: limits.upstream_keepalive_pool_size,
         // Pingora distributes accepted connections and HTTP/2 streams across
-        // workers; keep each task on its reactor after admission.
-        work_stealing: false,
+        // workers; keep each task on its reactor after admission. Hyper spawns
+        // accepted connections on a shared scheduler instead.
+        work_stealing,
         daemon: false,
         // Pingora includes the first attempt in this budget.
         max_retries: 1,
@@ -473,6 +505,16 @@ pub fn serve(
     ));
     server.bootstrap();
     for listener in listeners {
+        #[cfg(feature = "hyper-experimental")]
+        if limits.experimental_hyper {
+            let mut service = background_service(
+                &format!("hyper-{}", listener.address),
+                crate::proxy::hyper::Listener::bind(shared.clone(), listener.address, &limits)?,
+            );
+            service.threads = Some(threads);
+            server.add_service(service);
+            continue;
+        }
         let mut service = pingora::proxy::http_proxy_service(
             &server.configuration,
             Proxy {

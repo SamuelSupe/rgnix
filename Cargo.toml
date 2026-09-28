@@ -8,6 +8,9 @@ license = "Apache-2.0"
 repository = "https://github.com/SamuelSupe/rgnix"
 readme = "README.md"
 
+[features]
+hyper-experimental = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:hyper-timeout"]
+
 [dependencies]
 anyhow = "1"
 arc-swap = "1"
@@ -22,6 +25,10 @@ futures = "0.3"
 glob = "0.3"
 http = "1"
 httpdate = "1"
+http-body-util = { version = "0.1.5", optional = true }
+hyper = { version = "1.11.1", features = ["server", "client", "http1"], optional = true }
+hyper-util = { version = "0.1.20", features = ["client-legacy", "http1", "tokio"], optional = true }
+hyper-timeout = { version = "0.5.2", optional = true }
 ipnet = { version = "2", features = ["serde"] }
 hickory-resolver = "0.25"
 jsonwebtoken = "9.3"

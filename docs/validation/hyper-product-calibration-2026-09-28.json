@@ -1,0 +1,388 @@
+{
+  "scope": "before the final Connection-header validation hardening; no A/B run after failed gates",
+  "build": {
+    "feature": "hyper-experimental",
+    "profile": "release; thin LTO; codegen-units=1",
+    "compiler_and_binary": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: aarch64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\nbbdb885a0135af35661f97e8df9118e556dfb811e4f03d9104799c952a792d86  /home/livesite/.cache/rgnix-opt-target/release/rgnix\nPython 3.13.7\n",
+    "source_base": "74e488e",
+    "branch": "experiment/replace-pingora",
+    "source_sha256": {
+      "Cargo.toml": "be0d56640b37113e38894dac1e19ec45f265069bb8e5ee62d8c822b375c293c7",
+      "Cargo.lock": "b374862e4aaa6ce8c1a0629b32250764aee60ecbf6a3c46a6211d92150b4dc73",
+      "src/admission/tls.rs": "74a0131a8c086e5b15255bb5e76c64fc8097c259b392a336d1361bf0a1877fd7",
+      "src/admission.rs": "6d7c9499a6856c63cd8323c20d8773b40a304582a54226074ca31490a85aa772",
+      "src/audit.rs": "c73bfff4c9353b356ad98ff70fbc9d0ae09b34e7d5924fb13dcd343aedbb1b86",
+      "src/backend/selection.rs": "5bcaba27bc597a8d5864276d0d12d0057874fad1e32e96fc1c455f17a27bf679",
+      "src/backend/tests.rs": "afb170f811e88580711986ad7d0ff464b8e6aee0297bf3b5a9640f729d5e2f8f",
+      "src/backend.rs": "dc71a169908cb56e77b7ef80cffe0bd0967b3c755eb0365bcc8e7ca6ef4c285e",
+      "src/body.rs": "684780a95603870d83a1c92409f93020736dd9ab55239adad8d0ed8484f3e815",
+      "src/certificates.rs": "91a41822a4a63f8e0fea46e909f51b509ca3e0b2dfc1f385fd8a7c092d9a20f7",
+      "src/compression.rs": "4ffcecc12f07ec4deb32440609c9cd01d75c87394df719a681e46a839278ace7",
+      "src/config/bundle.rs": "3f1d0fa13c31380da57290cc28d6a05374a86b7fb6a4fe5bfa88e1998152d1f6",
+      "src/config/mod.rs": "c97056ac43f899855f645247a675f49b484f3554c5bfa279e51ba25b3b3ca425",
+      "src/config/policy.rs": "8ff8c0bc4718696a724b27e095e49a1a2fa372ed030478274a9d6ded9cfc5678",
+      "src/config/security.rs": "f3d1e8147c2661744445716145bbe7998b8e0f166a88d2b4727889d035546517",
+      "src/config/syntax.rs": "d31b49b0c24df00a6bf14bf96f29648560d413c4bd429173fc07c395119ba7cb",
+      "src/config/upstream.rs": "47f3f0de30ef2d6978fb5ae3f28fc9cf22d1d383ce443a402b3ac15ef4125986",
+      "src/controls.rs": "b126712a8a738f714002f6b518d784ad9c7f18897406b0b8f3a8b9e50b9d87f6",
+      "src/diagnostics/auth.rs": "2dcfc55bedc7abc129aaca71dd8e2645918114e03b601b9666373f8385a00320",
+      "src/diagnostics/outbound.rs": "07950afb5d1871c7e1f19ec05920b3b48efb62a60984fda6e71b67b1d57dcdc1",
+      "src/diagnostics/preflight.rs": "36f6378a4e1e4a8fe491a7ea16abb742c58eab18914d3d29ba34eab9278e65f4",
+      "src/diagnostics/simulation.rs": "219d6fb686a9acecc7dbf65042732c1ae106302c4d1047e88c4995b1d114ad2c",
+      "src/diagnostics.rs": "d92c864c36373fb4aaf9cfa5d7231758c81660e06009d1303b1c3a552295a291",
+      "src/fleet.rs": "8a59188fd7990125e523ef3ad79878186fcc00a8cdb10a9243707e36791bec92",
+      "src/gateway/build.rs": "1e8fc363e5a0faeecd617a4ead86e7304d872f1689a649803934bdcd6837b568",
+      "src/gateway/checkpoint.rs": "b0a1e1bae15d273e9522640b9f7c693e1821f7dfbef554603f507b876189ec32",
+      "src/gateway/controller.rs": "cac7c62f96a56eb1f25a9c9f0af915d7ff296b7c52b5080d0f685ed26d74bf5f",
+      "src/gateway/mod.rs": "ad77fa39415a8c19ab5414cd86348b65260ab2397125d9c212f0a55dffd66ee8",
+      "src/gateway/preflight.rs": "185f45943e5e6e923828b1850450fcdabb6d65528eb59644a60ad3dfffe816ff",
+      "src/gateway/references.rs": "9e9d79549536dda9fed78a2effd536931c2925c31c8cf18393985c9af2c22dbe",
+      "src/gateway/routes/index.rs": "416686265a05f13c8c09e82d1a8e2b066597725ef2d530b3df410616f9813117",
+      "src/gateway/routes/tests.rs": "70a404d0349cfb533936448ca65d4e29ec6a265a3752ea3848ea52894dd1e1fb",
+      "src/gateway/routes.rs": "991f39cd11e7a6d12f6f2a64eb5f0f91c024cbebb835ba3b0aa01766064c7f22",
+      "src/gateway/spec.rs": "843cc5cbd8cc8d79f50bcbf8cb0bc0ba83760806644b21ca7f8eef6894a5f24f",
+      "src/gateway/status.rs": "7857db8bb796d6830ee260ddb6b8ce10711b4bfd41f332c50ce6d87477a196fd",
+      "src/gateway/timeouts.rs": "21da655e1c48461186a41083cbbb38203fd33280689ed15041b3d431715147a1",
+      "src/gateway/tls_policy.rs": "0ce2f5164dee4043a1f6e92be8e331b8fc7ecd35e836ce73ff240ab25730db6e",
+      "src/history.rs": "4a1fc33c2af932195910ac94c54a6ee514ff0de824bbce4717bb24e78d5a906b",
+      "src/identity.rs": "c8066e6d7b379ab3011a8239787d76b68def15f6f99369af85af60e179694936",
+      "src/ingress/checkpoint.rs": "240b41332e515e9d9f99dc2dcf3b67ce2b3e703991fc49fd81d6bebc47db80a9",
+      "src/ingress/mod.rs": "41009645457760de83b08d0d60a3c1b5dc18356c0087690799e5c35b61937212",
+      "src/ingress/policy.rs": "ce3613d6df97fb9c8795cba7e52ee413017125fed2e7a62eed1299a70584c8ff",
+      "src/ingress/preflight.rs": "17a45a373cce678fd97cb4f67e1f709107201ec62d2691cf2f52800fa7cb0677",
+      "src/ingress/release.rs": "5faddafc997a963c7071f1fec1812892a5f2bd7973794a2c021d78e01821b280",
+      "src/ingress/resources.rs": "d41dd3de3a86df38b747ec7cf388e80da299aec59c3407efad45f4c0068b7b9a",
+      "src/ingress/status.rs": "dfbbe899bb407bacef899af049395313a46ff40c828f3b882ce12140da289729",
+      "src/lib.rs": "7cc8b37af22a8c74962bf474f0a8f4333680d228bb1635496b9d6e5fb1c66d3b",
+      "src/logging/access.rs": "714d5b38c77b978650d803d54dc3d4ad2778511ef403aa957ffc2c68701f9d15",
+      "src/logging/files.rs": "9a8349832185852075b535af9e289bd496403df22c21f77b974d81faefc89d1a",
+      "src/logging/rotation.rs": "567f9d47d13a93605111a68f8550c1ba02404889213cb1510d9bcf7f1046dbe7",
+      "src/logging.rs": "184d3c01c95270c4ba181dfdfaa8e6837c861c088aeed87a4a73733208161ce4",
+      "src/main.rs": "aec1e606f491b644f08d288191c91b6038cba5836c87fd057c52946b148e37c7",
+      "src/maintenance.rs": "f07d275da9d42d2f6633a8876d6f828bf69d3265be5392b42127b784a3cfa73d",
+      "src/migration/ingress.rs": "92cc4bd3dca5336c286e71f1418b93cb5dbb9c6c0e9dba11e930f0cfa2b5b21f",
+      "src/migration/mod.rs": "d2f3350577467400e48679bf9dcf49f64a19cb73fa21d0f28dc7363e1acdb030",
+      "src/migration/nginx.rs": "9a2c23f54ca728202ddb7d2ade1cd2e84f5a190f7fabfb46224f3f11770efc07",
+      "src/model.rs": "61f79d2780705b75ed75c84a6d4614cf90df07c300e13302641fc11846d7c171",
+      "src/otlp/config.rs": "35ed072492aed511de3601ca9c32d996a2834d4c7b29914ac7acc1483950fe0f",
+      "src/otlp/mod.rs": "eb8fd7ef652032540a5cfb822d5b0ff26ab15c526f1905c0fbd0b2749ab27b02",
+      "src/otlp/propagation.rs": "1971a0e6ac091685a49c286153446d7a190f59f875d4fb73f15e3aac1f22231d",
+      "src/otlp/record.rs": "a8b957ee925b5b366ad904d72f8243f305cfe41362fc328bd59bb48eba1f838e",
+      "src/otlp/trace.rs": "d7f41819f0d08a2b00c896bc8abdd22118183cf8d0f33b7744af22447c5afb6b",
+      "src/proxy/body.rs": "3f8b666d616a0c03f51e9240005a7ac9d9e416120cdc8d4041e6cb3c25738939",
+      "src/proxy/completion.rs": "9b9b05c35331d1b19daf648d65e43a11df09ce5af12e8c8dd53add1ab7092de7",
+      "src/proxy/hyper/body.rs": "ed35be1b64760db6b63561b2dc973e6a99a3f7be25743bbceb311ddc09b49524",
+      "src/proxy/hyper/io.rs": "966e22054c20c031576ab9f0ad2ba18d729ed02c72e017dc10036d4129e00a27",
+      "src/proxy/hyper/mod.rs": "f7f98218e4efb248fab9877bba10709a0e0bbc2fbf49c6dba9efd9535ff01ea3",
+      "src/proxy/hyper/request.rs": "bb88583566b92b1cc539365e5be8fd1fe35aba6aa3d7b4d391918ca6ca533508",
+      "src/proxy/mirror.rs": "f2ab27dd7943c3f654288582d56fe5e0da3428bc3b18d936dc90650a0bbafba4",
+      "src/proxy/mod.rs": "a7cc8409a822940272af041cd283ec672dddc49922c33669b2a02b9ea5ea3f6b",
+      "src/proxy/planning.rs": "90980630f39d07d2f8ab374e0d1d9931aebc7b1711cf2389621f9abad6623e07",
+      "src/proxy/responses.rs": "87d0466bc215eada01b9ce398fb49ab754e16a2e17d8f7e44c533e6309436c3a",
+      "src/proxy/static_files.rs": "a8ba2e7e7d50d1ac743383074d0d1c82ad9ae3fce1450ff333aa03944da1d70a",
+      "src/proxy_protocol.rs": "88fcc8fbd9ff1ae211754043fbc439771e605ba65e9ec4c30042a4e02643a45c",
+      "src/rollout/metrics.rs": "747b7300e5577e19c77547b179afb084d1e28c913a30e1d50f1bb822b0818430",
+      "src/rollout/progress.rs": "41552eefbf272425ce21a855091e864d48d736ccbfaaa5aa4d67d3ff08ecc3b6",
+      "src/rollout.rs": "a310cd1ecb75a4c40667f88d454261d0cd2284abffc5cf1539d9a0240a6caef5",
+      "src/routing.rs": "e56b40fb4dc1d180e16492e1df73a554ba3421944a8dd88740853f56fb9b39f5",
+      "src/runtime/drain.rs": "22ed9fd115948f50da56de710e8fbfd245a67d5981045621d5a9dcfa09de2e7f",
+      "src/runtime.rs": "f31b3404909fc85f0b81e147b2299075a449caca63543c167b0bb002bb9638b4",
+      "src/script/budget.rs": "2aadab51db68c89387d19eccb72bdf8d0d98fba3663f939fa51e7776ff9d47ed",
+      "src/script/codegen.rs": "25e4efde9477ae9b7efaa0958eb845b607cb371673f6e505a91d745505cf3778",
+      "src/script/headers.rs": "1bbcafea6cfd5d7944c17c58e0720e475233dfc917ce548c09135d5db63c0b22",
+      "src/script/json.rs": "3f144c3cecd600db0be56fbb271ee9b617f688cc4784063af1a6d4f58607e8fe",
+      "src/script/mod.rs": "afba7cf8c566e70f87de0b6814f0260f693e03537f4c6264affc59879e3748c3",
+      "src/script/queue.rs": "d38ee827b29f19464c8ced3a3b912ff76ef3e5f16d49df26c8386cd13e511ae7",
+      "src/script/syntax.rs": "12545e1412c892843a430b13d29a30a145836ea642febb116d0b996ed9e448de",
+      "src/security/jwt.rs": "1db5250632ab0ce53f1756a4167237179b428a0126cacfa9dcfa6d1cc1755944",
+      "src/security/mod.rs": "6df763453749d3c65cda7ee3cea68970f1e35f297acc768a02e95dc1f5d3facd",
+      "src/security/mtls.rs": "ed100218b4b48ed91c43447d527ca2e62e73b4fd7de2b452b77d25cadc3fd544",
+      "src/telemetry/controller.rs": "8e0fb272afff769634bc28b8458e9b71db5bf205a9f6a7243900ea8ef7278a7c",
+      "src/telemetry/request.rs": "d0d6ae3f05df61e701e3bf0a3c01d7b4537115a2a81498575a3aeb65ae7301b3",
+      "src/telemetry/runtime.rs": "82ac58110b68d3f0505852d76770573835203a519b870eb4b7948760615e7355",
+      "src/telemetry/traffic.rs": "69ef4aa044d97faee0e98951155873b64293311399cff66e060c9c92a5a235a8",
+      "src/telemetry.rs": "b4d17c4c8d49d3e0b47d1bbd7fc4873344e0c0627aa88fff13e86211f21aeb80",
+      "src/tenancy/domains.rs": "5625d04cddab467f008a1639294e9e3e08609de4becf8666f41dc46c4e1f34b2",
+      "src/tenancy.rs": "bdcff1e4c456fcc946bbadbfe4db4a58bec5874169a3432b8049348bfa31a717",
+      "src/traffic/global.rs": "06b9ca9b71f9bb75ed237963ce48303b51c6687f0761031111992661f21442b6",
+      "src/traffic.rs": "78ddcccbcda994f0a453c10d5b54941ee87be7981c1237b85be0a68210e185c2",
+      "src/upstream.rs": "87c55972c83c689be7d975e72b420685ed28a16e4dfd22d73ac4eaf86343c660",
+      "src/xdp/artifact.rs": "d6d1586b4ce5b5f4270aaf2c31a4234f68c614c9beac32e9f717d147caca3977",
+      "src/xdp/compiler.rs": "4f91dc7e88e59f07a27d6c0a6f50888fc8e2dd98b3359b0b5ba72f65b3725f21",
+      "src/xdp/config.rs": "2889579fa8d314bc7afb03b6fa94e4cb335d281632808d207450538b21512519",
+      "src/xdp/diagnostics.rs": "8a16cb6ac2d9ca25ad14ed16cbb931810faad118aae89a4a58a6c7ddb246d7ca",
+      "src/xdp/events.rs": "ec22f3d0db1cd4203ea5a16ec1651f1e0d983962e027575df913415659421037",
+      "src/xdp/history.rs": "b9f9e0384c202b846f0ab749cbf35531374fc19fc1bc1cdf9ef03e053f1722f3",
+      "src/xdp/kernel.rs": "13de655ea5196683c87443e0509f3a955b998e6d7f276da30e286845ae07323e",
+      "src/xdp/lifecycle.rs": "a46130f732cb7b23ef30b0bdc8322bab924fd7872ae5b93f22097dc480103944",
+      "src/xdp/management.rs": "3ff7e22d71f5acf3de8b1e4d2fd9ce52f3ca7624ef3be2566c1d0c1bb1cae5bf",
+      "src/xdp/maps.rs": "64f9efc9ed3ad1ab711229b2651e14a18c6aec408c0ba5e43d16ce71a9c8830f",
+      "src/xdp/mod.rs": "525e1ee20b2d46f5b19ee80554596976cc4588764dfd89c6ad7c866f7772cb40",
+      "src/xdp/service.rs": "f01598de0d66040c217c8f28df89e40eb998cc112c3398e6a3c3d10b99787d71"
+    }
+  },
+  "gate": {
+    "pingora": {
+      "paired_difference_pct": [
+        6.6796883172991155,
+        3.158453837190297,
+        36.942624835878576
+      ],
+      "cv_pct": [
+        6.448851524257397,
+        14.313134543747246
+      ],
+      "passed": false
+    },
+    "hyper": {
+      "paired_difference_pct": [
+        5.367100300958017,
+        6.19251585239755,
+        10.683392335574396
+      ],
+      "cv_pct": [
+        9.780422047889461,
+        1.7634441324386902
+      ],
+      "passed": false
+    }
+  },
+  "pingora": {
+    "windows": 6,
+    "requests": 3589546,
+    "errors": 0,
+    "summary": {
+      "rgnix/proxy-1k/c64": {
+        "samples": 3,
+        "requests": 1914580,
+        "errors": 0,
+        "rps": {
+          "median": 63247.44402842289,
+          "min": 59688.999986903116,
+          "max": 67869.17810897078
+        },
+        "p50_ms": {
+          "median": 0.913,
+          "min": 0.884,
+          "max": 0.957
+        },
+        "p95_ms": {
+          "median": 1.52,
+          "min": 1.28,
+          "max": 1.717
+        },
+        "p99_ms": {
+          "median": 2.281,
+          "min": 1.594,
+          "max": 2.758
+        },
+        "server_cpu_cores": {
+          "median": 0.9937635836434512,
+          "min": 0.9930524938637177,
+          "max": 0.9959321770187451
+        },
+        "server_cpu_us_per_request": {
+          "median": 15.701069175498192,
+          "min": 14.674292584178284,
+          "max": 16.649023837918236
+        },
+        "client_cpu_cores": {
+          "median": 0.34040552382726996,
+          "min": 0.33520675431314867,
+          "max": 0.34630831640365345
+        },
+        "origin_cpu_cores": {
+          "median": 0.36138002019965804,
+          "min": 0.35691508990011284,
+          "max": 0.3679749409065242
+        },
+        "peak_pss_kib": {
+          "median": 28765,
+          "min": 28756,
+          "max": 28780
+        },
+        "peak_rss_kib": {
+          "median": 30176,
+          "min": 30168,
+          "max": 30212
+        },
+        "rps_cv_pct": 6.448851524257397
+      },
+      "candidate/proxy-1k/c64": {
+        "samples": 3,
+        "requests": 1674966,
+        "errors": 0,
+        "rps": {
+          "median": 59159.251169073344,
+          "min": 46705.69529083436,
+          "max": 61604.49958261097
+        },
+        "p50_ms": {
+          "median": 0.968,
+          "min": 0.934,
+          "max": 1.219
+        },
+        "p95_ms": {
+          "median": 1.737,
+          "min": 1.606,
+          "max": 2.38
+        },
+        "p99_ms": {
+          "median": 2.418,
+          "min": 2.265,
+          "max": 3.576
+        },
+        "server_cpu_cores": {
+          "median": 0.990855236050013,
+          "min": 0.9696511195271942,
+          "max": 0.9929773601161893
+        },
+        "server_cpu_us_per_request": {
+          "median": 16.784819626575796,
+          "min": 16.084137404951836,
+          "max": 20.760875381240307
+        },
+        "client_cpu_cores": {
+          "median": 0.3361517357404255,
+          "min": 0.3216795596944228,
+          "max": 0.33656692757188156
+        },
+        "origin_cpu_cores": {
+          "median": 0.3569918605855787,
+          "min": 0.35494814207644265,
+          "max": 0.3648687202344595
+        },
+        "peak_pss_kib": {
+          "median": 28759,
+          "min": 28746,
+          "max": 28778
+        },
+        "peak_rss_kib": {
+          "median": 30180,
+          "min": 30164,
+          "max": 30208
+        },
+        "rps_cv_pct": 14.313134543747246
+      }
+    }
+  },
+  "hyper": {
+    "windows": 6,
+    "requests": 3814521,
+    "errors": 0,
+    "summary": {
+      "rgnix/proxy-1k/c64": {
+        "samples": 3,
+        "requests": 1949865,
+        "errors": 0,
+        "rps": {
+          "median": 66528.42471064632,
+          "min": 57508.2323711318,
+          "max": 69675.03420437234
+        },
+        "p50_ms": {
+          "median": 0.893,
+          "min": 0.86,
+          "max": 1.03
+        },
+        "p95_ms": {
+          "median": 1.438,
+          "min": 1.307,
+          "max": 1.747
+        },
+        "p99_ms": {
+          "median": 2.204,
+          "min": 1.861,
+          "max": 2.228
+        },
+        "server_cpu_cores": {
+          "median": 0.9950429041708339,
+          "min": 0.9889186119982326,
+          "max": 0.9960804333959827
+        },
+        "server_cpu_us_per_request": {
+          "median": 14.864602856588897,
+          "min": 14.296088186684743,
+          "max": 17.3026167410134
+        },
+        "client_cpu_cores": {
+          "median": 0.4161987468431338,
+          "min": 0.39627855934024975,
+          "max": 0.42579527517266624
+        },
+        "origin_cpu_cores": {
+          "median": 0.49995885338636664,
+          "min": 0.48118492679306,
+          "max": 0.513882450231128
+        },
+        "peak_pss_kib": {
+          "median": 24753,
+          "min": 24743,
+          "max": 24768
+        },
+        "peak_rss_kib": {
+          "median": 26244,
+          "min": 26216,
+          "max": 26248
+        },
+        "rps_cv_pct": 9.780422047889461
+      },
+      "candidate/proxy-1k/c64": {
+        "samples": 3,
+        "requests": 1864656,
+        "errors": 0,
+        "rps": {
+          "median": 62532.36963607098,
+          "min": 60679.869352792455,
+          "max": 62608.83199310115
+        },
+        "p50_ms": {
+          "median": 0.935,
+          "min": 0.891,
+          "max": 0.961
+        },
+        "p95_ms": {
+          "median": 1.675,
+          "min": 1.503,
+          "max": 2.074
+        },
+        "p99_ms": {
+          "median": 2.179,
+          "min": 2.127,
+          "max": 3.17
+        },
+        "server_cpu_cores": {
+          "median": 0.9939497061448691,
+          "min": 0.9917510704813093,
+          "max": 0.9950367960646838
+        },
+        "server_cpu_us_per_request": {
+          "median": 15.912347506669725,
+          "min": 15.875551012585447,
+          "max": 16.343988229692346
+        },
+        "client_cpu_cores": {
+          "median": 0.40667371674163766,
+          "min": 0.3960099015147204,
+          "max": 0.4068597128985276
+        },
+        "origin_cpu_cores": {
+          "median": 0.48997520725451277,
+          "min": 0.4848782955478173,
+          "max": 0.4940530957574896
+        },
+        "peak_pss_kib": {
+          "median": 24786,
+          "min": 24783,
+          "max": 24806
+        },
+        "peak_rss_kib": {
+          "median": 26272,
+          "min": 26256,
+          "max": 26292
+        },
+        "rps_cv_pct": 1.7634441324386902
+      }
+    }
+  }
+}

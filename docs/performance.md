@@ -19,6 +19,8 @@ A [later one-worker diagnostic](validation-pingora-audit-2026-09-28.md) retained
 
 The experimental branch also includes a [standalone Hyper transport feasibility study](validation-hyper-prototype-2026-09-28.md). It preserves streaming and connection reuse but omits product features. Its exploratory results and failed calibration are not a performance claim for rgnix, and the production engine remains Pingora.
 
+The next [product integration experiment](hyper-experimental.md) enables Hyper inside the real binary for a bounded plain HTTP/1 subset, preserving routing, budgets, telemetry and configuration snapshots. `benchmark_compare.py --plain-proxy` can compare the same binary with `--rgnix-transport pingora --candidate-transport hyper`; calibrate each mode against itself first. [Actual checks and calibration](validation-hyper-product-2026-09-28.md) remain separate from the minimal-proxy results.
+
 ## Implemented versus proposed
 
 Implemented: backend selection and Gateway indexing, lazy request/header state, request metric handles, RGL constants and request-only instance lifetimes, guarded sendfile, bounded idle-connection groups, smaller repeated session transfers, borrowed HTTP/1 task queues and lazy timer checks. See [vendor patch contracts](../vendor/README.md), [deployment budgets](deployment.md) and [Wasm compatibility](rgl.md).

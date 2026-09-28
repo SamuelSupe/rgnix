@@ -98,6 +98,7 @@ pub(crate) fn error_reason(error: &pingora::Error) -> &'static str {
         ErrorType::ConnectTimedout => "connect_timeout",
         ErrorType::TLSHandshakeTimedout => "tls_timeout",
         ErrorType::ReadTimedout => "read_timeout",
+        ErrorType::Custom("UpstreamTimedout") => "upstream_timeout",
         ErrorType::WriteTimedout => "write_timeout",
         ErrorType::ReadError => "read",
         ErrorType::WriteError => "write",
