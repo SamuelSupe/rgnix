@@ -43,15 +43,16 @@ pub(super) async fn serve(
     ctx.request.remote_addr = peer.ip().to_string();
     ctx.original_peer = ctx.request.remote_addr.clone();
     let version = request.version();
-    let mut guard = RequestGuard {
+    let mut guard = Box::new(RequestGuard {
         proxy,
-        ctx: Some(ctx),
+        ctx,
+        finished: false,
         counts: Arc::new(Counters::default()),
         version,
         error: None,
         keepalive: Duration::from_secs(60),
         io_failure: connection.failure.clone(),
-    };
+    });
     connection.read_timeout_ms.store(60_000, Ordering::Relaxed);
     let result = forward(listener, request, peer, &mut guard).await;
     let mut response = match result {
@@ -79,7 +80,7 @@ pub(super) async fn serve(
             )
         }
     };
-    let ctx = guard.ctx.as_mut().unwrap();
+    let ctx = &mut guard.ctx;
     ctx.status = response.status().as_u16();
     if let Some(route) = &ctx.route {
         guard.keepalive = route.settings.keepalive;
@@ -127,7 +128,7 @@ async fn forward(
     peer: SocketAddr,
     guard: &mut RequestGuard,
 ) -> pingora::Result<Response<Payload>> {
-    let ctx = guard.ctx.as_mut().unwrap();
+    let ctx = &mut guard.ctx;
     if listener.shared.telemetry.draining.get() != 0 {
         return Err(error(503, "server is draining"));
     }

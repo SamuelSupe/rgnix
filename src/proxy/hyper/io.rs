@@ -18,7 +18,7 @@ use tokio::{
 };
 
 pub(super) struct Connection {
-    pending: Mutex<VecDeque<RequestGuard>>,
+    pending: Mutex<VecDeque<Box<RequestGuard>>>,
     pub failure: Arc<AtomicU8>,
     pub read_timeout_ms: AtomicU64,
 }
@@ -32,7 +32,7 @@ impl Default for Connection {
     }
 }
 impl Connection {
-    pub fn queue(&self, request: RequestGuard) {
+    pub fn queue(&self, request: Box<RequestGuard>) {
         self.pending
             .lock()
             .unwrap_or_else(|e| e.into_inner())

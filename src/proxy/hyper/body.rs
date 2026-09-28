@@ -25,7 +25,8 @@ pub(super) struct Counters {
 
 pub(super) struct RequestGuard {
     pub proxy: Proxy,
-    pub ctx: Option<RequestContext>,
+    pub ctx: RequestContext,
+    pub finished: bool,
     pub counts: Arc<Counters>,
     pub version: http::Version,
     pub error: Option<Box<pingora::Error>>,
@@ -34,9 +35,11 @@ pub(super) struct RequestGuard {
 }
 impl RequestGuard {
     pub fn finish(&mut self, delivered: bool) {
-        let Some(mut ctx) = self.ctx.take() else {
+        if self.finished {
             return;
-        };
+        }
+        self.finished = true;
+        let ctx = &mut self.ctx;
         if !delivered && self.error.is_none() {
             let kind = match self.io_failure.load(Ordering::Relaxed) {
                 1 => pingora::ErrorType::ReadTimedout,
@@ -49,7 +52,7 @@ impl RequestGuard {
         }
         let status = if ctx.status != 0 { ctx.status } else { 499 };
         self.proxy.complete(
-            &mut ctx,
+            ctx,
             Completion {
                 version: self.version,
                 status,
@@ -118,12 +121,13 @@ impl Body for RequestBody {
 
 pub(super) struct ResponseBody {
     inner: Payload,
-    guard: Option<RequestGuard>,
+    // The context stays at one address across body polling and socket completion.
+    guard: Option<Box<RequestGuard>>,
     connection: Arc<Connection>,
     done: bool,
 }
 impl ResponseBody {
-    pub fn new(inner: Payload, guard: RequestGuard, connection: Arc<Connection>) -> Self {
+    pub fn new(inner: Payload, guard: Box<RequestGuard>, connection: Arc<Connection>) -> Self {
         let done = inner.is_end_stream();
         Self {
             inner,

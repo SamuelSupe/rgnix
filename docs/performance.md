@@ -21,6 +21,8 @@ The experimental branch also includes a [standalone Hyper transport feasibility 
 
 The next [product integration experiment](hyper-experimental.md) enables Hyper inside the real binary for a bounded plain HTTP/1 subset, preserving routing, budgets, telemetry and configuration snapshots. `benchmark_compare.py --plain-proxy` can compare the same binary with `--rgnix-transport pingora --candidate-transport hyper`; calibrate each mode against itself first. [Actual checks and calibration](validation-hyper-product-2026-09-28.md) remain separate from the minimal-proxy results.
 
+A subsequent [CPU and copy profile](validation-hyper-profile-2026-09-28.md) found repeated moves of the integrated request context. Keeping that context in one heap allocation reduced captured libc copy bytes from about 64 KB to 26.5 KB per request, at the cost of one extra allocation. This is an operation-count result, not a throughput or NGINX-parity claim.
+
 ## Implemented versus proposed
 
 Implemented: backend selection and Gateway indexing, lazy request/header state, request metric handles, RGL constants and request-only instance lifetimes, guarded sendfile, bounded idle-connection groups, smaller repeated session transfers, borrowed HTTP/1 task queues and lazy timer checks. See [vendor patch contracts](../vendor/README.md), [deployment budgets](deployment.md) and [Wasm compatibility](rgl.md).

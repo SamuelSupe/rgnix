@@ -45,3 +45,5 @@ python3 scripts/integration.py /path/to/rgnix
 使用 `scripts/benchmark_compare.py --plain-proxy --cases proxy-1k`，通过 `--rgnix-transport` 与 `--candidate-transport` 选择两种模式；两条程序路径可以指向同一个构建。A/A 时两种标签必须使用相同模式，分别校准 Pingora 和 Hyper。使用相同配置、CPU/并发、窗口长度和共同上游，门槛通过后才解释 A/B；不能用最小代理的结果代替产品路径。
 
 [本轮实际验证记录](validation-hyper-product-2026-09-28.md)与[独立原型的历史结果](validation-hyper-prototype-2026-09-28.md)分开记录。当前未完成 TLS/H2/RGL/认证和完整连接资源隔离的迁移，也没有多 worker、跨节点或生产容量结论。
+
+后续 [CPU 剖析与上下文搬移优化](validation-hyper-profile-2026-09-28.md)将请求状态放在固定堆位置，减少它在异步状态和完成队列中的按值复制。捕获的 libc 拷贝字节下降约 58.6%，代价是每请求增加一次分配；该操作计数不等同于吞吐提升。

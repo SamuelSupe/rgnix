@@ -175,6 +175,7 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             check("POST is never replayed after origin commit disconnect", request(port, "/commit", "POST", body=b"once")[0] == 502 and Origin.attempts == 1)
             wait_for(budget, 0)
 
+            completed = metric_value(metrics(), "rgnix_requests_total", status="200")
             conn = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
             for _ in range(5):
                 conn.request("GET", "/exact", headers={"Host": "example.test"})
@@ -182,7 +183,9 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             idle = conn.sock
             check("keepalive expires an idle connection", idle.recv(1) == b"")
             conn.close()
+            check("socket completion and guard drop count each response once", metric_value(metrics(), "rgnix_requests_total", status="200") == completed + 5)
             if hyper:
+                completed = metric_value(metrics(), "rgnix_requests_total", status="200")
                 pipelined = socket.create_connection(("127.0.0.1", port), timeout=3)
                 pipelined.sendall(b"GET /exact HTTP/1.1\r\nHost: example.test\r\n\r\nGET /head HTTP/1.1\r\nHost: example.test\r\nConnection: close\r\n\r\n")
                 data = bytearray()
@@ -190,7 +193,7 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
                     data.extend(chunk)
                 pipelined.close()
                 wait_for(budget, 0)
-                check("pipelined responses finish once and release permits", data.count(b"HTTP/1.1 200") == 2 and b"exact" in data and b"abcdef" in data)
+                check("pipelined responses finish once and release permits", data.count(b"HTTP/1.1 200") == 2 and b"exact" in data and b"abcdef" in data and metric_value(metrics(), "rgnix_requests_total", status="200") == completed + 2)
 
             Origin.release.clear()
             held_requests = [held("/budget-hold") for _ in range(2)]
