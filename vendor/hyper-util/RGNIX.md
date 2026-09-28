@@ -14,7 +14,18 @@ Changes in `src/client/legacy/client.rs`:
   the existing Hyper dispatch boundary. Request retry policy, pool handling,
   cancellation and response-body ownership stay unchanged.
 - Consume the unused timer argument in an HTTP/1-only build.
+- Share immutable client state through `Arc`, so cloning a request's client
+  handle does not clone the connector and protocol builders. The connector
+  is still cloned when a connection is actually needed.
+- Poll the existing pool checkout first. An idle hit does not construct the
+  connection future; a miss retains its registered waiter and runs the original
+  checkout/connect race in a boxed future. Expiration, poisoned connections,
+  cancellation cleanup and retry policy still use the original pool logic.
 
-The request box adds one allocation. Retain this patch only with measured copy,
-allocation and behavioral evidence; the product transport disables retries.
-See `docs/validation-hyper-prepared-2026-09-28.md` in the root repository.
+The request box adds one allocation; the cold connection path adds one more.
+The client state has one shared allocation per client, instead of repeated
+connector clones on the request path. Retain these patches only with measured
+copy, allocation and behavioral evidence; the product transport disables retries.
+See `docs/validation-hyper-prepared-2026-09-28.md` and
+`docs/validation-hyper-pool-2026-09-28.md` in the root repository. Fewer counted
+operations do not by themselves establish a throughput or tail-latency gain.

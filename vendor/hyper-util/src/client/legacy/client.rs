@@ -8,6 +8,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::future::{poll_fn, Future};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{self, Poll};
 use std::time::Duration;
 
@@ -35,6 +36,10 @@ type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 /// underlying connection pool will be reused.
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 pub struct Client<C, B> {
+    inner: Arc<ClientInner<C, B>>,
+}
+
+struct ClientInner<C, B> {
     config: Config,
     connector: C,
     exec: Exec,
@@ -254,7 +259,7 @@ where
                     error,
                     connection_reused,
                 }) => {
-                    if !self.config.retry_canceled_requests || !connection_reused {
+                    if !self.inner.config.retry_canceled_requests || !connection_reused {
                         // if client disabled, don't retry
                         // a fresh connection means we definitely can't retry
                         return Err(error);
@@ -295,7 +300,7 @@ where
                 ));
             }
 
-            if self.config.set_host {
+            if self.inner.config.set_host {
                 let uri = req.uri().clone();
                 req.headers_mut().entry(HOST).or_insert_with(|| {
                     let hostname = uri.host().expect("authority implies host");
@@ -359,7 +364,7 @@ where
             drop(pooled);
         } else {
             let on_idle = poll_fn(move |cx| pooled.poll_ready(cx)).map(|_| ());
-            self.exec.execute(on_idle);
+            self.inner.exec.execute(on_idle);
         }
 
         Ok(res)
@@ -374,7 +379,7 @@ where
                 Ok(pooled) => return Ok(pooled),
                 Err(ClientConnectError::Normal(err)) => return Err(err),
                 Err(ClientConnectError::CheckoutIsClosed(reason)) => {
-                    if !self.config.retry_canceled_requests {
+                    if !self.inner.config.retry_canceled_requests {
                         return Err(e!(Connect, reason));
                     }
 
@@ -392,14 +397,30 @@ where
         &self,
         pool_key: PoolKey,
     ) -> Result<pool::Pooled<PoolClient<B>, PoolKey>, ClientConnectError> {
-        // Return a single connection if pooling is not enabled
-        if !self.pool.is_enabled() {
-            return self
-                .connect_to(pool_key)
+        if !self.inner.pool.is_enabled() {
+            return Box::pin(self.connect_to(pool_key))
                 .await
                 .map_err(ClientConnectError::Normal);
         }
 
+        // Keep the handshake/racing future out of the common idle-hit state.
+        // A miss retains the registered waiter, including its cancellation cleanup.
+        let mut checkout = self.inner.pool.checkout(pool_key.clone());
+        match poll_fn(|cx| Poll::Ready(Pin::new(&mut checkout).poll(cx))).await {
+            Poll::Ready(Ok(pooled)) => Ok(pooled),
+            Poll::Ready(Err(err)) if err.is_canceled() => Box::pin(self.connect_to(pool_key))
+                .await
+                .map_err(ClientConnectError::Normal),
+            Poll::Ready(Err(err)) => Err(ClientConnectError::Normal(e!(Connect, err))),
+            Poll::Pending => Box::pin(self.connect_after_checkout(checkout, pool_key)).await,
+        }
+    }
+
+    async fn connect_after_checkout(
+        &self,
+        checkout: pool::Checkout<PoolClient<B>, PoolKey>,
+        pool_key: PoolKey,
+    ) -> Result<pool::Pooled<PoolClient<B>, PoolKey>, ClientConnectError> {
         // This actually races 2 different futures to try to get a ready
         // connection the fastest, and to reduce connection churn.
         //
@@ -413,9 +434,8 @@ where
         //   (an idle connection became available first), the started
         //   connection future is spawned into the runtime to complete,
         //   and then be inserted into the pool as an idle connection.
-        let checkout = self.pool.checkout(pool_key.clone());
         let connect = self.connect_to(pool_key);
-        let is_ver_h2 = self.config.ver == Ver::Http2;
+        let is_ver_h2 = self.inner.config.ver == Ver::Http2;
 
         // The order of the `select` is depended on below...
 
@@ -443,7 +463,7 @@ where
                         });
                     // An execute error here isn't important, we're just trying
                     // to prevent a waste of a socket...
-                    self.exec.execute(bg);
+                    self.inner.exec.execute(bg);
                 }
                 Ok(checked_out)
             }
@@ -486,15 +506,15 @@ where
         pool_key: PoolKey,
     ) -> impl Lazy<Output = Result<pool::Pooled<PoolClient<B>, PoolKey>, Error>> + Send + Unpin
     {
-        let executor = self.exec.clone();
-        let pool = self.pool.clone();
+        let executor = self.inner.exec.clone();
+        let pool = self.inner.pool.clone();
         #[cfg(feature = "http1")]
-        let h1_builder = self.h1_builder.clone();
+        let h1_builder = self.inner.h1_builder.clone();
         #[cfg(feature = "http2")]
-        let h2_builder = self.h2_builder.clone();
-        let ver = self.config.ver;
+        let h2_builder = self.inner.h2_builder.clone();
+        let ver = self.inner.config.ver;
         let is_ver_h2 = ver == Ver::Http2;
-        let connector = self.connector.clone();
+        let connector = self.inner.connector.clone();
         let dst = domain_as_uri(pool_key.clone());
         hyper_lazy(move || {
             // Try to take a "connecting lock".
@@ -706,17 +726,10 @@ where
     }
 }
 
-impl<C: Clone, B> Clone for Client<C, B> {
+impl<C, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
-            config: self.config,
-            exec: self.exec.clone(),
-            #[cfg(feature = "http1")]
-            h1_builder: self.h1_builder.clone(),
-            #[cfg(feature = "http2")]
-            h2_builder: self.h2_builder.clone(),
-            connector: self.connector.clone(),
-            pool: self.pool.clone(),
+            inner: self.inner.clone(),
         }
     }
 }
@@ -1593,14 +1606,16 @@ impl Builder {
         let exec = self.exec.clone();
         let timer = self.pool_timer.clone();
         Client {
-            config: self.client_config,
-            exec: exec.clone(),
-            #[cfg(feature = "http1")]
-            h1_builder: self.h1_builder.clone(),
-            #[cfg(feature = "http2")]
-            h2_builder: self.h2_builder.clone(),
-            connector,
-            pool: pool::Pool::new(self.pool_config, exec, timer),
+            inner: Arc::new(ClientInner {
+                config: self.client_config,
+                exec: exec.clone(),
+                #[cfg(feature = "http1")]
+                h1_builder: self.h1_builder.clone(),
+                #[cfg(feature = "http2")]
+                h2_builder: self.h2_builder.clone(),
+                connector,
+                pool: pool::Pool::new(self.pool_config, exec, timer),
+            }),
         }
     }
 }

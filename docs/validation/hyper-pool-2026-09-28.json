@@ -1,0 +1,1384 @@
+{
+  "base": "20a9b4c",
+  "branch": "experiment/replace-pingora",
+  "environment": "OrbStack Ubuntu ARM64, Rust 1.90.0; release thin LTO/codegen-units=1; isolated loopback namespace, front CPU 10, client CPU 2, origin CPU 6. Virtual CPU affinity does not reserve physical cores.",
+  "changes": [
+    "Shared immutable ClientInner via Arc",
+    "Existing idle checkout is polled before preparing connect/race state; the original race runs in a box on misses, keeping its registered waiter."
+  ],
+  "measurements": {
+    "before": {
+      "primitives": {
+        "method": "Resolved libc memcpy/memmove and clock_gettime uprobes. One connection, 10 warm and 500 measured requests. Counts include background operations and exclude inlined copies; not throughput or latency. AArch64 return addresses are mapped to ELF symbols.",
+        "records": [
+          {
+            "engine": "hyper",
+            "binary": "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+            "sha256": "89bcd6456bd1a4c83ad6270ab7d9c944c7685ff1e7731b2bbf0334738996d2be",
+            "requests": 500,
+            "events": {
+              "clock": 12186,
+              "memmove": 2,
+              "memcpy": 47996
+            },
+            "copy_bytes": 7521849,
+            "sizes": {
+              "0": 1503,
+              "29": 1001,
+              "264": 4000,
+              "296": 1500,
+              "4": 3000,
+              "304": 1500,
+              "936": 500,
+              "1032": 500,
+              "9": 4000,
+              "3": 2000,
+              "1": 6500,
+              "64": 500,
+              "14": 1500,
+              "280": 8494,
+              "1544": 500,
+              "344": 1500,
+              "272": 1500,
+              "15": 500,
+              "8": 1500,
+              "7": 1000,
+              "288": 1000,
+              "10": 500,
+              "6": 500,
+              "18": 500,
+              "12": 500,
+              "24": 500,
+              "13": 1000,
+              "5": 500
+            },
+            "copy_bytes_by_caller": {
+              "hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}": 2040000,
+              "rgnix::proxy::hyper::request::serve::{{closure}}": 1818500,
+              "tokio::sync::mpsc::list::Rx<T>::pop": 1118320,
+              "hyper_util::client::legacy::client::Client<C,B>::request": 1052000,
+              "hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write": 412000,
+              "<hyper::proto::h1::dispatch::Server<S,hyper::body::incoming::Incoming> as hyper::proto::h1::dispatch::Dispatch>::recv_msg": 280000,
+              "<rgnix::proxy::Proxy as pingora_proxy::proxy_trait::ProxyHttp>::new_ctx": 154000,
+              "tokio::sync::mpsc::chan::Rx<T,S>::recv": 152000,
+              "hyper::client::dispatch::Callback<T,U>::send": 144000,
+              "tokio::sync::oneshot::Sender<T>::send": 144000,
+              "<hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode": 95000,
+              "<http::header::map::HeaderMap<T> as core::clone::Clone>::clone": 32000,
+              "hyper::proto::h1::role::write_headers": 17000,
+              "<T as alloc::string::ToString>::to_string": 13500,
+              "<alloc::string::String as core::fmt::Write>::write_str": 9000,
+              "http::header::name::HeaderName::from_bytes": 9000,
+              "<alloc::string::String as core::clone::Clone>::clone": 7000,
+              "<hyper::proto::h1::role::FastWrite as core::fmt::Write>::write_str": 5000,
+              "<http::uri::authority::Authority as core::str::traits::FromStr>::from_str": 4500,
+              "rgnix::proxy::request_host_parts::{{closure}}": 4500,
+              "rgnix::proxy::normalize_decoded_path": 4500,
+              "rgnix::model::RuntimeSnapshot::route": 4500,
+              "<hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::encode": 1500,
+              "<hyper::common::date::CachedDate as core::fmt::Write>::write_str": 29,
+              "std::sync::mpmc::waker::SyncWaker::unregister": 0,
+              "bytes::bytes_mut::BytesMut::reserve_inner": 0
+            },
+            "clock_calls_by_caller": {
+              "std::sys::pal::unix::time::Timespec::now": 12186
+            },
+            "record_output": "[ perf record: Woken up 22 times to write data ]\n[ perf record: Captured and wrote 5.529 MB /tmp/rgnix-hyper-pool-20260928/primitive-before/hyper.data (60184 samples) ]\n",
+            "server_command": [
+              "taskset",
+              "-c",
+              "10",
+              "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+              "serve",
+              "-c",
+              "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+              "--admin",
+              "127.0.0.1:34007",
+              "--threads",
+              "1",
+              "--max-inflight",
+              "4096",
+              "--max-plugin-instances",
+              "512",
+              "--shutdown-grace-seconds",
+              "0",
+              "--shutdown-timeout-seconds",
+              "5",
+              "--experimental-hyper"
+            ]
+          }
+        ]
+      },
+      "profile": {
+        "mode": "profile",
+        "fixture_settings": {
+          "rgnix": "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "nginx": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+          "openresty": "/tmp/rgnix-compare-20260927/openresty/bin/openresty",
+          "candidate": "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "plain_proxy": true,
+          "rgnix_transport": "hyper",
+          "candidate_transport": "hyper",
+          "pingora": null,
+          "hyper": null,
+          "hyper_control": null,
+          "engines": [
+            "rgnix",
+            "candidate"
+          ],
+          "wrk": "wrk",
+          "work_dir": "/tmp/rgnix-hyper-prepared-20260928/aa-after",
+          "output": "/tmp/rgnix-hyper-prepared-20260928/aa-after.json",
+          "rounds": 3,
+          "seconds": 10,
+          "warmup": 2,
+          "concurrency": [
+            64,
+            256
+          ],
+          "cases": [
+            "proxy-1k"
+          ],
+          "connection_close": false,
+          "interleave": true,
+          "workers": 1,
+          "origin_workers": 1,
+          "client_threads": 1,
+          "server_cpus": "10",
+          "client_cpus": "2",
+          "origin_cpus": "6"
+        },
+        "profile_settings": {
+          "concurrency": 64,
+          "warmup_seconds": 3,
+          "seconds": 15,
+          "engines": [
+            "hyper"
+          ]
+        },
+        "network_namespace": "net:[4026534220]",
+        "method": "Single-worker CPU-pinned c64 plain HTTP/1 proxy; 3s warmup; cpu-clock 199 Hz DWARF stacks or separate syscall counters. Instrumented counts and stack samples, not throughput evidence. Stack scopes overlap; flat samples do not identify every inlined caller.",
+        "binaries": {
+          "pingora": {
+            "path": "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+            "sha256": "89bcd6456bd1a4c83ad6270ab7d9c944c7685ff1e7731b2bbf0334738996d2be"
+          },
+          "hyper": {
+            "path": "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+            "sha256": "89bcd6456bd1a4c83ad6270ab7d9c944c7685ff1e7731b2bbf0334738996d2be"
+          },
+          "nginx": {
+            "path": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+            "sha256": "d7509a23828ead5af789b69f2042a2eae74d25f740ef3c071dbc35c1b0f41304"
+          },
+          "origin": {
+            "path": "/tmp/rgnix-compare-20260927/openresty/nginx/sbin/nginx",
+            "sha256": "53de7d8583b2932a904f66f7cab088801fa0e7148e3f5c708507fcfc95f9ea18"
+          }
+        },
+        "records": [
+          {
+            "engine": "hyper",
+            "server_command": [
+              "taskset",
+              "-c",
+              "10",
+              "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+              "serve",
+              "-c",
+              "/tmp/rgnix-hyper-pool-20260928/profile-before/fixture/rgnix/nginx.conf",
+              "--admin",
+              "127.0.0.1:54083",
+              "--threads",
+              "1",
+              "--max-inflight",
+              "4096",
+              "--max-plugin-instances",
+              "512",
+              "--shutdown-grace-seconds",
+              "0",
+              "--shutdown-timeout-seconds",
+              "5",
+              "--experimental-hyper"
+            ],
+            "instrument_command": [
+              "perf",
+              "record",
+              "-e",
+              "cpu-clock",
+              "-F",
+              "199",
+              "-g",
+              "--call-graph",
+              "dwarf,16384",
+              "-p",
+              "302678",
+              "-o",
+              "/tmp/rgnix-hyper-pool-20260928/profile-before/hyper.data"
+            ],
+            "instrument_output": "[ perf record: Woken up 186 times to write data ]\n[ perf record: Captured and wrote 46.536 MB /tmp/rgnix-hyper-pool-20260928/profile-before/hyper.data (2898 samples) ]\n",
+            "preflight": [
+              "proxy-1k:200 and exact payload",
+              "proxy-16k:200 and exact payload"
+            ],
+            "run": {
+              "requests": 1075319,
+              "seconds": 15.001226,
+              "bytes": 1375333001,
+              "connect_errors": 0,
+              "read_errors": 0,
+              "write_errors": 0,
+              "status_errors": 0,
+              "timeout_errors": 0,
+              "p50_ms": 0.743,
+              "p95_ms": 1.841,
+              "p99_ms": 20.633,
+              "errors": 0,
+              "rps": 71682.07451844269,
+              "server_cpu_cores": 0.9719205616927574,
+              "server_cpu_us_per_request": 13.558767212334198,
+              "origin_cpu_cores": 0.5412890919715494,
+              "client_cpu_cores": 0.44456999714556666,
+              "peak_pss_kib": 23805,
+              "peak_rss_kib": 25288,
+              "server_pids": [
+                302678
+              ],
+              "host_cpu_ticks": {
+                "cpu": [
+                  4882,
+                  0,
+                  1343,
+                  19531,
+                  22,
+                  0,
+                  1336,
+                  0
+                ],
+                "cpu0": [
+                  214,
+                  0,
+                  34,
+                  1206,
+                  13,
+                  0,
+                  136,
+                  0
+                ],
+                "cpu1": [
+                  186,
+                  0,
+                  28,
+                  1261,
+                  0,
+                  0,
+                  98,
+                  0
+                ],
+                "cpu2": [
+                  238,
+                  0,
+                  280,
+                  716,
+                  0,
+                  0,
+                  155,
+                  0
+                ],
+                "cpu3": [
+                  274,
+                  0,
+                  35,
+                  1162,
+                  0,
+                  0,
+                  77,
+                  0
+                ],
+                "cpu4": [
+                  253,
+                  0,
+                  31,
+                  1190,
+                  1,
+                  0,
+                  57,
+                  0
+                ],
+                "cpu5": [
+                  295,
+                  0,
+                  39,
+                  1142,
+                  1,
+                  0,
+                  40,
+                  0
+                ],
+                "cpu6": [
+                  303,
+                  0,
+                  322,
+                  612,
+                  0,
+                  0,
+                  192,
+                  0
+                ],
+                "cpu7": [
+                  224,
+                  0,
+                  30,
+                  1223,
+                  1,
+                  0,
+                  44,
+                  0
+                ],
+                "cpu8": [
+                  270,
+                  0,
+                  33,
+                  1176,
+                  1,
+                  0,
+                  28,
+                  0
+                ],
+                "cpu9": [
+                  270,
+                  0,
+                  30,
+                  1178,
+                  1,
+                  0,
+                  25,
+                  0
+                ],
+                "cpu10": [
+                  788,
+                  0,
+                  292,
+                  23,
+                  0,
+                  0,
+                  402,
+                  0
+                ],
+                "cpu11": [
+                  249,
+                  0,
+                  28,
+                  1204,
+                  0,
+                  0,
+                  23,
+                  0
+                ],
+                "cpu12": [
+                  284,
+                  0,
+                  36,
+                  1160,
+                  1,
+                  0,
+                  17,
+                  0
+                ],
+                "cpu13": [
+                  253,
+                  0,
+                  32,
+                  1193,
+                  1,
+                  0,
+                  14,
+                  0
+                ],
+                "cpu14": [
+                  269,
+                  0,
+                  32,
+                  1180,
+                  0,
+                  0,
+                  10,
+                  0
+                ],
+                "cpu15": [
+                  222,
+                  0,
+                  28,
+                  1236,
+                  1,
+                  0,
+                  9,
+                  0
+                ],
+                "cpu16": [
+                  293,
+                  0,
+                  34,
+                  1156,
+                  0,
+                  0,
+                  9,
+                  0
+                ],
+                "cpu17": [
+                  0,
+                  0,
+                  0,
+                  1511,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "server_threads": {
+                "302678": {
+                  "name": "rgnix-after",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302679": {
+                  "name": "file-logs",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302680": {
+                  "name": "BG control",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302681": {
+                  "name": "BG rollout-metr",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302682": {
+                  "name": "BG access-polic",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302683": {
+                  "name": "BG upstream-mai",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302684": {
+                  "name": "admin",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302685": {
+                  "name": "BG hyper-127.0.",
+                  "cpu_seconds": 14.57,
+                  "last_cpu": 10
+                },
+                "302686": {
+                  "name": "BG connection-d",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302687": {
+                  "name": "Server",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302688": {
+                  "name": "BG access-polic",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "302689": {
+                  "name": "Timer thread",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                }
+              },
+              "load_before": "10.65 13.31 13.10 1/7898 302693",
+              "load_after": "10.21 13.06 13.02 6/7901 302697",
+              "command": [
+                "taskset",
+                "-c",
+                "2",
+                "wrk",
+                "-t",
+                "1",
+                "-c",
+                "64",
+                "-d",
+                "15s",
+                "--timeout",
+                "5s",
+                "--latency",
+                "-s",
+                "/tmp/rgnix-hyper-pool-20260928/profile-before/fixture/wrk-proxy-1k.lua",
+                "-H",
+                "Host: localhost",
+                "http://127.0.0.1:49591/proxy-1k"
+              ],
+              "wrk_output": "Running 15s test @ http://127.0.0.1:49591/proxy-1k\n  1 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.45ms    5.64ms 105.61ms   98.69%\n    Req/Sec    72.07k    22.50k  104.34k    58.67%\n  Latency Distribution\n     50%  743.00us\n     75%    1.00ms\n     90%    1.44ms\n     99%   20.63ms\n  1075319 requests in 15.00s, 1.28GB read\nRequests/sec:  71682.07\nTransfer/sec:     87.43MB\nBENCH_RESULT {\"requests\":1075319,\"seconds\":15.001226,\"bytes\":1375333001,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.743000,\"p95_ms\":1.841000,\"p99_ms\":20.633000}\n"
+            },
+            "flat_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 2K of event 'cpu-clock'\n# Event count (approx.): 14562812250\n#\n# Overhead  Command          Shared Object      Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         \n# ........  ...............  .................  ...............................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................\n#\n    11.63%  BG hyper-127.0.  [kernel.kallsyms]  [k] __wake_up_sync_key\n     5.00%  BG hyper-127.0.  [kernel.kallsyms]  [k] arch_counter_get_cntvct\n     4.45%  BG hyper-127.0.  [kernel.kallsyms]  [k] __arch_copy_to_user\n     4.07%  BG hyper-127.0.  [vdso]             [.] __kernel_clock_gettime\n     3.21%  BG hyper-127.0.  [kernel.kallsyms]  [k] net_rx_action\n     2.28%  BG hyper-127.0.  [kernel.kallsyms]  [k] local_daif_restore\n     2.07%  BG hyper-127.0.  libc.so.6          [.] 0x000000000009542c\n     1.59%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_sendmsg\n     1.55%  BG hyper-127.0.  [kernel.kallsyms]  [k] __do_softirq\n     1.38%  BG hyper-127.0.  rgnix-after        [.] http::header::name::StandardHeader::from_bytes\n     1.21%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_ack\n     1.14%  BG hyper-127.0.  [kernel.kallsyms]  [k] __local_bh_enable_ip\n     1.07%  BG hyper-127.0.  libc.so.6          [.] malloc\n     1.07%  BG hyper-127.0.  rgnix-after        [.] hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}\n     0.97%  BG hyper-127.0.  libc.so.6          [.] cfree\n     0.86%  BG hyper-127.0.  rgnix-after        [.] rgnix::proxy::hyper::request::serve::{{closure}}\n     0.83%  BG hyper-127.0.  [kernel.kallsyms]  [k] local_bh_enable\n     0.83%  BG hyper-127.0.  rgnix-after        [.] __aarch64_ldadd8_rel\n     0.79%  BG hyper-127.0.  libc.so.6          [.] 0x0000000000095428\n     0.79%  BG hyper-127.0.  rgnix-after        [.] httparse::parse_headers_iter_uninit\n     0.76%  BG hyper-127.0.  rgnix-after        [.] http::header::name::parse_hdr\n     0.72%  BG hyper-127.0.  rgnix-after        [.] <core::pin::Pin<P> as core::future::future::Future>::poll\n     0.69%  BG hyper-127.0.  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore\n     0.69%  BG hyper-127.0.  rgnix-after        [.] <hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::parse\n     0.66%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_output\n     0.66%  BG hyper-127.0.  rgnix-after        [.] <hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode\n     0.62%  BG hyper-127.0.  [kernel.kallsyms]  [k] __arch_copy_from_user\n     0.62%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a9940\n     0.59%  BG hyper-127.0.  [kernel.kallsyms]  [k] mod_timer\n     0.59%  BG hyper-127.0.  rgnix-after        [.] <core::hash::sip::Hasher<S> as core::hash::Hasher>::write\n     0.59%  BG hyper-127.0.  rgnix-after        [.] hyper::proto::h1::io::Buffered<T,B>::poll_flush\n     0.55%  BG hyper-127.0.  [kernel.kallsyms]  [k] do_el0_svc\n     0.55%  BG hyper-127.0.  rgnix-after        [.] http::header::map::hash_elem_using\n     0.55%  BG hyper-127.0.  rgnix-after        [.] http::header::name::HeaderName::from_bytes\n     0.52%  BG hyper-127.0.  [kernel.kallsyms]  [k] napi_consume_skb\n     0.52%  BG hyper-127.0.  rgnix-after        [.] tokio::runtime::io::registration::Registration::poll_ready\n     0.48%  BG hyper-127.0.  rgnix-after        [.] <alloc::collections::vec_deque::iter::Iter<T> as core::iter::traits::iterator::Iterator>::fold\n     0.48%  BG hyper-127.0.  rgnix-after        [.] <futures_util::future::future::Map<Fut,F> as core::future::future::Future>::poll\n     0.48%  BG hyper-127.0.  rgnix-after        [.] __aarch64_ldadd8_relax\n     0.45%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_rcv\n     0.45%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_poll\n     0.45%  BG hyper-127.0.  rgnix-after        [.] hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write\n     0.41%  BG hyper-127.0.  [kernel.kallsyms]  [k] __alloc_skb\n     0.41%  BG hyper-127.0.  rgnix-after        [.] http::header::map::HeaderMap<T>::try_append2\n     0.41%  BG hyper-127.0.  rgnix-after        [.] http::header::name::HdrName::from_bytes\n     0.41%  BG hyper-127.0.  rgnix-after        [.] http::uri::Uri::from_parts\n     0.41%  BG hyper-127.0.  rgnix-after        [.] hyper_util::client::legacy::client::Client<C,B>::send_request::{{closure}}\n     0.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] __dev_queue_xmit\n     0.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] __kfree_skb\n     0.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_queue_xmit\n     0.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] kmem_cache_alloc_node_noprof\n     0.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] kmem_cache_free\n     0.35%  BG hyper-127.0.  [kernel.kallsyms]  [k] fdget_pos\n     0.35%  BG hyper-127.0.  rgnix-after        [.] core::str::pattern::StrSearcher::new\n     0.35%  BG hyper-127.0.  rgnix-after        [.] tokio::runtime::scheduler::multi_thread::worker::run\n     0.35%  BG hyper-127.0.  rgnix-after        [.] tokio::sync::mpsc::list::Rx<T>::pop\n     0.31%  BG hyper-127.0.  [kernel.kallsyms]  [k] __tcp_transmit_skb\n     0.31%  BG hyper-127.0.  [kernel.kallsyms]  [k] _copy_to_iter\n     0.31%  BG hyper-127.0.  rgnix-after        [.] <hyper_util::client::legacy::pool::Checkout<T,K> as core::future::future::Future>::poll\n     0.31%  BG hyper-127.0.  rgnix-after        [.] hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write\n     0.28%  BG hyper-127.0.  [kernel.kallsyms]  [k] loopback_xmit\n     0.28%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a9840\n     0.28%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a9960\n     0.28%  BG hyper-127.0.  rgnix-after        [.] <alloc::string::String as core::fmt::Write>::write_str\n     0.28%  BG hyper-127.0.  rgnix-after        [.] <http::uri::authority::Authority as core::cmp::PartialEq>::eq\n     0.28%  BG hyper-127.0.  rgnix-after        [.] <rgnix::proxy::hyper::Listener as pingora_core::services::background::BackgroundService>::start::{{closure}}::{{closure}}\n     0.28%  BG hyper-127.0.  rgnix-after        [.] http::header::map::HeaderMap<T>::remove\n     0.28%  BG hyper-127.0.  rgnix-after        [.] memcpy@plt\n     0.28%  BG hyper-127.0.  rgnix-after        [.] prometheus::vec::MetricVec<T>::with_label_values\n     0.28%  BG hyper-127.0.  rgnix-after        [.] tokio::net::unix::stream::UnixStream::poll_read_priv\n     0.28%  BG hyper-127.0.  rgnix-after        [.] tokio::sync::mpsc::chan::Rx<T,S>::recv\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+          }
+        ]
+      }
+    },
+    "after": {
+      "primitives": {
+        "method": "Resolved libc memcpy/memmove and clock_gettime uprobes. One connection, 10 warm and 500 measured requests. Counts include background operations and exclude inlined copies; not throughput or latency. AArch64 return addresses are mapped to ELF symbols.",
+        "records": [
+          {
+            "engine": "hyper",
+            "binary": "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+            "requests": 500,
+            "events": {
+              "clock": 12213,
+              "memmove": 3,
+              "memcpy": 45496
+            },
+            "copy_bytes": 6357820,
+            "sizes": {
+              "0": 1505,
+              "264": 4000,
+              "296": 1500,
+              "4": 3000,
+              "304": 1500,
+              "936": 500,
+              "1032": 500,
+              "9": 4000,
+              "3": 2000,
+              "1": 6500,
+              "64": 500,
+              "14": 1500,
+              "280": 7494,
+              "736": 500,
+              "344": 500,
+              "272": 1000,
+              "15": 500,
+              "8": 1500,
+              "7": 1000,
+              "288": 1000,
+              "10": 500,
+              "6": 500,
+              "18": 500,
+              "29": 1000,
+              "12": 500,
+              "24": 500,
+              "13": 1000,
+              "5": 500
+            },
+            "copy_bytes_by_caller": {
+              "rgnix::proxy::hyper::request::serve::{{closure}}": 1818500,
+              "hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}": 1280000,
+              "tokio::sync::mpsc::list::Rx<T>::pop": 1118320,
+              "hyper_util::client::legacy::client::Client<C,B>::request": 648000,
+              "hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write": 412000,
+              "<hyper::proto::h1::dispatch::Server<S,hyper::body::incoming::Incoming> as hyper::proto::h1::dispatch::Dispatch>::recv_msg": 280000,
+              "<rgnix::proxy::Proxy as pingora_proxy::proxy_trait::ProxyHttp>::new_ctx": 154000,
+              "tokio::sync::mpsc::chan::Rx<T,S>::recv": 152000,
+              "hyper::client::dispatch::Callback<T,U>::send": 144000,
+              "tokio::sync::oneshot::Sender<T>::send": 144000,
+              "<hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode": 95000,
+              "<http::header::map::HeaderMap<T> as core::clone::Clone>::clone": 32000,
+              "hyper::proto::h1::role::write_headers": 17000,
+              "<T as alloc::string::ToString>::to_string": 13500,
+              "<alloc::string::String as core::fmt::Write>::write_str": 9000,
+              "http::header::name::HeaderName::from_bytes": 9000,
+              "<alloc::string::String as core::clone::Clone>::clone": 7000,
+              "<hyper::proto::h1::role::FastWrite as core::fmt::Write>::write_str": 5000,
+              "<http::uri::authority::Authority as core::str::traits::FromStr>::from_str": 4500,
+              "rgnix::proxy::request_host_parts::{{closure}}": 4500,
+              "rgnix::proxy::normalize_decoded_path": 4500,
+              "rgnix::model::RuntimeSnapshot::route": 4500,
+              "<hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::encode": 1500,
+              "std::sync::mpmc::waker::SyncWaker::unregister": 0,
+              "bytes::bytes_mut::BytesMut::reserve_inner": 0
+            },
+            "clock_calls_by_caller": {
+              "std::sys::pal::unix::time::Timespec::now": 12213
+            },
+            "record_output": "[ perf record: Woken up 21 times to write data ]\n[ perf record: Captured and wrote 5.302 MB /tmp/rgnix-hyper-pool-20260928/primitive-after/hyper.data (57712 samples) ]\n",
+            "server_command": [
+              "taskset",
+              "-c",
+              "10",
+              "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+              "serve",
+              "-c",
+              "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+              "--admin",
+              "127.0.0.1:34007",
+              "--threads",
+              "1",
+              "--max-inflight",
+              "4096",
+              "--max-plugin-instances",
+              "512",
+              "--shutdown-grace-seconds",
+              "0",
+              "--shutdown-timeout-seconds",
+              "5",
+              "--experimental-hyper"
+            ]
+          }
+        ]
+      },
+      "profile": {
+        "mode": "profile",
+        "fixture_settings": {
+          "rgnix": "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "nginx": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+          "openresty": "/tmp/rgnix-compare-20260927/openresty/bin/openresty",
+          "candidate": "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "plain_proxy": true,
+          "rgnix_transport": "hyper",
+          "candidate_transport": "hyper",
+          "pingora": null,
+          "hyper": null,
+          "hyper_control": null,
+          "engines": [
+            "rgnix",
+            "candidate"
+          ],
+          "wrk": "wrk",
+          "work_dir": "/tmp/rgnix-hyper-prepared-20260928/aa-after",
+          "output": "/tmp/rgnix-hyper-prepared-20260928/aa-after.json",
+          "rounds": 3,
+          "seconds": 10,
+          "warmup": 2,
+          "concurrency": [
+            64,
+            256
+          ],
+          "cases": [
+            "proxy-1k"
+          ],
+          "connection_close": false,
+          "interleave": true,
+          "workers": 1,
+          "origin_workers": 1,
+          "client_threads": 1,
+          "server_cpus": "10",
+          "client_cpus": "2",
+          "origin_cpus": "6"
+        },
+        "profile_settings": {
+          "concurrency": 64,
+          "warmup_seconds": 3,
+          "seconds": 15,
+          "engines": [
+            "hyper"
+          ]
+        },
+        "network_namespace": "net:[4026553325]",
+        "method": "Single-worker CPU-pinned c64 plain HTTP/1 proxy; 3s warmup; cpu-clock 199 Hz DWARF stacks or separate syscall counters. Instrumented counts and stack samples, not throughput evidence. Stack scopes overlap; flat samples do not identify every inlined caller.",
+        "binaries": {
+          "pingora": {
+            "path": "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878"
+          },
+          "hyper": {
+            "path": "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878"
+          },
+          "nginx": {
+            "path": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+            "sha256": "d7509a23828ead5af789b69f2042a2eae74d25f740ef3c071dbc35c1b0f41304"
+          },
+          "origin": {
+            "path": "/tmp/rgnix-compare-20260927/openresty/nginx/sbin/nginx",
+            "sha256": "53de7d8583b2932a904f66f7cab088801fa0e7148e3f5c708507fcfc95f9ea18"
+          }
+        },
+        "records": [
+          {
+            "engine": "hyper",
+            "server_command": [
+              "taskset",
+              "-c",
+              "10",
+              "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+              "serve",
+              "-c",
+              "/tmp/rgnix-hyper-pool-20260928/profile-after/fixture/rgnix/nginx.conf",
+              "--admin",
+              "127.0.0.1:54083",
+              "--threads",
+              "1",
+              "--max-inflight",
+              "4096",
+              "--max-plugin-instances",
+              "512",
+              "--shutdown-grace-seconds",
+              "0",
+              "--shutdown-timeout-seconds",
+              "5",
+              "--experimental-hyper"
+            ],
+            "instrument_command": [
+              "perf",
+              "record",
+              "-e",
+              "cpu-clock",
+              "-F",
+              "199",
+              "-g",
+              "--call-graph",
+              "dwarf,16384",
+              "-p",
+              "305391",
+              "-o",
+              "/tmp/rgnix-hyper-pool-20260928/profile-after/hyper.data"
+            ],
+            "instrument_output": "[ perf record: Woken up 190 times to write data ]\n[ perf record: Captured and wrote 47.493 MB /tmp/rgnix-hyper-pool-20260928/profile-after/hyper.data (2956 samples) ]\n",
+            "preflight": [
+              "proxy-1k:200 and exact payload",
+              "proxy-16k:200 and exact payload"
+            ],
+            "run": {
+              "requests": 1061597,
+              "seconds": 15.000559,
+              "bytes": 1357782563,
+              "connect_errors": 0,
+              "read_errors": 0,
+              "write_errors": 0,
+              "status_errors": 0,
+              "timeout_errors": 0,
+              "p50_ms": 0.833,
+              "p95_ms": 1.467,
+              "p99_ms": 1.943,
+              "errors": 0,
+              "rps": 70770.49595285082,
+              "server_cpu_cores": 0.9912963910211613,
+              "server_cpu_us_per_request": 14.007198588541605,
+              "origin_cpu_cores": 0.569312116968441,
+              "client_cpu_cores": 0.47356001866330444,
+              "peak_pss_kib": 23773,
+              "peak_rss_kib": 25256,
+              "server_pids": [
+                305391
+              ],
+              "host_cpu_ticks": {
+                "cpu": [
+                  6916,
+                  0,
+                  1313,
+                  17407,
+                  22,
+                  0,
+                  1373,
+                  0
+                ],
+                "cpu0": [
+                  329,
+                  0,
+                  29,
+                  1099,
+                  10,
+                  0,
+                  115,
+                  0
+                ],
+                "cpu1": [
+                  588,
+                  0,
+                  29,
+                  857,
+                  0,
+                  0,
+                  65,
+                  0
+                ],
+                "cpu2": [
+                  205,
+                  0,
+                  287,
+                  713,
+                  0,
+                  0,
+                  176,
+                  0
+                ],
+                "cpu3": [
+                  440,
+                  0,
+                  32,
+                  996,
+                  1,
+                  0,
+                  70,
+                  0
+                ],
+                "cpu4": [
+                  398,
+                  0,
+                  35,
+                  1038,
+                  2,
+                  0,
+                  64,
+                  0
+                ],
+                "cpu5": [
+                  460,
+                  0,
+                  27,
+                  986,
+                  1,
+                  0,
+                  45,
+                  0
+                ],
+                "cpu6": [
+                  303,
+                  0,
+                  328,
+                  585,
+                  0,
+                  0,
+                  206,
+                  0
+                ],
+                "cpu7": [
+                  447,
+                  0,
+                  25,
+                  1008,
+                  0,
+                  0,
+                  39,
+                  0
+                ],
+                "cpu8": [
+                  335,
+                  0,
+                  28,
+                  1116,
+                  1,
+                  0,
+                  34,
+                  0
+                ],
+                "cpu9": [
+                  395,
+                  0,
+                  32,
+                  1051,
+                  2,
+                  0,
+                  25,
+                  0
+                ],
+                "cpu10": [
+                  748,
+                  0,
+                  284,
+                  21,
+                  0,
+                  0,
+                  452,
+                  0
+                ],
+                "cpu11": [
+                  378,
+                  0,
+                  33,
+                  1067,
+                  0,
+                  0,
+                  19,
+                  0
+                ],
+                "cpu12": [
+                  518,
+                  0,
+                  30,
+                  936,
+                  1,
+                  0,
+                  16,
+                  0
+                ],
+                "cpu13": [
+                  387,
+                  0,
+                  23,
+                  1065,
+                  2,
+                  0,
+                  18,
+                  0
+                ],
+                "cpu14": [
+                  288,
+                  0,
+                  29,
+                  1160,
+                  1,
+                  0,
+                  12,
+                  0
+                ],
+                "cpu15": [
+                  352,
+                  0,
+                  29,
+                  1105,
+                  1,
+                  0,
+                  9,
+                  0
+                ],
+                "cpu16": [
+                  347,
+                  0,
+                  32,
+                  1097,
+                  0,
+                  0,
+                  9,
+                  0
+                ],
+                "cpu17": [
+                  0,
+                  0,
+                  0,
+                  1510,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "server_threads": {
+                "305391": {
+                  "name": "rgnix-after",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305392": {
+                  "name": "file-logs",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305393": {
+                  "name": "BG control",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305394": {
+                  "name": "BG rollout-metr",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305395": {
+                  "name": "BG access-polic",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305396": {
+                  "name": "BG upstream-mai",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305397": {
+                  "name": "admin",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305398": {
+                  "name": "BG hyper-127.0.",
+                  "cpu_seconds": 14.85,
+                  "last_cpu": 10
+                },
+                "305399": {
+                  "name": "BG connection-d",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305400": {
+                  "name": "Server",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305401": {
+                  "name": "BG access-polic",
+                  "cpu_seconds": 0.0,
+                  "last_cpu": 10
+                },
+                "305402": {
+                  "name": "Timer thread",
+                  "cpu_seconds": 0.01,
+                  "last_cpu": 10
+                }
+              },
+              "load_before": "10.88 13.31 13.08 9/7929 305406",
+              "load_after": "9.91 12.96 12.97 13/7929 305408",
+              "command": [
+                "taskset",
+                "-c",
+                "2",
+                "wrk",
+                "-t",
+                "1",
+                "-c",
+                "64",
+                "-d",
+                "15s",
+                "--timeout",
+                "5s",
+                "--latency",
+                "-s",
+                "/tmp/rgnix-hyper-pool-20260928/profile-after/fixture/wrk-proxy-1k.lua",
+                "-H",
+                "Host: localhost",
+                "http://127.0.0.1:49591/proxy-1k"
+              ],
+              "wrk_output": "Running 15s test @ http://127.0.0.1:49591/proxy-1k\n  1 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     0.91ms  338.25us  10.44ms   85.76%\n    Req/Sec    71.18k    15.04k  106.08k    64.00%\n  Latency Distribution\n     50%  833.00us\n     75%    1.01ms\n     90%    1.26ms\n     99%    1.94ms\n  1061597 requests in 15.00s, 1.26GB read\nRequests/sec:  70770.50\nTransfer/sec:     86.32MB\nBENCH_RESULT {\"requests\":1061597,\"seconds\":15.000559,\"bytes\":1357782563,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.833000,\"p95_ms\":1.467000,\"p99_ms\":1.943000}\n"
+            },
+            "flat_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 2K of event 'cpu-clock'\n# Event count (approx.): 14854269500\n#\n# Overhead  Command          Shared Object      Symbol                                                                                                                                                                                                                                                                           \n# ........  ...............  .................  .................................................................................................................................................................................................................................................................................\n#\n    14.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] __wake_up_sync_key\n     6.83%  BG hyper-127.0.  [kernel.kallsyms]  [k] arch_counter_get_cntvct\n     3.62%  BG hyper-127.0.  [kernel.kallsyms]  [k] __arch_copy_to_user\n     3.15%  BG hyper-127.0.  [kernel.kallsyms]  [k] net_rx_action\n     3.15%  BG hyper-127.0.  [vdso]             [.] __kernel_clock_gettime\n     2.57%  BG hyper-127.0.  libc.so.6          [.] 0x000000000009542c\n     1.96%  BG hyper-127.0.  [kernel.kallsyms]  [k] local_daif_restore\n     1.56%  BG hyper-127.0.  [kernel.kallsyms]  [k] __do_softirq\n     1.39%  BG hyper-127.0.  rgnix-after        [.] http::header::name::StandardHeader::from_bytes\n     1.35%  BG hyper-127.0.  rgnix-after        [.] http::header::name::parse_hdr\n     1.32%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_sendmsg\n     1.22%  BG hyper-127.0.  [kernel.kallsyms]  [k] local_bh_enable\n     1.12%  BG hyper-127.0.  libc.so.6          [.] malloc\n     1.08%  BG hyper-127.0.  libc.so.6          [.] cfree\n     1.05%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_ack\n     1.01%  BG hyper-127.0.  rgnix-after        [.] <hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode\n     0.98%  BG hyper-127.0.  [kernel.kallsyms]  [k] __local_bh_enable_ip\n     0.95%  BG hyper-127.0.  [kernel.kallsyms]  [k] napi_consume_skb\n     0.88%  BG hyper-127.0.  [kernel.kallsyms]  [k] __kfree_skb\n     0.88%  BG hyper-127.0.  rgnix-after        [.] __aarch64_ldadd8_rel\n     0.88%  BG hyper-127.0.  rgnix-after        [.] hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}\n     0.81%  BG hyper-127.0.  libc.so.6          [.] 0x0000000000095428\n     0.81%  BG hyper-127.0.  rgnix-after        [.] httparse::parse_headers_iter_uninit\n     0.78%  BG hyper-127.0.  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore\n     0.64%  BG hyper-127.0.  [kernel.kallsyms]  [k] __arch_copy_from_user\n     0.64%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_output\n     0.64%  BG hyper-127.0.  rgnix-after        [.] <core::hash::sip::Hasher<S> as core::hash::Hasher>::write\n     0.61%  BG hyper-127.0.  [kernel.kallsyms]  [k] mod_timer\n     0.61%  BG hyper-127.0.  rgnix-after        [.] <core::pin::Pin<P> as core::future::future::Future>::poll\n     0.58%  BG hyper-127.0.  rgnix-after        [.] __aarch64_ldadd8_relax\n     0.58%  BG hyper-127.0.  rgnix-after        [.] hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write\n     0.58%  BG hyper-127.0.  rgnix-after        [.] rgnix::proxy::hyper::request::serve::{{closure}}\n     0.54%  BG hyper-127.0.  rgnix-after        [.] http::header::name::HeaderName::from_bytes\n     0.51%  BG hyper-127.0.  rgnix-after        [.] <alloc::collections::vec_deque::iter::Iter<T> as core::iter::traits::iterator::Iterator>::fold\n     0.47%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_rcv\n     0.47%  BG hyper-127.0.  rgnix-after        [.] <hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::parse\n     0.47%  BG hyper-127.0.  rgnix-after        [.] http::uri::Uri::from_parts\n     0.44%  BG hyper-127.0.  [kernel.kallsyms]  [k] do_el0_svc\n     0.44%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a9940\n     0.44%  BG hyper-127.0.  rgnix-after        [.] http::header::map::hash_elem_using\n     0.44%  BG hyper-127.0.  rgnix-after        [.] memcpy@plt\n     0.41%  BG hyper-127.0.  [kernel.kallsyms]  [k] fdget_pos\n     0.41%  BG hyper-127.0.  [kernel.kallsyms]  [k] kmem_cache_alloc_node_noprof\n     0.41%  BG hyper-127.0.  libc.so.6          [.] memcmp\n     0.41%  BG hyper-127.0.  libc.so.6          [.] 0x000000000009c330\n     0.41%  BG hyper-127.0.  rgnix-after        [.] http::header::map::HeaderMap<T>::try_append2\n     0.41%  BG hyper-127.0.  rgnix-after        [.] hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write\n     0.37%  BG hyper-127.0.  [kernel.kallsyms]  [k] __dev_queue_xmit\n     0.37%  BG hyper-127.0.  rgnix-after        [.] http::header::name::HdrName::from_bytes\n     0.34%  BG hyper-127.0.  [kernel.kallsyms]  [k] fdget\n     0.34%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_queue_xmit\n     0.34%  BG hyper-127.0.  rgnix-after        [.] tokio::runtime::io::registration::Registration::poll_ready\n     0.34%  BG hyper-127.0.  rgnix-after        [.] tokio::runtime::scheduler::multi_thread::worker::<impl tokio::runtime::scheduler::multi_thread::handle::Handle>::schedule_task::{{closure}}\n     0.30%  BG hyper-127.0.  [kernel.kallsyms]  [k] __alloc_skb\n     0.30%  BG hyper-127.0.  [kernel.kallsyms]  [k] _raw_spin_lock_irqsave\n     0.30%  BG hyper-127.0.  rgnix-after        [.] <futures_util::future::future::Map<Fut,F> as core::future::future::Future>::poll\n     0.30%  BG hyper-127.0.  rgnix-after        [.] <rgnix::proxy::hyper::Listener as pingora_core::services::background::BackgroundService>::start::{{closure}}::{{closure}}\n     0.30%  BG hyper-127.0.  rgnix-after        [.] <tokio::time::sleep::Sleep as core::future::future::Future>::poll\n     0.30%  BG hyper-127.0.  rgnix-after        [.] hyper::proto::h1::io::Buffered<T,B>::poll_read_from_io\n     0.30%  BG hyper-127.0.  rgnix-after        [.] hyper_util::client::legacy::client::Client<C,B>::send_request::{{closure}}\n     0.30%  BG hyper-127.0.  rgnix-after        [.] malloc@plt\n     0.27%  BG hyper-127.0.  [kernel.kallsyms]  [k] _raw_spin_lock_irq\n     0.27%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_rcv_established\n     0.27%  BG hyper-127.0.  libc.so.6          [.] clock_gettime\n     0.27%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a9840\n     0.27%  BG hyper-127.0.  rgnix-after        [.] __aarch64_cas1_rel\n     0.27%  BG hyper-127.0.  rgnix-after        [.] __aarch64_cas8_acq_rel\n     0.27%  BG hyper-127.0.  rgnix-after        [.] core::str::pattern::StrSearcher::new\n     0.27%  BG hyper-127.0.  rgnix-after        [.] free@plt\n     0.27%  BG hyper-127.0.  rgnix-after        [.] http::header::map::HeaderMap<T>::get_all\n     0.27%  BG hyper-127.0.  rgnix-after        [.] tokio::runtime::scheduler::multi_thread::worker::Context::run_task\n     0.27%  BG hyper-127.0.  rgnix-after        [.] tokio::runtime::task::raw::poll\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+          }
+        ]
+      }
+    }
+  },
+  "allocations_keepalive": {
+    "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+    "runs": [
+      {
+        "name": "before",
+        "requests": 0,
+        "count": 56451,
+        "requested_bytes": 5619154,
+        "binary_sha256": "89bcd6456bd1a4c83ad6270ab7d9c944c7685ff1e7731b2bbf0334738996d2be",
+        "command": [
+          "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      },
+      {
+        "name": "before",
+        "requests": 2000,
+        "count": 143169,
+        "requested_bytes": 48509966,
+        "binary_sha256": "89bcd6456bd1a4c83ad6270ab7d9c944c7685ff1e7731b2bbf0334738996d2be",
+        "command": [
+          "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      },
+      {
+        "name": "after",
+        "requests": 0,
+        "count": 56447,
+        "requested_bytes": 5612038,
+        "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+        "command": [
+          "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      },
+      {
+        "name": "after",
+        "requests": 2000,
+        "count": 141193,
+        "requested_bytes": 46852771,
+        "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+        "command": [
+          "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      }
+    ],
+    "per_request": {
+      "before": {
+        "allocations": 43.359,
+        "requested_bytes": 21445.406
+      },
+      "after": {
+        "allocations": 42.373,
+        "requested_bytes": 20620.3665
+      }
+    }
+  },
+  "allocations_close_upstream": {
+    "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+    "runs": [
+      {
+        "name": "before",
+        "requests": 0,
+        "count": 56448,
+        "requested_bytes": 5614002,
+        "binary_sha256": "89bcd6456bd1a4c83ad6270ab7d9c944c7685ff1e7731b2bbf0334738996d2be",
+        "command": [
+          "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      },
+      {
+        "name": "before",
+        "requests": 2000,
+        "count": 189154,
+        "requested_bytes": 97995481,
+        "binary_sha256": "89bcd6456bd1a4c83ad6270ab7d9c944c7685ff1e7731b2bbf0334738996d2be",
+        "command": [
+          "/tmp/rgnix-hyper-prepared-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      },
+      {
+        "name": "after",
+        "requests": 0,
+        "count": 56448,
+        "requested_bytes": 5612071,
+        "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+        "command": [
+          "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      },
+      {
+        "name": "after",
+        "requests": 2000,
+        "count": 191155,
+        "requested_bytes": 98186590,
+        "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+        "command": [
+          "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+          "serve",
+          "-c",
+          "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+          "--admin",
+          "127.0.0.1:34007",
+          "--threads",
+          "1",
+          "--experimental-hyper",
+          "--shutdown-grace-seconds",
+          "0",
+          "--shutdown-timeout-seconds",
+          "5"
+        ]
+      }
+    ],
+    "per_request": {
+      "before": {
+        "allocations": 66.353,
+        "requested_bytes": 46190.7395
+      },
+      "after": {
+        "allocations": 67.3535,
+        "requested_bytes": 46287.2595
+      }
+    },
+    "upstream_connections": "one request per connection"
+  },
+  "calibration": {
+    "rule": "64 connections, one worker; three pairs, 5s warmup and 15s measurement. All symmetric paired RPS differences and both sample CVs <=10%, zero errors. Stop on first failed gate. No retry or window selection. Compare only after baseline, candidate and NGINX A/A all pass.",
+    "comparison_run": false,
+    "before": {
+      "paired_difference_pct": [
+        35.676130871558236,
+        18.921317772900128,
+        8.784009871219753
+      ],
+      "cv_pct": [
+        11.209814263557721,
+        19.886656413869282
+      ],
+      "passed": false
+    }
+  },
+  "behavior": {
+    "hyper": {
+      "transport": "hyper",
+      "passed": 40,
+      "checks": [
+        "Connection cannot strip routing or framing headers",
+        "exact route and configured response header",
+        "prepared exact and prefix routes with the same path stay distinct",
+        "virtual host selects its route",
+        "URI replacement preserves query and variable expansion",
+        "proxy_pass without URI preserves raw target",
+        "prefix trailing slash redirect",
+        "HEAD preserves response length without body",
+        "fixed-length body limit",
+        "chunked body limit",
+        "8 MiB streaming POST is intact",
+        "OTLP exports linked server and client spans with the inherited parent",
+        "W3C propagation uses the exported client span",
+        "OTLP access logs correlate with the server span",
+        "ongoing upload progress extends the upstream read deadline",
+        "upstream header timeout",
+        "upstream timeout after headers terminates incomplete stream",
+        "route rate limiter",
+        "POST is never replayed after origin commit disconnect",
+        "keepalive expires an idle connection",
+        "socket completion and guard drop count each response once",
+        "pipelined responses finish once and release permits",
+        "process budget rejects a third active request",
+        "backend budget rejects excess work without blocking local responses",
+        "upstream write stall returns a gateway timeout",
+        "response streams before origin completes",
+        "request budget remains held after response headers",
+        "route concurrency permit remains held",
+        "reload publishes prepared request headers with the new snapshot",
+        "old request retains snapshot across reload",
+        "old stream completes after reload",
+        "client cancellation releases request and backend budgets",
+        "unsupported reload preserves active valid snapshot",
+        "unsupported Upgrade fails explicitly",
+        "rollback rebuilds prepared clients and headers from retained history",
+        "completion logs include route/config and W3C identifiers",
+        "request and upstream failure metrics are recorded",
+        "all request and backend permits return to zero",
+        "graceful shutdown lets an admitted stream finish",
+        "graceful shutdown exits within the drain deadline"
+      ]
+    },
+    "pingora": {
+      "transport": "pingora",
+      "passed": 37,
+      "checks": [
+        "Connection cannot strip routing or framing headers",
+        "exact route and configured response header",
+        "prepared exact and prefix routes with the same path stay distinct",
+        "virtual host selects its route",
+        "URI replacement preserves query and variable expansion",
+        "proxy_pass without URI preserves raw target",
+        "prefix trailing slash redirect",
+        "HEAD preserves response length without body",
+        "fixed-length body limit",
+        "chunked body limit",
+        "8 MiB streaming POST is intact",
+        "OTLP exports linked server and client spans with the inherited parent",
+        "W3C propagation uses the exported client span",
+        "OTLP access logs correlate with the server span",
+        "ongoing upload progress extends the upstream read deadline",
+        "upstream header timeout",
+        "upstream timeout after headers terminates incomplete stream",
+        "route rate limiter",
+        "POST is never replayed after origin commit disconnect",
+        "keepalive expires an idle connection",
+        "socket completion and guard drop count each response once",
+        "process budget rejects a third active request",
+        "backend budget rejects excess work without blocking local responses",
+        "upstream write stall returns a gateway timeout",
+        "response streams before origin completes",
+        "request budget remains held after response headers",
+        "route concurrency permit remains held",
+        "reload publishes prepared request headers with the new snapshot",
+        "old request retains snapshot across reload",
+        "old stream completes after reload",
+        "client cancellation releases request and backend budgets",
+        "rollback rebuilds prepared clients and headers from retained history",
+        "completion logs include route/config and W3C identifiers",
+        "request and upstream failure metrics are recorded",
+        "all request and backend permits return to zero",
+        "graceful shutdown lets an admitted stream finish",
+        "graceful shutdown exits within the drain deadline"
+      ]
+    },
+    "vendor_output": "   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.47s\n     Running tests/legacy_client.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/legacy_client-7bd538b6979c6afe)\n\nrunning 21 tests\ntest capture_connection_on_client ... ok\ntest connect_call_is_lazy ... ok\ntest client_upgrade ... ok\ntest connect_proxy_http_connect_sends_authority_form ... ok\ntest test_incomplete_message_error_pr184 ... ok\ntest test_successful_connection ... ok\ntest no_keep_alive_closes_connection ... ok\ntest socket_disconnect_closes_idle_conn ... ok\ntest connect_proxy_sends_absolute_uri ... ok\ntest test_connection_error_propagation_pr184 ... ok\ntest drop_client_closes_idle_connections ... ok\ntest drop_response_future_closes_in_progress_connection ... ok\ntest drop_response_body_closes_in_progress_connection ... ok\ntest connection_poisoning ... ok\ntest client_keep_alive_extra_body ... ok\ntest client_http2_upgrade ... ok\ntest alpn_h2 ... ok\ntest client_keep_alive_eager_when_chunked ... ok\ntest client_keep_alive_0 ... ok\ntest client_keep_alive_when_response_before_request_body_ends ... ok\ntest drop_body_before_eof_closes_connection ... ok\n\ntest result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s\n\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\nwarning: unused attribute\n    --> src/client/legacy/connect/http.rs:1167:66\n     |\n1167 |     #[cfg_attr(not(feature = \"__internal_happy_eyeballs_tests\"), ignore)]\n     |                                                                  ^^^^^^ help: remove this attribute\n     |\nnote: attribute also specified here\n    --> src/client/legacy/connect/http.rs:1166:5\n     |\n1166 |     #[ignore] // TODO\n     |     ^^^^^^^^^\n     = note: `#[warn(unused_attributes)]` on by default\n\nwarning: `hyper-util` (lib test) generated 1 warning (run `cargo fix --lib -p hyper-util --tests` to apply 1 suggestion)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.58s\n     Running unittests src/lib.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/hyper_util-3d50599be416beb7)\n\nrunning 9 tests\ntest client::legacy::pool::tests::pooled_drop_if_closed_doesnt_reinsert ... ok\ntest client::legacy::pool::tests::test_pool_checkout_smoke ... ok\ntest client::legacy::pool::tests::test_pool_checkout_drop_cleans_up_waiters ... ok\ntest client::legacy::pool::tests::test_pool_checkout_task_unparked ... ok\ntest client::legacy::pool::tests::test_pool_max_idle_per_host ... ok\ntest client::legacy::pool::tests::test_pool_timer_removes_expired_faketime ... ok\ntest client::legacy::pool::tests::test_pool_checkout_removes_expired ... ok\ntest client::legacy::pool::tests::test_pool_checkout_returns_none_if_expired ... ok\ntest client::legacy::pool::tests::test_pool_timer_removes_expired_realtime ... ok\n\ntest result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 54 filtered out; finished in 0.11s\n\n"
+  },
+  "build_output": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 14.10s\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 3m 08s\n",
+  "drivers": {
+    "allocations.py": "import concurrent.futures, hashlib, http.client, json, os, subprocess, sys\nfrom pathlib import Path\nroot=Path('/Users/livesite/Documents/ChatGPT/rgnix')\nsys.path.insert(0,str(root/'scripts'))\nfrom benchmark_compare import start, stop\nfrom integration import request, wait_for\nbase=Path('/tmp/rgnix-hyper-profile-20260928')\nwork=Path('/tmp/rgnix-hyper-pool-20260928')\ncold='--close-upstream' in sys.argv\nout=work/('allocations-close' if cold else 'allocations');out.mkdir(exist_ok=False)\nprofile=json.loads((base/'profile/result.json').read_text())\nmatrix=json.loads((root/'docs/validation/hyper-product-aa-pingora-2026-09-28.json').read_text())\nports=matrix['ports'];fixture=base/'profile/fixture'\nresult={'method':'Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.','runs':[],'per_request':{}}\norigin_config=fixture/'origin/nginx.conf'\nif cold:\n    original=origin_config.read_text()\n    assert 'keepalive_requests 1000000;' in original\n    origin_config=out/'origin-close.conf'\n    origin_config.write_text(original.replace('keepalive_requests 1000000;', 'keepalive_requests 1;'))\nresult['upstream_connections']='one request per connection' if cold else 'keepalive'\norigin=server=None\ntry:\n    origin=start(['taskset','-c','6',profile['binaries']['origin']['path'],'-p',str(fixture/'origin'),'-c',str(origin_config),'-g','daemon off;'],out/'origin.log')\n    wait_for(lambda:request(ports['primary'],'/proxy-1k')[0],200)\n    for name,binary in [('before',Path('/tmp/rgnix-hyper-prepared-20260928/rgnix-after')),('after',work/'rgnix-after')]:\n        runs=[]\n        for count in [0,2000]:\n            raw=out/f'{name}-{count}.raw'\n            env={k:v for k,v in os.environ.items() if not k.startswith(('RGNIX_OTLP_','OTEL_EXPORTER_OTLP_'))}\n            env.update(RUST_LOG='warn',LD_PRELOAD='/usr/lib/heaptrack/libheaptrack_preload.so',DUMP_HEAPTRACK_OUTPUT=str(raw))\n            command=[str(binary),'serve','-c',str(fixture/'rgnix/nginx.conf'),'--admin',f\"127.0.0.1:{ports['admin']}\",'--threads','1','--experimental-hyper','--shutdown-grace-seconds','0','--shutdown-timeout-seconds','5']\n            with raw.with_suffix('.log').open('w') as log:\n                server=subprocess.Popen(command,env=env,stdout=log,stderr=log,start_new_session=True,preexec_fn=lambda:os.sched_setaffinity(0,{10}))\n            wait_for(lambda:request(ports['admin'],'/readyz')[0],200)\n            def send(_):\n                c=http.client.HTTPConnection('127.0.0.1',ports['http'],timeout=10)\n                try:\n                    for i in range(count//4):\n                        c.request('GET','/proxy-1k',headers={'Host':'localhost'})\n                        response=c.getresponse()\n                        assert response.status==200 and response.read()==b'x'*1024\n                finally:c.close()\n            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(send,range(4)))\n            stop(server);server=None\n            lines=raw.read_text().splitlines()\n            assert any(str(binary) in line for line in lines[:30]), 'wrong traced process'\n            sizes={};total=amount=0\n            for line in lines:\n                fields=line.split()\n                if fields and fields[0]=='+':\n                    total+=1;amount+=int(fields[1],16)\n            assert total>0\n            item={'name':name,'requests':count,'count':total,'requested_bytes':amount,'binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'command':command}\n            runs.append(item);result['runs'].append(item)\n        result['per_request'][name]={'allocations':(runs[1]['count']-runs[0]['count'])/2000,'requested_bytes':(runs[1]['requested_bytes']-runs[0]['requested_bytes'])/2000}\n        print(name,result['per_request'][name],flush=True)\nfinally:\n    stop(server);stop(origin)\n    (out/'result.json').write_text(json.dumps(result,indent=2)+'\\n')\n",
+    "benchmark.py": "import json\nimport statistics\nimport subprocess\nfrom pathlib import Path\n\nroot = Path('/Users/livesite/Documents/ChatGPT/rgnix')\nwork = Path('/tmp/rgnix-hyper-pool-20260928')\nbefore = Path('/tmp/rgnix-hyper-prepared-20260928/rgnix-after')\nafter = work / 'rgnix-after'\ncommon = [\n    '--nginx', '/tmp/rgnix-compare-20260927/nginx/sbin/nginx',\n    '--openresty', '/tmp/rgnix-compare-20260927/openresty/bin/openresty',\n    '--plain-proxy', '--cases', 'proxy-1k', '--rounds', '3',\n    '--seconds', '15', '--warmup', '5', '--workers', '1',\n    '--origin-workers', '1', '--client-threads', '1',\n    '--server-cpus', '10', '--client-cpus', '2', '--origin-cpus', '6',\n    '--interleave', '--rgnix-transport', 'hyper', '--candidate-transport', 'hyper',\n    '--concurrency', '64',\n]\n\n\ndef run(name, first, second, engines):\n    output = work / f'{name}.json'\n    command = ['python3', str(root / 'scripts/benchmark_compare.py'), *common,\n               '--rgnix', str(first), '--candidate', str(second),\n               '--engines', *engines, '--work-dir', str(work / name),\n               '--output', str(output)]\n    subprocess.run(command, check=True)\n    return json.loads(output.read_text())\n\n\ndef gate(data, nginx=False):\n    samples = data['runs']\n    left = samples[::2] if nginx else [r for r in samples if r['engine'] == 'rgnix']\n    right = samples[1::2] if nginx else [r for r in samples if r['engine'] == 'candidate']\n    pairs = [200 * abs(a['rps'] - b['rps']) / (a['rps'] + b['rps'])\n             for a, b in zip(left, right)]\n    cvs = [100 * statistics.stdev(r['rps'] for r in group) /\n           statistics.mean(r['rps'] for r in group) for group in [left, right]]\n    return {'paired_difference_pct': pairs, 'cv_pct': cvs,\n            'passed': len(pairs) == 3 and max(pairs + cvs) <= 10 and\n                      all(r['errors'] == 0 for r in samples)}\n\n\nresult = {\n    'rule': '64 connections, one worker; three pairs, 5s warmup and 15s measurement. '\n            'All symmetric paired RPS differences and both sample CVs <=10%, zero errors. '\n            'Stop on first failed gate. No retry or window selection. '\n            'Compare only after baseline, candidate and NGINX A/A all pass.',\n    'comparison_run': False,\n}\nfor label, binary, engines in [('before', before, ['rgnix', 'candidate']),\n                               ('after', after, ['rgnix', 'candidate']),\n                               ('nginx', after, ['nginx', 'nginx'])]:\n    result[label] = gate(run(f'aa-{label}', binary, binary, engines), label == 'nginx')\n    (work / 'calibration.json').write_text(json.dumps(result, indent=2) + '\\n')\n    if not result[label]['passed']:\n        break\nelse:\n    run('comparison', before, after, ['rgnix', 'candidate', 'nginx'])\n    result['comparison_run'] = True\n(work / 'calibration.json').write_text(json.dumps(result, indent=2) + '\\n')\nprint(json.dumps(result, indent=2), flush=True)\n"
+  },
+  "source_sha256": {
+    "Cargo.toml": "08fc21a2ce708807ec31048c4246233d9bc808f383df6704fa367365c26f2b2a",
+    "Cargo.lock": "ea831fed51dc22fd33565b131fe17254e8f2e0d56364c8dbedbbfe4c01b2acab",
+    "vendor/hyper-util/Cargo.toml": "b76f77c23b2b03d8652a5691cf1ddf805d5b62c57c3594bc45747524c298b981",
+    "vendor/hyper-util/src/client/legacy/client.rs": "65202fd18c723b4b50e8d90379bc996bd298f963da3e6fd16626f1df276a5c28"
+  },
+  "limits": [
+    "No throughput claim without all three A/A gates",
+    "Copy probes exclude inlined operations and include some background activity",
+    "Allocation counts subtract independent startup controls; bytes are cumulative requests, not RSS",
+    "Profile percentages cannot establish absolute CPU savings; captures have no lost samples",
+    "Only an experimental plain HTTP/1 transport; no TLS/H2/RGL/Ingress migration",
+    "No multiworker/amd64/real-NIC/long-soak validation in this iteration"
+  ]
+}

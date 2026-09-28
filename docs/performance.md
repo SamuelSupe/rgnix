@@ -25,6 +25,8 @@ A subsequent [CPU and copy profile](validation-hyper-profile-2026-09-28.md) foun
 
 The next [prepared-request optimization](validation-hyper-prepared-2026-09-28.md) reduces captured copies to about 15.0 KB/request, allocation calls to 43.3/request, and clock reads to 24.4/request in the same diagnostic fixture. It prepares headers/clients before publication and shrinks cold request state. These operation counts do not establish a throughput gain; the report retains the new calibration results separately.
 
+The subsequent [idle-pool optimization](validation-hyper-pool-2026-09-28.md) shares immutable client state and constructs connection-race state only after an idle checkout misses. Captured libc copies fall from 15.0 to 12.7 KB/request, with about one fewer allocation on keepalive requests. A new upstream connection per request instead costs about one extra allocation; throughput calibration remains a separate requirement.
+
 ## Implemented versus proposed
 
 Implemented: backend selection and Gateway indexing, lazy request/header state, request metric handles, RGL constants and request-only instance lifetimes, guarded sendfile, bounded idle-connection groups, smaller repeated session transfers, borrowed HTTP/1 task queues and lazy timer checks. See [vendor patch contracts](../vendor/README.md), [deployment budgets](deployment.md) and [Wasm compatibility](rgl.md).
