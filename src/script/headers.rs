@@ -17,6 +17,20 @@ impl RequestHeaders {
         }
     }
 
+    #[cfg(feature = "hyper-experimental")]
+    pub(crate) fn from_selected(headers: &http::HeaderMap, names: &[http::HeaderName]) -> Self {
+        let mut selected = http::HeaderMap::new();
+        for name in names {
+            for value in headers.get_all(name) {
+                selected.append(name.clone(), value.clone());
+            }
+        }
+        Self {
+            source: Some(selected),
+            values: BTreeMap::new(),
+        }
+    }
+
     pub fn get(&self, name: &str) -> Option<&str> {
         match &self.source {
             Some(headers) => headers

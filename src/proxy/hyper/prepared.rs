@@ -23,6 +23,9 @@ pub(super) struct PreparedRoute {
     pub request_headers: Vec<(HeaderName, Value)>,
     pub response_headers: Vec<(HeaderName, Value, bool)>,
     pub backend: Option<Arc<PreparedBackend>>,
+    // Dynamic templates retain the complete original view; fixed routes capture
+    // only fields read by policy and completion, before outbound header edits.
+    pub original_headers: Option<Vec<HeaderName>>,
 }
 
 pub(super) struct PreparedBackend {
@@ -138,6 +141,7 @@ impl Prepared {
                     ),
                     _ => None,
                 };
+                let original_headers = original_headers(route, backend.as_deref());
                 routes.insert(
                     (host.listener, Arc::as_ptr(route) as usize),
                     PreparedRoute {
@@ -145,6 +149,7 @@ impl Prepared {
                         request_headers,
                         response_headers,
                         backend,
+                        original_headers,
                     },
                 );
             }
@@ -155,4 +160,46 @@ impl Prepared {
     pub(super) fn route(&self, listener: SocketAddr, route: &Arc<Route>) -> &PreparedRoute {
         &self.routes[&(listener, Arc::as_ptr(route) as usize)]
     }
+}
+
+fn original_headers(route: &Route, backend: Option<&PreparedBackend>) -> Option<Vec<HeaderName>> {
+    let settings = &route.settings;
+    if settings
+        .request_headers
+        .iter()
+        .any(|(_, v)| v.contains('$'))
+        || settings
+            .response_headers
+            .iter()
+            .any(|h| h.value.contains('$'))
+        || matches!(&route.action, Action::Return { text, .. } if text.contains('$'))
+    {
+        return None;
+    }
+    let mut names = vec![http::header::CONTENT_TYPE];
+    if settings.access_log.is_some() {
+        names.extend([http::header::REFERER, http::header::USER_AGENT]);
+    }
+    let mut key = |key: &crate::traffic::Key| {
+        let name = match key {
+            crate::traffic::Key::Header(name) => name.parse().expect("validated header key"),
+            crate::traffic::Key::Cookie(_) => http::header::COOKIE,
+            _ => return,
+        };
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    };
+    if let Some(rate) = &settings.traffic.rate {
+        key(&rate.key);
+    }
+    if let Some(concurrency) = &settings.traffic.concurrency {
+        key(&concurrency.key);
+    }
+    if let Some(backend) = backend
+        && let crate::backend::Balance::Hash(hash) = &backend.backend.options.balance
+    {
+        key(hash);
+    }
+    Some(names)
 }

@@ -271,6 +271,8 @@ A later [one-worker diagnosis](docs/validation-pingora-audit-2026-09-28.md) foun
 
 On `experiment/replace-pingora`, the opt-in [Hyper HTTP/1 transport](docs/hyper-experimental.md) now runs inside the product binary with real routing, budgets, streaming timeouts, telemetry and snapshot reloads. It is a bounded experiment: unsupported configurations are rejected, TLS/H2/RGL are not migrated, and the default transport remains Pingora. See the [integration and calibration record](docs/validation-hyper-product-2026-09-28.md) before interpreting performance results.
 
+The latest [NGINX-aligned optimization](docs/validation-nginx-aligned-2026-09-28.md) reduces measured allocation calls from about **42.3 to 30.5 per 1 KiB proxy request**, through selective context capture and direct delivery of already-buffered small responses. This is an operation-count result; throughput and NGINX parity remain unqualified.
+
 The [original NGINX/OpenResty comparison](docs/validation-nginx-openresty-2026-09-27.md) tested released v0.4.0. Later NGINX reruns used OpenResty only as the common origin; they are not updated OpenResty frontend results. All raw windows, rejected experiments and limitations remain in the linked reports.
 
 **Outside acceptance scope:** stable production capacity, full upstream Gateway conformance, 24-hour soak, physical-node/network failures, cloud load balancers, production CNI interoperability and Redis Sentinel/Cluster failover. Earlier [Gateway](docs/validation-gateway-hardening-2026-09-26.md), [tracing](docs/validation-tracing-2026-09-25.md) and [metrics](docs/validation-metrics-2026-09-25.md) records retain their original version and scope.

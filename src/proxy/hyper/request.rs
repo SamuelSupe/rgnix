@@ -167,13 +167,20 @@ async fn forward(
     ctx.request.path =
         normalized_path(request.uri().path()).map_err(|e| error(400, e.to_string()))?;
     ctx.request.query = request.uri().query().unwrap_or("").into();
-    ctx.request.headers = script::RequestHeaders::from_http(request.headers());
     let snapshot = ctx.snapshot.as_ref().unwrap();
     ctx.server_name = snapshot
         .hostless_server_name(listener.address)
         .unwrap_or_default()
         .into();
     let Some(mut route) = snapshot.route_request(listener.address, &ctx.request) else {
+        ctx.request.headers = script::RequestHeaders::from_selected(
+            request.headers(),
+            &[
+                http::header::CONTENT_TYPE,
+                http::header::REFERER,
+                http::header::USER_AGENT,
+            ],
+        );
         return Ok(reply(404, "not found\n".into(), None));
     };
     let mut redirect = false;
@@ -188,11 +195,22 @@ async fn forward(
         }
     }
     ctx.route = Some(route.clone());
+    let prepared = snapshot
+        .hyper
+        .as_ref()
+        .unwrap()
+        .route(listener.address, &route);
+    ctx.request.headers = match &prepared.original_headers {
+        Some(names) => script::RequestHeaders::from_selected(request.headers(), names),
+        None => script::RequestHeaders::from_http(request.headers()),
+    };
     let settings = &route.settings;
     let client = settings
         .identity
         .resolve(peer.ip(), request.headers(), None);
-    ctx.request.remote_addr = client.to_string();
+    if client != peer.ip() {
+        ctx.request.remote_addr = client.to_string();
+    }
     ctx.scheme = settings
         .identity
         .scheme(peer.ip(), request.headers(), false)
@@ -260,11 +278,6 @@ async fn forward(
         Action::Proxy { backend, uri } => (backend, uri.as_deref()),
         _ => return Err(error(503, "backend unavailable")),
     };
-    let prepared = snapshot
-        .hyper
-        .as_ref()
-        .unwrap()
-        .route(listener.address, &route);
     let target = prepared.backend.as_ref().unwrap();
     let backend = &target.backend;
     let key = match &backend.options.balance {

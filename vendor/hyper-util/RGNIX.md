@@ -7,6 +7,11 @@ The original license and source are retained. `Cargo.toml.orig` and
 This is a direct optional path dependency, **not** a crates.io-wide patch.
 reqwest and kube continue to use the registry version.
 
+The normal and test Hyper dependencies point to the isolated sibling `../hyper`.
+Only the experimental product enables its `rgnix-full-body` feature; see
+[the Hyper patch contract](../hyper/RGNIX.md). Registry users remain independent,
+including their feature sets. The root lockfile pins both dependency identities.
+
 Changes in `src/client/legacy/client.rs`:
 
 - Keep `Request<B>` boxed while the legacy client carries it through connection

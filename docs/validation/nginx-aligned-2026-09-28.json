@@ -1,0 +1,1098 @@
+{
+  "base_commit": "bf0b414",
+  "branch": "experiment/replace-pingora",
+  "environment": "Linux ubuntu 7.0.14-orbstack-00380-ga7e0a2dc9535 #1 SMP PREEMPT Fri Aug  7 03:48:40 UTC 2026 aarch64 GNU/Linux",
+  "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: aarch64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8",
+  "scope": "Experimental plain HTTP/1 product transport only; default Pingora is unchanged.",
+  "retained_stage": "body",
+  "withdrawn_stage": "workers",
+  "stage_definitions": {
+    "before": "bf0b414 baseline, registry Hyper",
+    "headers": "selective original headers and avoid duplicate IP formatting, registry Hyper",
+    "isolated": "headers plus isolated vendored Hyper, rgnix-full-body disabled",
+    "body": "isolated plus rgnix-full-body, retained shared scheduler",
+    "workers": "body plus worker-local clients/current-thread reactors; withdrawn"
+  },
+  "binaries": {
+    "before": {
+      "path": "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+      "sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878"
+    },
+    "headers": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-headers",
+      "sha256": "66e39c0fa0fb8da97d500e8593ac4fd839149eeb84b00c5fb51c0ac78cec2924"
+    },
+    "isolated": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-isolated",
+      "sha256": "bb76cce65ec77c94a74eee811e4a7177981fdc208898a80904317280fdf01332"
+    },
+    "body": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9"
+    },
+    "workers": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-workers",
+      "sha256": "824af3b4cbd80031960703f060f293fa846cc96949d4d968c3f3ce186fd0fa08"
+    }
+  },
+  "allocations": {
+    "allocations-before-0-1024": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "before",
+          "requests": 0,
+          "count": 56447,
+          "requested_bytes": 5612039,
+          "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+          "command": [
+            "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "before",
+          "requests": 2000,
+          "count": 141106,
+          "requested_bytes": 46828718,
+          "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+          "command": [
+            "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "before": {
+          "allocations": 42.3295,
+          "requested_bytes": 20608.3395
+        }
+      },
+      "extra_headers": 0,
+      "response_bytes": 1024,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-before-64-1024": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "before",
+          "requests": 0,
+          "count": 56447,
+          "requested_bytes": 5612039,
+          "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+          "command": [
+            "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "before",
+          "requests": 2000,
+          "count": 396871,
+          "requested_bytes": 65338692,
+          "binary_sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+          "command": [
+            "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "before": {
+          "allocations": 170.212,
+          "requested_bytes": 29863.3265
+        }
+      },
+      "extra_headers": 64,
+      "response_bytes": 1024,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-body-0-1024": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "body",
+          "requests": 0,
+          "count": 56452,
+          "requested_bytes": 5612053,
+          "binary_sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "body",
+          "requests": 2000,
+          "count": 117444,
+          "requested_bytes": 45302943,
+          "binary_sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "body": {
+          "allocations": 30.496,
+          "requested_bytes": 19845.445
+        }
+      },
+      "extra_headers": 0,
+      "response_bytes": 1024,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-body-0-16384": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "body",
+          "requests": 0,
+          "count": 56449,
+          "requested_bytes": 5612301,
+          "binary_sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "body",
+          "requests": 2000,
+          "count": 133254,
+          "requested_bytes": 96806379,
+          "binary_sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "body": {
+          "allocations": 38.4025,
+          "requested_bytes": 45597.039
+        }
+      },
+      "extra_headers": 0,
+      "response_bytes": 16384,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-headers-0-1024": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "headers",
+          "requests": 0,
+          "count": 56452,
+          "requested_bytes": 5612504,
+          "binary_sha256": "66e39c0fa0fb8da97d500e8593ac4fd839149eeb84b00c5fb51c0ac78cec2924",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-headers",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "headers",
+          "requests": 2000,
+          "count": 133204,
+          "requested_bytes": 46292999,
+          "binary_sha256": "66e39c0fa0fb8da97d500e8593ac4fd839149eeb84b00c5fb51c0ac78cec2924",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-headers",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "headers": {
+          "allocations": 38.376,
+          "requested_bytes": 20340.2475
+        }
+      },
+      "extra_headers": 0,
+      "response_bytes": 1024,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-headers-64-1024": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "headers",
+          "requests": 0,
+          "count": 56450,
+          "requested_bytes": 5612440,
+          "binary_sha256": "66e39c0fa0fb8da97d500e8593ac4fd839149eeb84b00c5fb51c0ac78cec2924",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-headers",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "headers",
+          "requests": 2000,
+          "count": 261073,
+          "requested_bytes": 47542071,
+          "binary_sha256": "66e39c0fa0fb8da97d500e8593ac4fd839149eeb84b00c5fb51c0ac78cec2924",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-headers",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "headers": {
+          "allocations": 102.3115,
+          "requested_bytes": 20964.8155
+        }
+      },
+      "extra_headers": 64,
+      "response_bytes": 1024,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-isolated-0-1024": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "isolated",
+          "requests": 0,
+          "count": 56454,
+          "requested_bytes": 5616641,
+          "binary_sha256": "bb76cce65ec77c94a74eee811e4a7177981fdc208898a80904317280fdf01332",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-isolated",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "isolated",
+          "requests": 2000,
+          "count": 132978,
+          "requested_bytes": 46308180,
+          "binary_sha256": "bb76cce65ec77c94a74eee811e4a7177981fdc208898a80904317280fdf01332",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-isolated",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "isolated": {
+          "allocations": 38.262,
+          "requested_bytes": 20345.7695
+        }
+      },
+      "extra_headers": 0,
+      "response_bytes": 1024,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-isolated-0-16384": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "isolated",
+          "requests": 0,
+          "count": 56449,
+          "requested_bytes": 5612441,
+          "binary_sha256": "bb76cce65ec77c94a74eee811e4a7177981fdc208898a80904317280fdf01332",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-isolated",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "isolated",
+          "requests": 2000,
+          "count": 133012,
+          "requested_bytes": 96793088,
+          "binary_sha256": "bb76cce65ec77c94a74eee811e4a7177981fdc208898a80904317280fdf01332",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-isolated",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "isolated": {
+          "allocations": 38.2815,
+          "requested_bytes": 45590.3235
+        }
+      },
+      "extra_headers": 0,
+      "response_bytes": 16384,
+      "upstream_connections": "keepalive"
+    },
+    "allocations-workers-0-1024": {
+      "method": "Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.",
+      "runs": [
+        {
+          "name": "workers",
+          "requests": 0,
+          "count": 56401,
+          "requested_bytes": 5599211,
+          "binary_sha256": "824af3b4cbd80031960703f060f293fa846cc96949d4d968c3f3ce186fd0fa08",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-workers",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        },
+        {
+          "name": "workers",
+          "requests": 2000,
+          "count": 117399,
+          "requested_bytes": 45242653,
+          "binary_sha256": "824af3b4cbd80031960703f060f293fa846cc96949d4d968c3f3ce186fd0fa08",
+          "command": [
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-workers",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--experimental-hyper",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5"
+          ]
+        }
+      ],
+      "per_request": {
+        "workers": {
+          "allocations": 30.499,
+          "requested_bytes": 19821.721
+        }
+      },
+      "extra_headers": 0,
+      "response_bytes": 1024,
+      "upstream_connections": "keepalive"
+    }
+  },
+  "primitives": {
+    "primitive-before": {
+      "method": "Resolved libc memcpy/memmove and clock_gettime uprobes. One connection, 10 warm and 500 measured requests. Counts include background operations and exclude inlined copies; not throughput or latency. AArch64 return addresses are mapped to ELF symbols.",
+      "records": [
+        {
+          "engine": "hyper",
+          "binary": "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+          "sha256": "f3857b17334587caf19cfe868df3e6c1bab0c894f553862582ed692a67218878",
+          "requests": 500,
+          "events": {
+            "clock": 12196,
+            "memmove": 3,
+            "memcpy": 45495
+          },
+          "copy_bytes": 6357820,
+          "sizes": {
+            "0": 1504,
+            "264": 4000,
+            "296": 1500,
+            "4": 3000,
+            "304": 1500,
+            "936": 500,
+            "1032": 500,
+            "9": 4000,
+            "3": 2000,
+            "1": 6500,
+            "64": 500,
+            "14": 1500,
+            "280": 7494,
+            "736": 500,
+            "344": 500,
+            "272": 1000,
+            "15": 500,
+            "8": 1500,
+            "7": 1000,
+            "288": 1000,
+            "10": 500,
+            "6": 500,
+            "18": 500,
+            "29": 1000,
+            "12": 500,
+            "24": 500,
+            "13": 1000,
+            "5": 500
+          },
+          "copy_bytes_by_caller": {
+            "rgnix::proxy::hyper::request::serve::{{closure}}": 1818500,
+            "hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}": 1280000,
+            "tokio::sync::mpsc::list::Rx<T>::pop": 1118320,
+            "hyper_util::client::legacy::client::Client<C,B>::request": 648000,
+            "hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write": 412000,
+            "<hyper::proto::h1::dispatch::Server<S,hyper::body::incoming::Incoming> as hyper::proto::h1::dispatch::Dispatch>::recv_msg": 280000,
+            "<rgnix::proxy::Proxy as pingora_proxy::proxy_trait::ProxyHttp>::new_ctx": 154000,
+            "tokio::sync::mpsc::chan::Rx<T,S>::recv": 152000,
+            "hyper::client::dispatch::Callback<T,U>::send": 144000,
+            "tokio::sync::oneshot::Sender<T>::send": 144000,
+            "<hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode": 95000,
+            "<http::header::map::HeaderMap<T> as core::clone::Clone>::clone": 32000,
+            "hyper::proto::h1::role::write_headers": 17000,
+            "<T as alloc::string::ToString>::to_string": 13500,
+            "<alloc::string::String as core::fmt::Write>::write_str": 9000,
+            "http::header::name::HeaderName::from_bytes": 9000,
+            "<alloc::string::String as core::clone::Clone>::clone": 7000,
+            "<hyper::proto::h1::role::FastWrite as core::fmt::Write>::write_str": 5000,
+            "<http::uri::authority::Authority as core::str::traits::FromStr>::from_str": 4500,
+            "rgnix::proxy::request_host_parts::{{closure}}": 4500,
+            "rgnix::proxy::normalize_decoded_path": 4500,
+            "rgnix::model::RuntimeSnapshot::route": 4500,
+            "<hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::encode": 1500,
+            "std::sync::mpmc::waker::SyncWaker::unregister": 0,
+            "bytes::bytes_mut::BytesMut::reserve_inner": 0
+          },
+          "clock_calls_by_caller": {
+            "std::sys::pal::unix::time::Timespec::now": 12196
+          },
+          "record_output": "[ perf record: Woken up 21 times to write data ]\n[ perf record: Captured and wrote 5.301 MB /tmp/rgnix-nginx-opt-20260928/primitive-before/hyper.data (57694 samples) ]\n",
+          "server_command": [
+            "taskset",
+            "-c",
+            "10",
+            "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--max-inflight",
+            "4096",
+            "--max-plugin-instances",
+            "512",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5",
+            "--experimental-hyper"
+          ],
+          "event_count_matches_perf_samples": true
+        }
+      ]
+    },
+    "primitive-body": {
+      "method": "Resolved libc memcpy/memmove and clock_gettime uprobes. One connection, 10 warm and 500 measured requests. Counts include background operations and exclude inlined copies; not throughput or latency. AArch64 return addresses are mapped to ELF symbols.",
+      "records": [
+        {
+          "engine": "hyper",
+          "binary": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+          "sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+          "requests": 500,
+          "events": {
+            "clock": 12186,
+            "memmove": 2,
+            "memcpy": 40499
+          },
+          "copy_bytes": 6042440,
+          "sizes": {
+            "0": 1503,
+            "264": 4000,
+            "296": 1500,
+            "4": 3000,
+            "304": 1500,
+            "936": 500,
+            "1032": 500,
+            "9": 4000,
+            "3": 1500,
+            "1": 3500,
+            "14": 1500,
+            "280": 6498,
+            "736": 500,
+            "344": 500,
+            "272": 1000,
+            "15": 500,
+            "8": 1500,
+            "7": 1000,
+            "288": 1000,
+            "10": 500,
+            "6": 500,
+            "18": 500,
+            "29": 1000,
+            "12": 500,
+            "24": 500,
+            "13": 1000,
+            "5": 500
+          },
+          "copy_bytes_by_caller": {
+            "rgnix::proxy::hyper::request::serve::{{closure}}": 1818500,
+            "hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}": 1280000,
+            "tokio::sync::mpsc::list::Rx<T>::pop": 839440,
+            "hyper_util::client::legacy::client::Client<C,B>::request": 648000,
+            "hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write": 412000,
+            "<hyper::proto::h1::dispatch::Server<S,hyper::body::incoming::Incoming> as hyper::proto::h1::dispatch::Dispatch>::recv_msg": 280000,
+            "<rgnix::proxy::Proxy as pingora_proxy::proxy_trait::ProxyHttp>::new_ctx": 154000,
+            "tokio::sync::mpsc::chan::Rx<T,S>::recv": 152000,
+            "hyper::client::dispatch::Callback<T,U>::send": 144000,
+            "tokio::sync::oneshot::Sender<T>::send": 144000,
+            "<hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode": 95000,
+            "hyper::proto::h1::role::write_headers": 17000,
+            "<T as alloc::string::ToString>::to_string": 13500,
+            "http::header::name::HeaderName::from_bytes": 9000,
+            "<alloc::string::String as core::clone::Clone>::clone": 7000,
+            "<hyper::proto::h1::role::FastWrite as core::fmt::Write>::write_str": 5000,
+            "<alloc::string::String as core::fmt::Write>::write_str": 4500,
+            "<http::uri::authority::Authority as core::str::traits::FromStr>::from_str": 4500,
+            "rgnix::proxy::request_host_parts::{{closure}}": 4500,
+            "rgnix::proxy::normalize_decoded_path": 4500,
+            "rgnix::model::RuntimeSnapshot::route": 4500,
+            "<hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::encode": 1500,
+            "std::sync::mpmc::waker::SyncWaker::unregister": 0,
+            "bytes::bytes_mut::BytesMut::reserve_inner": 0
+          },
+          "clock_calls_by_caller": {
+            "std::sys::pal::unix::time::Timespec::now": 12186
+          },
+          "record_output": "[ perf record: Woken up 19 times to write data ]\n[ perf record: Captured and wrote 4.842 MB /tmp/rgnix-nginx-opt-20260928/primitive-body/hyper.data (52687 samples) ]\n",
+          "server_command": [
+            "taskset",
+            "-c",
+            "10",
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--max-inflight",
+            "4096",
+            "--max-plugin-instances",
+            "512",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5",
+            "--experimental-hyper"
+          ],
+          "event_count_matches_perf_samples": true
+        }
+      ]
+    },
+    "primitive-workers": {
+      "method": "Resolved libc memcpy/memmove and clock_gettime uprobes. One connection, 10 warm and 500 measured requests. Counts include background operations and exclude inlined copies; not throughput or latency. AArch64 return addresses are mapped to ELF symbols.",
+      "records": [
+        {
+          "engine": "hyper",
+          "binary": "/tmp/rgnix-nginx-opt-20260928/rgnix-workers",
+          "sha256": "824af3b4cbd80031960703f060f293fa846cc96949d4d968c3f3ce186fd0fa08",
+          "requests": 500,
+          "events": {
+            "clock": 10044,
+            "memmove": 2,
+            "memcpy": 40999
+          },
+          "copy_bytes": 6182440,
+          "sizes": {
+            "0": 1503,
+            "264": 4000,
+            "296": 1500,
+            "4": 3000,
+            "304": 1500,
+            "936": 500,
+            "1032": 500,
+            "9": 4000,
+            "3": 1500,
+            "1": 3500,
+            "14": 1500,
+            "280": 6998,
+            "736": 500,
+            "344": 500,
+            "272": 1000,
+            "15": 500,
+            "8": 1500,
+            "7": 1000,
+            "288": 1000,
+            "10": 500,
+            "6": 500,
+            "18": 500,
+            "29": 1000,
+            "12": 500,
+            "24": 500,
+            "13": 1000,
+            "5": 500
+          },
+          "copy_bytes_by_caller": {
+            "rgnix::proxy::hyper::request::serve::{{closure}}": 1958500,
+            "hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}": 1280000,
+            "tokio::sync::mpsc::list::Rx<T>::pop": 839440,
+            "hyper_util::client::legacy::client::Client<C,B>::request": 648000,
+            "hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write": 412000,
+            "<hyper::proto::h1::dispatch::Server<S,hyper::body::incoming::Incoming> as hyper::proto::h1::dispatch::Dispatch>::recv_msg": 280000,
+            "<rgnix::proxy::Proxy as pingora_proxy::proxy_trait::ProxyHttp>::new_ctx": 154000,
+            "tokio::sync::mpsc::chan::Rx<T,S>::recv": 152000,
+            "hyper::client::dispatch::Callback<T,U>::send": 144000,
+            "tokio::sync::oneshot::Sender<T>::send": 144000,
+            "<hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode": 95000,
+            "hyper::proto::h1::role::write_headers": 17000,
+            "<T as alloc::string::ToString>::to_string": 13500,
+            "http::header::name::HeaderName::from_bytes": 9000,
+            "<alloc::string::String as core::clone::Clone>::clone": 7000,
+            "<hyper::proto::h1::role::FastWrite as core::fmt::Write>::write_str": 5000,
+            "<alloc::string::String as core::fmt::Write>::write_str": 4500,
+            "<http::uri::authority::Authority as core::str::traits::FromStr>::from_str": 4500,
+            "rgnix::proxy::request_host_parts::{{closure}}": 4500,
+            "rgnix::proxy::normalize_decoded_path": 4500,
+            "rgnix::model::RuntimeSnapshot::route": 4500,
+            "<hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::encode": 1500,
+            "std::sync::mpmc::waker::SyncWaker::unregister": 0,
+            "bytes::bytes_mut::BytesMut::reserve_inner": 0
+          },
+          "clock_calls_by_caller": {
+            "std::sys::pal::unix::time::Timespec::now": 10044
+          },
+          "record_output": "[ perf record: Woken up 19 times to write data ]\n[ perf record: Captured and wrote 4.708 MB /tmp/rgnix-nginx-opt-20260928/primitive-workers/hyper.data (51045 samples) ]\n",
+          "server_command": [
+            "taskset",
+            "-c",
+            "10",
+            "/tmp/rgnix-nginx-opt-20260928/rgnix-workers",
+            "serve",
+            "-c",
+            "/tmp/rgnix-hyper-profile-20260928/profile/fixture/rgnix/nginx.conf",
+            "--admin",
+            "127.0.0.1:34007",
+            "--threads",
+            "1",
+            "--max-inflight",
+            "4096",
+            "--max-plugin-instances",
+            "512",
+            "--shutdown-grace-seconds",
+            "0",
+            "--shutdown-timeout-seconds",
+            "5",
+            "--experimental-hyper"
+          ],
+          "event_count_matches_perf_samples": true
+        }
+      ]
+    }
+  },
+  "logs": {
+    "allocations.log": {
+      "sha256": "c77521601ebfcc030ae22c372f93fbc4271577e0632c064ff9f6e7108c82d7ff",
+      "text": "before {'allocations': 42.3295, 'requested_bytes': 20608.3395}\nheaders {'allocations': 38.376, 'requested_bytes': 20340.2475}\nisolated {'allocations': 38.262, 'requested_bytes': 20345.7695}\nbody {'allocations': 30.496, 'requested_bytes': 19845.445}\nbefore {'allocations': 170.212, 'requested_bytes': 29863.3265}\nheaders {'allocations': 102.3115, 'requested_bytes': 20964.8155}\nisolated {'allocations': 38.2815, 'requested_bytes': 45590.3235}\nbody {'allocations': 38.4025, 'requested_bytes': 45597.039}\n"
+    },
+    "benchmark-final.log": {
+      "sha256": "af1d49952bf8951f12355a44f6c13e31438626a72e3fdbe25db3b4ca988e8f0b",
+      "text": "origin proxy-1k: 400428 req/s\nround 1 rgnix proxy-1k c64: 54579 req/s; p99 2.172 ms; CPU 1.00; PSS 22.6 MiB; errors 0\nround 1 candidate proxy-1k c64: 52994 req/s; p99 2.389 ms; CPU 1.00; PSS 22.7 MiB; errors 0\nround 2 candidate proxy-1k c64: 60418 req/s; p99 2.018 ms; CPU 1.00; PSS 22.6 MiB; errors 0\nround 2 rgnix proxy-1k c64: 50902 req/s; p99 2.512 ms; CPU 1.00; PSS 22.9 MiB; errors 0\nround 3 rgnix proxy-1k c64: 51558 req/s; p99 2.874 ms; CPU 0.99; PSS 22.7 MiB; errors 0\nround 3 candidate proxy-1k c64: 38307 req/s; p99 3.914 ms; CPU 0.99; PSS 22.7 MiB; errors 0\nSaved 6 runs to /tmp/rgnix-nginx-opt-20260928/aa-final-candidate-1w.json\n{\n  \"rule\": \"64 connections; the retained body candidate at 1 worker has 3 pairs, 3s warmup, 10s measurement. Every paired symmetric difference and both CVs <=10%, zero errors. At each worker count test candidate first, then baseline and NGINX, stopping on first failed gate; no retry/window selection. No cross-worker throughput inference if any required gate fails.\",\n  \"workers\": {\n    \"1\": {\n      \"baseline\": \"/tmp/rgnix-hyper-pool-20260928/rgnix-after\",\n      \"comparison\": false,\n      \"candidate_gate\": {\n        \"paired_difference_pct\": [\n          2.9480317376879417,\n          17.097504648731523,\n          29.490327228868523\n        ],\n        \"cv_pct\": [\n          3.746979356867257,\n          22.249995963759574\n        ],\n        \"passed\": false\n      }\n    }\n  }\n}\n"
+    },
+    "benchmark.log": {
+      "sha256": "f7630d8b100fc14a5501693fcb373871f695977fdb30faf264b85d2592807413",
+      "text": "origin proxy-1k: 401142 req/s\nround 1 rgnix proxy-1k c64: 47732 req/s; p99 4.330 ms; CPU 0.98; PSS 23.7 MiB; errors 0\nround 1 candidate proxy-1k c64: 65424 req/s; p99 2.433 ms; CPU 1.00; PSS 23.7 MiB; errors 0\nround 2 candidate proxy-1k c64: 74266 req/s; p99 1.961 ms; CPU 1.00; PSS 23.8 MiB; errors 0\nround 2 rgnix proxy-1k c64: 59061 req/s; p99 2.749 ms; CPU 0.99; PSS 23.8 MiB; errors 0\nround 3 rgnix proxy-1k c64: 70156 req/s; p99 2.196 ms; CPU 1.00; PSS 23.7 MiB; errors 0\nround 3 candidate proxy-1k c64: 71979 req/s; p99 1.970 ms; CPU 1.00; PSS 23.9 MiB; errors 0\nSaved 6 runs to /tmp/rgnix-nginx-opt-20260928/aa-candidate-1w.json\norigin proxy-1k: 406384 req/s\nround 1 rgnix proxy-1k c64: 101793 req/s; p99 2.656 ms; CPU 1.89; PSS 24.2 MiB; errors 0\nround 1 candidate proxy-1k c64: 110443 req/s; p99 1.924 ms; CPU 1.97; PSS 25.1 MiB; errors 0\nround 2 candidate proxy-1k c64: 110750 req/s; p99 2.000 ms; CPU 1.96; PSS 23.8 MiB; errors 0\nround 2 rgnix proxy-1k c64: 91677 req/s; p99 19.581 ms; CPU 1.74; PSS 25.1 MiB; errors 0\nround 3 rgnix proxy-1k c64: 115475 req/s; p99 1.639 ms; CPU 1.99; PSS 24.4 MiB; errors 0\nround 3 candidate proxy-1k c64: 106137 req/s; p99 2.063 ms; CPU 1.97; PSS 24.8 MiB; errors 0\nSaved 6 runs to /tmp/rgnix-nginx-opt-20260928/aa-candidate-2w.json\norigin proxy-1k: 425941 req/s\nround 1 rgnix proxy-1k c64: 163807 req/s; p99 4.711 ms; CPU 3.60; PSS 24.7 MiB; errors 0\nround 1 candidate proxy-1k c64: 131618 req/s; p99 5.132 ms; CPU 2.78; PSS 25.2 MiB; errors 0\nround 2 candidate proxy-1k c64: 144432 req/s; p99 3.244 ms; CPU 3.21; PSS 25.0 MiB; errors 0\nround 2 rgnix proxy-1k c64: 107320 req/s; p99 2.935 ms; CPU 2.43; PSS 25.7 MiB; errors 0\nround 3 rgnix proxy-1k c64: 123341 req/s; p99 2.712 ms; CPU 2.95; PSS 27.1 MiB; errors 0\nround 3 candidate proxy-1k c64: 101593 req/s; p99 3.893 ms; CPU 2.79; PSS 25.0 MiB; errors 0\nSaved 6 runs to /tmp/rgnix-nginx-opt-20260928/aa-candidate-4w.json\n{\n  \"rule\": \"64 connections; each worker count has 3 pairs, 3s warmup, 10s measurement. Every paired symmetric difference and both CVs <=10%, zero errors. At each worker count test candidate first, then baseline and NGINX, stopping on first failed gate; no retry/window selection. No cross-worker throughput inference if any required gate fails.\",\n  \"workers\": {\n    \"1\": {\n      \"baseline\": \"/tmp/rgnix-hyper-pool-20260928/rgnix-after\",\n      \"comparison\": false,\n      \"candidate_gate\": {\n        \"paired_difference_pct\": [\n          31.26846476177926,\n          22.807601179536093,\n          2.564660597580724\n        ],\n        \"cv_pct\": [\n          19.009049593839272,\n          6.50500573201437\n        ],\n        \"passed\": false\n      }\n    },\n    \"2\": {\n      \"baseline\": \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"comparison\": false,\n      \"candidate_gate\": {\n        \"paired_difference_pct\": [\n          8.151107736577202,\n          18.84411514961517,\n          8.427497753005689\n        ],\n        \"cv_pct\": [\n          11.597334603568795,\n          2.364189911030409\n        ],\n        \"passed\": false\n      }\n    },\n    \"4\": {\n      \"baseline\": \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"comparison\": false,\n      \"candidate_gate\": {\n        \"paired_difference_pct\": [\n          21.7911418064885,\n          29.482723269794505,\n          19.336968444134683\n        ],\n        \"cv_pct\": [\n          22.139844441043138,\n          17.46721061396903\n        ],\n        \"passed\": false\n      }\n    }\n  }\n}\n"
+    },
+    "body-build.log": {
+      "sha256": "53a3a11e2dcae6049d1ce7b336a0394d90bb500963ded9e028c7ee25b5dc1d9b",
+      "text": "   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 3m 12s\n"
+    },
+    "body-integration.log": {
+      "sha256": "157032e898250edfac58ec3f9e730a33d720ab9b5ea94a14ac6f55452b04d6f8",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 1,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "client-tests.log": {
+      "sha256": "af28d8ae4fcc8ae2262a1c74794d9e61de7c6d63072f1ea9b5b59975d94e60ea",
+      "text": "    Updating crates.io index\n     Locking 16 packages to latest compatible versions\n Downgrading core-foundation v0.10.1 -> v0.9.4\n Downgrading env_logger v0.11.11 -> v0.10.2\n      Adding humantime v2.4.0\n      Adding ipnetwork v0.20.0\n      Adding is-terminal v0.4.17\n      Adding no-std-net v0.6.0\n      Adding pnet_base v0.35.0\n      Adding pnet_datalink v0.35.0\n      Adding pnet_sys v0.35.0\n      Adding pretty_env_logger v0.5.0\n      Adding system-configuration v0.7.0 (available: v0.8.0)\n      Adding system-configuration-sys v0.6.0\n      Adding tower-test v0.4.0\n      Adding winapi v0.3.9\n      Adding winapi-i686-pc-windows-gnu v0.4.0\n      Adding winapi-x86_64-pc-windows-gnu v0.4.0\n   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.01s\n     Running tests/legacy_client.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/legacy_client-2098663f876fedde)\n\nrunning 21 tests\ntest connect_call_is_lazy ... ok\ntest drop_client_closes_idle_connections ... ok\ntest connect_proxy_http_connect_sends_authority_form ... ok\ntest client_upgrade ... ok\ntest test_incomplete_message_error_pr184 ... ok\ntest connect_proxy_sends_absolute_uri ... ok\ntest drop_response_body_closes_in_progress_connection ... ok\ntest client_keep_alive_extra_body ... ok\ntest test_successful_connection ... ok\ntest capture_connection_on_client ... ok\ntest socket_disconnect_closes_idle_conn ... ok\ntest drop_response_future_closes_in_progress_connection ... ok\ntest test_connection_error_propagation_pr184 ... ok\ntest no_keep_alive_closes_connection ... ok\ntest connection_poisoning ... ok\ntest alpn_h2 ... ok\ntest client_http2_upgrade ... ok\ntest client_keep_alive_eager_when_chunked ... ok\ntest client_keep_alive_0 ... ok\ntest client_keep_alive_when_response_before_request_body_ends ... ok\ntest drop_body_before_eof_closes_connection ... ok\n\ntest result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s\n\n"
+    },
+    "clippy.log": {
+      "sha256": "727ed6438708b148263ab3b0e4193c1d932b7c176f31de38be431309153a5695",
+      "text": "    Checking hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n    Checking hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 19.38s\n"
+    },
+    "default-check.log": {
+      "sha256": "9bfd2f30dd35a6356bc2016189bcdbb6006f4690488a69766cc54ad13752eaa4",
+      "text": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 1.91s\n"
+    },
+    "final-default-check.log": {
+      "sha256": "7669a22b37cff480117a6d8e8d565d9d6cbd86a0d3f8fe8722cdfff218d70bd9",
+      "text": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 3.72s\n"
+    },
+    "final-format.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "final-integration-1w.log": {
+      "sha256": "5cc520d6307fe22a02fa76899eaa14ef4cef905e179a32059b18ba38ee992bca",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 1,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "final-integration-2w.log": {
+      "sha256": "10753a9b8defd4199eed37e0ff98b76c23847f6c63f9f58cb0f197c4ec89a538",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 2,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "final-integration-4w.log": {
+      "sha256": "9cf873b6640a2860372b2824038a4b2ef28ef6fd888a37b314a7813c2436076c",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 4,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "final-integration-pingora.log": {
+      "sha256": "a639ad5f5e2c1e7824f080290d8530c713b88e10703aa2fef0ad892fdecfd034",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"pingora\",\n  \"threads\": 1,\n  \"passed\": 42,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "header-build.log": {
+      "sha256": "b8d78e21263c18e7463defabc52a7426f0a1940034a557825be495b62a09feec",
+      "text": "   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 2m 34s\n"
+    },
+    "header-integration.log": {
+      "sha256": "4646adc50348f72ed967e290c87d8386d2317cc8ba58a066a79fa2f1f9a37dc5",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "hyper-tests.log": {
+      "sha256": "f14dccc1290bf22a475d6d7cb1e3ea58333f9ae9b7ebe9841bcae7250665f109",
+      "text": "   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.36s\n     Running unittests src/lib.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/hyper-15dea85a254e8048)\n\nrunning 123 tests\ntest body::incoming::tests::channel_notices_closure ... ok\ntest body::incoming::tests::channel_abort ... ok\ntest body::incoming::tests::channel_empty ... ok\ntest body::incoming::tests::channel_buffers_one ... ok\ntest client::conn::http2::tests::not_send_not_sync_executor_of_not_send_futures ... ignored\ntest client::conn::http2::tests::send_not_sync_executor_of_not_send_futures ... ignored\ntest client::conn::http2::tests::send_not_sync_executor_of_send_futures ... ignored\ntest client::conn::http2::tests::send_sync_executor_of_non_send_futures ... ignored\ntest client::conn::http2::tests::send_sync_executor_of_send_futures ... ignored\ntest body::length::tests::sub_if_chunked ... ok\ntest body::length::tests::sub_if_known ... ok\ntest body::incoming::tests::channel_abort_when_buffer_is_full ... ok\ntest body::incoming::tests::channel_wanter ... ok\ntest client::dispatch::tests::drop_receiver_sends_cancel_errors ... ok\ntest body::incoming::tests::size_hint ... ok\ntest client::dispatch::tests::unbounded_sender_doesnt_bound_on_want ... ok\ntest body::incoming::tests::channel_ready ... ok\ntest body::incoming::tests::test_size_of ... ok\ntest client::dispatch::tests::sender_checks_for_want_on_send ... ok\ntest common::buf::tests::to_bytes_eq ... ok\ntest common::buf::tests::one_long_buf_to_bytes ... ok\ntest common::buf::tests::to_bytes_shorter ... ok\ntest common::buf::tests::buf_to_bytes_too_many - should panic ... ok\ntest common::date::tests::test_date_len ... ok\ntest common::buf::tests::to_bytes_longer ... ok\ntest error::tests::h2_reason_nested ... ok\ntest error::tests::h2_reason_one_level ... ok\ntest common::io::rewind::tests::full_rewind ... ok\ntest error::tests::h2_reason_unknown ... ok\ntest error::tests::error_satisfies_send_sync ... ok\ntest ext::h1_reason_phrase::tests::cr_invalid_err ... ok\ntest ext::h1_reason_phrase::tests::empty_valid ... ok\ntest ext::h1_reason_phrase::tests::newline_invalid_err ... ok\ntest error::tests::error_size_of ... ok\ntest ext::h1_reason_phrase::tests::cr_invalid_panic - should panic ... ok\ntest ext::h1_reason_phrase::tests::newline_invalid_panic - should panic ... ok\ntest ext::h1_reason_phrase::tests::obs_text_valid ... ok\ntest common::io::rewind::tests::partial_rewind ... ok\ntest ext::h1_reason_phrase::tests::basic_valid ... ok\ntest proto::h1::conn::tests::conn_reads_body_and_reports_end ... ok\ntest proto::h1::conn::tests::conn_reads_partial_request_head ... ok\ntest proto::h1::conn::tests::server_accepts_eof_while_busy ... ok\ntest proto::h1::conn::tests::conn_writes_chunked_body ... ok\ntest headers::tests::te_is_trailers_accepts_comma_separated_values ... ok\ntest headers::tests::te_is_trailers_accepts_multiple_header_lines ... ok\ntest headers::tests::te_is_trailers_rejects_missing_trailers_token ... ok\ntest proto::h1::decode::tests::test_decode_trailers ... ok\ntest proto::h1::conn::tests::client_rejects_eof_while_busy ... ok\ntest proto::h1::conn::tests::closed_conn_cannot_read_or_write ... ok\ntest proto::h1::conn::tests::client_request_connection_close_disables_keep_alive ... ok\ntest proto::h1::conn::tests::conn_accepts_eof_when_idle ... ok\ntest proto::h1::conn::tests::conn_reads_request_head ... ok\ntest proto::h1::decode::tests::test_decode_trailers_preserves_duplicate_values ... ok\ntest proto::h1::conn::tests::conn_reads_empty_response_before_eof ... ok\ntest proto::h1::conn::tests::conn_rejects_eof_during_partial_head ... ok\ntest proto::h1::decode::tests::test_read_chunked_after_eof ... ok\ntest proto::h1::decode::tests::test_read_chunked_single_read ... ok\ntest proto::h1::decode::tests::test_read_chunked_early_eof ... ok\ntest proto::h1::decode::tests::test_read_chunk_size ... ok\ntest proto::h1::decode::tests::test_read_chunked_trailer_with_missing_lf ... ok\ntest proto::h1::dispatch::tests::body_empty_chunks_ignored ... ok\ntest proto::h1::decode::tests::test_trailer_max_headers_enforced ... ok\ntest proto::h1::decode::tests::test_read_chunked_with_missing_zero_digit ... ok\ntest proto::h1::decode::tests::test_read_sized_early_eof ... ok\ntest proto::h1::dispatch::tests::client_read_bytes_before_writing_request ... ok\ntest proto::h1::dispatch::tests::partial_small_response_preserves_immediate_streaming ... ok\ntest proto::h1::dispatch::tests::buffered_response_consumption_and_connection_reuse ... ok\ntest proto::h1::dispatch::tests::client_flushing_is_not_ready_for_next_request ... ok\ntest proto::h1::decode::tests::test_trailer_max_header_size_many_small_trailers ... ok\ntest proto::h1::encode::tests::chunked ... ok\ntest proto::h1::decode::tests::test_trailer_max_headers_allows_exact_limit ... ok\ntest proto::h1::encode::tests::chunked_trailers_case_insensitive_matching ... ok\ntest proto::h1::encode::tests::chunked_with_multiple_trailer_headers ... ok\ntest proto::h1::encode::tests::chunked_with_duplicate_trailer_values ... ok\ntest proto::h1::decode::tests::test_trailer_max_header_size_huge_trailer ... ok\ntest proto::h1::encode::tests::chunked_with_no_trailer_header ... ok\ntest proto::h1::encode::tests::chunked_with_invalid_trailers ... ok\ntest proto::h1::io::tests::iobuf_write_empty_slice ... ignored\ntest proto::h1::encode::tests::chunked_with_valid_trailers ... ok\ntest proto::h1::encode::tests::chunked_with_title_case_headers ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_decrements ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_increments ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_stays_the_same ... ok\ntest proto::h1::encode::tests::length ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_max_fuzz ... ok\ntest proto::h1::encode::tests::eof ... ok\ntest proto::h1::io::tests::write_buf_flatten_partially_flushed ... ok\ntest proto::h1::io::tests::write_buf_flatten ... ok\ntest proto::h1::io::tests::write_buf_queue_disable_auto ... ok\ntest proto::h1::decode::tests::test_read_chunked_extensions_over_limit ... ok\ntest proto::h1::role::tests::parse_header_htabs ... ok\ntest proto::h1::role::tests::test_client_obs_fold_line ... ok\ntest proto::h1::io::tests::write_buf_requires_non_empty_bufs - should panic ... ok\ntest proto::h1::role::tests::test_client_request_encode_orig_and_title_case ... ok\ntest proto::h1::role::tests::test_parse_reject_request_with_multiple_spaces_in_request_line ... ok\ntest proto::h1::role::tests::test_parse_preserve_header_case_in_request ... ok\ntest proto::h1::role::tests::test_parse_allow_request_with_multiple_spaces_in_request_line ... ok\ntest proto::h1::role::tests::test_is_complete_fast ... ok\ntest proto::h1::io::tests::parse_reads_until_blocked ... ok\ntest proto::h1::role::tests::test_decoder_response ... ok\ntest proto::h1::role::tests::test_client_request_encode_title_case ... ok\ntest proto::h1::role::tests::test_client_request_encode_orig_case ... ok\ntest proto::h1::role::tests::test_parse_reject_response_with_spaces_before_colons ... ok\ntest proto::h1::role::tests::test_parse_request_errors ... ok\ntest proto::h1::role::tests::test_parse_request ... ok\ntest proto::h1::role::tests::test_parse_allow_response_with_spaces_before_colons ... ok\ntest proto::h1::role::tests::test_parse_response ... ok\ntest proto::h1::role::tests::test_parse_accepts_lf_crlf_terminator ... ok\ntest proto::h1::role::tests::test_decoder_request ... ok\ntest proto::h1::role::tests::test_server_encode_connect_method ... ok\ntest proto::h1::role::tests::test_parse_response_h09_rejected ... ok\ntest proto::h1::role::tests::test_server_response_encode_orig_and_title_case ... ok\ntest proto::h1::role::tests::test_parse_response_h09_allowed ... ok\ntest proto::h1::role::tests::test_write_headers_orig_case_empty_value ... ok\ntest proto::h1::role::tests::test_disabled_date_header ... ok\ntest proto::h1::role::tests::test_server_response_encode_title_case ... ok\ntest upgrade::tests::upgraded_downcast ... ok\ntest proto::h1::role::tests::test_write_headers_orig_case_multiple_entries ... ok\ntest proto::h1::role::tests::test_server_response_encode_orig_case ... ok\ntest proto::h1::role::tests::parse_too_large_headers ... ok\ntest proto::h1::decode::tests::test_read_eof_async ... ok\ntest proto::h1::decode::tests::test_read_length_async ... ok\ntest proto::h1::decode::tests::test_read_chunked_async ... ok\n\ntest result: ok. 117 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 0.25s\n\n"
+    },
+    "integration-1w.log": {
+      "sha256": "157032e898250edfac58ec3f9e730a33d720ab9b5ea94a14ac6f55452b04d6f8",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 1,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "integration-2w.log": {
+      "sha256": "41a4f0b5072b096dbb1879c7dc8d3b34980cdb1cd44d14a0cc2d0b13242bc9a2",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 2,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "integration-4w.log": {
+      "sha256": "a669022954ee9175351a9e837711493afcb8e8d068e7ded78cb79c9138ebaf39",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 4,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "integration-pingora.log": {
+      "sha256": "78fdbf9225c22a61f47f9b7c81d5228c4bcefdd277e0181c462040417c289a7d",
+      "text": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"pingora\",\n  \"threads\": 1,\n  \"passed\": 42,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n"
+    },
+    "isolated-build.log": {
+      "sha256": "9dc1305a8f7b043d954b9f5874f2af1979b4fc587076af680761fac91b12dfe0",
+      "text": "error: key with no value, expected `=`\n   --> vendor/hyper-util/Cargo.toml:260:5\n    |\n260 | vers\n    |     ^\n    |\n     Locking 2 packages to latest Rust 1.90 compatible versions\n      Adding hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n      Adding hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 3m 33s\n"
+    },
+    "primitives.log": {
+      "sha256": "b221d5d04b0b721df92d153c2caaa362909e407d827d13908bb08090b956dfde",
+      "text": "workers {'allocations': 30.499, 'requested_bytes': 19821.721}\nAdded new event:\n  rgnix_http_310918:memcpy (on 0xa9840 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_310918:memcpy -aR sleep 1\n\nAdded new event:\n  rgnix_http_310918:memmove (on 0xa9980 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_310918:memmove -aR sleep 1\n\nAdded new event:\n  rgnix_http_310918:clock (on clock_gettime in /usr/lib/aarch64-linux-gnu/libc.so.6 with caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_310918:clock -aR sleep 1\n\nhyper {'clock': 12196, 'memmove': 3, 'memcpy': 45495} copy bytes/request 12715.64\nRemoved event: rgnix_http_310918:clock\nRemoved event: rgnix_http_310918:memmove\nRemoved event: rgnix_http_310918:memcpy\nAdded new event:\n  rgnix_http_310972:memcpy (on 0xa9840 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_310972:memcpy -aR sleep 1\n\nAdded new event:\n  rgnix_http_310972:memmove (on 0xa9980 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_310972:memmove -aR sleep 1\n\nAdded new event:\n  rgnix_http_310972:clock (on clock_gettime in /usr/lib/aarch64-linux-gnu/libc.so.6 with caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_310972:clock -aR sleep 1\n\nhyper {'clock': 12186, 'memmove': 2, 'memcpy': 40499} copy bytes/request 12084.88\nRemoved event: rgnix_http_310972:clock\nRemoved event: rgnix_http_310972:memmove\nRemoved event: rgnix_http_310972:memcpy\nAdded new event:\n  rgnix_http_311035:memcpy (on 0xa9840 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_311035:memcpy -aR sleep 1\n\nAdded new event:\n  rgnix_http_311035:memmove (on 0xa9980 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_311035:memmove -aR sleep 1\n\nAdded new event:\n  rgnix_http_311035:clock (on clock_gettime in /usr/lib/aarch64-linux-gnu/libc.so.6 with caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_311035:clock -aR sleep 1\n\nhyper {'clock': 10044, 'memmove': 2, 'memcpy': 40999} copy bytes/request 12364.88\nRemoved event: rgnix_http_311035:clock\nRemoved event: rgnix_http_311035:memmove\nRemoved event: rgnix_http_311035:memcpy\n"
+    },
+    "retained-clippy.log": {
+      "sha256": "5b2ea55223ec356af9a6bef40d7ee8d9f7c6c6861640b06f27c3aa10de4678ac",
+      "text": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 14.71s\n"
+    },
+    "retained-default-check.log": {
+      "sha256": "81369e5c2b8fcef4299d6e57b42f1c97e4c6d4e98c3ca854c28288b41e71cee1",
+      "text": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 3.63s\n"
+    },
+    "retained-root-tests.log": {
+      "sha256": "d3e6916f5eb96987d13ecab79533b6ea9368a6778664a8ff82e00937021f51c5",
+      "text": "   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `test` profile [unoptimized] target(s) in 15.48s\n     Running unittests src/lib.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/rgnix-3d2aa2cfd8c47623)\n\nrunning 25 tests\ntest gateway::routes::tests::routing_scale_benchmark ... ignored, release-mode routing microbenchmark; run alone on an idle pinned CPU\ntest backend::tests::weighted_round_robin_preserves_sequence_across_health_changes ... ok\ntest gateway::routes::tests::invalid_backends_keep_their_weight_and_path_rewrite_preserves_boundaries ... ok\ntest gateway::routes::tests::request_predicates_and_listener_isolation ... ok\ntest model::tests::prefix_and_wildcard_boundaries_are_source_specific ... ok\ntest proxy::static_files::tests::capability_root_blocks_symlink_escape_and_ranges_are_bounded ... ok\ntest rollout::metrics::tests::stale_or_reconfigured_observations_cannot_trigger_rollback ... ok\ntest rollout::metrics::tests::sustained_business_failure_resets_on_recovery_and_rolls_back_http_success ... ok\ntest rollout::metrics::tests::unavailable_provider_requires_explicit_rollback_policy ... ok\ntest backend::tests::hashed_selection_preserves_health_and_lease_limits ... ok\ntest proxy::hyper::upstream::tests::flush_without_upload_progress_cannot_extend_read_timeout ... ok\ntest proxy::hyper::upstream::tests::upload_progress_extends_read_deadline_and_success_rearms_it ... ok\ntest gateway::routes::tests::scoped_views_rebuild_gateway_index_without_mutating_published_routes ... ok\ntest script::tests::compiler_rejects_recursion_and_runtime_bounds_loops ... ok\ntest script::tests::tenant_compilation_budget_does_not_block_cached_scripts_or_other_tenants ... ok\ntest script::tests::budgets_cover_host_allocations_and_imported_wasm_memory ... ok\ntest script::tests::pooled_instances_reset_guest_state_and_leave_control_plane_capacity ... ok\ntest script::tests::compiled_functions_branches_and_response_hooks ... ok\ntest script::tests::body_access_is_bounded_and_json_requires_complete_input ... ok\ntest gateway::routes::tests::indexed_routes_preserve_linear_matching_and_priority ... ok\ntest script::tests::constant_pool_and_legacy_memory_literals_obey_the_same_host_contract ... ok\ntest backend::tests::concurrent_selection_respects_capacity_and_least_connection_distribution ... ok\ntest backend::tests::empty_selection_recovers_after_cooldown_without_maintenance ... ok\ntest backend::tests::hash_and_sticky_preserve_existing_assignments ... ok\ntest backend::tests::dns_ttl_refresh_replaces_endpoints_without_invalidating_active_leases ... ok\n\ntest result: ok. 24 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.11s\n\n"
+    },
+    "root-tests.log": {
+      "sha256": "cc94f8aabebba25b2d23957188ef7098653db32d7d92d1d1af29637a0eefdf1d",
+      "text": "   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `test` profile [unoptimized] target(s) in 19.49s\n     Running unittests src/lib.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/rgnix-3d2aa2cfd8c47623)\n\nrunning 25 tests\ntest gateway::routes::tests::routing_scale_benchmark ... ignored, release-mode routing microbenchmark; run alone on an idle pinned CPU\ntest proxy::static_files::tests::capability_root_blocks_symlink_escape_and_ranges_are_bounded ... ok\ntest gateway::routes::tests::scoped_views_rebuild_gateway_index_without_mutating_published_routes ... ok\ntest model::tests::prefix_and_wildcard_boundaries_are_source_specific ... ok\ntest gateway::routes::tests::request_predicates_and_listener_isolation ... ok\ntest proxy::hyper::upstream::tests::flush_without_upload_progress_cannot_extend_read_timeout ... ok\ntest rollout::metrics::tests::unavailable_provider_requires_explicit_rollback_policy ... ok\ntest rollout::metrics::tests::sustained_business_failure_resets_on_recovery_and_rolls_back_http_success ... ok\ntest proxy::hyper::upstream::tests::upload_progress_extends_read_deadline_and_success_rearms_it ... ok\ntest backend::tests::weighted_round_robin_preserves_sequence_across_health_changes ... ok\ntest gateway::routes::tests::invalid_backends_keep_their_weight_and_path_rewrite_preserves_boundaries ... ok\ntest rollout::metrics::tests::stale_or_reconfigured_observations_cannot_trigger_rollback ... ok\ntest backend::tests::hashed_selection_preserves_health_and_lease_limits ... ok\ntest script::tests::compiler_rejects_recursion_and_runtime_bounds_loops ... ok\ntest script::tests::tenant_compilation_budget_does_not_block_cached_scripts_or_other_tenants ... ok\ntest script::tests::budgets_cover_host_allocations_and_imported_wasm_memory ... ok\ntest script::tests::pooled_instances_reset_guest_state_and_leave_control_plane_capacity ... ok\ntest script::tests::compiled_functions_branches_and_response_hooks ... ok\ntest script::tests::body_access_is_bounded_and_json_requires_complete_input ... ok\ntest script::tests::constant_pool_and_legacy_memory_literals_obey_the_same_host_contract ... ok\ntest gateway::routes::tests::indexed_routes_preserve_linear_matching_and_priority ... ok\ntest backend::tests::concurrent_selection_respects_capacity_and_least_connection_distribution ... ok\ntest backend::tests::empty_selection_recovers_after_cooldown_without_maintenance ... ok\ntest backend::tests::hash_and_sticky_preserve_existing_assignments ... ok\ntest backend::tests::dns_ttl_refresh_replaces_endpoints_without_invalidating_active_leases ... ok\n\ntest result: ok. 24 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.11s\n\n"
+    },
+    "worker-build.log": {
+      "sha256": "6a66be601043b7503cdd6140358ad4a5dad03cc7c7d561b92d5b99e45d6e65a8",
+      "text": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 13.49s\n   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 2m 46s\n"
+    }
+  },
+  "drivers": {
+    "allocations.py": "import concurrent.futures, hashlib, http.client, json, os, subprocess, sys\nfrom pathlib import Path\nroot=Path('/Users/livesite/Documents/ChatGPT/rgnix')\nsys.path.insert(0,str(root/'scripts'))\nfrom benchmark_compare import start, stop\nfrom integration import request, wait_for\nbase=Path('/tmp/rgnix-hyper-profile-20260928')\nwork=Path('/tmp/rgnix-nginx-opt-20260928')\ncold='--close-upstream' in sys.argv\nlabel=sys.argv[1]\nextra=int(sys.argv[2]) if len(sys.argv)>2 and sys.argv[2].isdigit() else 0\npath=sys.argv[3] if len(sys.argv)>3 else '/proxy-1k'\nsize=16384 if path=='/proxy-16k' else 1024\nout=work/f'allocations-{label}-{extra}-{size}';out.mkdir(exist_ok=False)\nprofile=json.loads((base/'profile/result.json').read_text())\nmatrix=json.loads((root/'docs/validation/hyper-product-aa-pingora-2026-09-28.json').read_text())\nports=matrix['ports'];fixture=base/'profile/fixture'\nresult={'method':'Heaptrack 4 keepalive connections, 2000 validated requests minus a separate startup control; requested bytes are cumulative, not RSS. Direct server exec with CPU affinity, no instrumented launcher.','runs':[],'per_request':{}}\norigin_config=fixture/'origin/nginx.conf'\nif cold:\n    original=origin_config.read_text()\n    assert 'keepalive_requests 1000000;' in original\n    origin_config=out/'origin-close.conf'\n    origin_config.write_text(original.replace('keepalive_requests 1000000;', 'keepalive_requests 1;'))\nresult['extra_headers']=extra\nresult['response_bytes']=size\nresult['upstream_connections']='one request per connection' if cold else 'keepalive'\norigin=server=None\ntry:\n    origin=start(['taskset','-c','6',profile['binaries']['origin']['path'],'-p',str(fixture/'origin'),'-c',str(origin_config),'-g','daemon off;'],out/'origin.log')\n    wait_for(lambda:request(ports['primary'],'/proxy-1k')[0],200)\n    for name,binary in [(label,Path('/tmp/rgnix-hyper-pool-20260928/rgnix-after') if label=='before' else work/f'rgnix-{label}')]:\n        runs=[]\n        for count in [0,2000]:\n            raw=out/f'{name}-{count}.raw'\n            env={k:v for k,v in os.environ.items() if not k.startswith(('RGNIX_OTLP_','OTEL_EXPORTER_OTLP_'))}\n            env.update(RUST_LOG='warn',LD_PRELOAD='/usr/lib/heaptrack/libheaptrack_preload.so',DUMP_HEAPTRACK_OUTPUT=str(raw))\n            command=[str(binary),'serve','-c',str(fixture/'rgnix/nginx.conf'),'--admin',f\"127.0.0.1:{ports['admin']}\",'--threads','1','--experimental-hyper','--shutdown-grace-seconds','0','--shutdown-timeout-seconds','5']\n            with raw.with_suffix('.log').open('w') as log:\n                server=subprocess.Popen(command,env=env,stdout=log,stderr=log,start_new_session=True,preexec_fn=lambda:os.sched_setaffinity(0,{10}))\n            wait_for(lambda:request(ports['admin'],'/readyz')[0],200)\n            def send(_):\n                c=http.client.HTTPConnection('127.0.0.1',ports['http'],timeout=10)\n                try:\n                    for i in range(count//4):\n                        c.request('GET',path,headers={'Host':'localhost',**{f'X-Extra-{n}':'value'*4 for n in range(extra)}})\n                        response=c.getresponse()\n                        assert response.status==200 and response.read()==b'x'*size\n                finally:c.close()\n            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(send,range(4)))\n            stop(server);server=None\n            lines=raw.read_text().splitlines()\n            assert any(str(binary) in line for line in lines[:30]), 'wrong traced process'\n            sizes={};total=amount=0\n            for line in lines:\n                fields=line.split()\n                if fields and fields[0]=='+':\n                    total+=1;amount+=int(fields[1],16)\n            assert total>0\n            item={'name':name,'requests':count,'count':total,'requested_bytes':amount,'binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'command':command}\n            runs.append(item);result['runs'].append(item)\n        result['per_request'][name]={'allocations':(runs[1]['count']-runs[0]['count'])/2000,'requested_bytes':(runs[1]['requested_bytes']-runs[0]['requested_bytes'])/2000}\n        print(name,result['per_request'][name],flush=True)\nfinally:\n    stop(server);stop(origin)\n    (out/'result.json').write_text(json.dumps(result,indent=2)+'\\n')\n",
+    "benchmark.py": "import json, statistics, subprocess\nfrom pathlib import Path\nroot=Path('/Users/livesite/Documents/ChatGPT/rgnix')\nwork=Path('/tmp/rgnix-nginx-opt-20260928')\nnew=work/'rgnix-workers'\ncommon=['--nginx','/tmp/rgnix-compare-20260927/nginx/sbin/nginx','--openresty','/tmp/rgnix-compare-20260927/openresty/bin/openresty','--plain-proxy','--cases','proxy-1k','--rounds','3','--seconds','10','--warmup','3','--origin-workers','4','--client-threads','4','--client-cpus','2,3,4,5','--origin-cpus','6,7,8,9','--interleave','--rgnix-transport','hyper','--candidate-transport','hyper','--concurrency','64']\ndef run(name,first,second,engines,workers):\n    output=work/f'{name}.json'\n    command=['python3',str(root/'scripts/benchmark_compare.py'),*common,'--workers',str(workers),'--server-cpus',','.join(str(10+i) for i in range(workers)),'--rgnix',str(first),'--candidate',str(second),'--engines',*engines,'--work-dir',str(work/name),'--output',str(output)]\n    subprocess.run(command,check=True)\n    return json.loads(output.read_text())\ndef gate(data,nginx=False):\n    runs=data['runs']\n    left=runs[::2] if nginx else [r for r in runs if r['engine']=='rgnix']\n    right=runs[1::2] if nginx else [r for r in runs if r['engine']=='candidate']\n    pairs=[200*abs(a['rps']-b['rps'])/(a['rps']+b['rps']) for a,b in zip(left,right)]\n    cvs=[100*statistics.stdev(r['rps'] for r in group)/statistics.mean(r['rps'] for r in group) for group in [left,right]]\n    return {'paired_difference_pct':pairs,'cv_pct':cvs,'passed':len(pairs)==3 and max(pairs+cvs)<=10 and all(r['errors']==0 for r in runs)}\nresult={'rule':'64 connections; each worker count has 3 pairs, 3s warmup, 10s measurement. Every paired symmetric difference and both CVs <=10%, zero errors. At each worker count test candidate first, then baseline and NGINX, stopping on first failed gate; no retry/window selection. No cross-worker throughput inference if any required gate fails.','workers':{}}\nfor workers in [1,2,4]:\n    baseline=Path('/tmp/rgnix-hyper-pool-20260928/rgnix-after') if workers==1 else work/'rgnix-body'\n    item={'baseline':str(baseline),'comparison':False};result['workers'][workers]=item\n    for label,binary,engines in [('candidate',new,['rgnix','candidate']),('baseline',baseline,['rgnix','candidate']),('nginx',new,['nginx','nginx'])]:\n        item[label+'_gate']=gate(run(f'aa-{label}-{workers}w',binary,binary,engines,workers),label=='nginx')\n        (work/'calibration.json').write_text(json.dumps(result,indent=2)+'\\n')\n        if not item[label+'_gate']['passed']:break\n    else:\n        run(f'comparison-{workers}w',baseline,new,['rgnix','candidate','nginx'],workers)\n        item['comparison']=True\n(work/'calibration.json').write_text(json.dumps(result,indent=2)+'\\n')\nprint(json.dumps(result,indent=2),flush=True)\n",
+    "benchmark-final.py": "import json, statistics, subprocess\nfrom pathlib import Path\nroot=Path('/Users/livesite/Documents/ChatGPT/rgnix')\nwork=Path('/tmp/rgnix-nginx-opt-20260928')\nnew=work/'rgnix-body'\ncommon=['--nginx','/tmp/rgnix-compare-20260927/nginx/sbin/nginx','--openresty','/tmp/rgnix-compare-20260927/openresty/bin/openresty','--plain-proxy','--cases','proxy-1k','--rounds','3','--seconds','10','--warmup','3','--origin-workers','4','--client-threads','4','--client-cpus','2,3,4,5','--origin-cpus','6,7,8,9','--interleave','--rgnix-transport','hyper','--candidate-transport','hyper','--concurrency','64']\ndef run(name,first,second,engines,workers):\n    output=work/f'{name}.json'\n    command=['python3',str(root/'scripts/benchmark_compare.py'),*common,'--workers',str(workers),'--server-cpus',','.join(str(10+i) for i in range(workers)),'--rgnix',str(first),'--candidate',str(second),'--engines',*engines,'--work-dir',str(work/name),'--output',str(output)]\n    subprocess.run(command,check=True)\n    return json.loads(output.read_text())\ndef gate(data,nginx=False):\n    runs=data['runs']\n    left=runs[::2] if nginx else [r for r in runs if r['engine']=='rgnix']\n    right=runs[1::2] if nginx else [r for r in runs if r['engine']=='candidate']\n    pairs=[200*abs(a['rps']-b['rps'])/(a['rps']+b['rps']) for a,b in zip(left,right)]\n    cvs=[100*statistics.stdev(r['rps'] for r in group)/statistics.mean(r['rps'] for r in group) for group in [left,right]]\n    return {'paired_difference_pct':pairs,'cv_pct':cvs,'passed':len(pairs)==3 and max(pairs+cvs)<=10 and all(r['errors']==0 for r in runs)}\nresult={'rule':'64 connections; the retained body candidate at 1 worker has 3 pairs, 3s warmup, 10s measurement. Every paired symmetric difference and both CVs <=10%, zero errors. At each worker count test candidate first, then baseline and NGINX, stopping on first failed gate; no retry/window selection. No cross-worker throughput inference if any required gate fails.','workers':{}}\nfor workers in [1]:\n    baseline=Path('/tmp/rgnix-hyper-pool-20260928/rgnix-after') if workers==1 else work/'rgnix-body'\n    item={'baseline':str(baseline),'comparison':False};result['workers'][workers]=item\n    for label,binary,engines in [('candidate',new,['rgnix','candidate']),('baseline',baseline,['rgnix','candidate']),('nginx',new,['nginx','nginx'])]:\n        item[label+'_gate']=gate(run(f'aa-final-{label}-{workers}w',binary,binary,engines,workers),label=='nginx')\n        (work/'calibration-final.json').write_text(json.dumps(result,indent=2)+'\\n')\n        if not item[label+'_gate']['passed']:break\n    else:\n        run(f'comparison-final-{workers}w',baseline,new,['rgnix','candidate','nginx'],workers)\n        item['comparison']=True\n(work/'calibration-final.json').write_text(json.dumps(result,indent=2)+'\\n')\nprint(json.dumps(result,indent=2),flush=True)\n"
+  },
+  "source_sha256": {
+    "scripts/benchmark_compare.py": "780a6091219434859ba5c602b78c616ce6825b8f40188f128cf65ea078037351",
+    "scripts/profile_http_primitives.py": "db3b94655c99dcb52155ac0851ba81345064cdf82b001ca3eb2404d5820e04f0",
+    "scripts/hyper_integration.py": "32b6b3e15aa2d94c117690614b92165838d6c01bb8e33b950dcd6ab78cd2bdee",
+    "Cargo.toml": "45f81e5f7996c9aa424d5a3ec7d2c49001deb3f4873ade513f2312c47530a524",
+    "Cargo.lock": "390650193191611aec71cb41376ba0439fc8016cc4df6f9e623d55e7351af812",
+    "src/runtime.rs": "aa8235009d2b9f1e2d818e27d5103f0b50f16c708d39526964bb6f7e37b47540",
+    "src/proxy/hyper/mod.rs": "c2e5d13c6e5f9bac1bc6b379395d177f73634a30ab3a6e65f059543a0d51e929",
+    "src/proxy/hyper/prepared.rs": "2b237c417e80786756d811c748572b8caf8dc3a932a703932aed6a0e8b411817",
+    "src/proxy/hyper/request.rs": "61e5c77ed48ce7422d612f36e614102a7dabac326fc9586e6125878c00b9fa36",
+    "src/script/headers.rs": "6ba53c295c17643119b9a377a3aa077821db2271b1205071d6c90e14d7a5add4",
+    "vendor/hyper/Cargo.toml": "87937e1b68d52f61edbda6d306a89819157ea547a2bdf72ffd68641eac8a6937",
+    "vendor/hyper/src/body/incoming.rs": "bcec0ce63f117662d204b47434755d6529365937e72e576e413a0bbd521f4085",
+    "vendor/hyper/src/proto/h1/conn.rs": "3a7ec3fbbe505caa5327305d66aa0640ae8b186c095b39703c98c1ba690c7c30",
+    "vendor/hyper/src/proto/h1/dispatch.rs": "db4613d825c313c1dd60618d0945e92addd7a1dba017f0ec71f74597b55d843b",
+    "vendor/hyper-util/Cargo.toml": "a737ca0bbc42fcf27f979209eb01713c3008adb94c4d9222749fc5273b5eb3f7"
+  },
+  "body_stage_source_sha256": {
+    "src/runtime.rs": "aa8235009d2b9f1e2d818e27d5103f0b50f16c708d39526964bb6f7e37b47540",
+    "src/proxy/hyper/mod.rs": "c2e5d13c6e5f9bac1bc6b379395d177f73634a30ab3a6e65f059543a0d51e929",
+    "src/proxy/hyper/prepared.rs": "2b237c417e80786756d811c748572b8caf8dc3a932a703932aed6a0e8b411817",
+    "src/proxy/hyper/request.rs": "61e5c77ed48ce7422d612f36e614102a7dabac326fc9586e6125878c00b9fa36",
+    "Cargo.toml": "45f81e5f7996c9aa424d5a3ec7d2c49001deb3f4873ade513f2312c47530a524",
+    "Cargo.lock": "390650193191611aec71cb41376ba0439fc8016cc4df6f9e623d55e7351af812",
+    "vendor/hyper/src/body/incoming.rs": "bcec0ce63f117662d204b47434755d6529365937e72e576e413a0bbd521f4085",
+    "vendor/hyper/src/proto/h1/conn.rs": "3a7ec3fbbe505caa5327305d66aa0640ae8b186c095b39703c98c1ba690c7c30",
+    "vendor/hyper/src/proto/h1/dispatch.rs": "db4613d825c313c1dd60618d0945e92addd7a1dba017f0ec71f74597b55d843b"
+  },
+  "worker_experiment_patch": "--- a/src/runtime.rs\n+++ b/src/runtime.rs\n@@ -190,6 +190,7 @@\n             snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(\n                 &snapshot,\n                 current.hyper.as_ref().unwrap().pool_size,\n+                current.hyper.as_ref().unwrap().workers,\n             )?));\n         }\n         snapshot.content_hash = snapshot.fingerprint()?;\n@@ -433,6 +434,7 @@\n         snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(\n             &snapshot,\n             limits.upstream_keepalive_pool_size * limits.threads,\n+            limits.threads,\n         )?));\n     }\n     snapshot.content_hash = snapshot.fingerprint()?;\n@@ -494,16 +496,11 @@\n         upstream_fail_timeout: std::time::Duration::from_secs(limits.upstream_fail_timeout_secs),\n     });\n     Telemetry::observe_runtime(&shared, &limits)?;\n-    let work_stealing = false;\n-    #[cfg(feature = \"hyper-experimental\")]\n-    let work_stealing = limits.experimental_hyper || work_stealing;\n     let conf = ServerConf {\n         threads,\n         upstream_keepalive_pool_size: limits.upstream_keepalive_pool_size,\n-        // Pingora distributes accepted connections and HTTP/2 streams across\n-        // workers; keep each task on its reactor after admission. Hyper spawns\n-        // accepted connections on a shared scheduler instead.\n-        work_stealing,\n+        // Keep a connection and its upstream driver on their admitting reactor.\n+        work_stealing: false,\n         daemon: false,\n         // Pingora includes the first attempt in this budget.\n         max_retries: 1,\n@@ -531,12 +528,16 @@\n     for listener in listeners {\n         #[cfg(feature = \"hyper-experimental\")]\n         if limits.experimental_hyper {\n-            let mut service = background_service(\n-                &format!(\"hyper-{}\", listener.address),\n-                crate::proxy::hyper::Listener::bind(shared.clone(), listener.address, &limits)?,\n-            );\n-            service.threads = Some(threads);\n-            server.add_service(service);\n+            for (index, worker) in\n+                crate::proxy::hyper::Listener::bind(shared.clone(), listener.address, &limits)?\n+                    .into_iter()\n+                    .enumerate()\n+            {\n+                let mut service =\n+                    background_service(&format!(\"hyper-{}-{index}\", listener.address), worker);\n+                service.threads = Some(1);\n+                server.add_service(service);\n+            }\n             continue;\n         }\n         let mut service = pingora::proxy::http_proxy_service(\n--- a/src/proxy/hyper/mod.rs\n+++ b/src/proxy/hyper/mod.rs\n@@ -24,6 +24,7 @@\n pub(crate) struct Listener {\n     shared: Arc<Shared>,\n     address: SocketAddr,\n+    pub(super) worker: usize,\n     socket: Arc<Mutex<Option<std::net::TcpListener>>>,\n     drain_timeout: Duration,\n }\n@@ -119,15 +120,24 @@\n }\n \n impl Listener {\n-    pub(crate) fn bind(shared: Arc<Shared>, address: SocketAddr, limits: &Limits) -> Result<Self> {\n+    pub(crate) fn bind(\n+        shared: Arc<Shared>,\n+        address: SocketAddr,\n+        limits: &Limits,\n+    ) -> Result<Vec<Self>> {\n         let socket = std::net::TcpListener::bind(address)?;\n         socket.set_nonblocking(true)?;\n-        Ok(Self {\n-            shared,\n-            address,\n-            socket: Arc::new(Mutex::new(Some(socket))),\n-            drain_timeout: Duration::from_secs(limits.shutdown_timeout_seconds),\n-        })\n+        (0..limits.threads)\n+            .map(|worker| {\n+                Ok(Self {\n+                    shared: shared.clone(),\n+                    address,\n+                    worker,\n+                    socket: Arc::new(Mutex::new(Some(socket.try_clone()?))),\n+                    drain_timeout: Duration::from_secs(limits.shutdown_timeout_seconds),\n+                })\n+            })\n+            .collect()\n     }\n }\n \n--- a/src/proxy/hyper/prepared.rs\n+++ b/src/proxy/hyper/prepared.rs\n@@ -13,13 +13,14 @@\n \n pub(crate) struct Prepared {\n     pub pool_size: usize,\n+    pub workers: usize,\n     // Route IDs need not be unique (exact and prefix locations can share a path).\n     // These identities remain valid while the owning snapshot retains its routes.\n     routes: HashMap<(SocketAddr, usize), PreparedRoute>,\n }\n \n pub(super) struct PreparedRoute {\n-    pub client: ProxyClient,\n+    pub clients: Vec<ProxyClient>,\n     pub request_headers: Vec<(HeaderName, Value)>,\n     pub response_headers: Vec<(HeaderName, Value, bool)>,\n     pub backend: Option<Arc<PreparedBackend>>,\n@@ -69,7 +70,7 @@\n }\n \n impl Prepared {\n-    pub fn new(snapshot: &RuntimeSnapshot, pool_size: usize) -> Result<Self> {\n+    pub fn new(snapshot: &RuntimeSnapshot, pool_size: usize, workers: usize) -> Result<Self> {\n         let mut clients = HashMap::new();\n         let backends: HashMap<_, _> = snapshot\n             .backends\n@@ -94,28 +95,36 @@\n         for host in &snapshot.hosts {\n             for route in &host.routes {\n                 let settings = &route.settings;\n-                let key = (\n-                    host.listener,\n-                    settings.connect_timeout,\n-                    settings.read_timeout,\n-                    settings.write_timeout,\n-                    settings.keepalive,\n-                );\n-                let client = clients\n-                    .entry(key)\n-                    .or_insert_with(|| {\n-                        Client::builder(TokioExecutor::new())\n-                            .pool_timer(TokioTimer::new())\n-                            .pool_idle_timeout(settings.keepalive)\n-                            .pool_max_idle_per_host(pool_size)\n-                            .retry_canceled_requests(false)\n-                            .build(Connector::new(\n-                                settings.connect_timeout,\n-                                settings.read_timeout,\n-                                settings.write_timeout,\n-                            ))\n+                let route_clients = (0..workers)\n+                    .map(|worker| {\n+                        let key = (\n+                            host.listener,\n+                            worker,\n+                            settings.connect_timeout,\n+                            settings.read_timeout,\n+                            settings.write_timeout,\n+                            settings.keepalive,\n+                        );\n+                        clients\n+                            .entry(key)\n+                            .or_insert_with(|| {\n+                                Client::builder(TokioExecutor::new())\n+                                    .pool_timer(TokioTimer::new())\n+                                    .pool_idle_timeout(settings.keepalive)\n+                                    .pool_max_idle_per_host(\n+                                        pool_size / workers\n+                                            + usize::from(worker < pool_size % workers),\n+                                    )\n+                                    .retry_canceled_requests(false)\n+                                    .build(Connector::new(\n+                                        settings.connect_timeout,\n+                                        settings.read_timeout,\n+                                        settings.write_timeout,\n+                                    ))\n+                            })\n+                            .clone()\n                     })\n-                    .clone();\n+                    .collect();\n                 let request_headers = settings\n                     .request_headers\n                     .iter()\n@@ -145,7 +154,7 @@\n                 routes.insert(\n                     (host.listener, Arc::as_ptr(route) as usize),\n                     PreparedRoute {\n-                        client,\n+                        clients: route_clients,\n                         request_headers,\n                         response_headers,\n                         backend,\n@@ -154,7 +163,11 @@\n                 );\n             }\n         }\n-        Ok(Self { pool_size, routes })\n+        Ok(Self {\n+            pool_size,\n+            workers,\n+            routes,\n+        })\n     }\n \n     pub(super) fn route(&self, listener: SocketAddr, route: &Arc<Route>) -> &PreparedRoute {\n--- a/src/proxy/hyper/request.rs\n+++ b/src/proxy/hyper/request.rs\n@@ -347,22 +347,25 @@\n     }\n     let request =\n         request.map(|body| RequestBody::new(body, guard.counts.clone(), settings.max_body));\n-    let mut response = prepared.client.request(request).await.map_err(|failure| {\n-        if guard.counts.request_error.load(Ordering::Relaxed) == 1 {\n-            error(413, \"request body too large\")\n-        } else if guard.counts.request_error.load(Ordering::Relaxed) == 2 {\n-            error(400, \"incomplete request body\").into_down()\n-        } else {\n-            upstream_error(\n-                &failure,\n-                if failure.is_connect() {\n-                    FailurePhase::Connect\n-                } else {\n-                    FailurePhase::Request\n-                },\n-            )\n-        }\n-    })?;\n+    let mut response = prepared.clients[listener.worker]\n+        .request(request)\n+        .await\n+        .map_err(|failure| {\n+            if guard.counts.request_error.load(Ordering::Relaxed) == 1 {\n+                error(413, \"request body too large\")\n+            } else if guard.counts.request_error.load(Ordering::Relaxed) == 2 {\n+                error(400, \"incomplete request body\").into_down()\n+            } else {\n+                upstream_error(\n+                    &failure,\n+                    if failure.is_connect() {\n+                        FailurePhase::Connect\n+                    } else {\n+                        FailurePhase::Request\n+                    },\n+                )\n+            }\n+        })?;\n     if let Some(span) = ctx.trace.as_mut().and_then(|trace| trace.upstream.as_mut()) {\n         span.status = Some(response.status().as_u16());\n     }\n",
+  "calibration": {
+    "rule": "64 connections; each worker count has 3 pairs, 3s warmup, 10s measurement. Every paired symmetric difference and both CVs <=10%, zero errors. At each worker count test candidate first, then baseline and NGINX, stopping on first failed gate; no retry/window selection. No cross-worker throughput inference if any required gate fails.",
+    "workers": {
+      "1": {
+        "baseline": "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+        "comparison": false,
+        "candidate_gate": {
+          "paired_difference_pct": [
+            31.26846476177926,
+            22.807601179536093,
+            2.564660597580724
+          ],
+          "cv_pct": [
+            19.009049593839272,
+            6.50500573201437
+          ],
+          "passed": false
+        }
+      },
+      "2": {
+        "baseline": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+        "comparison": false,
+        "candidate_gate": {
+          "paired_difference_pct": [
+            8.151107736577202,
+            18.84411514961517,
+            8.427497753005689
+          ],
+          "cv_pct": [
+            11.597334603568795,
+            2.364189911030409
+          ],
+          "passed": false
+        }
+      },
+      "4": {
+        "baseline": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+        "comparison": false,
+        "candidate_gate": {
+          "paired_difference_pct": [
+            21.7911418064885,
+            29.482723269794505,
+            19.336968444134683
+          ],
+          "cv_pct": [
+            22.139844441043138,
+            17.46721061396903
+          ],
+          "passed": false
+        }
+      }
+    }
+  },
+  "calibration-final": {
+    "rule": "64 connections; the retained body candidate at 1 worker has 3 pairs, 3s warmup, 10s measurement. Every paired symmetric difference and both CVs <=10%, zero errors. At each worker count test candidate first, then baseline and NGINX, stopping on first failed gate; no retry/window selection. No cross-worker throughput inference if any required gate fails.",
+    "workers": {
+      "1": {
+        "baseline": "/tmp/rgnix-hyper-pool-20260928/rgnix-after",
+        "comparison": false,
+        "candidate_gate": {
+          "paired_difference_pct": [
+            2.9480317376879417,
+            17.097504648731523,
+            29.490327228868523
+          ],
+          "cv_pct": [
+            3.746979356867257,
+            22.249995963759574
+          ],
+          "passed": false
+        }
+      }
+    }
+  },
+  "windows": [
+    "nginx-aligned-aa-candidate-1w-2026-09-28.json",
+    "nginx-aligned-aa-candidate-2w-2026-09-28.json",
+    "nginx-aligned-aa-candidate-4w-2026-09-28.json",
+    "nginx-aligned-aa-final-candidate-1w-2026-09-28.json"
+  ],
+  "limitations": [
+    "Heaptrack counts include background noise after separate startup subtraction; some counting runs overlapped the worker release build, so they provide operation counts, not timing.",
+    "libc probes exclude inlined copies and include background activity; no throughput benchmark overlapped a build or profiler.",
+    "Requested allocation bytes are cumulative, not RSS. Only 2000 validated requests per allocation sample.",
+    "Shared OrbStack ARM64 virtual CPU affinity does not reserve physical cores; failed A/A blocks relative throughput claims.",
+    "No amd64, real NIC, long soak, full Pingora integration, or TLS/H2/RGL/Ingress migration qualification in this round."
+  ]
+}

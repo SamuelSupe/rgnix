@@ -27,6 +27,8 @@ The next [prepared-request optimization](validation-hyper-prepared-2026-09-28.md
 
 The subsequent [idle-pool optimization](validation-hyper-pool-2026-09-28.md) shares immutable client state and constructs connection-race state only after an idle checkout misses. Captured libc copies fall from 15.0 to 12.7 KB/request, with about one fewer allocation on keepalive requests. A new upstream connection per request instead costs about one extra allocation; throughput calibration remains a separate requirement.
 
+The next [NGINX-aligned experiment](validation-nginx-aligned-2026-09-28.md) retains only required original request headers on fixed routes and eliminates the body channel for small, already-buffered upstream responses. Allocation calls fall from 42.3 to 30.5/request for the 1 KiB fixture; 64 extra headers expose a separate 170.2 to 102.3/request reduction from selective capture alone. Incomplete responses remain streaming. The fixed-worker experiment was withdrawn after failed calibration; its patch and measurements remain in the report. These operation counts do not establish throughput improvement or NGINX parity.
+
 ## Implemented versus proposed
 
 Implemented: backend selection and Gateway indexing, lazy request/header state, request metric handles, RGL constants and request-only instance lifetimes, guarded sendfile, bounded idle-connection groups, smaller repeated session transfers, borrowed HTTP/1 task queues and lazy timer checks. See [vendor patch contracts](../vendor/README.md), [deployment budgets](deployment.md) and [Wasm compatibility](rgl.md).

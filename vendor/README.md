@@ -155,3 +155,10 @@ The HTTP/1-only client keeps requests boxed through checkout and retry state, th
 moves the request into the existing Hyper dispatcher. Automatic retries remain off.
 See [patch provenance and tradeoffs](hyper-util/RGNIX.md) and the
 [measured validation](../docs/validation-hyper-prepared-2026-09-28.md).
+
+`hyper/` is also an isolated optional path dependency, based on crates.io 1.11.1.
+With `rgnix-full-body`, a complete fixed-length client response of at most 8 KiB
+already in the read buffer uses a single `Bytes` body instead of a channel.
+It uses the original decoder, never waits for more bytes to qualify, and keeps
+all other bodies on the existing streaming path. See its [patch contract](hyper/RGNIX.md)
+and [allocation, framing and streaming checks](../docs/validation-nginx-aligned-2026-09-28.md).

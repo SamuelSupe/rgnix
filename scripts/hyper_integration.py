@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Shared HTTP/1 policy and lifecycle checks for the experimental product transport."""
+import argparse
 import hashlib
 import http.client
 import http.server
@@ -61,8 +62,13 @@ class Origin(Upstream):
 
 
 def main():
-    binary = str(Path(sys.argv[1]).resolve())
-    hyper = "--pingora" not in sys.argv[2:]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("binary", type=Path)
+    parser.add_argument("--pingora", action="store_true")
+    parser.add_argument("--threads", type=int, default=1)
+    args = parser.parse_args()
+    binary = str(args.binary.resolve())
+    hyper = not args.pingora
     origin = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Origin)
     threading.Thread(target=origin.serve_forever, daemon=True).start()
     collector = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Collector)
@@ -87,6 +93,14 @@ location = /same {{ return 200 exact-same; }}
 location /same {{ proxy_pass http://app; proxy_set_header X-Prepared {marker}; proxy_set_header X-Remove ""; }}
 location /rewrite/ {{ proxy_pass http://app/base/; proxy_set_header X-Seen $request_uri; }}
 location /raw/ {{ proxy_pass http://app; }}
+location /projected {{ access_log off; proxy_pass http://app; }}
+location /capture {{ proxy_pass http://app;
+    proxy_set_header X-Original changed;
+    proxy_set_header X-Captured "$http_x_original|$proxy_add_x_forwarded_for";
+    add_header X-Original $http_x_original always;
+}}
+location /header-limit {{ access_log off; rgnix_limit_rate 1 burst=1 key=header:x-tenant; return 200 ok; }}
+location /cookie-limit {{ access_log off; rgnix_limit_rate 1 burst=1 key=cookie:tenant; return 200 ok; }}
 location /small {{ client_max_body_size 16; proxy_pass http://app; }}
 location /large {{ client_max_body_size 16m; proxy_pass http://app; }}
 location /slow {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
@@ -111,7 +125,7 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
         env.update({"OTEL_BSP_SCHEDULE_DELAY": "40", "OTEL_BLRP_SCHEDULE_DELAY": "40"})
         command = [binary, "serve", "-c", str(config), "--admin", f"127.0.0.1:{admin}",
                    "--admin-token-file", str(token),
-                   "--threads", "1", "--upstream-max-fails", "0", "--max-inflight", "2", "--max-plugin-instances", "1",
+                   "--threads", str(args.threads), "--upstream-max-fails", "0", "--max-inflight", "2", "--max-plugin-instances", "1",
                    "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "3",
                    "--otlp-logs-endpoint", f"http://127.0.0.1:{collector.server_port}/v1/logs",
                    "--otlp-traces-endpoint", f"http://127.0.0.1:{collector.server_port}/v1/traces",
@@ -140,7 +154,9 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             wait_for(lambda: request(admin, "/readyz")[0], 200)
             initial_version = json.loads(request(admin, "/v1/config", headers=auth)[2])["version"]
             check("Connection cannot strip routing or framing headers", all(request(port, "/exact", headers={"Connection": name})[0] == 400 for name in ["host", "content-length", "transfer-encoding"]))
-            status, headers, data = request(port, "/exact")
+            status, headers, data = request(port, "/exact", headers={
+                "User-Agent": "selective-agent", "Referer": "https://example.test/selective",
+            })
             check("exact route and configured response header", status == 200 and headers["x-snapshot"] == "old" and data == b"exact")
             status, _, data = request(port, "/same/child", headers={"X-Remove": "discard"})
             prepared_headers = {k.lower(): v for k, v in json.loads(data)["headers"].items()}
@@ -152,6 +168,26 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             value = json.loads(response[2]); headers = {k.lower(): v for k, v in value["headers"].items()}
             check("URI replacement preserves query and variable expansion", value["path"] == "/base/a%20b?q=x" and headers["x-seen"] == "/rewrite/a%20b?q=x")
             check("proxy_pass without URI preserves raw target", json.loads(request(port, "/raw/a%2Fb?q=%2F")[2])["path"] == "/raw/a%2Fb?q=%2F")
+            many = {f"X-Extra-{i}": f"value-{i}" for i in range(64)}
+            forwarded = json.loads(request(port, "/projected", headers=many)[2])["headers"]
+            forwarded = {k.lower(): v for k, v in forwarded.items()}
+            check("selective context capture preserves all forwarded headers", all(forwarded[k.lower()] == v for k,v in many.items()))
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            conn.putrequest("GET", "/capture", skip_host=True)
+            for name, value in [("Host", "example.test"), ("X-Original", "first"),
+                                ("X-Original", "last"), ("X-Original", b"\xff"),
+                                ("X-Forwarded-For", "prior"), ("User-Agent", "capture-agent"),
+                                ("Referer", "https://example.test/original")]:
+                conn.putheader(name, value)
+            conn.endheaders()
+            response = conn.getresponse()
+            original = response.getheader("X-Original")
+            forwarded = {k.lower(): v for k,v in json.loads(response.read())["headers"].items()}
+            conn.close()
+            check("variables retain original duplicate and UTF-8 header semantics", original == "last" and forwarded["x-original"] == "changed" and forwarded["x-captured"] == "last|prior, 127.0.0.1")
+            for path, key, values in [("/header-limit", "X-Tenant", ["a", "b", "a"]),
+                                      ("/cookie-limit", "Cookie", ["tenant=a", "tenant=b", "tenant=a"])]:
+                check(f"selective context retains {key} rate keys", [request(port, path, headers={key: v})[0] for v in values] == [200, 200, 429])
             check("prefix trailing slash redirect", request(port, "/rewrite")[0:2][0] == 301 and request(port, "/rewrite")[1]["location"] == "/rewrite/")
             status, headers, data = request(port, "/head", "HEAD")
             check("HEAD preserves response length without body", status == 200 and headers["content-length"] == "6" and not data)
@@ -284,6 +320,7 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             wait_for(budget, 0)
             wait_for(lambda: access.exists() and '"uri":"/hold"' in access.read_text(), True)
             records = [json.loads(line) for line in access.read_text().splitlines() if line.startswith("{")]
+            check("selective context capture retains access log request metadata", any(r.get("user_agent") == "selective-agent" and r.get("referer") == "https://example.test/selective" for r in records))
             check("completion logs include route/config and W3C identifiers", any(r.get("trace_id") == "0123456789abcdef0123456789abcdef" and r["route"] != "-" and r["config"] != "-" for r in records))
             check("request and upstream failure metrics are recorded", metric_value(metrics(), "rgnix_upstream_errors_total") >= 3 and 'rgnix_route_requests_total{' in metrics())
             check("all request and backend permits return to zero", budget() == 0 and metric_value(metrics(), "rgnix_backend_inflight", backend="http://app") == 0)
@@ -308,7 +345,7 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             log.close()
             origin.shutdown(); origin.server_close()
             collector.shutdown(); collector.server_close()
-    print(json.dumps({"transport": "hyper" if hyper else "pingora", "passed": len(RESULTS), "checks": RESULTS}, indent=2))
+    print(json.dumps({"transport": "hyper" if hyper else "pingora", "threads": args.threads, "passed": len(RESULTS), "checks": RESULTS}, indent=2))
 
 
 if __name__ == "__main__":
