@@ -1,0 +1,545 @@
+{
+  "source_commit": "6c54c95",
+  "fixture_correction": "Both use Host localhost, 5s upstream connect/read/write timeouts, 128 idle connections per worker (rgnix aggregate 256). An initial old-fixture run was interrupted and retained separately, never merged into formal results.",
+  "rule": "For each case: 3 interleaved same-binary A/A pairs per engine, 5s warmup and 15s measurement per window. All paired symmetric RPS differences and both sample CVs <=10%, zero errors. Run one predeclared interleaved rgnix/NGINX comparison regardless of gate outcome; failing A/A means diagnostic observations only, not a qualified relative throughput or optimization claim. No retries, window selection, or changes to settings.",
+  "commands": [
+    [
+      "python3",
+      "/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py",
+      "--rgnix",
+      "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "--candidate",
+      "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "--nginx",
+      "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+      "--openresty",
+      "/tmp/rgnix-compare-20260927/openresty/bin/openresty",
+      "--plain-proxy",
+      "--cases",
+      "proxy-1k",
+      "proxy-16k",
+      "--workers",
+      "2",
+      "--concurrency",
+      "64",
+      "--rounds",
+      "3",
+      "--seconds",
+      "15",
+      "--warmup",
+      "5",
+      "--interleave",
+      "--rgnix-transport",
+      "hyper",
+      "--candidate-transport",
+      "hyper",
+      "--client-threads",
+      "4",
+      "--client-cpus",
+      "2,3,4,5",
+      "--origin-workers",
+      "4",
+      "--origin-cpus",
+      "6,7,8,9",
+      "--server-cpus",
+      "10,11",
+      "--engines",
+      "rgnix",
+      "candidate",
+      "--work-dir",
+      "/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-rgnix",
+      "--output",
+      "/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-rgnix.json"
+    ],
+    [
+      "python3",
+      "/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py",
+      "--rgnix",
+      "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "--candidate",
+      "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "--nginx",
+      "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+      "--openresty",
+      "/tmp/rgnix-compare-20260927/openresty/bin/openresty",
+      "--plain-proxy",
+      "--cases",
+      "proxy-1k",
+      "proxy-16k",
+      "--workers",
+      "2",
+      "--concurrency",
+      "64",
+      "--rounds",
+      "3",
+      "--seconds",
+      "15",
+      "--warmup",
+      "5",
+      "--interleave",
+      "--rgnix-transport",
+      "hyper",
+      "--candidate-transport",
+      "hyper",
+      "--client-threads",
+      "4",
+      "--client-cpus",
+      "2,3,4,5",
+      "--origin-workers",
+      "4",
+      "--origin-cpus",
+      "6,7,8,9",
+      "--server-cpus",
+      "10,11",
+      "--engines",
+      "nginx",
+      "nginx",
+      "--work-dir",
+      "/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-nginx",
+      "--output",
+      "/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-nginx.json"
+    ],
+    [
+      "python3",
+      "/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py",
+      "--rgnix",
+      "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "--candidate",
+      "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "--nginx",
+      "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+      "--openresty",
+      "/tmp/rgnix-compare-20260927/openresty/bin/openresty",
+      "--plain-proxy",
+      "--cases",
+      "proxy-1k",
+      "proxy-16k",
+      "--workers",
+      "2",
+      "--concurrency",
+      "64",
+      "--rounds",
+      "3",
+      "--seconds",
+      "15",
+      "--warmup",
+      "5",
+      "--interleave",
+      "--rgnix-transport",
+      "hyper",
+      "--candidate-transport",
+      "hyper",
+      "--client-threads",
+      "4",
+      "--client-cpus",
+      "2,3,4,5",
+      "--origin-workers",
+      "4",
+      "--origin-cpus",
+      "6,7,8,9",
+      "--server-cpus",
+      "10,11",
+      "--engines",
+      "rgnix",
+      "nginx",
+      "--work-dir",
+      "/tmp/rgnix-nginx-compare-current-20260928-aligned/comparison",
+      "--output",
+      "/tmp/rgnix-nginx-compare-current-20260928-aligned/comparison.json"
+    ]
+  ],
+  "calibration": {
+    "aa-rgnix": {
+      "proxy-1k": {
+        "paired_difference_pct": [
+          0.13618767440104448,
+          2.3331875595488656,
+          0.7839976713868831
+        ],
+        "cv_pct": [
+          1.617935814971616,
+          1.9927530251988785
+        ],
+        "passed": true
+      },
+      "proxy-16k": {
+        "paired_difference_pct": [
+          3.108404336948441,
+          9.133140629098298,
+          2.2515857662007672
+        ],
+        "cv_pct": [
+          3.5375591297272226,
+          0.697520299491655
+        ],
+        "passed": true
+      }
+    },
+    "aa-nginx": {
+      "proxy-1k": {
+        "paired_difference_pct": [
+          11.894713447038429,
+          2.181041755986484,
+          3.489271884744014
+        ],
+        "cv_pct": [
+          3.291013768907732,
+          7.207932176253641
+        ],
+        "passed": false
+      },
+      "proxy-16k": {
+        "paired_difference_pct": [
+          15.575350178851968,
+          1.702772302505495,
+          4.147959803117937
+        ],
+        "cv_pct": [
+          6.126147575771524,
+          4.300582818272905
+        ],
+        "passed": false
+      }
+    }
+  },
+  "comparison": {
+    "rgnix/proxy-1k/c64": {
+      "samples": 3,
+      "requests": 3285060,
+      "errors": 0,
+      "rps": {
+        "median": 71488.47060787267,
+        "min": 66478.32339298162,
+        "max": 80054.48453006761
+      },
+      "p50_ms": {
+        "median": 0.846,
+        "min": 0.764,
+        "max": 0.917
+      },
+      "p95_ms": {
+        "median": 1.456,
+        "min": 1.254,
+        "max": 1.568
+      },
+      "p99_ms": {
+        "median": 1.976,
+        "min": 1.703,
+        "max": 2.278
+      },
+      "server_cpu_cores": {
+        "median": 1.9371527906932409,
+        "min": 1.8715561479427385,
+        "max": 1.9456868599117378
+      },
+      "server_cpu_us_per_request": {
+        "median": 27.097415488420193,
+        "min": 24.30453298566876,
+        "max": 28.15287829807582
+      },
+      "client_cpu_cores": {
+        "median": 0.7078919578028703,
+        "min": 0.6652941038564041,
+        "max": 0.7257361656564935
+      },
+      "origin_cpu_cores": {
+        "median": 0.9039157550516294,
+        "min": 0.8616045819085284,
+        "max": 0.9695321861507087
+      },
+      "peak_pss_kib": {
+        "median": 22102,
+        "min": 21620,
+        "max": 22190
+      },
+      "peak_rss_kib": {
+        "median": 23568,
+        "min": 23108,
+        "max": 23652
+      },
+      "rps_cv_pct": 9.446675944573174
+    },
+    "nginx/proxy-1k/c64": {
+      "samples": 3,
+      "requests": 7058015,
+      "errors": 0,
+      "rps": {
+        "median": 156269.36849103717,
+        "min": 154402.49545902453,
+        "max": 158689.8831231775
+      },
+      "p50_ms": {
+        "median": 0.372,
+        "min": 0.371,
+        "max": 0.375
+      },
+      "p95_ms": {
+        "median": 0.899,
+        "min": 0.818,
+        "max": 0.957
+      },
+      "p99_ms": {
+        "median": 2.863,
+        "min": 1.567,
+        "max": 6.57
+      },
+      "server_cpu_cores": {
+        "median": 1.9393395254477894,
+        "min": 1.9372074238693142,
+        "max": 1.9697617901408455
+      },
+      "server_cpu_us_per_request": {
+        "median": 12.546477426483124,
+        "min": 12.220939906688598,
+        "max": 12.60491297278021
+      },
+      "client_cpu_cores": {
+        "median": 1.2306951959467871,
+        "min": 1.2199220225698348,
+        "max": 1.2487826472185315
+      },
+      "origin_cpu_cores": {
+        "median": 1.6480082208397238,
+        "min": 1.6293333854009189,
+        "max": 1.6564663446700527
+      },
+      "peak_pss_kib": {
+        "median": 18497,
+        "min": 18360,
+        "max": 19272
+      },
+      "peak_rss_kib": {
+        "median": 30176,
+        "min": 30116,
+        "max": 30336
+      },
+      "rps_cv_pct": 1.3739786137187746
+    },
+    "rgnix/proxy-16k/c64": {
+      "samples": 3,
+      "requests": 2863284,
+      "errors": 0,
+      "rps": {
+        "median": 63929.06354560678,
+        "min": 55632.08489631322,
+        "max": 70055.16391368042
+      },
+      "p50_ms": {
+        "median": 0.937,
+        "min": 0.866,
+        "max": 1.079
+      },
+      "p95_ms": {
+        "median": 1.647,
+        "min": 1.461,
+        "max": 1.943
+      },
+      "p99_ms": {
+        "median": 2.594,
+        "min": 1.956,
+        "max": 2.76
+      },
+      "server_cpu_cores": {
+        "median": 1.9404634038536144,
+        "min": 1.874052792133375,
+        "max": 1.9482393465676753
+      },
+      "server_cpu_us_per_request": {
+        "median": 30.353383832523907,
+        "min": 27.810074771479076,
+        "max": 33.68654609343195
+      },
+      "client_cpu_cores": {
+        "median": 0.8037321270406158,
+        "min": 0.7265118606351032,
+        "max": 0.8311020849604553
+      },
+      "origin_cpu_cores": {
+        "median": 0.9106270239927372,
+        "min": 0.8721298682825647,
+        "max": 0.9271023403109263
+      },
+      "peak_pss_kib": {
+        "median": 24865,
+        "min": 24627,
+        "max": 25112
+      },
+      "peak_rss_kib": {
+        "median": 26328,
+        "min": 26132,
+        "max": 26600
+      },
+      "rps_cv_pct": 11.452681272931976
+    },
+    "nginx/proxy-16k/c64": {
+      "samples": 3,
+      "requests": 3633232,
+      "errors": 0,
+      "rps": {
+        "median": 79017.9150128343,
+        "min": 78940.96586668814,
+        "max": 84146.46003253729
+      },
+      "p50_ms": {
+        "median": 0.743,
+        "min": 0.69,
+        "max": 0.761
+      },
+      "p95_ms": {
+        "median": 1.351,
+        "min": 1.301,
+        "max": 1.439
+      },
+      "p99_ms": {
+        "median": 3.257,
+        "min": 2.702,
+        "max": 18.785
+      },
+      "server_cpu_cores": {
+        "median": 1.9551958931023636,
+        "min": 1.9377699405453013,
+        "max": 1.9677066805241563
+      },
+      "server_cpu_us_per_request": {
+        "median": 24.523172248097957,
+        "min": 23.23562859740433,
+        "max": 24.92630611901973
+      },
+      "client_cpu_cores": {
+        "median": 1.2072922899138314,
+        "min": 1.1960185135069192,
+        "max": 1.2152321488582416
+      },
+      "origin_cpu_cores": {
+        "median": 1.0977809769744449,
+        "min": 1.0618417147950465,
+        "max": 1.1002141852460843
+      },
+      "peak_pss_kib": {
+        "median": 18515,
+        "min": 18468,
+        "max": 19272
+      },
+      "peak_rss_kib": {
+        "median": 30280,
+        "min": 30228,
+        "max": 30304
+      },
+      "rps_cv_pct": 3.696855556025771
+    }
+  },
+  "qualified": {
+    "proxy-1k": false,
+    "proxy-16k": false
+  },
+  "host": {
+    "commands": [
+      {
+        "command": [
+          "sysctl",
+          "-n",
+          "machdep.cpu.brand_string",
+          "hw.physicalcpu",
+          "hw.logicalcpu"
+        ],
+        "output": "Apple M5 Max\n18\n18\n"
+      },
+      {
+        "command": [
+          "pmset",
+          "-g",
+          "therm"
+        ],
+        "output": "Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded\n"
+      },
+      {
+        "command": [
+          "uptime"
+        ],
+        "output": "19:01  up 13 days,  4:19, 2 users, load averages: 10.65 9.22 9.71\n"
+      }
+    ],
+    "benchmark_script_sha256": "56be9c76e797691bbdbedca9338a937e47d399e1cafcf4a8e1647ad793a3b903",
+    "binary_source_evidence": "docs/validation/nginx-aligned-2026-09-28.json"
+  },
+  "harness_sha256": "56be9c76e797691bbdbedca9338a937e47d399e1cafcf4a8e1647ad793a3b903",
+  "driver": "import json\nimport os\nimport statistics\nimport subprocess\nfrom pathlib import Path\n\nroot = Path('/Users/livesite/Documents/ChatGPT/rgnix')\nwork = Path('/tmp/rgnix-nginx-compare-current-20260928-aligned')\nwork.mkdir(exist_ok=False)\nbinary = '/tmp/rgnix-nginx-opt-20260928/rgnix-body'\ncommon = [\n    '--rgnix', binary, '--candidate', binary,\n    '--nginx', '/tmp/rgnix-compare-20260927/nginx/sbin/nginx',\n    '--openresty', '/tmp/rgnix-compare-20260927/openresty/bin/openresty',\n    '--plain-proxy', '--cases', 'proxy-1k', 'proxy-16k',\n    '--workers', '2', '--concurrency', '64', '--rounds', '3',\n    '--seconds', '15', '--warmup', '5', '--interleave',\n    '--rgnix-transport', 'hyper', '--candidate-transport', 'hyper',\n    '--client-threads', '4', '--client-cpus', '2,3,4,5',\n    '--origin-workers', '4', '--origin-cpus', '6,7,8,9',\n    '--server-cpus', '10,11',\n]\nresult = {\n    'source_commit': '6c54c95',\n    'fixture_correction': 'Both use Host localhost, 5s upstream connect/read/write timeouts, 128 idle connections per worker (rgnix aggregate 256). An initial old-fixture run was interrupted and retained separately, never merged into formal results.',\n    'rule': 'For each case: 3 interleaved same-binary A/A pairs per engine, 5s warmup and 15s measurement per window. All paired symmetric RPS differences and both sample CVs <=10%, zero errors. Run one predeclared interleaved rgnix/NGINX comparison regardless of gate outcome; failing A/A means diagnostic observations only, not a qualified relative throughput or optimization claim. No retries, window selection, or changes to settings.',\n    'commands': [], 'calibration': {}, 'comparison': {},\n}\nenvironment = {k: v for k, v in os.environ.items() if not k.startswith(('OTEL_', 'RGNIX_OTLP_'))}\ndef save():\n    (work / 'result.json').write_text(json.dumps(result, indent=2) + '\\n')\n\ndef run(name, engines):\n    output = work / f'{name}.json'\n    command = ['python3', str(root / 'scripts/benchmark_compare.py'), *common,\n               '--engines', *engines, '--work-dir', str(work / name), '--output', str(output)]\n    result['commands'].append(command)\n    save()\n    subprocess.run(command, env=environment, check=True)\n    return json.loads(output.read_text())\n\nfor name, engines in [('aa-rgnix', ['rgnix', 'candidate']), ('aa-nginx', ['nginx', 'nginx'])]:\n    data = run(name, engines)\n    result['calibration'][name] = {}\n    for case in ['proxy-1k', 'proxy-16k']:\n        runs = [r for r in data['runs'] if r['case'] == case]\n        if name == 'aa-nginx':\n            left, right = runs[::2], runs[1::2]\n        else:\n            left = [r for r in runs if r['engine'] == 'rgnix']\n            right = [r for r in runs if r['engine'] == 'candidate']\n        pairs = [200 * abs(a['rps'] - b['rps']) / (a['rps'] + b['rps']) for a, b in zip(left, right)]\n        cvs = [100 * statistics.stdev(r['rps'] for r in group) / statistics.mean(r['rps'] for r in group)\n               for group in [left, right]]\n        result['calibration'][name][case] = {\n            'paired_difference_pct': pairs, 'cv_pct': cvs,\n            'passed': len(pairs) == 3 and max(pairs + cvs) <= 10 and all(r['errors'] == 0 for r in runs),\n        }\n    save()\n\ndata = run('comparison', ['rgnix', 'nginx'])\nresult['comparison'] = data['summary']\nresult['qualified'] = {\n    case: all(result['calibration'][name][case]['passed'] for name in result['calibration'])\n    for case in ['proxy-1k', 'proxy-16k']\n}\nsave()\nprint(json.dumps(result, indent=2), flush=True)\n",
+  "log": "origin proxy-1k: 493271 req/s\norigin proxy-16k: 395870 req/s\nround 1 rgnix proxy-1k c64: 76767 req/s; p99 2.049 ms; CPU 1.93; PSS 24.8 MiB; errors 0\nround 1 candidate proxy-1k c64: 76662 req/s; p99 2.040 ms; CPU 1.93; PSS 24.1 MiB; errors 0\nround 1 rgnix proxy-16k c64: 71692 req/s; p99 1.990 ms; CPU 1.93; PSS 27.4 MiB; errors 0\nround 1 candidate proxy-16k c64: 69498 req/s; p99 2.144 ms; CPU 1.95; PSS 26.5 MiB; errors 0\nround 2 candidate proxy-16k c64: 69674 req/s; p99 2.069 ms; CPU 1.95; PSS 26.9 MiB; errors 0\nround 2 rgnix proxy-16k c64: 76342 req/s; p99 1.851 ms; CPU 1.93; PSS 27.6 MiB; errors 0\nround 2 candidate proxy-1k c64: 79738 req/s; p99 1.828 ms; CPU 1.93; PSS 24.3 MiB; errors 0\nround 2 rgnix proxy-1k c64: 77899 req/s; p99 1.883 ms; CPU 1.94; PSS 24.1 MiB; errors 0\nround 3 rgnix proxy-1k c64: 79286 req/s; p99 1.880 ms; CPU 1.87; PSS 24.3 MiB; errors 0\nround 3 candidate proxy-1k c64: 78667 req/s; p99 1.774 ms; CPU 1.94; PSS 23.8 MiB; errors 0\nround 3 rgnix proxy-16k c64: 72020 req/s; p99 1.917 ms; CPU 1.95; PSS 27.1 MiB; errors 0\nround 3 candidate proxy-16k c64: 70416 req/s; p99 1.981 ms; CPU 1.92; PSS 26.9 MiB; errors 0\nSaved 12 runs to /tmp/rgnix-nginx-compare-current-20260928-aligned/aa-rgnix.json\norigin proxy-1k: 446866 req/s\norigin proxy-16k: 393325 req/s\nround 1 nginx proxy-1k c64: 162054 req/s; p99 9.422 ms; CPU 1.94; PSS 19.7 MiB; errors 0\nround 1 nginx proxy-1k c64: 143860 req/s; p99 23.597 ms; CPU 1.87; PSS 19.7 MiB; errors 0\nround 1 nginx proxy-16k c64: 103016 req/s; p99 1.435 ms; CPU 1.99; PSS 19.7 MiB; errors 0\nround 1 nginx proxy-16k c64: 88130 req/s; p99 3.182 ms; CPU 1.95; PSS 19.5 MiB; errors 0\nround 2 nginx proxy-16k c64: 96126 req/s; p99 1.927 ms; CPU 1.98; PSS 19.7 MiB; errors 0\nround 2 nginx proxy-16k c64: 94503 req/s; p99 2.967 ms; CPU 1.96; PSS 19.7 MiB; errors 0\nround 2 nginx proxy-1k c64: 160713 req/s; p99 3.353 ms; CPU 1.94; PSS 19.8 MiB; errors 0\nround 2 nginx proxy-1k c64: 164257 req/s; p99 1.658 ms; CPU 1.97; PSS 19.7 MiB; errors 0\nround 3 nginx proxy-1k c64: 152429 req/s; p99 1.839 ms; CPU 1.95; PSS 19.9 MiB; errors 0\nround 3 nginx proxy-1k c64: 147202 req/s; p99 14.251 ms; CPU 1.91; PSS 19.9 MiB; errors 0\nround 3 nginx proxy-16k c64: 91212 req/s; p99 1.597 ms; CPU 1.99; PSS 19.7 MiB; errors 0\nround 3 nginx proxy-16k c64: 87506 req/s; p99 1.859 ms; CPU 1.99; PSS 19.8 MiB; errors 0\nSaved 12 runs to /tmp/rgnix-nginx-compare-current-20260928-aligned/aa-nginx.json\norigin proxy-1k: 399809 req/s\norigin proxy-16k: 313187 req/s\nround 1 rgnix proxy-1k c64: 80054 req/s; p99 1.703 ms; CPU 1.95; PSS 21.1 MiB; errors 0\nround 1 nginx proxy-1k c64: 158690 req/s; p99 6.570 ms; CPU 1.94; PSS 17.9 MiB; errors 0\nround 1 rgnix proxy-16k c64: 70055 req/s; p99 1.956 ms; CPU 1.95; PSS 24.0 MiB; errors 0\nround 1 nginx proxy-16k c64: 79018 req/s; p99 18.785 ms; CPU 1.94; PSS 18.1 MiB; errors 0\nround 2 nginx proxy-16k c64: 78941 req/s; p99 2.702 ms; CPU 1.97; PSS 18.0 MiB; errors 0\nround 2 rgnix proxy-16k c64: 63929 req/s; p99 2.594 ms; CPU 1.94; PSS 24.3 MiB; errors 0\nround 2 nginx proxy-1k c64: 156269 req/s; p99 1.567 ms; CPU 1.97; PSS 18.1 MiB; errors 0\nround 2 rgnix proxy-1k c64: 66478 req/s; p99 2.278 ms; CPU 1.87; PSS 21.7 MiB; errors 0\nround 3 rgnix proxy-1k c64: 71488 req/s; p99 1.976 ms; CPU 1.94; PSS 21.6 MiB; errors 0\nround 3 nginx proxy-1k c64: 154402 req/s; p99 2.863 ms; CPU 1.94; PSS 18.8 MiB; errors 0\nround 3 rgnix proxy-16k c64: 55632 req/s; p99 2.760 ms; CPU 1.87; PSS 24.5 MiB; errors 0\nround 3 nginx proxy-16k c64: 84146 req/s; p99 3.257 ms; CPU 1.96; PSS 18.8 MiB; errors 0\nSaved 12 runs to /tmp/rgnix-nginx-compare-current-20260928-aligned/comparison.json\n{\n  \"source_commit\": \"6c54c95\",\n  \"fixture_correction\": \"Both use Host localhost, 5s upstream connect/read/write timeouts, 128 idle connections per worker (rgnix aggregate 256). An initial old-fixture run was interrupted and retained separately, never merged into formal results.\",\n  \"rule\": \"For each case: 3 interleaved same-binary A/A pairs per engine, 5s warmup and 15s measurement per window. All paired symmetric RPS differences and both sample CVs <=10%, zero errors. Run one predeclared interleaved rgnix/NGINX comparison regardless of gate outcome; failing A/A means diagnostic observations only, not a qualified relative throughput or optimization claim. No retries, window selection, or changes to settings.\",\n  \"commands\": [\n    [\n      \"python3\",\n      \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py\",\n      \"--rgnix\",\n      \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"--candidate\",\n      \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"--nginx\",\n      \"/tmp/rgnix-compare-20260927/nginx/sbin/nginx\",\n      \"--openresty\",\n      \"/tmp/rgnix-compare-20260927/openresty/bin/openresty\",\n      \"--plain-proxy\",\n      \"--cases\",\n      \"proxy-1k\",\n      \"proxy-16k\",\n      \"--workers\",\n      \"2\",\n      \"--concurrency\",\n      \"64\",\n      \"--rounds\",\n      \"3\",\n      \"--seconds\",\n      \"15\",\n      \"--warmup\",\n      \"5\",\n      \"--interleave\",\n      \"--rgnix-transport\",\n      \"hyper\",\n      \"--candidate-transport\",\n      \"hyper\",\n      \"--client-threads\",\n      \"4\",\n      \"--client-cpus\",\n      \"2,3,4,5\",\n      \"--origin-workers\",\n      \"4\",\n      \"--origin-cpus\",\n      \"6,7,8,9\",\n      \"--server-cpus\",\n      \"10,11\",\n      \"--engines\",\n      \"rgnix\",\n      \"candidate\",\n      \"--work-dir\",\n      \"/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-rgnix\",\n      \"--output\",\n      \"/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-rgnix.json\"\n    ],\n    [\n      \"python3\",\n      \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py\",\n      \"--rgnix\",\n      \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"--candidate\",\n      \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"--nginx\",\n      \"/tmp/rgnix-compare-20260927/nginx/sbin/nginx\",\n      \"--openresty\",\n      \"/tmp/rgnix-compare-20260927/openresty/bin/openresty\",\n      \"--plain-proxy\",\n      \"--cases\",\n      \"proxy-1k\",\n      \"proxy-16k\",\n      \"--workers\",\n      \"2\",\n      \"--concurrency\",\n      \"64\",\n      \"--rounds\",\n      \"3\",\n      \"--seconds\",\n      \"15\",\n      \"--warmup\",\n      \"5\",\n      \"--interleave\",\n      \"--rgnix-transport\",\n      \"hyper\",\n      \"--candidate-transport\",\n      \"hyper\",\n      \"--client-threads\",\n      \"4\",\n      \"--client-cpus\",\n      \"2,3,4,5\",\n      \"--origin-workers\",\n      \"4\",\n      \"--origin-cpus\",\n      \"6,7,8,9\",\n      \"--server-cpus\",\n      \"10,11\",\n      \"--engines\",\n      \"nginx\",\n      \"nginx\",\n      \"--work-dir\",\n      \"/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-nginx\",\n      \"--output\",\n      \"/tmp/rgnix-nginx-compare-current-20260928-aligned/aa-nginx.json\"\n    ],\n    [\n      \"python3\",\n      \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py\",\n      \"--rgnix\",\n      \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"--candidate\",\n      \"/tmp/rgnix-nginx-opt-20260928/rgnix-body\",\n      \"--nginx\",\n      \"/tmp/rgnix-compare-20260927/nginx/sbin/nginx\",\n      \"--openresty\",\n      \"/tmp/rgnix-compare-20260927/openresty/bin/openresty\",\n      \"--plain-proxy\",\n      \"--cases\",\n      \"proxy-1k\",\n      \"proxy-16k\",\n      \"--workers\",\n      \"2\",\n      \"--concurrency\",\n      \"64\",\n      \"--rounds\",\n      \"3\",\n      \"--seconds\",\n      \"15\",\n      \"--warmup\",\n      \"5\",\n      \"--interleave\",\n      \"--rgnix-transport\",\n      \"hyper\",\n      \"--candidate-transport\",\n      \"hyper\",\n      \"--client-threads\",\n      \"4\",\n      \"--client-cpus\",\n      \"2,3,4,5\",\n      \"--origin-workers\",\n      \"4\",\n      \"--origin-cpus\",\n      \"6,7,8,9\",\n      \"--server-cpus\",\n      \"10,11\",\n      \"--engines\",\n      \"rgnix\",\n      \"nginx\",\n      \"--work-dir\",\n      \"/tmp/rgnix-nginx-compare-current-20260928-aligned/comparison\",\n      \"--output\",\n      \"/tmp/rgnix-nginx-compare-current-20260928-aligned/comparison.json\"\n    ]\n  ],\n  \"calibration\": {\n    \"aa-rgnix\": {\n      \"proxy-1k\": {\n        \"paired_difference_pct\": [\n          0.13618767440104448,\n          2.3331875595488656,\n          0.7839976713868831\n        ],\n        \"cv_pct\": [\n          1.617935814971616,\n          1.9927530251988785\n        ],\n        \"passed\": true\n      },\n      \"proxy-16k\": {\n        \"paired_difference_pct\": [\n          3.108404336948441,\n          9.133140629098298,\n          2.2515857662007672\n        ],\n        \"cv_pct\": [\n          3.5375591297272226,\n          0.697520299491655\n        ],\n        \"passed\": true\n      }\n    },\n    \"aa-nginx\": {\n      \"proxy-1k\": {\n        \"paired_difference_pct\": [\n          11.894713447038429,\n          2.181041755986484,\n          3.489271884744014\n        ],\n        \"cv_pct\": [\n          3.291013768907732,\n          7.207932176253641\n        ],\n        \"passed\": false\n      },\n      \"proxy-16k\": {\n        \"paired_difference_pct\": [\n          15.575350178851968,\n          1.702772302505495,\n          4.147959803117937\n        ],\n        \"cv_pct\": [\n          6.126147575771524,\n          4.300582818272905\n        ],\n        \"passed\": false\n      }\n    }\n  },\n  \"comparison\": {\n    \"rgnix/proxy-1k/c64\": {\n      \"samples\": 3,\n      \"requests\": 3285060,\n      \"errors\": 0,\n      \"rps\": {\n        \"median\": 71488.47060787267,\n        \"min\": 66478.32339298162,\n        \"max\": 80054.48453006761\n      },\n      \"p50_ms\": {\n        \"median\": 0.846,\n        \"min\": 0.764,\n        \"max\": 0.917\n      },\n      \"p95_ms\": {\n        \"median\": 1.456,\n        \"min\": 1.254,\n        \"max\": 1.568\n      },\n      \"p99_ms\": {\n        \"median\": 1.976,\n        \"min\": 1.703,\n        \"max\": 2.278\n      },\n      \"server_cpu_cores\": {\n        \"median\": 1.9371527906932409,\n        \"min\": 1.8715561479427385,\n        \"max\": 1.9456868599117378\n      },\n      \"server_cpu_us_per_request\": {\n        \"median\": 27.097415488420193,\n        \"min\": 24.30453298566876,\n        \"max\": 28.15287829807582\n      },\n      \"client_cpu_cores\": {\n        \"median\": 0.7078919578028703,\n        \"min\": 0.6652941038564041,\n        \"max\": 0.7257361656564935\n      },\n      \"origin_cpu_cores\": {\n        \"median\": 0.9039157550516294,\n        \"min\": 0.8616045819085284,\n        \"max\": 0.9695321861507087\n      },\n      \"peak_pss_kib\": {\n        \"median\": 22102,\n        \"min\": 21620,\n        \"max\": 22190\n      },\n      \"peak_rss_kib\": {\n        \"median\": 23568,\n        \"min\": 23108,\n        \"max\": 23652\n      },\n      \"rps_cv_pct\": 9.446675944573174\n    },\n    \"nginx/proxy-1k/c64\": {\n      \"samples\": 3,\n      \"requests\": 7058015,\n      \"errors\": 0,\n      \"rps\": {\n        \"median\": 156269.36849103717,\n        \"min\": 154402.49545902453,\n        \"max\": 158689.8831231775\n      },\n      \"p50_ms\": {\n        \"median\": 0.372,\n        \"min\": 0.371,\n        \"max\": 0.375\n      },\n      \"p95_ms\": {\n        \"median\": 0.899,\n        \"min\": 0.818,\n        \"max\": 0.957\n      },\n      \"p99_ms\": {\n        \"median\": 2.863,\n        \"min\": 1.567,\n        \"max\": 6.57\n      },\n      \"server_cpu_cores\": {\n        \"median\": 1.9393395254477894,\n        \"min\": 1.9372074238693142,\n        \"max\": 1.9697617901408455\n      },\n      \"server_cpu_us_per_request\": {\n        \"median\": 12.546477426483124,\n        \"min\": 12.220939906688598,\n        \"max\": 12.60491297278021\n      },\n      \"client_cpu_cores\": {\n        \"median\": 1.2306951959467871,\n        \"min\": 1.2199220225698348,\n        \"max\": 1.2487826472185315\n      },\n      \"origin_cpu_cores\": {\n        \"median\": 1.6480082208397238,\n        \"min\": 1.6293333854009189,\n        \"max\": 1.6564663446700527\n      },\n      \"peak_pss_kib\": {\n        \"median\": 18497,\n        \"min\": 18360,\n        \"max\": 19272\n      },\n      \"peak_rss_kib\": {\n        \"median\": 30176,\n        \"min\": 30116,\n        \"max\": 30336\n      },\n      \"rps_cv_pct\": 1.3739786137187746\n    },\n    \"rgnix/proxy-16k/c64\": {\n      \"samples\": 3,\n      \"requests\": 2863284,\n      \"errors\": 0,\n      \"rps\": {\n        \"median\": 63929.06354560678,\n        \"min\": 55632.08489631322,\n        \"max\": 70055.16391368042\n      },\n      \"p50_ms\": {\n        \"median\": 0.937,\n        \"min\": 0.866,\n        \"max\": 1.079\n      },\n      \"p95_ms\": {\n        \"median\": 1.647,\n        \"min\": 1.461,\n        \"max\": 1.943\n      },\n      \"p99_ms\": {\n        \"median\": 2.594,\n        \"min\": 1.956,\n        \"max\": 2.76\n      },\n      \"server_cpu_cores\": {\n        \"median\": 1.9404634038536144,\n        \"min\": 1.874052792133375,\n        \"max\": 1.9482393465676753\n      },\n      \"server_cpu_us_per_request\": {\n        \"median\": 30.353383832523907,\n        \"min\": 27.810074771479076,\n        \"max\": 33.68654609343195\n      },\n      \"client_cpu_cores\": {\n        \"median\": 0.8037321270406158,\n        \"min\": 0.7265118606351032,\n        \"max\": 0.8311020849604553\n      },\n      \"origin_cpu_cores\": {\n        \"median\": 0.9106270239927372,\n        \"min\": 0.8721298682825647,\n        \"max\": 0.9271023403109263\n      },\n      \"peak_pss_kib\": {\n        \"median\": 24865,\n        \"min\": 24627,\n        \"max\": 25112\n      },\n      \"peak_rss_kib\": {\n        \"median\": 26328,\n        \"min\": 26132,\n        \"max\": 26600\n      },\n      \"rps_cv_pct\": 11.452681272931976\n    },\n    \"nginx/proxy-16k/c64\": {\n      \"samples\": 3,\n      \"requests\": 3633232,\n      \"errors\": 0,\n      \"rps\": {\n        \"median\": 79017.9150128343,\n        \"min\": 78940.96586668814,\n        \"max\": 84146.46003253729\n      },\n      \"p50_ms\": {\n        \"median\": 0.743,\n        \"min\": 0.69,\n        \"max\": 0.761\n      },\n      \"p95_ms\": {\n        \"median\": 1.351,\n        \"min\": 1.301,\n        \"max\": 1.439\n      },\n      \"p99_ms\": {\n        \"median\": 3.257,\n        \"min\": 2.702,\n        \"max\": 18.785\n      },\n      \"server_cpu_cores\": {\n        \"median\": 1.9551958931023636,\n        \"min\": 1.9377699405453013,\n        \"max\": 1.9677066805241563\n      },\n      \"server_cpu_us_per_request\": {\n        \"median\": 24.523172248097957,\n        \"min\": 23.23562859740433,\n        \"max\": 24.92630611901973\n      },\n      \"client_cpu_cores\": {\n        \"median\": 1.2072922899138314,\n        \"min\": 1.1960185135069192,\n        \"max\": 1.2152321488582416\n      },\n      \"origin_cpu_cores\": {\n        \"median\": 1.0977809769744449,\n        \"min\": 1.0618417147950465,\n        \"max\": 1.1002141852460843\n      },\n      \"peak_pss_kib\": {\n        \"median\": 18515,\n        \"min\": 18468,\n        \"max\": 19272\n      },\n      \"peak_rss_kib\": {\n        \"median\": 30280,\n        \"min\": 30228,\n        \"max\": 30304\n      },\n      \"rps_cv_pct\": 3.696855556025771\n    }\n  },\n  \"qualified\": {\n    \"proxy-1k\": false,\n    \"proxy-16k\": false\n  }\n}\n",
+  "windows": [
+    "nginx-current-aa-rgnix-2026-09-28.json",
+    "nginx-current-aa-nginx-2026-09-28.json",
+    "nginx-current-comparison-2026-09-28.json"
+  ],
+  "observed": {
+    "proxy-1k": {
+      "ratio_of_median_rps": 0.45746950472877157,
+      "paired_rps_ratios": [
+        0.5044712552212802,
+        0.4254085367779194,
+        0.46300074616892667
+      ],
+      "comparison_cv_pct": {
+        "rgnix": 9.446675944573174,
+        "nginx": 1.3739786137187746
+      },
+      "interpretation": "Observation only unless calibration and comparison stability support attribution; not a production capacity guarantee."
+    },
+    "proxy-16k": {
+      "ratio_of_median_rps": 0.809045183427369,
+      "paired_rps_ratios": [
+        0.8865731765043644,
+        0.8098338149746892,
+        0.6611339903639644
+      ],
+      "comparison_cv_pct": {
+        "rgnix": 11.452681272931976,
+        "nginx": 3.696855556025771
+      },
+      "interpretation": "Observation only unless calibration and comparison stability support attribution; not a production capacity guarantee."
+    }
+  },
+  "totals": {
+    "requests": 52913655,
+    "errors": 0,
+    "windows": 36
+  },
+  "comparison_totals": {
+    "requests": 16839591,
+    "errors": 0,
+    "windows": 12
+  },
+  "binaries": {
+    "rgnix": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+      "version": "rgnix 0.5.0"
+    },
+    "nginx": {
+      "path": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+      "sha256": "d7509a23828ead5af789b69f2042a2eae74d25f740ef3c071dbc35c1b0f41304",
+      "version": "nginx version: nginx/1.30.5\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/nginx --with-http_ssl_module --with-http_v2_module --with-cc-opt=-O2"
+    },
+    "openresty": {
+      "path": "/tmp/rgnix-compare-20260927/openresty/nginx/sbin/nginx",
+      "sha256": "53de7d8583b2932a904f66f7cab088801fa0e7148e3f5c708507fcfc95f9ea18",
+      "version": "nginx version: openresty/1.31.1.1\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/openresty/nginx --with-cc-opt='-O2 -O2' --add-module=../ngx_devel_kit-0.3.4 --add-module=../echo-nginx-module-0.64 --add-module=../xss-nginx-module-0.07 --add-module=../ngx_coolkit-0.2 --add-module=../set-misc-nginx-module-0.33 --add-module=../form-input-nginx-module-0.12 --add-module=../encrypted-session-nginx-module-0.09 --add-module=../srcache-nginx-module-0.33 --add-module=../ngx_lua-0.10.31rc5 --add-module=../ngx_lua_upstream-0.08 --add-module=../headers-more-nginx-module-0.39 --add-module=../array-var-nginx-module-0.06 --add-module=../memc-nginx-module-0.20 --add-module=../redis2-nginx-module-0.15 --add-module=../redis-nginx-module-0.41 --add-module=../rds-json-nginx-module-0.17 --add-module=../rds-csv-nginx-module-0.10 --add-module=../ngx_stream_lua-0.0.19rc4 --with-ld-opt=-Wl,-rpath,/tmp/rgnix-compare-20260927/openresty/luajit/lib --with-http_ssl_module --with-http_v2_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module"
+    },
+    "candidate": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+      "version": "rgnix 0.5.0"
+    }
+  },
+  "interrupted_fixture_run": {
+    "file": "nginx-current-aborted-fixture-2026-09-28.json",
+    "reason": "Stopped to align upstream timeout, Host and idle-pool fixtures; not stopped based on calibration outcome. Excluded from formal totals.",
+    "log": "origin proxy-1k: 437367 req/s\norigin proxy-16k: 374081 req/s\nTraceback (most recent call last):\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py\", line 516, in <module>\n    main()\n    ~~~~^^\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py\", line 499, in main\n    run = measure(args, url, script, concurrency, args.seconds, frontend, origin)\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py\", line 132, in measure\n    time.sleep(0.2)\n    ~~~~~~~~~~^^^^^\nKeyboardInterrupt\nTraceback (most recent call last):\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/.local/nginx-compare-current-20260928/run.py\", line 42, in <module>\n    data = run(name, engines)\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/.local/nginx-compare-current-20260928/run.py\", line 38, in run\n    subprocess.run(command, env=environment, check=True)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 577, in run\n    raise CalledProcessError(retcode, process.args,\n                             output=stdout, stderr=stderr)\nsubprocess.CalledProcessError: Command '['python3', '/Users/livesite/Documents/ChatGPT/rgnix/scripts/benchmark_compare.py', '--rgnix', '/tmp/rgnix-nginx-opt-20260928/rgnix-body', '--candidate', '/tmp/rgnix-nginx-opt-20260928/rgnix-body', '--nginx', '/tmp/rgnix-compare-20260927/nginx/sbin/nginx', '--openresty', '/tmp/rgnix-compare-20260927/openresty/bin/openresty', '--plain-proxy', '--cases', 'proxy-1k', 'proxy-16k', '--workers', '2', '--concurrency', '64', '--rounds', '3', '--seconds', '15', '--warmup', '5', '--interleave', '--rgnix-transport', 'hyper', '--candidate-transport', 'hyper', '--client-threads', '4', '--client-cpus', '2,3,4,5', '--origin-workers', '4', '--origin-cpus', '6,7,8,9', '--server-cpus', '10,11', '--engines', 'rgnix', 'candidate', '--work-dir', '/tmp/rgnix-nginx-compare-current-20260928/aa-rgnix', '--output', '/tmp/rgnix-nginx-compare-current-20260928/aa-rgnix.json']' died with <Signals.SIGINT: 2>.\n"
+  },
+  "limitations": [
+    "OrbStack ARM64 shared Apple M5 Max host; virtual CPU affinity does not reserve physical cores. Other user workloads were not stopped.",
+    "Actual product Hyper HTTP/1 subset, not the default Pingora engine; no TLS/H2/RGL/Ingress, large uploads, real NIC, amd64 or long-soak capacity in this run.",
+    "Full payload checked at each process preflight. wrk measures HTTP/connection/timeout errors during formal windows; it does not compare every response body byte.",
+    "NGINX has access logs off; rgnix has access logs/OTLP off but product metrics, snapshots and budgets on. This is a product-path comparison, not isolated parser cost.",
+    "P99 is reported per window (median and maximum), not a merged request histogram; CPU includes the frontend process tree; PSS avoids shared-page double counting."
+  ]
+}

@@ -1,0 +1,645 @@
+{
+  "started_at": "2026-09-28T10:59:54Z",
+  "platform": "Linux-7.0.14-orbstack-00380-ga7e0a2dc9535-aarch64-with-glibc2.42",
+  "os_release": "PRETTY_NAME=\"Ubuntu 25.10\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"25.10\"\nVERSION=\"25.10 (Questing Quokka)\"\nVERSION_CODENAME=questing\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=questing\nLOGO=ubuntu-logo\n",
+  "lscpu": "Architecture:                            aarch64\nCPU op-mode(s):                          64-bit\nByte Order:                              Little Endian\nCPU(s):                                  18\nOn-line CPU(s) list:                     0-17\nVendor ID:                               Apple\nModel name:                              -\nModel:                                   0\nThread(s) per core:                      1\nCore(s) per cluster:                     18\nSocket(s):                               -\nCluster(s):                              1\nStepping:                                0x0\nCPU(s) scaling MHz:                      100%\nCPU max MHz:                             2000.0000\nCPU min MHz:                             2000.0000\nBogoMIPS:                                48.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres sme smei16i64 smef64f64 smei8i32 smef16f32 smeb16f32 smef32f32 ebf16 sme2 sme2p1 smei16i32 smebi32i32 smeb16b16 smef16f16\nL1d cache:                               2.3 MiB (18 instances)\nL1i cache:                               3.4 MiB (18 instances)\nL2 cache:                                48 MiB (3 instances)\nL3 cache:                                64 MiB (1 instance)\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Vulnerable\nVulnerability Spectre v1:                Mitigation; __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; CSV2, but not BHB\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected",
+  "settings": {
+    "rgnix": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+    "nginx": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+    "openresty": "/tmp/rgnix-compare-20260927/openresty/bin/openresty",
+    "candidate": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+    "plain_proxy": true,
+    "rgnix_transport": "hyper",
+    "candidate_transport": "hyper",
+    "pingora": null,
+    "hyper": null,
+    "hyper_control": null,
+    "engines": [
+      "rgnix",
+      "candidate"
+    ],
+    "wrk": "wrk",
+    "work_dir": "/tmp/rgnix-nginx-compare-current-20260928/aa-rgnix",
+    "output": "/tmp/rgnix-nginx-compare-current-20260928/aa-rgnix.json",
+    "rounds": 3,
+    "seconds": 15,
+    "warmup": 5,
+    "concurrency": [
+      64
+    ],
+    "cases": [
+      "proxy-1k",
+      "proxy-16k"
+    ],
+    "connection_close": false,
+    "interleave": true,
+    "workers": 2,
+    "origin_workers": 4,
+    "client_threads": 4,
+    "server_cpus": "10,11",
+    "client_cpus": "2,3,4,5",
+    "origin_cpus": "6,7,8,9"
+  },
+  "binaries": {
+    "rgnix": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+      "version": "rgnix 0.5.0"
+    },
+    "nginx": {
+      "path": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+      "sha256": "d7509a23828ead5af789b69f2042a2eae74d25f740ef3c071dbc35c1b0f41304",
+      "version": "nginx version: nginx/1.30.5\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/nginx --with-http_ssl_module --with-http_v2_module --with-cc-opt=-O2"
+    },
+    "openresty": {
+      "path": "/tmp/rgnix-compare-20260927/openresty/nginx/sbin/nginx",
+      "sha256": "53de7d8583b2932a904f66f7cab088801fa0e7148e3f5c708507fcfc95f9ea18",
+      "version": "nginx version: openresty/1.31.1.1\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/openresty/nginx --with-cc-opt='-O2 -O2' --add-module=../ngx_devel_kit-0.3.4 --add-module=../echo-nginx-module-0.64 --add-module=../xss-nginx-module-0.07 --add-module=../ngx_coolkit-0.2 --add-module=../set-misc-nginx-module-0.33 --add-module=../form-input-nginx-module-0.12 --add-module=../encrypted-session-nginx-module-0.09 --add-module=../srcache-nginx-module-0.33 --add-module=../ngx_lua-0.10.31rc5 --add-module=../ngx_lua_upstream-0.08 --add-module=../headers-more-nginx-module-0.39 --add-module=../array-var-nginx-module-0.06 --add-module=../memc-nginx-module-0.20 --add-module=../redis2-nginx-module-0.15 --add-module=../redis-nginx-module-0.41 --add-module=../rds-json-nginx-module-0.17 --add-module=../rds-csv-nginx-module-0.10 --add-module=../ngx_stream_lua-0.0.19rc4 --with-ld-opt=-Wl,-rpath,/tmp/rgnix-compare-20260927/openresty/luajit/lib --with-http_ssl_module --with-http_v2_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module"
+    },
+    "candidate": {
+      "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+      "sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+      "version": "rgnix 0.5.0"
+    }
+  },
+  "wrk_version": "wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer",
+  "ports": {
+    "http": 40707,
+    "tls": 34569,
+    "admin": 59969,
+    "primary": 50715,
+    "canary": 37707
+  },
+  "preflight": {
+    "rgnix/round1-batch1": [
+      "proxy-1k:200 and exact payload",
+      "proxy-16k:200 and exact payload"
+    ]
+  },
+  "runs": [],
+  "origin_baselines": [
+    {
+      "requests": 6604103,
+      "seconds": 15.09967,
+      "bytes": 8605146209,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.127,
+      "p95_ms": 0.335,
+      "p99_ms": 1.475,
+      "errors": 0,
+      "rps": 437367.37292934215,
+      "server_cpu_cores": 3.2311964433659806,
+      "server_cpu_us_per_request": 7.387831473857993,
+      "origin_cpu_cores": 3.2311964433659806,
+      "client_cpu_cores": 2.680198110289828,
+      "peak_pss_kib": 36170,
+      "peak_rss_kib": 62096,
+      "server_pids": [
+        318091,
+        318092,
+        318093,
+        318094,
+        318095
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          6842,
+          0,
+          4243,
+          12481,
+          34,
+          0,
+          3394,
+          0
+        ],
+        "cpu0": [
+          332,
+          0,
+          60,
+          1046,
+          20,
+          0,
+          94,
+          0
+        ],
+        "cpu1": [
+          414,
+          0,
+          59,
+          992,
+          1,
+          0,
+          54,
+          0
+        ],
+        "cpu2": [
+          347,
+          0,
+          434,
+          348,
+          0,
+          0,
+          355,
+          0
+        ],
+        "cpu3": [
+          300,
+          0,
+          427,
+          407,
+          0,
+          0,
+          346,
+          0
+        ],
+        "cpu4": [
+          311,
+          0,
+          445,
+          356,
+          0,
+          0,
+          371,
+          0
+        ],
+        "cpu5": [
+          320,
+          0,
+          483,
+          301,
+          2,
+          0,
+          379,
+          0
+        ],
+        "cpu6": [
+          380,
+          0,
+          519,
+          174,
+          0,
+          0,
+          424,
+          0
+        ],
+        "cpu7": [
+          402,
+          0,
+          471,
+          247,
+          0,
+          0,
+          374,
+          0
+        ],
+        "cpu8": [
+          404,
+          0,
+          538,
+          99,
+          0,
+          0,
+          466,
+          0
+        ],
+        "cpu9": [
+          363,
+          0,
+          436,
+          347,
+          0,
+          0,
+          336,
+          0
+        ],
+        "cpu10": [
+          461,
+          0,
+          54,
+          957,
+          1,
+          0,
+          46,
+          0
+        ],
+        "cpu11": [
+          459,
+          0,
+          45,
+          970,
+          0,
+          0,
+          35,
+          0
+        ],
+        "cpu12": [
+          468,
+          0,
+          55,
+          946,
+          1,
+          0,
+          31,
+          0
+        ],
+        "cpu13": [
+          521,
+          0,
+          57,
+          890,
+          4,
+          0,
+          25,
+          0
+        ],
+        "cpu14": [
+          492,
+          0,
+          56,
+          924,
+          1,
+          0,
+          20,
+          0
+        ],
+        "cpu15": [
+          380,
+          0,
+          49,
+          1046,
+          1,
+          0,
+          21,
+          0
+        ],
+        "cpu16": [
+          490,
+          0,
+          56,
+          914,
+          2,
+          0,
+          19,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          1516,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "318091": {
+          "name": "nginx",
+          "cpu_seconds": 0.0,
+          "last_cpu": 7
+        },
+        "318092": {
+          "name": "nginx",
+          "cpu_seconds": 14.690000000000001,
+          "last_cpu": 7
+        },
+        "318093": {
+          "name": "nginx",
+          "cpu_seconds": 14.75,
+          "last_cpu": 8
+        },
+        "318094": {
+          "name": "nginx",
+          "cpu_seconds": 6.079999999999999,
+          "last_cpu": 6
+        },
+        "318095": {
+          "name": "nginx",
+          "cpu_seconds": 13.27,
+          "last_cpu": 6
+        }
+      },
+      "load_before": "8.55 11.02 12.43 12/7893 318100",
+      "load_after": "9.77 11.18 12.46 3/7894 318136",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3,4,5",
+        "wrk",
+        "-t",
+        "4",
+        "-c",
+        "64",
+        "-d",
+        "15s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/wrk-proxy-1k.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:50715/proxy-1k"
+      ],
+      "wrk_output": "Running 15s test @ http://127.0.0.1:50715/proxy-1k\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   180.29us  488.13us  24.79ms   97.54%\n    Req/Sec   110.29k    27.44k  204.89k    71.43%\n  Latency Distribution\n     50%  127.00us\n     75%  186.00us\n     90%  246.00us\n     99%    1.48ms\n  6604103 requests in 15.10s, 8.01GB read\nRequests/sec: 437367.37\nTransfer/sec:    543.49MB\nBENCH_RESULT {\"requests\":6604103,\"seconds\":15.099670,\"bytes\":8605146209,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.127000,\"p95_ms\":0.335000,\"p99_ms\":1.475000}\n",
+      "case": "proxy-1k",
+      "concurrency": 64
+    },
+    {
+      "requests": 5648551,
+      "seconds": 15.099809,
+      "bytes": 94133102415,
+      "connect_errors": 0,
+      "read_errors": 0,
+      "write_errors": 0,
+      "status_errors": 0,
+      "timeout_errors": 0,
+      "p50_ms": 0.141,
+      "p95_ms": 0.377,
+      "p99_ms": 1.633,
+      "errors": 0,
+      "rps": 374080.95691806433,
+      "server_cpu_cores": 2.917255443429781,
+      "server_cpu_us_per_request": 7.798460171466983,
+      "origin_cpu_cores": 2.917255443429781,
+      "client_cpu_cores": 2.855116511738658,
+      "peak_pss_kib": 36189,
+      "peak_rss_kib": 62096,
+      "server_pids": [
+        318091,
+        318092,
+        318093,
+        318094,
+        318095
+      ],
+      "host_cpu_ticks": {
+        "cpu": [
+          5957,
+          0,
+          4457,
+          13558,
+          33,
+          0,
+          3112,
+          0
+        ],
+        "cpu0": [
+          290,
+          0,
+          67,
+          1090,
+          18,
+          0,
+          107,
+          0
+        ],
+        "cpu1": [
+          349,
+          0,
+          45,
+          1075,
+          0,
+          0,
+          55,
+          0
+        ],
+        "cpu2": [
+          336,
+          0,
+          515,
+          327,
+          1,
+          0,
+          301,
+          0
+        ],
+        "cpu3": [
+          323,
+          0,
+          530,
+          320,
+          0,
+          0,
+          308,
+          0
+        ],
+        "cpu4": [
+          307,
+          0,
+          518,
+          347,
+          0,
+          0,
+          306,
+          0
+        ],
+        "cpu5": [
+          321,
+          0,
+          567,
+          281,
+          0,
+          0,
+          317,
+          0
+        ],
+        "cpu6": [
+          349,
+          0,
+          393,
+          450,
+          1,
+          0,
+          326,
+          0
+        ],
+        "cpu7": [
+          399,
+          0,
+          534,
+          140,
+          1,
+          0,
+          438,
+          0
+        ],
+        "cpu8": [
+          432,
+          0,
+          441,
+          264,
+          2,
+          0,
+          380,
+          0
+        ],
+        "cpu9": [
+          358,
+          0,
+          477,
+          275,
+          1,
+          0,
+          410,
+          0
+        ],
+        "cpu10": [
+          369,
+          0,
+          49,
+          1061,
+          0,
+          0,
+          42,
+          0
+        ],
+        "cpu11": [
+          325,
+          0,
+          46,
+          1106,
+          0,
+          0,
+          32,
+          0
+        ],
+        "cpu12": [
+          379,
+          0,
+          57,
+          1037,
+          3,
+          0,
+          25,
+          0
+        ],
+        "cpu13": [
+          366,
+          0,
+          49,
+          1059,
+          1,
+          0,
+          19,
+          0
+        ],
+        "cpu14": [
+          363,
+          0,
+          67,
+          1047,
+          1,
+          0,
+          19,
+          0
+        ],
+        "cpu15": [
+          336,
+          0,
+          49,
+          1093,
+          0,
+          0,
+          14,
+          0
+        ],
+        "cpu16": [
+          356,
+          0,
+          53,
+          1071,
+          1,
+          0,
+          12,
+          0
+        ],
+        "cpu17": [
+          0,
+          0,
+          0,
+          1516,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "server_threads": {
+        "318091": {
+          "name": "nginx",
+          "cpu_seconds": 0.0,
+          "last_cpu": 7
+        },
+        "318092": {
+          "name": "nginx",
+          "cpu_seconds": 14.839999999999996,
+          "last_cpu": 8
+        },
+        "318093": {
+          "name": "nginx",
+          "cpu_seconds": 0.0,
+          "last_cpu": 7
+        },
+        "318094": {
+          "name": "nginx",
+          "cpu_seconds": 14.54,
+          "last_cpu": 7
+        },
+        "318095": {
+          "name": "nginx",
+          "cpu_seconds": 14.669999999999998,
+          "last_cpu": 7
+        }
+      },
+      "load_before": "9.87 11.18 12.45 20/7894 318141",
+      "load_after": "10.09 11.15 12.42 11/7928 318163",
+      "command": [
+        "taskset",
+        "-c",
+        "2,3,4,5",
+        "wrk",
+        "-t",
+        "4",
+        "-c",
+        "64",
+        "-d",
+        "15s",
+        "--timeout",
+        "5s",
+        "--latency",
+        "-s",
+        "/tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/wrk-proxy-16k.lua",
+        "-H",
+        "Host: localhost",
+        "http://127.0.0.1:50715/proxy-16k"
+      ],
+      "wrk_output": "Running 15s test @ http://127.0.0.1:50715/proxy-16k\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   248.72us    1.66ms 111.71ms   99.18%\n    Req/Sec    94.48k    19.07k  176.45k    73.04%\n  Latency Distribution\n     50%  141.00us\n     75%  184.00us\n     90%  249.00us\n     99%    1.63ms\n  5648551 requests in 15.10s, 87.67GB read\nRequests/sec: 374080.96\nTransfer/sec:      5.81GB\nBENCH_RESULT {\"requests\":5648551,\"seconds\":15.099809,\"bytes\":94133102415,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.141000,\"p95_ms\":0.377000,\"p99_ms\":1.633000}\n",
+      "case": "proxy-16k",
+      "concurrency": 64
+    }
+  ],
+  "fixtures": {
+    "body.lua": "ngx.req.read_body()\nlocal body = assert(ngx.req.get_body_data(), \"benchmark body must stay in memory\")\nlocal prefix = string.sub(body, 1, 512)\nlocal selected = \"primary\"\nif string.find(prefix, \"route=canary;\", 1, true) then selected = \"canary\" end\nngx.var.selected_upstream = selected\nngx.req.set_header(\"x-selected\", selected)\n",
+    "body.rgl": "function on_request()\n    if req.body_contains(\"route=canary;\") then\n        req.set_header(\"x-selected\", \"canary\")\n        return route.proxy(\"canary\")\n    end\n    req.set_header(\"x-selected\", \"primary\")\n    return route.proxy(\"primary\")\nend\n",
+    "header.lua": "local selected = \"primary\"\nif ngx.var.http_x_canary == \"1\" then selected = \"canary\" end\nngx.var.selected_upstream = selected\nngx.req.set_header(\"x-selected\", selected)\n",
+    "header.rgl": "function on_request()\n    if req.header(\"x-canary\") == \"1\" then\n        req.set_header(\"x-selected\", \"canary\")\n        return route.proxy(\"canary\")\n    end\n    req.set_header(\"x-selected\", \"primary\")\n    return route.proxy(\"primary\")\nend\n",
+    "nginx/nginx.conf": "worker_processes 2;\npid /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/nginx/server.pid;\nerror_log /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/nginx/error.log warn;\nevents { worker_connections 16384; }\nhttp {\n  client_body_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/nginx/client_body;\nproxy_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/nginx/proxy;\nfastcgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/nginx/fastcgi;\nuwsgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/nginx/uwsgi;\nscgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/nginx/scgi;\n  access_log off;\n  sendfile on;\n  tcp_nodelay on;\n  keepalive_timeout 60s;\n  keepalive_requests 1000000;\n  client_max_body_size 1m;\n  client_body_buffer_size 128k;\n  default_type application/octet-stream;\nproxy_http_version 1.1;\nproxy_set_header Host localhost;\nproxy_set_header Connection \"\";\nproxy_connect_timeout 5s;\nproxy_read_timeout 5s;\nproxy_send_timeout 5s;\nproxy_buffering off;\nproxy_request_buffering off;\nproxy_next_upstream off;\nupstream primary { server 127.0.0.1:50715; keepalive 512; keepalive_requests 1000000; keepalive_timeout 60s; }\nupstream canary { server 127.0.0.1:37707; keepalive 512; keepalive_requests 1000000; keepalive_timeout 60s; }\nmap $http_x_canary $selected_upstream { default primary; 1 canary; }\nserver {\nlisten 127.0.0.1:40707;\nserver_name localhost;\nroot /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/data;\nlocation = /return { return 200 ok; }\nlocation = /proxy-1k { proxy_pass http://primary; }\nlocation = /proxy-16k { proxy_pass http://primary; }\nlocation / { return 404; }\n}\n}\n",
+    "openresty/nginx.conf": "worker_processes 2;\npid /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/openresty/server.pid;\nerror_log /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/openresty/error.log warn;\nevents { worker_connections 16384; }\nhttp {\n  client_body_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/openresty/client_body;\nproxy_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/openresty/proxy;\nfastcgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/openresty/fastcgi;\nuwsgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/openresty/uwsgi;\nscgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/openresty/scgi;\n  access_log off;\n  sendfile on;\n  tcp_nodelay on;\n  keepalive_timeout 60s;\n  keepalive_requests 1000000;\n  client_max_body_size 1m;\n  client_body_buffer_size 128k;\n  default_type application/octet-stream;\nproxy_http_version 1.1;\nproxy_set_header Host localhost;\nproxy_set_header Connection \"\";\nproxy_connect_timeout 5s;\nproxy_read_timeout 5s;\nproxy_send_timeout 5s;\nproxy_buffering off;\nproxy_request_buffering off;\nproxy_next_upstream off;\nupstream primary { server 127.0.0.1:50715; keepalive 512; keepalive_requests 1000000; keepalive_timeout 60s; }\nupstream canary { server 127.0.0.1:37707; keepalive 512; keepalive_requests 1000000; keepalive_timeout 60s; }\nserver {\nlisten 127.0.0.1:40707;\nserver_name localhost;\nroot /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/data;\nlocation = /return { return 200 ok; }\nlocation = /proxy-1k { proxy_pass http://primary; }\nlocation = /proxy-16k { proxy_pass http://primary; }\nlocation / { return 404; }\n}\n}\n",
+    "origin/nginx.conf": "worker_processes 4;\npid /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin/server.pid;\nerror_log /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin/error.log warn;\nevents { worker_connections 16384; }\nhttp {\n  client_body_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin/client_body;\nproxy_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin/proxy;\nfastcgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin/fastcgi;\nuwsgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin/uwsgi;\nscgi_temp_path /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin/scgi;\n  access_log off;\n  sendfile on;\n  tcp_nodelay on;\n  keepalive_timeout 60s;\n  keepalive_requests 1000000;\n  client_max_body_size 1m;\n  client_body_buffer_size 128k;\n  default_type application/octet-stream;\nserver {\n  listen 127.0.0.1:50715;\n  root /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/data;\n  add_header X-Origin primary always;\n  add_header X-Observed-Selected $http_x_selected always;\n  location = /route-header { return 200 \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"; }\n  location = /route-body { content_by_lua_file /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin.lua; }\n}\nserver {\n  listen 127.0.0.1:37707;\n  root /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/data;\n  add_header X-Origin canary always;\n  add_header X-Observed-Selected $http_x_selected always;\n  location = /route-header { return 200 \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"; }\n  location = /route-body { content_by_lua_file /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/origin.lua; }\n}\n}\n",
+    "origin.lua": "ngx.req.read_body()\nlocal body = assert(ngx.req.get_body_data())\nif ngx.req.get_headers()[\"x-bench-verify\"] == \"1\" then\n    ngx.header[\"x-body-md5\"] = ngx.md5(body)\n    ngx.header[\"x-body-length\"] = #body\nend\nngx.header[\"content-length\"] = 1024\nngx.print(string.rep(\"x\", 1024))\n",
+    "rgnix/nginx.conf": "events {}\nhttp {\naccess_log off;\nkeepalive_timeout 60s;\nupstream primary { server 127.0.0.1:50715;  }\nupstream canary { server 127.0.0.1:37707;  }\nserver {\nlisten 127.0.0.1:40707;\nserver_name localhost;\nroot /tmp/rgnix-nginx-compare-current-20260928/aa-rgnix/data;\nlocation = /return { return 200 ok; }\nlocation = /proxy-1k { proxy_pass http://primary; }\nlocation = /proxy-16k { proxy_pass http://primary; }\nlocation / { return 404; }\n}\n}\n",
+    "wrk-body.lua": "local requests = {}\nlocal counter = 0\nrequests[1] = wrk.format(\"POST\", \"/route-body\", {[\"Host\"]=\"localhost\", [\"Content-Type\"]=\"application/octet-stream\"}, \"route=canary;\" .. string.rep(\"x\", 65523))\nrequests[2] = wrk.format(\"POST\", \"/route-body\", {[\"Host\"]=\"localhost\", [\"Content-Type\"]=\"application/octet-stream\"}, string.rep(\"x\", 1024) .. \"route=canary;\" .. string.rep(\"x\", 64499))\nfunction request()\n  counter = counter % 2 + 1\n  return requests[counter]\nend\n\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n",
+    "wrk-header.lua": "local requests = {}\nlocal counter = 0\nrequests[1] = wrk.format(\"GET\", \"/route-header\", {[\"Host\"]=\"localhost\", [\"x-canary\"]=\"1\"})\nrequests[2] = wrk.format(\"GET\", \"/route-header\", {[\"Host\"]=\"localhost\", [\"x-canary\"]=\"0\"})\nfunction request()\n  counter = counter % 2 + 1\n  return requests[counter]\nend\n\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n",
+    "wrk-proxy-16k.lua": "\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n",
+    "wrk-proxy-1k.lua": "\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n",
+    "wrk-return.lua": "\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n",
+    "wrk-static.lua": "\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n",
+    "wrk-tls.lua": "\nfunction done(summary, latency, requests)\n  local e = summary.errors\n  io.write(string.format('BENCH_RESULT {\"requests\":%d,\"seconds\":%.6f,\"bytes\":%d,\"connect_errors\":%d,\"read_errors\":%d,\"write_errors\":%d,\"status_errors\":%d,\"timeout_errors\":%d,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"p99_ms\":%.6f}\\n',\n    summary.requests, summary.duration / 1000000, summary.bytes,\n    e.connect, e.read, e.write, e.status, e.timeout,\n    latency:percentile(50) / 1000, latency:percentile(95) / 1000, latency:percentile(99) / 1000))\nend\n"
+  },
+  "summary": {}
+}

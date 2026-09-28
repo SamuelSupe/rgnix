@@ -22,6 +22,7 @@ MINIMAL_ENGINES = {"pingora", "hyper", "hyper-control"}
 PATHS = {"return": "/return", "static": "/static.bin", "proxy-1k": "/proxy-1k",
          "proxy-16k": "/proxy-16k", "header": "/route-header", "body": "/route-body", "tls": "/proxy-1k"}
 BODY_SIZE = 65536
+KEEPALIVE_PER_WORKER = 128
 MARKER = b"route=canary;"
 BODY_CANARY = MARKER + b"x" * (BODY_SIZE - len(MARKER))
 BODY_PRIMARY = b"x" * 1024 + MARKER + b"x" * (BODY_SIZE - 1024 - len(MARKER))
@@ -253,10 +254,12 @@ proxy_next_upstream off;
     for engine in ["rgnix", "nginx", "openresty"]:
         engine_dir = directory / engine
         engine_dir.mkdir()
-        config = ("events {}\nhttp {\naccess_log off;\nkeepalive_timeout 60s;\n" if engine == "rgnix"
+        config = ("events {}\nhttp {\naccess_log off;\nkeepalive_timeout 60s;\n"
+                  "proxy_set_header Host localhost;\nproxy_connect_timeout 5s;\n"
+                  "proxy_read_timeout 5s;\nproxy_send_timeout 5s;\n" if engine == "rgnix"
                   else nginx_prelude(engine_dir, args.workers) + proxy)
         for name in ["primary", "canary"]:
-            keepalive = "" if engine == "rgnix" else "keepalive 512; keepalive_requests 1000000; keepalive_timeout 60s;"
+            keepalive = "" if engine == "rgnix" else f"keepalive {KEEPALIVE_PER_WORKER}; keepalive_requests 1000000; keepalive_timeout 60s;"
             config += f"upstream {name} {{ server 127.0.0.1:{ports[name]}; {keepalive} }}\n"
         if engine == "nginx":
             config += "map $http_x_canary $selected_upstream { default primary; 1 canary; }\n"
@@ -478,6 +481,7 @@ def main():
                 if is_rgnix:
                     command = [binaries[engine], "serve", "-c", str(config), "--admin", f"127.0.0.1:{ports['admin']}",
                                "--threads", str(args.workers), "--max-inflight", "4096", "--max-plugin-instances", "512",
+                               "--upstream-keepalive-pool-size", str(KEEPALIVE_PER_WORKER),
                                "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "5"]
                     if getattr(args, f"{engine}_transport") == "hyper":
                         command.append("--experimental-hyper")
