@@ -25,7 +25,7 @@ cargo build --locked --release --features hyper-experimental
 只允许独立文件配置、明文 HTTP/1 客户端和明文 HTTP/1 上游。启动和配置发布会拒绝 TLS、HTTP/2、PROXY protocol、RGL/body 检查、认证、静态文件、压缩、sticky cookie、多租户/发布策略、外部共享限流配置及 Ingress/Gateway 模式。CONNECT、Upgrade 和声明请求 trailer 的请求返回 501。尚不提供 WebSocket 或 trailer 兼容性承诺。
 
 - Hyper 空闲池上限按**监听器、超时配置组合、目标 authority**计算，每组上限是 `upstream_keepalive_pool_size × threads`，不是现有 Pingora 的总量上限。活跃请求仍受进程和后端预算约束；大量端点/超时组合下的空闲连接总量隔离仍待迁移。
-- 超时不同的路由使用不同客户端连接池。新配置版本更换池；旧请求继续使用已取得的客户端，不把旧客户端重新写进新版本缓存。
+- 超时不同的路由使用不同客户端连接池。客户端、固定请求/响应头和端点 authority 在发布前准备，并由不可变快照持有。新配置版本更换池；旧请求继续使用原快照。历史记录不持有空闲池，回退时重新准备客户端。DNS 刷新后的新地址按实际选中的端点解析，不会固定到旧地址。
 - 下游首部总期限为 60 秒；下游 body 读、响应写空闲期限为 60 秒。完成响应后使用路由的 `keepalive_timeout`。上游使用路由 connect/read/write 超时；底层读空闲期限可能比 keepalive 更早关闭空闲上游连接。
 - Hyper 请求 future 同时覆盖上传和等待响应头。无法可靠区分的上游 I/O 超时使用 `upstream_timeout` 错误标签；响应 body 读超时仍使用 `read_timeout`，来源标签为 `upstream`。没有伪造分阶段时间。
 - 尚未迁移上游连接建立/复用的细分指标；请求数、字节、上游首部耗时、整体上游耗时、错误和预算指标已经接入。
@@ -47,3 +47,5 @@ python3 scripts/integration.py /path/to/rgnix
 [本轮实际验证记录](validation-hyper-product-2026-09-28.md)与[独立原型的历史结果](validation-hyper-prototype-2026-09-28.md)分开记录。当前未完成 TLS/H2/RGL/认证和完整连接资源隔离的迁移，也没有多 worker、跨节点或生产容量结论。
 
 后续 [CPU 剖析与上下文搬移优化](validation-hyper-profile-2026-09-28.md)将请求状态放在固定堆位置，减少它在异步状态和完成队列中的按值复制。捕获的 libc 拷贝字节下降约 58.6%，代价是每请求增加一次分配；该操作计数不等同于吞吐提升。
+
+后续 [请求状态、客户端与计时器优化](validation-hyper-prepared-2026-09-28.md)进一步缩小共享请求上下文，并将固定配置处理移到发布阶段。实验性客户端使用隔离的 `vendor/hyper-util` 路径依赖；reqwest/kube 仍使用注册表版本。读取成功只清除计时状态，实际上传进展才延长上游读取期限，空 flush 不会延长期限。镜像和 trace 状态仅在使用时分配；开启这些功能时各增加一次小对象分配。

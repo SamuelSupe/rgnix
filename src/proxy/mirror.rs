@@ -96,7 +96,7 @@ impl Proxy {
                 .inc();
             return;
         }
-        ctx.mirror = Some(MirrorRequest {
+        ctx.mirror = Some(Box::new(MirrorRequest {
             backend: backend.clone(),
             timeout,
             preserve_host,
@@ -109,7 +109,7 @@ impl Proxy {
                 .map(|t| t.client(ctx.request.method.as_str(), &backend, "mirror")),
             _global: global.unwrap(),
             _tenant: tenant.unwrap(),
-        });
+        }));
         if session.is_body_empty() {
             self.send_mirror(ctx);
         }

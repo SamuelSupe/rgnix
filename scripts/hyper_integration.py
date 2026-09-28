@@ -83,11 +83,14 @@ proxy_read_timeout 2s; proxy_send_timeout 2s;
 add_header X-Snapshot {marker} always;
 location = /exact {{ return 200 exact; }}
 location = /head {{ return 200 abcdef; }}
+location = /same {{ return 200 exact-same; }}
+location /same {{ proxy_pass http://app; proxy_set_header X-Prepared {marker}; proxy_set_header X-Remove ""; }}
 location /rewrite/ {{ proxy_pass http://app/base/; proxy_set_header X-Seen $request_uri; }}
 location /raw/ {{ proxy_pass http://app; }}
 location /small {{ client_max_body_size 16; proxy_pass http://app; }}
 location /large {{ client_max_body_size 16m; proxy_pass http://app; }}
 location /slow {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /upload-progress {{ proxy_read_timeout 250ms; proxy_pass http://app; }}
 location /stall {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
 location /limited {{ rgnix_limit_rate 1 burst=1 key=route; return 200 limited; }}
 location /hold {{ rgnix_limit_conn 1 key=route; proxy_pass http://app; }}
@@ -99,11 +102,15 @@ location / {{ proxy_pass http://app; }}
 }}
 server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 200 other; }} }}
 }}'''
+        token = directory / "admin.token"
+        token.write_text("hyper-integration-private-token-20260928")
+        auth = {"Authorization": "Bearer " + token.read_text()}
         config.write_text(configuration())
         log = (directory / "process.log").open("w+")
         env = {k: v for k, v in os.environ.items() if not k.startswith("OTEL_")}
         env.update({"OTEL_BSP_SCHEDULE_DELAY": "40", "OTEL_BLRP_SCHEDULE_DELAY": "40"})
         command = [binary, "serve", "-c", str(config), "--admin", f"127.0.0.1:{admin}",
+                   "--admin-token-file", str(token),
                    "--threads", "1", "--upstream-max-fails", "0", "--max-inflight", "2", "--max-plugin-instances", "1",
                    "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "3",
                    "--otlp-logs-endpoint", f"http://127.0.0.1:{collector.server_port}/v1/logs",
@@ -131,9 +138,15 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             return records
         try:
             wait_for(lambda: request(admin, "/readyz")[0], 200)
+            initial_version = json.loads(request(admin, "/v1/config", headers=auth)[2])["version"]
             check("Connection cannot strip routing or framing headers", all(request(port, "/exact", headers={"Connection": name})[0] == 400 for name in ["host", "content-length", "transfer-encoding"]))
             status, headers, data = request(port, "/exact")
             check("exact route and configured response header", status == 200 and headers["x-snapshot"] == "old" and data == b"exact")
+            status, _, data = request(port, "/same/child", headers={"X-Remove": "discard"})
+            prepared_headers = {k.lower(): v for k, v in json.loads(data)["headers"].items()}
+            check("prepared exact and prefix routes with the same path stay distinct",
+                  request(port, "/same")[2] == b"exact-same" and status == 200
+                  and prepared_headers["x-prepared"] == "old" and "x-remove" not in prepared_headers)
             check("virtual host selects its route", request(port, "/", headers={"Host": "other.test"})[2] == b"other")
             response = request(port, "/rewrite/a%20b?q=x")
             value = json.loads(response[2]); headers = {k.lower(): v for k, v in value["headers"].items()}
@@ -160,6 +173,14 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             check("W3C propagation uses the exported client span", status == 200 and propagated == f"00-0123456789abcdef0123456789abcdef-{client[2][0].hex()}-01")
             wait_for(lambda: any(r.get(9) == server[1] and r.get(10) == server[2] for r in exported("/v1/logs")), True)
             check("OTLP access logs correlate with the server span", True)
+            def paced_upload():
+                for _ in range(8):
+                    yield b"x" * 256
+                    time.sleep(0.08)
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            conn.request("POST", "/upload-progress", body=paced_upload(), headers={"Host": "example.test"}, encode_chunked=True)
+            response = conn.getresponse(); payload = response.read(); conn.close()
+            check("ongoing upload progress extends the upstream read deadline", response.status == 200 and json.loads(payload)["sha256"] == hashlib.sha256(b"x" * 2048).hexdigest())
             check("upstream header timeout", request(port, "/slow")[0] == 504)
             conn = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
             conn.request("GET", "/stall", headers={"Host": "example.test"})
@@ -232,6 +253,8 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
             check("route concurrency permit remains held", request(port, "/hold")[0] == 503)
             config.write_text(configuration("new")); process.send_signal(signal.SIGHUP)
             wait_for(lambda: request(port, "/exact")[1].get("x-snapshot"), "new")
+            prepared_headers = {k.lower(): v for k, v in json.loads(request(port, "/same/child")[2])["headers"].items()}
+            check("reload publishes prepared request headers with the new snapshot", prepared_headers["x-prepared"] == "new")
             check("old request retains snapshot across reload", response.getheader("x-snapshot") == "old")
             Origin.release.set(); check("old stream completes after reload", response.read() == b"two"); conn.close()
             wait_for(budget, 0)
@@ -253,6 +276,11 @@ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 
                 wait_for(lambda: metric_value(metrics(), "rgnix_reload_errors_total"), errors + 1)
                 check("unsupported reload preserves active valid snapshot", request(port, "/exact")[1]["x-snapshot"] == "new")
                 check("unsupported Upgrade fails explicitly", request(port, "/", headers={"Connection":"upgrade", "Upgrade":"websocket"})[0] == 501)
+            status, _, _ = request(admin, f"/v1/rollback/{initial_version}", "POST", auth)
+            prepared_headers = {k.lower(): v for k, v in json.loads(request(port, "/same/child")[2])["headers"].items()}
+            check("rollback rebuilds prepared clients and headers from retained history",
+                  status == 200 and request(port, "/exact")[1]["x-snapshot"] == "old"
+                  and prepared_headers["x-prepared"] == "old")
             wait_for(budget, 0)
             wait_for(lambda: access.exists() and '"uri":"/hold"' in access.read_text(), True)
             records = [json.loads(line) for line in access.read_text().splitlines() if line.startswith("{")]

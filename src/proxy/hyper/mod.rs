@@ -1,6 +1,9 @@
 mod body;
 mod io;
+mod prepared;
 mod request;
+mod upstream;
+pub(crate) use prepared::Prepared;
 
 use crate::{
     model::*,
@@ -8,35 +11,20 @@ use crate::{
 };
 use anyhow::{Result, ensure};
 use async_trait::async_trait;
-use hyper_timeout::TimeoutConnector;
-use hyper_util::{
-    client::legacy::{Client, connect::HttpConnector},
-    rt::{TokioExecutor, TokioTimer},
-};
+use hyper_util::{client::legacy::Client, rt::TokioTimer};
 use pingora::{server::ShutdownWatch, services::background::BackgroundService};
 use std::{
-    collections::HashMap,
     net::SocketAddr,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-type ProxyClient = Client<TimeoutConnector<HttpConnector>, body::RequestBody>;
-type Timeouts = (Duration, Duration, Duration, Duration);
-
-#[derive(Default)]
-struct Clients {
-    version: u64,
-    clients: HashMap<Timeouts, ProxyClient>,
-}
-
+type ProxyClient = Client<upstream::Connector, body::RequestBody>;
 #[derive(Clone)]
 pub(crate) struct Listener {
     shared: Arc<Shared>,
     address: SocketAddr,
     socket: Arc<Mutex<Option<std::net::TcpListener>>>,
-    clients: Arc<Mutex<Clients>>,
-    pool_size: usize,
     drain_timeout: Duration,
 }
 
@@ -138,43 +126,8 @@ impl Listener {
             shared,
             address,
             socket: Arc::new(Mutex::new(Some(socket))),
-            clients: Arc::new(Mutex::new(Clients::default())),
-            pool_size: limits.upstream_keepalive_pool_size * limits.threads,
             drain_timeout: Duration::from_secs(limits.shutdown_timeout_seconds),
         })
-    }
-
-    fn client(&self, version: u64, settings: &Settings) -> ProxyClient {
-        let key = (
-            settings.connect_timeout,
-            settings.read_timeout,
-            settings.write_timeout,
-            settings.keepalive,
-        );
-        let build = || {
-            let mut connector = HttpConnector::new();
-            connector.set_nodelay(true);
-            connector.set_connect_timeout(Some(key.0));
-            let mut connector = TimeoutConnector::new(connector);
-            connector.set_read_timeout(Some(key.1));
-            connector.set_write_timeout(Some(key.2));
-            connector.set_reset_reader_on_write(true);
-            Client::builder(TokioExecutor::new())
-                .pool_timer(TokioTimer::new())
-                .pool_idle_timeout(key.3)
-                .pool_max_idle_per_host(self.pool_size)
-                .retry_canceled_requests(false)
-                .build(connector)
-        };
-        let mut cache = self.clients.lock().unwrap_or_else(|e| e.into_inner());
-        if version < cache.version {
-            return build();
-        }
-        if version > cache.version {
-            cache.clients.clear();
-            cache.version = version;
-        }
-        cache.clients.entry(key).or_insert_with(build).clone()
     }
 }
 

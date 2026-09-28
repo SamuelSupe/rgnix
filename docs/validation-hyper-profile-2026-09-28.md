@@ -8,7 +8,7 @@ CPU 栈中，产品 Hyper 的可识别 `memcpy` 热点约占 4.34% 的 flat 样�
 
 独立 syscall 计数中，Hyper、最小原型和 NGINX 都约为每请求 **2 次 recvfrom、2 次 writev**；Pingora 约为 2 次 recvfrom、2 次 sendto。该普通代理场景没有观察到 Hyper 比 NGINX 多一倍读写调用。单 worker 下 futex 很少，本轮没有证明连接池锁竞争是主要原因；这不能代替多 worker 验证。
 
-用 libc 入口 uprobes 对 500 个已预热、校验过 body 的请求计数，产品 Hyper 捕获约 **64 KB 拷贝/请求**，最小原型约 6 KB，Pingora 约 36 KB。回溯调用点后，最明确的额外成本是约 4 KiB 的请求状态在响应 body、HTTP 状态机、完成队列和最终记录之间反复按值移动。时间读取约 30 次/请求，仍是独立的后续候选；本轮没有取消超时或减少指标来换数字。
+用 libc 入口 uprobes 对 500 个已预热、校验过 body 的请求计数，产品 Hyper 捕获约 **64 KB 拷贝/请求**，最小原型约 6 KB，Pingora 约 36 KB。回溯调用点后，最明确的额外成本是较大的请求状态在响应 body、HTTP 状态机、完成队列和最终记录之间反复按值移动。时间读取约 30 次/请求，仍是独立的后续候选；本轮没有取消超时或减少指标来换数字。
 
 ## 本轮修改
 

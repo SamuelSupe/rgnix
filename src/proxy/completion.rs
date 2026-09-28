@@ -130,7 +130,7 @@ impl Proxy {
         {
             if let Some(exporter) = &self.shared.telemetry.otlp {
                 exporter.access(crate::otlp::AccessRecord {
-                    trace: ctx.trace.as_ref(),
+                    trace: ctx.trace.as_deref(),
                     method: &ctx.request.method,
                     path: ctx.original_uri.split('?').next().unwrap_or("/"),
                     host: &ctx.request.host,

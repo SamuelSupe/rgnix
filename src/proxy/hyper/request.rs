@@ -30,10 +30,21 @@ pub(super) async fn serve(
         listener: listener.address,
         tls: false,
     };
-    let mut ctx = proxy.new_ctx();
+    let mut guard = Box::new(RequestGuard {
+        ctx: proxy.new_ctx(),
+        proxy,
+        finished: false,
+        counts: Arc::new(Counters::default()),
+        version: request.version(),
+        error: None,
+        keepalive: Duration::from_secs(60),
+        io_failure: connection.failure.clone(),
+    });
+    let ctx = &mut guard.ctx;
     ctx.snapshot = Some(listener.shared.snapshot.load_full());
     ctx.trace =
-        crate::otlp::trace::Trace::new(request.headers(), listener.shared.telemetry.trace_ratio);
+        crate::otlp::trace::Trace::new(request.headers(), listener.shared.telemetry.trace_ratio)
+            .map(Box::new);
     ctx.original_uri = request
         .uri()
         .path_and_query()
@@ -42,17 +53,6 @@ pub(super) async fn serve(
     ctx.request.method = request.method().to_string();
     ctx.request.remote_addr = peer.ip().to_string();
     ctx.original_peer = ctx.request.remote_addr.clone();
-    let version = request.version();
-    let mut guard = Box::new(RequestGuard {
-        proxy,
-        ctx,
-        finished: false,
-        counts: Arc::new(Counters::default()),
-        version,
-        error: None,
-        keepalive: Duration::from_secs(60),
-        io_failure: connection.failure.clone(),
-    });
     connection.read_timeout_ms.store(60_000, Ordering::Relaxed);
     let result = forward(listener, request, peer, &mut guard).await;
     let mut response = match result {
@@ -84,18 +84,22 @@ pub(super) async fn serve(
     ctx.status = response.status().as_u16();
     if let Some(route) = &ctx.route {
         guard.keepalive = route.settings.keepalive;
-        for header in &route.settings.response_headers {
-            if header.always
-                || [200, 201, 204, 206, 301, 302, 303, 304, 307, 308].contains(&ctx.status)
-            {
-                let value = expand(&header.value, ctx, false, "");
-                if !value.is_empty() {
-                    if let (Ok(name), Ok(value)) = (
-                        header.name.parse::<http::HeaderName>(),
-                        value.parse::<http::HeaderValue>(),
-                    ) {
-                        response.headers_mut().append(name, value);
-                    } else {
+        let prepared = ctx
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .hyper
+            .as_ref()
+            .unwrap()
+            .route(listener.address, route);
+        for (name, value, always) in &prepared.response_headers {
+            if *always || [200, 201, 204, 206, 301, 302, 303, 304, 307, 308].contains(&ctx.status) {
+                match value.expand(ctx, "") {
+                    Ok(value) if !value.is_empty() => {
+                        response.headers_mut().append(name.clone(), value);
+                    }
+                    Ok(_) => {}
+                    Err(_) => {
                         response = reply(500, "invalid expanded response header\n".into(), None);
                         ctx.status = 500;
                         break;
@@ -104,6 +108,7 @@ pub(super) async fn serve(
             }
         }
     }
+
     if ctx.request.method == "HEAD" || [204, 304].contains(&ctx.status) {
         *response.body_mut() = Either::Right(Full::new(Bytes::new()));
     }
@@ -252,13 +257,16 @@ async fn forward(
                 redirect.then_some(text),
             ));
         }
-        Action::Proxy { backend, uri } => (backend.clone(), uri.as_deref()),
+        Action::Proxy { backend, uri } => (backend, uri.as_deref()),
         _ => return Err(error(503, "backend unavailable")),
     };
-    let backend = snapshot
-        .backends
-        .get(&backend_name)
-        .ok_or_else(|| error(503, "backend missing"))?;
+    let prepared = snapshot
+        .hyper
+        .as_ref()
+        .unwrap()
+        .route(listener.address, &route);
+    let target = prepared.backend.as_ref().unwrap();
+    let backend = &target.backend;
     let key = match &backend.options.balance {
         crate::backend::Balance::Hash(key) => key.value(&ctx.request, &ctx.claims),
         _ => String::new(),
@@ -275,44 +283,47 @@ async fn forward(
         listener
             .shared
             .telemetry
-            .label("backend", &backend_name)
+            .label("backend", backend_name)
             .into(),
     );
     if let Some(trace) = &mut ctx.trace {
-        trace.upstream = Some(trace.client(&ctx.request.method, &backend_name, "proxy"));
+        trace.upstream = Some(trace.client(&ctx.request.method, backend_name, "proxy"));
     }
-    let path = planning::outbound_uri(
-        &ctx.original_uri,
-        &ctx.request,
-        &ctx.edits,
-        &route.matcher,
-        uri,
-    );
-    *request.uri_mut() = format!("http://{address}{path}")
+    let path = if uri.is_none() {
+        request
+            .uri()
+            .path_and_query()
+            .cloned()
+            .unwrap_or_else(|| http::uri::PathAndQuery::from_static("/"))
+    } else {
+        planning::outbound_uri(
+            &ctx.original_uri,
+            &ctx.request,
+            &ctx.edits,
+            &route.matcher,
+            uri,
+        )
         .parse()
+        .map_err(|_| error(500, "invalid upstream path"))?
+    };
+    *request.uri_mut() = http::Uri::builder()
+        .scheme(http::uri::Scheme::HTTP)
+        .authority(
+            target
+                .authority(address)
+                .map_err(|_| error(500, "invalid upstream authority"))?,
+        )
+        .path_and_query(path)
+        .build()
         .map_err(|_| error(500, "invalid upstream URI"))?;
     strip_hop_headers(request.headers_mut());
-    request.headers_mut().insert(
-        "host",
-        backend
-            .host_header
-            .parse()
-            .map_err(|_| error(500, "invalid upstream Host"))?,
-    );
-    for (name, value) in &settings.request_headers {
-        let value = expand(value, ctx, false, &backend.host_header);
-        let name: http::HeaderName = name
-            .parse()
-            .map_err(|_| error(500, "invalid request header"))?;
+    request.headers_mut().insert("host", target.host.clone());
+    for (name, value) in &prepared.request_headers {
+        let value = value.expand(ctx, &backend.host_header)?;
         if value.is_empty() {
             request.headers_mut().remove(name);
         } else {
-            request.headers_mut().insert(
-                name,
-                value
-                    .parse()
-                    .map_err(|_| error(500, "invalid expanded request header"))?,
-            );
+            request.headers_mut().insert(name.clone(), value);
         }
     }
     if let Some(trace) = &ctx.trace
@@ -323,8 +334,7 @@ async fn forward(
     }
     let request =
         request.map(|body| RequestBody::new(body, guard.counts.clone(), settings.max_body));
-    let client = listener.client(snapshot.version, settings);
-    let mut response = client.request(request).await.map_err(|failure| {
+    let mut response = prepared.client.request(request).await.map_err(|failure| {
         if guard.counts.request_error.load(Ordering::Relaxed) == 1 {
             error(413, "request body too large")
         } else if guard.counts.request_error.load(Ordering::Relaxed) == 2 {

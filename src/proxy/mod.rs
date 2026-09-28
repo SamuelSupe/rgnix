@@ -59,10 +59,10 @@ pub struct Context {
     grpc_status: Option<u16>,
     tenant_request: Option<crate::tenancy::Permit>,
     tenant_plugin: Option<crate::tenancy::Permit>,
-    trace: Option<crate::otlp::trace::Trace>,
+    trace: Option<Box<crate::otlp::trace::Trace>>,
     affinity_cookie: Option<String>,
     rollout_stage: usize,
-    mirror: Option<mirror::MirrorRequest>,
+    mirror: Option<Box<mirror::MirrorRequest>>,
 }
 fn error(status: u16, message: impl Into<String>) -> Box<pingora::Error> {
     pingora::Error::explain(pingora::ErrorType::HTTPStatus(status), message.into())
@@ -204,7 +204,8 @@ impl ProxyHttp for Proxy {
         ctx.trace = crate::otlp::trace::Trace::new(
             &session.req_header().headers,
             self.shared.telemetry.trace_ratio,
-        );
+        )
+        .map(Box::new);
         if ctx.snapshot.is_none() {
             ctx.snapshot = Some(self.shared.snapshot.load_full());
         }
@@ -430,7 +431,7 @@ impl ProxyHttp for Proxy {
                     &self.shared.auth_client,
                     &ctx.request,
                     &ctx.original_uri,
-                    ctx.trace.as_ref(),
+                    ctx.trace.as_deref(),
                     self.shared.telemetry.traces.as_ref(),
                 )
                 .await

@@ -9,7 +9,7 @@ repository = "https://github.com/SamuelSupe/rgnix"
 readme = "README.md"
 
 [features]
-hyper-experimental = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:hyper-timeout"]
+hyper-experimental = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:tower-service"]
 
 [dependencies]
 anyhow = "1"
@@ -27,8 +27,8 @@ http = "1"
 httpdate = "1"
 http-body-util = { version = "0.1.5", optional = true }
 hyper = { version = "1.11.1", features = ["server", "client", "http1"], optional = true }
-hyper-util = { version = "0.1.20", features = ["client-legacy", "http1", "tokio"], optional = true }
-hyper-timeout = { version = "0.5.2", optional = true }
+hyper-util = { path = "vendor/hyper-util", version = "0.1.20", features = ["client-legacy", "http1", "tokio"], optional = true }
+tower-service = { version = "0.3", optional = true }
 ipnet = { version = "2", features = ["serde"] }
 hickory-resolver = "0.25"
 jsonwebtoken = "9.3"
@@ -61,6 +61,9 @@ wasmtime = { version = "38", default-features = false, features = ["cranelift", 
 
 [target.'cfg(target_os = "linux")'.dependencies]
 aya = "0.14.0"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 
 [patch.crates-io]
 pingora-core = { path = "vendor/pingora-core" }

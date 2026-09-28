@@ -179,6 +179,8 @@ pub struct TlsHost {
 
 #[derive(Clone)]
 pub struct RuntimeSnapshot {
+    #[cfg(feature = "hyper-experimental")]
+    pub(crate) hyper: Option<Arc<crate::proxy::hyper::Prepared>>,
     pub gateway: Option<crate::gateway::Routing>,
     pub version: u64,
     pub source_bundle: Option<Arc<crate::config::bundle::Bundle>>,
@@ -197,6 +199,8 @@ pub struct RuntimeSnapshot {
 impl RuntimeSnapshot {
     pub fn empty(listeners: Vec<Listener>) -> Self {
         Self {
+            #[cfg(feature = "hyper-experimental")]
+            hyper: None,
             gateway: None,
             version: 0,
             source_bundle: None,

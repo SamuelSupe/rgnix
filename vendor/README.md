@@ -146,3 +146,12 @@ tasks, so using that timeout alone truncated gRPC streams after the initial
 grace period. The check and runtime cleanup share the same total timeout.
 Keep the live Gateway gRPC stream termination and HTTP keepalive rollout checks
 when upgrading this patch.
+
+## Experimental Hyper client
+
+`hyper-util/` is an optional direct path dependency used only by `hyper-experimental`.
+It is not a global crates.io override: reqwest and kube retain their registry copy.
+The HTTP/1-only client keeps requests boxed through checkout and retry state, then
+moves the request into the existing Hyper dispatcher. Automatic retries remain off.
+See [patch provenance and tradeoffs](hyper-util/RGNIX.md) and the
+[measured validation](../docs/validation-hyper-prepared-2026-09-28.md).

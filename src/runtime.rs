@@ -185,6 +185,13 @@ impl Shared {
                 *backend = previous.clone();
             }
         }
+        #[cfg(feature = "hyper-experimental")]
+        if self.experimental_hyper {
+            snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(
+                &snapshot,
+                current.hyper.as_ref().unwrap().pool_size,
+            )?));
+        }
         snapshot.content_hash = snapshot.fingerprint()?;
         snapshot.reindex();
         self.audit
@@ -203,6 +210,16 @@ impl Shared {
             .with_label_values(&[&snapshot.content_hash])
             .set(1);
         let ready = snapshot.ready;
+        #[cfg(feature = "hyper-experimental")]
+        let current = if self.experimental_hyper {
+            // History needs configuration, not idle sockets from eight old pools.
+            // In-flight requests still own the original snapshot and its clients.
+            let mut history = (*current).clone();
+            history.hyper = None;
+            Arc::new(history)
+        } else {
+            current
+        };
         publication.previous.push_back(current);
         while publication.previous.len() > 8 {
             publication.previous.pop_front();
@@ -411,6 +428,13 @@ pub fn serve(
         limits.max_plugin_instances > 0 && limits.max_plugin_instances <= limits.max_inflight,
         "max-plugin-instances must be 1..max-inflight"
     );
+    #[cfg(feature = "hyper-experimental")]
+    if limits.experimental_hyper {
+        snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(
+            &snapshot,
+            limits.upstream_keepalive_pool_size * limits.threads,
+        )?));
+    }
     snapshot.content_hash = snapshot.fingerprint()?;
     snapshot.reindex();
     let telemetry = Telemetry::new(otlp)?;

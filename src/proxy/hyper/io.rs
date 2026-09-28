@@ -57,13 +57,31 @@ impl Connection {
 }
 
 #[derive(Default)]
-struct Deadline {
+pub(super) struct Deadline {
     timer: Option<Pin<Box<Sleep>>>,
     active: bool,
     duration: Duration,
 }
 impl Deadline {
-    fn check(&mut self, cx: &mut Context<'_>, duration: Duration) -> Poll<io::Result<()>> {
+    pub(super) fn clear(&mut self) {
+        self.active = false;
+    }
+
+    pub(super) fn restart(&mut self) {
+        if self.active {
+            self.timer
+                .as_mut()
+                .unwrap()
+                .as_mut()
+                .reset(Instant::now() + self.duration);
+        }
+    }
+
+    pub(super) fn check(
+        &mut self,
+        cx: &mut Context<'_>,
+        duration: Duration,
+    ) -> Poll<io::Result<()>> {
         if !self.active || self.duration != duration {
             self.duration = duration;
             let until = Instant::now() + duration;
