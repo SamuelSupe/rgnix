@@ -196,11 +196,7 @@ impl Collector for RuntimeCollector {
         set(
             "rgnix_ready",
             &[],
-            u8::from(
-                shared.telemetry.ready.load(Ordering::Acquire)
-                    && shared.telemetry.draining.get() == 0
-                    && shared.telemetry.runtime_healthy(),
-            ) as f64,
+            u8::from(shared.telemetry.is_ready()) as f64,
         );
         for (kind, count) in [
             ("listeners", snapshot.listeners.len()),

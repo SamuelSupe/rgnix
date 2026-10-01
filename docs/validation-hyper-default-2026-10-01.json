@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-01T13:30:08.126557+00:00",
+  "recorded_at": "2026-10-01T13:49:52.607517+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -903,9 +903,26 @@
     "policy": "configured deadline, failure-closed mode and no ambiguous debit replay unchanged",
     "static_checks": "PASS / Rust format, Python syntax, diff check",
     "runtime_checks": "NOT RUN / new production executable required",
-    "native_ci": "PENDING / new source requires fresh dual-architecture artifact and image proof",
-    "local_build_order": "after awake diagnosis and default Gateway; defer on failure",
+    "native_ci": {
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36869314608",
+      "status": "NOT QUALIFIED / amd64 artifact failed before shared-limit suite",
+      "failed_job": "artifact (amd64, ubuntu-24.04)",
+      "failed_boundary": "existing repeated-start listener-readiness check under Pingora",
+      "log": ".local/hyper-limiter-reconnect-20261001/ci-amd64-failure.log"
+    },
     "original_six_503_root_cause": "UNCONFIRMED / this controlled concurrency reproduction does not explain their measured latency",
-    "diagnostic_scope": "small regression probes overlap instrumented diagnosis; neither is final 24-hour qualification"
+    "diagnostic_scope": "small regression probes overlap instrumented diagnosis; neither is final 24-hour qualification",
+    "source_commit": "07355b3e60d7059df5c9855f897ae7910560be8b",
+    "local_validation_order": "after awake diagnosis and default Gateway, use fresh passing native CI artifact; stopped old artifact queue 59586 after readiness failure"
+  },
+  "pingora_listener_readiness_fix": {
+    "status": "SOURCE FIX / RUNTIME VALIDATION PENDING",
+    "previous_source_commit": "07355b3e60d7059df5c9855f897ae7910560be8b",
+    "failure": "readyz 200 immediately followed by refused business connection in existing repeated-start test",
+    "change": "gate readiness on every data listener binding and scheduling accept tasks; share predicate for readyz and readiness metric",
+    "hyper_default": "UNCHANGED",
+    "test_deadlines": "UNCHANGED",
+    "static_checks": "PASS / Rust format and diff check",
+    "runtime_checks": "PENDING / fresh native artifact and image proof required"
   }
 }

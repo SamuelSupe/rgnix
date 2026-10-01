@@ -41,6 +41,7 @@ pub struct Telemetry {
     >,
     pub healthy: AtomicBool,
     pub ready: AtomicBool,
+    pub(crate) listeners_ready: AtomicBool,
     pub draining: IntGauge,
     pub registry: Registry,
     pub requests: IntCounterVec,
@@ -300,6 +301,7 @@ impl Telemetry {
             healthy: AtomicBool::new(true),
             draining,
             ready: AtomicBool::new(false),
+            listeners_ready: AtomicBool::new(true),
             registry,
             requests,
             duration,
@@ -414,6 +416,12 @@ impl Telemetry {
         }
         true
     }
+    pub(crate) fn is_ready(&self) -> bool {
+        self.ready.load(Ordering::Acquire)
+            && self.listeners_ready.load(Ordering::Acquire)
+            && self.draining.get() == 0
+            && self.runtime_healthy()
+    }
     pub fn render(&self, path: &str) -> (u16, Vec<u8>, &'static str) {
         match path {
             "/healthz" => {
@@ -424,10 +432,7 @@ impl Telemetry {
                 }
             }
             "/readyz" => {
-                if self.ready.load(Ordering::Acquire)
-                    && self.draining.get() == 0
-                    && self.runtime_healthy()
-                {
+                if self.is_ready() {
                     (200, b"ready\n".to_vec(), "text/plain")
                 } else {
                     (503, b"not ready\n".to_vec(), "text/plain")

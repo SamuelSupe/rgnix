@@ -557,6 +557,11 @@ pub fn serve(
         .ready
         .store(matches!(source, Source::File(_)), Ordering::Release);
     let listeners = snapshot.listeners.clone();
+    let pending_listeners = Arc::new(std::sync::atomic::AtomicUsize::new(listeners.len()));
+    telemetry.listeners_ready.store(
+        engine == Engine::Hyper || listeners.is_empty(),
+        Ordering::Release,
+    );
     let file_mode = matches!(source, Source::File(_));
     if file_mode {
         telemetry
@@ -677,6 +682,15 @@ pub fn serve(
                 tls: listener.tls,
             },
         );
+        let pending = pending_listeners.clone();
+        let listener_telemetry = telemetry.clone();
+        service.set_on_listening(move || {
+            if pending.fetch_sub(1, Ordering::AcqRel) == 1 {
+                listener_telemetry
+                    .listeners_ready
+                    .store(true, Ordering::Release);
+            }
+        });
         if !listener.tls && listener.http2 {
             let mut options = pingora::apps::HttpServerOptions::default();
             options.h2c = true;

@@ -51,6 +51,7 @@ pub struct Service<A> {
     /// The number of preferred threads. `None` to follow global setting.
     pub threads: Option<usize>,
     runtime_opts_override: Option<RuntimeOptsOverride>,
+    on_listening: Option<Box<dyn FnOnce() + Send + Sync>>,
     #[cfg(feature = "connection_filter")]
     connection_filter: Arc<dyn ConnectionFilter>,
 }
@@ -64,6 +65,7 @@ impl<A> Service<A> {
             app_logic: Some(app_logic),
             threads: None,
             runtime_opts_override: None,
+            on_listening: None,
             #[cfg(feature = "connection_filter")]
             connection_filter: Arc::new(AcceptAllFilter),
         }
@@ -78,6 +80,7 @@ impl<A> Service<A> {
             app_logic: Some(app_logic),
             threads: None,
             runtime_opts_override: None,
+            on_listening: None,
             #[cfg(feature = "connection_filter")]
             connection_filter: Arc::new(AcceptAllFilter),
         }
@@ -88,6 +91,12 @@ impl<A> Service<A> {
     /// Returning [`None`] from the override uses the global runtime options.
     pub fn set_runtime_opts_override(&mut self, override_fn: RuntimeOptsOverride) {
         self.runtime_opts_override = Some(override_fn);
+    }
+
+    /// Invoked once after all endpoints bind and their accept tasks are scheduled.
+    /// The callback is not invoked if listener initialization fails.
+    pub fn set_on_listening(&mut self, callback: impl FnOnce() + Send + Sync + 'static) {
+        self.on_listening = Some(Box::new(callback));
     }
 
     /// Set a custom connection filter for this service.
@@ -320,6 +329,9 @@ impl<A: ServerApp + Send + Sync + 'static> ServiceTrait for Service<A> {
             }
         });
 
+        if let Some(callback) = self.on_listening.take() {
+            callback();
+        }
         futures::future::join_all(handlers).await;
         self.listeners.cleanup();
         app_logic.cleanup().await;
