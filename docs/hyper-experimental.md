@@ -1,6 +1,6 @@
 # 实验性 Hyper HTTP 数据面
 
-`experiment/replace-pingora` 分支将 Hyper 接到真实 `rgnix` 二进制，不再只测独立的最小代理。普通 Cargo 构建已包含两种内核，默认运行仍使用 Pingora；默认切换需要完成[发行与稳定性门槛](hyper-default-rollout.md)。
+`experiment/replace-pingora` 分支将 Hyper 接到真实 `rgnix` 二进制，不再只测独立的最小代理。普通 Cargo 构建包含两种内核，当前开发版本默认运行 Hyper；选择和剩余验收项见[切换记录](hyper-default-rollout.md)。
 
 ```sh
 cargo build --locked --release
@@ -14,7 +14,7 @@ Linux GNU 上可同时启用 `--features hyper-experimental,jemalloc`。jemalloc
 
 完整内核的[后续优化与 NGINX 对照](validation-hyper-performance-2026-09-30.md)复用 HTTP/1 提示响应队列、保留已解析的普通代理 URI，并合并小文件读取。普通 1 KiB 代理分配/重分配调用从约 36.5 降到 30.6 次/请求，累计申请字节减少约 43%。最终 90 窗零错误，但没有场景同时通过优化前后或 NGINX 对照的完整校准；静态文件峰值内存也更高，不能宣布稳定吞吐收益或性能对等。
 
-使用 `--engine hyper|pingora` 或 `RGNIX_ENGINE` 选择内核，CLI 覆盖同名环境变量。该选择覆盖旧 `--experimental-hyper[=true|false]` 和 `RGNIX_EXPERIMENTAL_HYPER`；没有任何选择时走 Pingora。旧参数仍可使用，显式 false 固定选择 Pingora，保证将来默认切换后仍能回退。Hyper 启动失败不会静默切换内核。`check`、`serve` 使用相同的内核兼容性校验；`check` 不绑定监听器，也不验证上游可达性。`cargo build --no-default-features` 生成 Pingora-only 二进制，显式选择 Hyper 会报告不可用。
+使用 `--engine hyper|pingora` 或 `RGNIX_ENGINE` 选择内核，CLI 覆盖同名环境变量。该选择覆盖旧 `--experimental-hyper[=true|false]` 和 `RGNIX_EXPERIMENTAL_HYPER`；没有任何选择时走 Hyper（未编入 Hyper 的精简构建使用 Pingora）。旧参数仍可使用，显式 false 固定选择 Pingora，用于显式回退。Hyper 启动失败不会静默切换内核。`check`、`serve` 使用相同的内核兼容性校验；`check` 不绑定监听器，也不验证上游可达性。`cargo build --no-default-features` 生成 Pingora-only 二进制，显式选择 Hyper 会报告不可用。
 
 同一个二进制可运行两种数据面，便于排除编译器、依赖版本和构建配置差异。Hyper 使用独立的 Tokio 进程宿主负责 worker、信号和有界退出，仍复用 Pingora 的后台服务接口、管理接口和错误类型。业务 HTTP/1、HTTP/2 的协议处理、上游连接池及流式传输由 Hyper 负责；可选 HTTP/3 使用 Quinn/h3 并共享同一请求策略。认证、RGL、租户准入、后端选择和响应策略与 Pingora 共用实现。
 
@@ -56,7 +56,7 @@ CONNECT 通过 `rgnix_connect on;` 显式启用，目的地址必须匹配选中
 - `rgnix_upstream_connect_seconds{backend,reused}` 记录连接获取时间和是否复用。新增 `rgnix_hyper_connections`、`rgnix_hyper_connection_rejections_total`、`rgnix_hyper_tls_handshake_errors_total`。标签不包含请求路径或任意域名。
 - Hyper 每个 worker 使用独立的单线程 Tokio reactor，连接及其显式 HTTP/1 上游池在该 worker 内推进。Linux 多 worker 使用 SO_REUSEPORT 分配新连接；其他平台共用接受 socket，但本轮只在 Linux 验证。HTTP/2 和 ALPN 自动协商继续共享客户端池以保留跨 worker 多路复用；各 stream 的超时仍独立。进程连接、请求、租户和后端预算，以及空闲上游总预算继续共享。Pingora 保留原有调度模式；对照包含这项 worker 和池归属调整，不能归因为单一 parser 优化。
 - 静态文件复用安全打开、条件请求和 Range 选择逻辑。Linux 明文 H1.1 且不启用压缩时使用已安全打开的文件描述符进行 sendfile；每次最多 64 KiB，256 KiB 后让出调度。TLS/H2/H3/压缩继续流式发送。文件截断会关闭不完整响应；指标和许可在传输完成或失败时结算。
-- Hyper 顺序处理 HTTP/1 流水线请求；默认 Pingora 配置关闭 pipelining，发送首个响应后关闭连接。本次未修改默认路径的行为。
+- Hyper 顺序处理 HTTP/1 流水线请求；显式选择 Pingora 时配置关闭 pipelining，发送首个响应后关闭连接。
 
 ### 连接隔离参数
 
@@ -75,17 +75,17 @@ TCP 待建预算覆盖 PROXY 解析、TLS 握手和第一份完整请求首部�
 
 可信前置代理、NAT 或压测客户端共享 IP 时，应按预期并发提高两个 IP 限额。监听器上限保留地址间容量，未用额度不会自动借给其他地址；原有租户请求预算继续执行，这不是租户级进程/内存隔离。来源计数仅保留仍有连接的 IP，表大小受总连接预算约束。
 
-源码 Docker 构建与未来原生发行包启用 `http3,jemalloc`，同一产物可显式选择 Hyper 或默认 Pingora。发布门槛覆盖两种模式的产品流程、原生发行二进制的 Hyper/HTTP3 回归，以及相同镜像的两种 Gateway 模式。新增门槛的远端运行仍需对应版本 CI 确认；当前实现与本地范围见[主内核加固记录](validation-hyper-primary-2026-10-01.md)。
+源码 Docker 构建与未来原生发行包启用 `http3,jemalloc`，同一产物默认使用 Hyper，可显式选择 Pingora。发布门槛覆盖两种模式的产品流程、原生发行二进制的 Hyper/HTTP3 回归，以及相同镜像的两种 Gateway 模式。新增门槛的远端运行仍需对应版本 CI 确认；当前实现与本地范围见[主内核加固记录](validation-hyper-primary-2026-10-01.md)。
 
 ## 可选 HTTP/3
 
 ```sh
 cargo build --locked --release --features http3,jemalloc
-rgnix serve -c nginx.conf --experimental-hyper
+rgnix serve -c nginx.conf
 # nginx.conf 的 TLS server/http 上下文中加入 http3 on;
 # Ingress/Gateway 的监听由资源生成，用此选项为 TLS 监听开启 UDP：
-rgnix ingress --experimental-hyper --hyper-http3 --ingress-class rgnix --publish-service namespace/service
-helm upgrade --install rgnix charts/rgnix --set experimentalHyper.enabled=true --set experimentalHyper.http3=true
+rgnix ingress --hyper-http3 --ingress-class rgnix --publish-service namespace/service
+helm upgrade --install rgnix charts/rgnix --set image.repository=YOUR_REPOSITORY --set image.tag=YOUR_TESTED_TAG --set experimentalHyper.http3=true
 ```
 
 需要包含 `http3` 特性的镜像。UDP 与 TLS TCP 使用相同本地端口，必须是固定非零端口，不能使用 PROXY protocol；改变 UDP 监听集合需要重启。Helm 为 HTTPS 的公开端口同时暴露 UDP。TLS 响应自动提供 `Alt-Svc: h3=":公开端口"; ma=60`，公开端口从合法请求 authority/Host 推导，省略时为 443；已配置的 Alt-Svc 保留，可用于端口映射不同的部署。前置负载均衡必须转发 UDP。
@@ -126,7 +126,7 @@ python3 scripts/integration.py /path/to/rgnix
 
 后续[精简执行路径验证](validation-hyper-plain-2026-09-30.md)在发布时准备适用的 HTTP/1.1 固定响应和不带 URI 的普通代理计划，减少完整上下文和逐请求字符串构造。访问日志、trace、认证、限流、租户、RGL、Gateway、灰度、压缩和动态变量仍走完整路径；已配置的功能不会被跳过。保留方案的 1 KiB 代理分配降至约 17.6 次/请求，但吞吐对照未通过完整校准。前台借用上游连接驱动也做了独立试验，修复了负载下的唤醒遗漏后仍没有保留收益依据，已撤下并归档；该阶段没有消除请求通道，也没有切换 worker 模型。
 
-后续[深度剖析与连接期限修复](validation-hyper-deep-2026-10-01.md)缩小上传状态，禁止重放时使用不携带待恢复请求的响应回调，自动 Date 仅在编码时检查。同时修复 HTTP/1 空闲探测错误运行响应读取期限的问题；活动请求的超时和取消规则保留。捕获的复制字节、分配和正式吞吐分别记录，不能将复制下降比例当成吞吐收益。默认数据面仍为 Pingora。
+后续[深度剖析与连接期限修复](validation-hyper-deep-2026-10-01.md)缩小上传状态，禁止重放时使用不携带待恢复请求的响应回调，自动 Date 仅在编码时检查。同时修复 HTTP/1 空闲探测错误运行响应读取期限的问题；活动请求的超时和取消规则保留。捕获的复制字节、分配和正式吞吐分别记录，不能将复制下降比例当成吞吐收益。该阶段验证时默认数据面仍为 Pingora；当前开发版本已切为 Hyper。
 
 后续[worker 归属与 NGINX 对照](validation-hyper-workers-2026-10-01.md)保留独立 reactor 和显式 HTTP/1 独立池，HTTP/2 / Auto 继续共享复用客户端。最终 327 项运行检查通过，独立计数中的 futex 调用和上下文切换明显减少。双 worker 的 1 KiB 代理观测吞吐提高约 33% / 23%，但旧版、候选和 NGINX 的校准均失败，候选也有尾延迟尖峰；该数字不是已确认的稳定提升或生产容量。该轮的 mTLS CA 轮换偶发 reset 在旧版也复现；后续已定位为验收客户端的 OpenSSL 线程错误残留，见本轮补齐验证记录。
 
@@ -136,4 +136,4 @@ python3 scripts/integration.py /path/to/rgnix
 
 后续[请求准备成本与 NGINX 再对照](validation-hyper-closegap-2026-10-01.md)共享监听器对象、借用已小写域名并避免为已知逐跳字段分配名字。分配由每请求约 16.05 次降到 14.05 次，捕获的复制字节减少约 7.4%；372 项运行检查通过。正式 36 窗和针对尾延迟的 18 窗均零错误，但产品同版本校准未通过，同步 CPU 诊断也未确认收益，仍未建立接近 NGINX 的稳定性能结论。PGO [构建流程](pgo.md)已跑通，本次训练未取得明确收益，没有用于保留候选或默认构建；访问日志、预算及其他已配置功能没有被跳过。
 
-本轮进一步补齐协议和传输边界，见[2026-10-01 验证记录](validation-hyper-gaps-2026-10-01.md)。上游 Gateway conformance、跨物理主机、长时间 soak 和稳定性能仍需各自证据；默认数据面继续为 Pingora。
+本轮进一步补齐协议和传输边界，见[2026-10-01 验证记录](validation-hyper-gaps-2026-10-01.md)。上游 Gateway conformance、跨物理主机、长时间 soak 和稳定性能仍需各自证据；该阶段验证时默认数据面仍为 Pingora；当前开发版本已切为 Hyper。

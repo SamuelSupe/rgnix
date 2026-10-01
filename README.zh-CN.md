@@ -16,11 +16,11 @@
   <a href="#快速运行">快速运行</a> · <a href="#编程式路由">路由插件</a> · <a href="#kubernetes-ingress">Kubernetes</a> · <a href="#日志与可观测性">可观测性</a> · <a href="#实际验证">实际验证</a>
 </p>
 
-**rgnix** 将 HTTP 服务、反向代理和 Kubernetes Ingress/Gateway API controller 放进一个 Rust 二进制。数据面基于 [Pingora](https://github.com/cloudflare/pingora) 与 OpenSSL；内置 Lua 风格语言 **RGL → WebAssembly → Wasmtime/Cranelift 机器码**，在加载配置时完成编译。
+**rgnix** 将 HTTP 服务、反向代理和 Kubernetes Ingress/Gateway API controller 放进一个 Rust 二进制。当前开发版本默认使用 Hyper 与 OpenSSL，保留 [Pingora](https://github.com/cloudflare/pingora) 回退；内置 Lua 风格语言 **RGL → WebAssembly → Wasmtime/Cranelift 机器码**，在加载配置时完成编译。
 
 > **v0.5.0 预览版**更新 HTTP/1 执行路径、后端选择、Gateway 路由索引、RGL 请求状态及 Linux 静态文件传输，同时公开 NGINX/OpenResty 对照差距和未解决的性能限制；不宣称已达到性能对等。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.5.0) · [发布说明](docs/releases/v0.5.0.md) · [更新记录](CHANGELOG.md)。部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
 
-当前实验分支已把 TLS/SNI、HTTP/2/h2c/gRPC、WebSocket、RGL/body 检查、认证、静态文件/压缩及 Ingress/Gateway 策略接入 Hyper 内核，并加入跨监听器连接上限和共享空闲池预算。默认仍为 Pingora。启用方式和限制见 [Hyper 数据面](docs/hyper-experimental.md)，实际验证见[内核补齐记录](docs/validation-hyper-kernel-2026-09-28.md)；旧 HTTP/1 性能结果不能代表这一版。
+当前实验分支已把 TLS/SNI、HTTP/2/h2c/gRPC、WebSocket、RGL/body 检查、认证、静态文件/压缩及 Ingress/Gateway 策略接入 Hyper 内核，并加入跨监听器连接上限和共享空闲池预算。当前开发版本默认使用 Hyper，可用 `--engine pingora` 回退。选择方式和限制见 [Hyper 数据面](docs/hyper-experimental.md)，实际验证见[内核补齐记录](docs/validation-hyper-kernel-2026-09-28.md)；旧 HTTP/1 性能结果不能代表这一版。
 
 ## 主要能力
 
@@ -85,9 +85,9 @@ cargo build --release --locked
 ./target/release/rgnix serve -c examples/nginx.conf
 ```
 
-普通 Cargo 构建包含两种内核，继续使用系统分配器。使用 `--engine hyper` 启用 Hyper、`--engine pingora` 显式回退，`check` 按所选内核预检。当前开发分支的 Docker 构建与未来原生发行包默认启用 `http3,jemalloc`，镜像构建可用 `CARGO_FEATURES` 覆盖；[发行与稳定性门槛](docs/hyper-default-rollout.md)通过前，默认运行仍为 Pingora。这不改变已有 v0.5.0 发行产物。
+普通 Cargo 构建包含两种内核，继续使用系统分配器。默认使用 Hyper，使用 `--engine pingora` 显式回退，`check` 按所选内核预检。当前开发分支的 Docker 构建与未来原生发行包默认启用 `http3,jemalloc`，镜像构建可用 `CARGO_FEATURES` 覆盖；[切换与验收记录](docs/hyper-default-rollout.md)仍保留未完成项：24 小时长测未通过，共享 Redis 限流路径出现过 503。这不改变已有 v0.5.0 发行产物。
 
-双架构 Bookworm 发行产物与镜像检查已通过，24 小时混合负载及性能资格仍在验证；当前状态见[默认内核准备记录](docs/validation-hyper-default-2026-10-01.md)。
+默认切换前的候选通过了双架构 Bookworm 发行产物与镜像检查。24 小时混合负载因共享限流失败；[验证记录](docs/validation-hyper-default-2026-10-01.md)区分旧候选证据与新默认值的复验。
 
 [镜像签名、校验和与产物证明](docs/releases.md) · [部署文档](docs/deployment.md)。
 
@@ -253,7 +253,7 @@ flowchart LR
     Request[HTTP 请求] --> Router[域名与路径匹配]
     Snapshot --> Router
     Router --> Policy[认证、预算与请求钩子]
-    Policy --> Proxy[Pingora 代理]
+    Policy --> Proxy[Hyper 代理 / Pingora 回退]
     Policy --> Local[静态文件或直接响应]
     Proxy --> Response[响应钩子与遥测]
     Local --> Response
@@ -304,4 +304,4 @@ rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则�
 
 当前 Hyper 加固增加来源/监听器连接隔离、待建连接限额、资源耗尽后的接收恢复和服务 reactor 健康探针。路由更新保留安全等价的上游池与 TLS 会话；凭据和策略变化继续隔离。构建/发布门槛让同一产物覆盖两种内核，实际实现与运行范围见[加固记录](docs/validation-hyper-primary-2026-10-01.md)；远端发行门槛尚未执行。
 
-Hyper 可选构建进一步支持受限 CONNECT、H2 WebSocket 转换、有界 h2c Upgrade、Linux sendfile、按配置版本隔离的 TLS 恢复、下游可配置超时和独立进程宿主。`http3` 特性提供 QUIC 下游、CONNECT、转发到 H1/H2 的 WebSocket、中间响应和包含 mTLS 的会话恢复，并支持 Helm UDP 暴露。H2 未完成首部块也有不受活跃流干扰的总时限。详见[支持边界](docs/hyper-experimental.md)、[部署验证](docs/validation-hyper-gaps-2026-10-01.md)及[协议验证](docs/validation-hyper-protocols-2026-10-01.md)。默认仍为 Pingora；完整 Gateway conformance 和生产性能对等尚未确认。
+Hyper 默认内核进一步支持受限 CONNECT、H2 WebSocket 转换、有界 h2c Upgrade、Linux sendfile、按配置版本隔离的 TLS 恢复、下游可配置超时和独立进程宿主。`http3` 特性提供 QUIC 下游、CONNECT、转发到 H1/H2 的 WebSocket、中间响应和包含 mTLS 的会话恢复，并支持 Helm UDP 暴露。H2 未完成首部块也有不受活跃流干扰的总时限。详见[支持边界](docs/hyper-experimental.md)、[部署验证](docs/validation-hyper-gaps-2026-10-01.md)及[协议验证](docs/validation-hyper-protocols-2026-10-01.md)。当前开发版本默认使用 Hyper；完整 Gateway conformance、24 小时稳定性和生产性能对等尚未确认。

@@ -6,8 +6,11 @@ pub enum Engine {
     Pingora,
 }
 
-// Keep the rollout default until the release artifact and long-running gates pass.
-pub const DEFAULT_ENGINE: Engine = Engine::Pingora;
+pub const DEFAULT_ENGINE: Engine = if cfg!(feature = "hyper-experimental") {
+    Engine::Hyper
+} else {
+    Engine::Pingora
+};
 
 impl Engine {
     pub fn name(self) -> &'static str {

@@ -25,7 +25,7 @@ helm upgrade --install "$release" charts/rgnix --kube-context "$context" -n "$ns
   --set image.repository="${RGNIX_IMAGE_REPOSITORY:-ghcr.io/samuelsupe/rgnix}" \
   --set image.tag="${RGNIX_IMAGE_TAG:-0.4.0}" \
   --set engine="${RGNIX_ENGINE:-}" \
-  --set experimentalHyper.enabled="${RGNIX_EXPERIMENTAL_HYPER:-false}" --wait --timeout 180s
+  --set experimentalHyper.enabled="${RGNIX_EXPERIMENTAL_HYPER:-null}" --wait --timeout 180s
 "${k[@]}" delete ingress fallback wildcard conflicting --ignore-not-found
 for color in blue green; do
   cat <<EOF | "${k[@]}" apply -f -

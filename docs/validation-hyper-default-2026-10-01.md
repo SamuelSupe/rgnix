@@ -1,8 +1,16 @@
 # Hyper 默认内核准备验证 — 2026-10-01
 
-当前已补齐内核选择、配置预检、发行产物验证和长测记录。运行默认值仍为 Pingora；24 小时测试及性能资格尚未完成。原始阶段状态见[机器记录](validation-hyper-default-2026-10-01.json)，切换条件见[默认内核门槛](hyper-default-rollout.md)。
+当前已补齐内核选择、配置预检、发行产物验证和长测记录。随后按用户明确要求将 Rust 与 Chart 默认值切为 Hyper；24 小时测试及完整性能资格仍未通过，不因默认值改变而视为通过。下述产物和 CI 记录属于切换前的候选，默认变化后的产物单独记录。原始阶段状态见[机器记录](validation-hyper-default-2026-10-01.json)，选择及剩余验收见[默认内核记录](hyper-default-rollout.md)。
 
 候选运行源码为 `100916e24ef2ffa895ce45bd27e305ceba215a24`；测试脚本跟进为 `4ebadcdab498ffa6053e9042aca33376a86cc2f3`。已推到独立 `validation/hyper-default-20261001` 分支，没有修改工作分支或发布正式 tag。
+
+## 默认值切换复验
+
+Rust 标准构建与 Helm 未指定内核时选择 Hyper；`--engine pingora`、`RGNIX_ENGINE=pingora`、旧 false 参数仍明确回退。配置检查与启动使用同一选择规则。Pingora-only 构建保持默认 Pingora，并明确拒绝选择未编入的 Hyper。
+
+在 OrbStack 原生 arm64 的 Debian Bookworm/Rust 1.98.1 中重新构建 `http3,jemalloc` release 二进制。无内核参数的默认 Hyper 和显式 Pingora 分别通过 104 项集成检查，覆盖真实 HTTP/TLS、代理、插件/body、热更新和排空。13 组 Helm 选择/拒绝检查通过；精简构建实际启动与拒绝不可用 Hyper 通过。主项目格式、Python/Shell 语法及 diff 检查通过。
+
+新产物 SHA256：`da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7`。最终 Bookworm 镜像 `rgnix:hyper-default-switch-20261001` 中的二进制摘要相同；默认 Hyper、显式 Hyper 和显式 Pingora 的真实 HTTP、就绪和内核指标均通过。新镜像在未设置内核选择的 Helm Ingress 流程通过 46 项检查，包括 TLS/插件更新、资源删除/恢复、Service 地址状态和双副本滚动升级（期间 300 次 Service 请求通过）。两个就绪副本均为 Hyper，无重启，Pod 内二进制摘要与已测产物一致。新默认值的远端原生 amd64 CI 尚未取得结果。切换前的双架构产物验证不算新默认值的证明。
 
 ## 已验证
 
@@ -21,6 +29,17 @@
 
 Gateway 主流程进入了 24 小时混合负载，首次发布/轮换/替换后曾保持零请求错误。随后并行吞吐压测期间记录到 4 次 503，日志明确指向 Redis 共享限流依赖不可用；该轮已经停止并记为失败，没有把它算作 24 小时验收通过。是否由并行压测竞争引起需要串行复验，不能据此断言 Hyper 内核故障或排除产品问题。
 
-性能前两轮与功能检查/稳定性测试重叠，已停止，不能用于发布资格或吞吐收益结论。接下来先完成独立的同二进制 Hyper/Pingora/NGINX 交错 A/A、A/B，再启动新一轮 24 小时混合负载。长测现在在出现请求错误后提前结束，并增加共享限流指标采样。
+性能前两轮与功能检查/稳定性测试重叠，已停止，不能用于发布资格或吞吐收益结论。串行对照完成 72 个窗口，零请求错误；Hyper 和 NGINX 的四组 A/A 均通过，Pingora 仅一组通过。原始数据见[吞吐记录](validation/hyper-default-benchmark-2026-10-01.json)，判定见[校准分析](validation/hyper-default-benchmark-2026-10-01-analysis.json)。
 
-本线程已有每 30 分钟的持续跟进，读取 `.local/hyper-default-gates-20261001/` 的进程收据、趋势与 CI 结果。所有门槛通过后才一起修改 Rust 和 Chart 默认值，并重新验证默认启动及 Pingora 回退。完整 Gateway conformance、跨物理主机故障和生产容量未在本轮证明。
+| 普通 HTTP/1 代理 | 并发连接 | Hyper 中位数 req/s | NGINX 1.28.0 中位数 req/s | Hyper/NGINX |
+|---|---:|---:|---:|---:|
+| 1 KiB | 64 | 77,719 | 114,429 | 67.9% |
+| 1 KiB | 256 | 71,216 | 108,644 | 65.5% |
+| 16 KiB | 64 | 67,106 | 61,770 | 108.6% |
+| 16 KiB | 256 | 57,140 | 61,602 | 92.8% |
+
+同一份本地 Bookworm 二进制、两个 worker、固定 CPU 集、三轮交错比较，关闭访问日志/插件/Tracing。来源为可信 loopback，显式调大 Hyper 来源准入上限。只有 16 KiB/256 连接的两种产品内核同时通过校准：Hyper 相对 Pingora 吞吐提高 37.2%；其他三组不宣称稳定百分比提升。该对照仅限这些窗口和普通代理，不能代表整产品容量或完整 NGINX 性能持平。
+
+吞吐对照结束后，第二轮串行 Gateway 长测在 484.19 秒、79,264 次成功请求后出现 6 次 503，已提前结束并记为失败。日志均指向共享命名空间 Redis 限流不可用或耗尽；并行压测不是复现的必要条件，具体根因尚未确认。持续副本无重启，最近样本 RSS 约 43 MiB、描述符 104，许可没有持续增长。没有以增加依赖超时或 fail-open 掩盖失败。新一轮验证必须使用独立计时并保留这两轮失败记录。
+
+本线程已有每 30 分钟的持续跟进，读取进程收据、趋势与 CI 结果；跟进指令已更新为尊重用户要求的 Hyper 默认值并继续定位未完成验收。第三轮候选 [CI](https://github.com/SamuelSupe/rgnix/actions/runs/36852190823)也已全部通过；该源码尚未包含后续默认值变更。完整 Gateway conformance、跨物理主机故障和生产容量未在本轮证明。

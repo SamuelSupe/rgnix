@@ -41,6 +41,7 @@ with tempfile.TemporaryDirectory(prefix="rgnix-image-") as temporary:
     config.chmod(0o644)
     default = docker("run", "--rm", "-v", f"{config}:/etc/rgnix/nginx.conf:ro", args.image,
                      "check", "-c", "/etc/rgnix/nginx.conf").rsplit("engine=", 1)[1]
+    assert default == "hyper", f"packaged default must be Hyper: {default}"
     for selection, engine in ((None, default), ("hyper", "hyper"), ("pingora", "pingora")):
         options = ["--engine", selection] if selection else []
         container = docker("run", "-d", "--read-only", "--cap-drop=ALL",

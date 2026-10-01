@@ -5,6 +5,8 @@ requireMultipleNodes: false
 reportReplicas: false
 image:
   repository: ghcr.io/samuelsupe/rgnix
+  # Released v0.5.0 is Pingora-only: set experimentalHyper.enabled=false for this tag.
+  # For the default Hyper engine, override this tag with a tested development image.
   tag: "0.5.0"
   pullPolicy: IfNotPresent
 ingressClass: rgnix
@@ -52,9 +54,9 @@ shutdown:
   timeoutSeconds: 25
   terminationGracePeriodSeconds: 60
 threads: 2
-# Explicit hyper/pingora for current development images; null uses the compatibility selection.
+# null selects Hyper; set pingora to roll back. Hyper requires a current development image.
 engine: null
-# Requires a current development image with the hyper-experimental Cargo feature and admission flags.
+# Hyper settings require an image with the hyper-experimental Cargo feature and admission flags.
 experimentalHyper:
   # Deprecated selector: true selects Hyper, false selects Pingora, null uses the chart default.
   enabled: null

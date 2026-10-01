@@ -1,9 +1,9 @@
 {
-  "recorded_at": "2026-10-01T10:33:42Z",
+  "recorded_at": "2026-10-01T11:33:26.302378+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
-  "current_default": "pingora",
+  "current_default": "hyper",
   "unit": {
     "passed": 25,
     "ignored": 1
@@ -103,7 +103,9 @@
       "artifact (amd64, ubuntu-24.04)": "success",
       "image (arm64, ubuntu-24.04-arm)": "success",
       "image (amd64, ubuntu-24.04)": "success"
-    }
+    },
+    "third_run": "https://github.com/SamuelSupe/rgnix/actions/runs/36852190823",
+    "third_run_status": "PASS"
   },
   "kubernetes": {
     "logical_nodes": 3,
@@ -164,22 +166,131 @@
       "reason": "4 HTTP 503 errors; logs report shared namespace Redis rate quota unavailable during concurrent benchmark; cause requires serial reproduction"
     },
     "serial_verification": {
-      "status": "BENCHMARK_RUNNING",
+      "status": "FAIL",
       "directory": ".local/hyper-default-serial-20261001",
       "process_file": ".local/hyper-default-serial-20261001/process.json",
       "new_soak_namespace": "rgnix-hyper-serial-soak-20261001",
       "order": [
         "benchmark and A/A analysis",
         "24-hour mixed load"
-      ]
+      ],
+      "process": {
+        "pid": 18658,
+        "status": "SOAK_FAILED",
+        "binary_sha256": "14bc92121ee7aa4552d0681b3fd2fd2867b24bb7ac72df6fea287543fc786abf",
+        "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
+        "updated_at": "2026-10-01T11:07:03Z",
+        "calibration": {
+          "rgnix/proxy-1k/c64": false,
+          "candidate/proxy-1k/c64": true,
+          "nginx/proxy-1k/c64": true,
+          "rgnix/proxy-16k/c64": false,
+          "candidate/proxy-16k/c64": true,
+          "nginx/proxy-16k/c64": true,
+          "rgnix/proxy-1k/c256": false,
+          "candidate/proxy-1k/c256": true,
+          "nginx/proxy-1k/c256": true,
+          "rgnix/proxy-16k/c256": true,
+          "candidate/proxy-16k/c256": true,
+          "nginx/proxy-16k/c256": true
+        },
+        "soak_started_at": "2026-10-01T10:53:29Z",
+        "script_sha256": "16aa92ac3e0e9449992d36b4a9494d1150eedbf6b4d089b6e5ad4fa71b906961",
+        "soak_pid": 21394,
+        "soak_exit_code": 1
+      },
+      "load": {
+        "final": true,
+        "elapsed_seconds": 484.19307323799876,
+        "workers": [
+          {
+            "requests": 10746,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 10819,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 18068,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 10755,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 10829,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 18047,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          }
+        ],
+        "requests": 79264,
+        "failed_requests": 6,
+        "retained_latency_samples": 18000,
+        "p99_ms": 97.76016799150966
+      },
+      "failure_context": "all six failed requests logged shared namespace rate quota unavailable or exhausted; no concurrent throughput benchmark; no Pod restart"
     }
   },
   "performance": {
     "first_run": "STOPPED / A-A not calibrated; overlapping functional checks",
     "second_run": "STOPPED / overlapped with the failed soak",
     "report": ".local/hyper-default-gates-20261001/benchmark-clean.json",
-    "serial_run": "RUNNING",
-    "serial_report": ".local/hyper-default-serial-20261001/benchmark.json"
+    "serial_run": "COMPLETE / 72 zero-error windows; Hyper and NGINX A/A passed all four groups; Pingora passed one of four",
+    "serial_report": "docs/validation/hyper-default-benchmark-2026-10-01.json",
+    "serial_analysis": "docs/validation/hyper-default-benchmark-2026-10-01-analysis.json",
+    "comparisons": {
+      "proxy-1k/c64": {
+        "candidate_vs_before_rps_pct": 44.35855141869358,
+        "candidate_vs_before_cpu_pct": -30.19060040407725,
+        "candidate_over_nginx_rps": 0.6791899091932722,
+        "before_and_candidate_calibrated": false,
+        "candidate_and_nginx_calibrated": true
+      },
+      "proxy-1k/c256": {
+        "candidate_vs_before_rps_pct": 32.302189071087014,
+        "candidate_vs_before_cpu_pct": -26.10123486178645,
+        "candidate_over_nginx_rps": 0.6554998670188983,
+        "before_and_candidate_calibrated": false,
+        "candidate_and_nginx_calibrated": true
+      },
+      "proxy-16k/c64": {
+        "candidate_vs_before_rps_pct": 53.900784608195494,
+        "candidate_vs_before_cpu_pct": -33.684324666061194,
+        "candidate_over_nginx_rps": 1.0863905137367613,
+        "before_and_candidate_calibrated": false,
+        "candidate_and_nginx_calibrated": true
+      },
+      "proxy-16k/c256": {
+        "candidate_vs_before_rps_pct": 37.23160707073752,
+        "candidate_vs_before_cpu_pct": -27.852163868468715,
+        "candidate_over_nginx_rps": 0.9275687471266546,
+        "before_and_candidate_calibrated": true,
+        "candidate_and_nginx_calibrated": true
+      }
+    }
   },
   "automation_id": "hyper",
   "soak_fail_fast_regression": {
@@ -237,5 +348,80 @@
       "retained_latency_samples": 0,
       "p99_ms": null
     }
+  },
+  "default_switch": {
+    "authorization": "explicit user request",
+    "status": "PASS / local native arm64 default, rollback, final image and default Helm Ingress",
+    "standard_build": "hyper",
+    "no_default_features": "pingora",
+    "helm_default": "hyper",
+    "directory": ".local/hyper-default-switch-20261001",
+    "qualification": "24-hour soak failed on previous candidate; shared namespace Redis rate quota unavailable or exhausted; root cause unresolved",
+    "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+    "runtime_manifest_sha256": "6cc54277d49e3aa842eb7f2c4c1576745d5ed2a69fa2eb8b7592759e76153858",
+    "build": "native arm64 / Rust 1.98.1 / Debian Bookworm / http3,jemalloc",
+    "checks": {
+      "default_hyper_integration": 104,
+      "explicit_pingora_integration": 104,
+      "helm_selection_and_rejection": 13,
+      "pingora_only_build_and_engine_runtime": "PASS",
+      "format_and_diff": "PASS",
+      "default_helm_ingress": 46
+    },
+    "image": {
+      "image": "rgnix:hyper-default-switch-20261001",
+      "image_id": "sha256:f37db6e5d22c8120351e87bb71a64a9e76f4dd8ba6cd015796dcdd8bccc3be75",
+      "architecture": "arm64",
+      "host_architecture": "arm64",
+      "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+      "checks": [
+        {
+          "selection": "default",
+          "engine": "hyper",
+          "http": "PASS",
+          "ready": "PASS",
+          "metrics": "PASS"
+        },
+        {
+          "selection": "hyper",
+          "engine": "hyper",
+          "http": "PASS",
+          "ready": "PASS",
+          "metrics": "PASS"
+        },
+        {
+          "selection": "pingora",
+          "engine": "pingora",
+          "http": "PASS",
+          "ready": "PASS",
+          "metrics": "PASS"
+        }
+      ]
+    },
+    "ingress": {
+      "namespace": "rgnix-hyper-default-switch-20261001",
+      "status": "PASS",
+      "checks": 46,
+      "pods": [
+        {
+          "name": "rgnix-qa-7bc6ddb7fc-bmwww",
+          "uid": "933b3dd7-b30c-4a3a-bbbc-5b6dc8a879e6",
+          "image_id": "sha256:8cf2d32c8d1f65094af917384d7594fa55ea2366d082ddc76706d03d8bebd188",
+          "engine": "hyper",
+          "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+          "restarts": 0
+        },
+        {
+          "name": "rgnix-qa-7bc6ddb7fc-zkqfm",
+          "uid": "4552751b-6f92-4b69-8682-dd0457ac5e57",
+          "image_id": "sha256:8cf2d32c8d1f65094af917384d7594fa55ea2366d082ddc76706d03d8bebd188",
+          "engine": "hyper",
+          "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+          "restarts": 0
+        }
+      ]
+    },
+    "native_amd64": "NOT YET VERIFIED for changed default; previous candidate passed",
+    "remote_ci": "PENDING / validation branch CI will test the changed default on both native architectures"
   }
 }

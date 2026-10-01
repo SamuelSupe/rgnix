@@ -52,9 +52,11 @@ Gateway API 使用独立的 `rgnix gateway` / Helm `mode=gateway`，其 CRD、�
 helm upgrade --install rgnix charts/rgnix \
   --namespace rgnix-system --create-namespace \
   --set image.repository=YOUR_REGISTRY/rgnix \
-  --set image.tag=0.4.0 --set shutdown.enabled=true
+  --set image.tag=YOUR_TESTED_TAG --set shutdown.enabled=true
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
+
+当前源码 Chart 默认选择 Hyper，需要使用当前开发版本构建的镜像。沿用已发布的 v0.5.0 或更早镜像时，设置 `experimentalHyper.enabled=false` 并保持 `engine=null`；这些旧镜像不包含 Hyper，也不接受新的 `--engine` 参数。开发镜像可用 `engine=pingora` 回退。验收状态见[默认内核记录](hyper-default-rollout.md)。
 
 Chart 默认：2 个副本、LoadBalancer Service 的 80→8080 / 443→8443、管理端口 9090 不由业务 Service 暴露；只读 rootfs、drop ALL capabilities、seccomp RuntimeDefault；请求 100m CPU/128Mi、限制 2 CPU/512Mi。滚动更新 maxUnavailable=0、maxSurge=1、minReadySeconds=2；preStop 等待 5 秒让端点撤销传播后再接收 SIGTERM，terminationGracePeriodSeconds 为 60，覆盖请求、OTLP logs/traces 和本地日志排空预算；PDB 至少 1 个可用副本。无需 CRD。
 
@@ -197,9 +199,9 @@ Linux 构建/验证在 OrbStack 中执行，避免用 macOS 编译结果代表 L
 
 ```sh
 orb -m ubuntu bash -lc 'cd /PATH/TO/rgnix && CARGO_TARGET_DIR=/tmp/rgnix-target bash scripts/check.sh'
-docker build -t rgnix:0.5.0 .
-RGNIX_IMAGE_TAG=0.4.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
-RGNIX_IMAGE_TAG=0.4.0 python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
+docker build -t rgnix:hyper-dev .
+RGNIX_IMAGE_REPOSITORY=rgnix RGNIX_IMAGE_TAG=hyper-dev bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
+RGNIX_IMAGE_REPOSITORY=rgnix RGNIX_IMAGE_TAG=hyper-dev python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
 ```
 
 脚本只接受专用命名空间，并要求现有 namespace 带 `rgnix-qa=true`；使用专属 IngressClass，不修改其他 controller 或工作负载。它会创建两个 NGINX 后端、插件、临时证书，执行删除/恢复和滚动升级。结束后保留环境便于检查。QA 的 LoadBalancerClass 为 `rgnix.io/acceptance`、禁用 NodePort，通过 port-forward 和集群内 Service 验证；地址 `192.0.2.10` 仅是 status 回写测试数据，不是真实公网 LB。

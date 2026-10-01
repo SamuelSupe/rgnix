@@ -1,6 +1,6 @@
-# Hyper 默认内核切换门槛
+# Hyper 默认内核与验收状态
 
-当前开发版本包含 Hyper 和 Pingora，运行默认值仍为 Pingora。切换默认值前，必须验证同一份源码的最终发行产物；历史 debug 测试及短时间 benchmark 不能代替这些门槛。
+当前开发版本包含 Hyper 和 Pingora，按用户要求默认运行 Hyper，Chart 的默认选择也为 Hyper。显式选择 Pingora 可回退；`--no-default-features` 构建只包含 Pingora，默认使用 Pingora。此次默认切换不等于全部发行资格通过：24 小时长测尚未通过，串行负载复现共享 Redis 限流路径的 503，根因仍需定位。下表继续作为验收要求，历史 debug 测试及短时间 benchmark 不能代替这些证据。
 
 | 门槛 | 必须取得的证据 |
 |---|---|
@@ -14,14 +14,14 @@ CI 的 `artifact` 作业在两种原生架构上运行 `scripts/validate_artifac
 ## 运维选择
 
 ```sh
-rgnix check -c nginx.conf --engine hyper
-rgnix serve -c nginx.conf --engine hyper
+rgnix check -c nginx.conf
+rgnix serve -c nginx.conf
 rgnix serve -c nginx.conf --engine pingora
-helm upgrade --install rgnix charts/rgnix --set engine=hyper
+helm upgrade --install rgnix charts/rgnix --set image.repository=YOUR_REPOSITORY --set image.tag=YOUR_TESTED_TAG
 helm upgrade rgnix charts/rgnix --reuse-values --set engine=pingora
 ```
 
-Chart 的 `engine: null` 使用当前 Chart 默认值；旧 `experimentalHyper.enabled: true/false` 仍固定选择对应内核，`engine` 非空时优先。Chart 同时设置新旧环境变量，使未配置新参数的旧镜像仍能识别选择。设置新 `engine` 值会添加新 CLI 参数，因此应使用支持该参数的镜像。
+Chart 的 `engine: null` 选择 Hyper；旧 `experimentalHyper.enabled: true/false` 仍固定选择对应内核，`engine` 非空时优先。Chart 同时设置新旧环境变量。Hyper 部署必须使用当前开发版本构建的镜像；已经发布的 v0.5.0 没有 Hyper，仍使用 v0.5.0 镜像时必须设置 `experimentalHyper.enabled=false`，并保持 `engine=null`，以免向旧二进制传递新 CLI 参数。切换开发镜像后，可用 `engine=pingora` 回退。现有 v0.5.0 二进制、镜像与 OCI Chart 不因源码默认值变更而改变。
 
 `rgnix_engine_info{engine="hyper"|"pingora"} 1` 表示实际运行内核。回退需要重新启动或滚动部署；HTTP/3、CONNECT 等 Hyper 专属配置需要同时调整，配置不兼容时明确失败。
 
@@ -45,4 +45,4 @@ python3 scripts/gateway_e2e.py --context YOUR_CONTEXT \
 
 延迟窗口最多保留每 worker 最近 3000 个成功请求，不能称为整个 24 小时的精确 p99。一份副本持续运行整个测试，禁止消失或重启；仅替换另一副本，避免重启掩盖长期增长。趋势须按 Pod 生命周期检查：RSS、描述符、连接或占用许可持续增长需要调查。该负载不代表生产容量，也不包含 24 小时 HTTP/2、HTTP/3 或跨物理主机故障验证；短时协议检查单独记录。
 
-完成四项门槛后，才同时修改 Rust `DEFAULT_ENGINE` 和 Chart 默认值，重新验证默认启动、显式 Pingora 回退及发行产物。运行中的 24 小时测试不能记为通过。
+Rust 与 Chart 默认值已按用户明确要求切换。默认变化后的产物须重新验证默认启动和 Pingora 回退；旧二进制与镜像的证据不能作为新产物的证明。运行中或失败的 24 小时测试不能记为通过，未完成资格保持公开记录。

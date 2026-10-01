@@ -462,7 +462,8 @@ def exercise_engines(binary, directory):
         assert result.returncode == 0 and f"engine={expected}" in result.stdout, result.stderr or result.stdout
     check("Engine selection preserves explicit rollback, CLI precedence and legacy compatibility", True)
     default = subprocess.check_output([binary, "check", "-c", str(config)], text=True, env=environment)
-    selected_default = default.strip().rsplit("engine=", 1)[1]
+    selected_default = "hyper" if has_hyper else "pingora"
+    assert default.strip().rsplit("engine=", 1)[1] == selected_default, default
     for options, expected in [([], selected_default), (["--engine", "pingora"], "pingora")] + (
             [(["--engine", "hyper"], "hyper")] if has_hyper else []):
         with (directory / f"engine-{expected}.log").open("w") as log:
