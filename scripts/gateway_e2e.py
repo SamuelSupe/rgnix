@@ -23,7 +23,7 @@ parser.add_argument("--context", default="orbstack")
 parser.add_argument("--namespace", required=True)
 parser.add_argument("--image", required=True)
 parser.add_argument("--engine", choices=["hyper", "pingora"])
-parser.add_argument("--experimental-hyper", action="store_true")
+parser.add_argument("--experimental-hyper", action="store_true", default=None)
 parser.add_argument("--output", required=True)
 parser.add_argument("--soak-seconds", type=int, default=0)
 parser.add_argument("--soak-event-seconds", type=int, default=600)
@@ -34,6 +34,7 @@ args = parser.parse_args()
 assert 0 <= args.soak_seconds <= 86400 and 1 <= args.scale_routes <= 2000
 assert args.soak_event_seconds >= 30
 ns, peer = args.namespace, args.namespace + "-peer"
+expected_engine = args.engine or "hyper"
 pathlib.Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 root = pathlib.Path(__file__).resolve().parents[1]
 checks = []
@@ -258,6 +259,12 @@ with tempfile.TemporaryDirectory() as directory:
         wait("Service backend and Host preservation", lambda: request()[2].get("headers", {}).get("host") == "api.example.test")
         wait("HTTPRoute status", lambda: condition("httproute", "base", "ResolvedRefs", "True"))
         wait("All replicas acknowledge the same accepted configuration", lambda: admin("/v1/fleet", credential=operator)[1].get("converged"))
+        with replicas() as pairs:
+            for _, admin_port, name in pairs:
+                with urllib.request.urlopen(f"http://127.0.0.1:{admin_port}/metrics", timeout=3) as response:
+                    metrics = [line for line in response.read().decode().splitlines() if line.startswith("rgnix_engine_info{")]
+                assert f'rgnix_engine_info{{engine="{expected_engine}"}} 1' in metrics, {"expected": expected_engine, "observed": metrics}
+                checks.append({"name": "Gateway replica uses selected HTTP engine", "passed": True, "pod": name, "engine": expected_engine})
         if args.require_multiple_nodes:
             pods = json.loads(command(*kubectl, "-n", ns, "get", "pods", "-l", "app.kubernetes.io/instance=gateway", "-o", "json"))["items"]
             nodes = sorted({pod["spec"]["nodeName"] for pod in pods if not pod["metadata"].get("deletionTimestamp")})
@@ -830,5 +837,5 @@ print(json.dumps(result))
         forward.terminate()
         forward.wait(timeout=5)
         forward_log.close()
-        pathlib.Path(args.output).write_text(json.dumps({"complete":failure is None,"failure":failure,"namespace":ns,"peer_namespace":peer,"image":args.image,"engine":args.engine or ("hyper" if args.experimental_hyper else "pingora"),"soak_seconds":args.soak_seconds,"scale_routes":args.scale_routes,"checks":checks,"scope":"Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"}, indent=2) + "\n")
+        pathlib.Path(args.output).write_text(json.dumps({"complete":failure is None,"failure":failure,"namespace":ns,"peer_namespace":peer,"image":args.image,"engine":expected_engine,"soak_seconds":args.soak_seconds,"scale_routes":args.scale_routes,"checks":checks,"scope":"Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"}, indent=2) + "\n")
 print(f"PASS {len(checks)} checks; namespace retained for inspection")

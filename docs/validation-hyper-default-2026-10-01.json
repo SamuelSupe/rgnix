@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-01T12:04:54.282973+00:00",
+  "recorded_at": "2026-10-01T12:23:41.827725+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -596,10 +596,71 @@
         "seconds": 3600,
         "namespace": "rgnix-hyper-limiter-diagnostic-20261001",
         "scope": "instrumented reproduction, not a new 24-hour qualification",
-        "status": "PREFLIGHT",
+        "status": "BOUNDED_DIAGNOSIS_RUNNING",
         "started_at": "2026-10-01T12:03:21.561949+00:00",
-        "process_file": ".local/hyper-limiter-diagnosis-20261001/diagnostic-process.json"
+        "process_file": ".local/hyper-limiter-diagnosis-20261001/diagnostic-process.json",
+        "observed_at": "2026-10-01T12:23:23.899764+00:00",
+        "latest": {
+          "final": false,
+          "elapsed_seconds": 900.1000813290011,
+          "workers": [
+            {
+              "requests": 20815,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 20795,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 34442,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 20819,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 20839,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 34414,
+              "failed_requests": 0,
+              "errors": []
+            }
+          ],
+          "requests": 152124,
+          "failed_requests": 0,
+          "retained_latency_samples": 18000,
+          "p99_ms": 46.118362006382085
+        },
+        "runtime_observer": {
+          "status": "RUNNING",
+          "rate_per_pod_per_second": 2.5,
+          "stop_at": "2026-10-01T13:08:29.846616+00:00",
+          "process_file": ".local/hyper-limiter-diagnosis-20261001/runtime-probe-process.json",
+          "scope": "read-only /metrics probes at fixed pod IPs; adds diagnostic load; not a qualification"
+        }
       }
+    },
+    "gateway_default_verification": {
+      "status": "WAITING_FOR_DIAGNOSIS",
+      "namespace": "rgnix-hyper-default-gateway-20261001",
+      "image": "rgnix:hyper-default-switch-20261001",
+      "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+      "script_sha256": "ce853c24abc3329d2884c57e59517dd14c1c943fa673676d9ef16cabd781185d",
+      "process_file": ".local/hyper-default-switch-20261001/default-gateway-process.json",
+      "fixture_fix": "unspecified legacy flag remains null; actual kernel checked on both replicas",
+      "syntax": "PASS",
+      "helm_render": "PASS / default Hyper and explicit Pingora; not a runtime result",
+      "live_gateway": "NOT RUN / queued after successful diagnostic completion",
+      "runtime_source_changed": false
     }
   }
 }

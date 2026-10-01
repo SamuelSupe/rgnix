@@ -54,4 +54,10 @@ Gateway 主流程进入了 24 小时混合负载，首次发布/轮换/替换后
 
 额外错误分类日志仅构建在本地诊断镜像，未加入产品源码或发布分支；保持超时、限流和失败策略不变。诊断镜像内二进制 SHA256 为 `2ab9cf0b00138a2f3de350fbcc567bdd8c137d3b79929b0854b8c7b06eee9800`，基于新默认值源码，仅增加固定错误类别与耗时日志，不记录 Redis 地址或原始错误。
 
-新的独立命名空间 `rgnix-hyper-limiter-diagnostic-20261001` 正在运行 Gateway 主流程预检，随后运行一小时有界复现，同时保留各副本错误日志、Redis RTT、客户端调度间隙和资源指标。进程收据位于 `.local/hyper-limiter-diagnosis-20261001/diagnostic-process.json`；它属于故障定位，不能作为最终产物的 24 小时资格。两轮失败证据和原命名空间均保留。根因仍未确认，没有宣称修复完成。
+新的独立命名空间 `rgnix-hyper-limiter-diagnostic-20261001` 已完成进入负载前的 Gateway 检查，正在运行一小时有界复现，同时保留各副本错误日志、Redis RTT、客户端调度间隙和资源指标。另增加每副本每秒 2.5 次 `/metrics` 采样，记录运行时心跳和共享限流失败计数；这是额外诊断负载，需要在解释故障样本时一并考虑。进程收据位于 `.local/hyper-limiter-diagnosis-20261001/diagnostic-process.json`，运行时观察器收据为同目录的 `runtime-probe-process.json`。该轮属于故障定位，不能作为最终产物的 24 小时资格。两轮失败证据和原命名空间均保留。根因仍未确认，没有宣称修复完成。
+
+## Gateway 默认选择检查补充
+
+发现 `gateway_e2e.py` 未指定内核时仍向 Chart 写入旧的 `experimentalHyper.enabled=false`，导致该用法选择 Pingora。本次将未指定值保留为 `null`，沿用 Chart 默认值，并在入口流程核对两个副本的 `rgnix_engine_info`；报告同时记录所检查的内核。显式 `--engine pingora` 和旧 Hyper 参数继续支持。
+
+Python 语法检查及 Gateway 模式的默认 Hyper、显式 Pingora Helm 渲染通过；这些检查不算真实 Gateway 运行通过。新默认值产品镜像的完整 Gateway 复验已排队，未指定内核参数，使用独立命名空间 `rgnix-hyper-default-gateway-20261001`，等待当前诊断成功结束后执行。收据为 `.local/hyper-default-switch-20261001/default-gateway-process.json`；若诊断失败则暂缓该复验，先处理故障。本次只修改验收脚本，产品 Rust 源码与已测产物保持一致。
