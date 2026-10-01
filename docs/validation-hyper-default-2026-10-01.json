@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-01T11:33:26.302378+00:00",
+  "recorded_at": "2026-10-01T12:04:54.282973+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -351,7 +351,7 @@
   },
   "default_switch": {
     "authorization": "explicit user request",
-    "status": "PASS / local native arm64 default, rollback, final image and default Helm Ingress",
+    "status": "PASS / local default and rollback, Helm Ingress, native amd64/arm64 artifact and image gates; long soak remains FAIL",
     "standard_build": "hyper",
     "no_default_features": "pingora",
     "helm_default": "hyper",
@@ -421,7 +421,185 @@
         }
       ]
     },
-    "native_amd64": "NOT YET VERIFIED for changed default; previous candidate passed",
-    "remote_ci": "PENDING / validation branch CI will test the changed default on both native architectures"
+    "native_amd64": "PASS",
+    "remote_ci": "PASS / all seven jobs, both native architectures and final images",
+    "native_ci": {
+      "status": "PASS",
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36856117213",
+      "runtime_source_commit": "d2c60aba05477568b176fdbc5220645fcd5fbd94",
+      "jobs": {
+        "check": "success",
+        "hyper (ubuntu-24.04-arm)": "success",
+        "hyper (ubuntu-24.04)": "success",
+        "artifact (arm64, ubuntu-24.04-arm)": "success",
+        "artifact (amd64, ubuntu-24.04)": "success",
+        "image (arm64, ubuntu-24.04-arm)": "success",
+        "image (amd64, ubuntu-24.04)": "success"
+      },
+      "images": {
+        "amd64": {
+          "image": "rgnix:ci",
+          "image_id": "sha256:eee19491e395e8af27ad5ceddc9d3c7933f80295b4826c6471d31b00e13047f0",
+          "architecture": "amd64",
+          "host_architecture": "x86_64",
+          "binary_sha256": "c61528a7fb067ad8acd9e14bf9dd4eabd4fcd9a018f49c3c074f9cc464078213",
+          "checks": [
+            {
+              "selection": "default",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "hyper",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "pingora",
+              "engine": "pingora",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            }
+          ]
+        },
+        "arm64": {
+          "image": "rgnix:ci",
+          "image_id": "sha256:5fada22b30aefb35f54feb9d38fc83ccee6e5b279812caf23d8160ac6fdbf145",
+          "architecture": "arm64",
+          "host_architecture": "aarch64",
+          "binary_sha256": "71fe6155a29095d45452b1485cb5fdce2213560ee1e0b20cb514d44f0184cbd1",
+          "checks": [
+            {
+              "selection": "default",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "hyper",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "pingora",
+              "engine": "pingora",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            }
+          ]
+        }
+      },
+      "behavior": {
+        "amd64": {
+          "pingora": {
+            "log-rotation": 20,
+            "ingress-recovery": 57,
+            "global-rate-results": 12,
+            "acceptance": 104,
+            "product-features": 115
+          },
+          "hyper": {
+            "log-rotation": 20,
+            "ingress-recovery": 57,
+            "global-rate-results": 12,
+            "acceptance": 104,
+            "product-features": 115
+          }
+        },
+        "arm64": {
+          "pingora": {
+            "log-rotation": 20,
+            "ingress-recovery": 57,
+            "global-rate-results": 12,
+            "acceptance": 104,
+            "product-features": 115
+          },
+          "hyper": {
+            "log-rotation": 20,
+            "ingress-recovery": 57,
+            "global-rate-results": 12,
+            "acceptance": 104,
+            "product-features": 115
+          }
+        }
+      }
+    },
+    "limiter_diagnosis": {
+      "outcome": "6 unavailable_closed; no capacity/limited outcome for failed requests",
+      "redis": "no restart, no error replies, no rejected connections; simple ZADD took 17.6ms in slow log",
+      "cgroup": "Redis and continuous Gateway showed zero CPU throttling and no OOM",
+      "bounded_probe": {
+        "status": "BOUNDED_LOAD_PASS",
+        "measurement": {
+          "wall_time": 1790855840.1932528,
+          "final": true,
+          "elapsed_seconds": 900.1100517830055,
+          "workers": [
+            {
+              "requests": 20804,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 20819,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 34468,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 20816,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 20813,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 34478,
+              "failed_requests": 0,
+              "errors": []
+            }
+          ],
+          "requests": 152198,
+          "failed_requests": 0,
+          "retained_latency_samples": 18000,
+          "p99_ms": 46.1939689994324
+        },
+        "max_redis_rtt_ms": 64.36955799290445,
+        "max_client_gap_ms": 140.81264300330076,
+        "redis_probe_errors": [],
+        "scope": "not a 24-hour qualification; no 503 reproduced; diagnostic build overlapped part of the run"
+      },
+      "directory": ".local/hyper-limiter-diagnosis-20261001",
+      "root_cause": "unconfirmed; direct Redis RTT and client scheduling measured together",
+      "instrumented_reproduction": {
+        "runtime_base_commit": "d2c60aba05477568b176fdbc5220645fcd5fbd94",
+        "binary_sha256": "2ab9cf0b00138a2f3de350fbcc567bdd8c137d3b79929b0854b8c7b06eee9800",
+        "image": "rgnix:hyper-limiter-diagnostic-20261001",
+        "production_changes": false,
+        "change": "extra shared limiter error-category logging only; policy/timeouts/retry unchanged",
+        "seconds": 3600,
+        "namespace": "rgnix-hyper-limiter-diagnostic-20261001",
+        "scope": "instrumented reproduction, not a new 24-hour qualification",
+        "status": "PREFLIGHT",
+        "started_at": "2026-10-01T12:03:21.561949+00:00",
+        "process_file": ".local/hyper-limiter-diagnosis-20261001/diagnostic-process.json"
+      }
+    }
   }
 }

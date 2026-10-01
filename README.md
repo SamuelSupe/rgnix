@@ -87,7 +87,7 @@ Linux GNU builds can opt into jemalloc with `cargo build --release --locked --fe
 This links the Rust allocator into the binary; no `LD_PRELOAD` or runtime allocator package is needed.
 Plain Cargo builds include both engines and keep the system allocator. Hyper is the default; roll back with `--engine pingora`; `check` validates the selected engine before startup. On the current development branch, Docker builds and future native release packages enable `http3,jemalloc`; override `CARGO_FEATURES` when building a different feature set. The [rollout record](docs/hyper-default-rollout.md) tracks remaining qualification: the 24-hour test has not passed and shared Redis rate limiting produced 503 errors. These development defaults do not change the existing v0.5.0 artifacts. See the [allocator comparison](docs/validation-allocator-2026-09-28.md) for measured CPU, memory and calibration limits.
 
-The candidate before the default switch passed native Bookworm artifact and image checks on both architectures. The 24-hour mixed load failed on shared rate limiting; the [validation record](docs/validation-hyper-default-2026-10-01.md) separates that candidate's evidence from checks of the new Hyper default.
+The Hyper-default build passed native Bookworm artifact and image checks on both architectures. The 24-hour mixed load failed on shared rate limiting; the [validation record](docs/validation-hyper-default-2026-10-01.md) retains the failure and current diagnosis.
 
 [Image signatures, checksums and attestations](docs/releases.md) · [Deployment instructions](docs/deployment.md).
 

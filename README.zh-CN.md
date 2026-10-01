@@ -87,7 +87,7 @@ cargo build --release --locked
 
 普通 Cargo 构建包含两种内核，继续使用系统分配器。默认使用 Hyper，使用 `--engine pingora` 显式回退，`check` 按所选内核预检。当前开发分支的 Docker 构建与未来原生发行包默认启用 `http3,jemalloc`，镜像构建可用 `CARGO_FEATURES` 覆盖；[切换与验收记录](docs/hyper-default-rollout.md)仍保留未完成项：24 小时长测未通过，共享 Redis 限流路径出现过 503。这不改变已有 v0.5.0 发行产物。
 
-默认切换前的候选通过了双架构 Bookworm 发行产物与镜像检查。24 小时混合负载因共享限流失败；[验证记录](docs/validation-hyper-default-2026-10-01.md)区分旧候选证据与新默认值的复验。
+Hyper 默认构建通过了双架构 Bookworm 发行产物与镜像检查。24 小时混合负载因共享限流失败；[验证记录](docs/validation-hyper-default-2026-10-01.md)保留失败证据及当前定位状态。
 
 [镜像签名、校验和与产物证明](docs/releases.md) · [部署文档](docs/deployment.md)。
 
