@@ -54,10 +54,18 @@ Gateway 主流程进入了 24 小时混合负载，首次发布/轮换/替换后
 
 额外错误分类日志仅构建在本地诊断镜像，未加入产品源码或发布分支；保持超时、限流和失败策略不变。诊断镜像内二进制 SHA256 为 `2ab9cf0b00138a2f3de350fbcc567bdd8c137d3b79929b0854b8c7b06eee9800`，基于新默认值源码，仅增加固定错误类别与耗时日志，不记录 Redis 地址或原始错误。
 
-新的独立命名空间 `rgnix-hyper-limiter-diagnostic-20261001` 已完成进入负载前的 Gateway 检查，正在运行一小时有界复现，同时保留各副本错误日志、Redis RTT、客户端调度间隙和资源指标。另增加每副本每秒 2.5 次 `/metrics` 采样，记录运行时心跳和共享限流失败计数；这是额外诊断负载，需要在解释故障样本时一并考虑。进程收据位于 `.local/hyper-limiter-diagnosis-20261001/diagnostic-process.json`，运行时观察器收据为同目录的 `runtime-probe-process.json`。该轮属于故障定位，不能作为最终产物的 24 小时资格。两轮失败证据和原命名空间均保留。根因仍未确认，没有宣称修复完成。
+独立命名空间 `rgnix-hyper-limiter-diagnostic-20261001` 的一小时有界诊断提前失败：1952.28 秒内 322,745 次成功请求，另有一次 TLS worker 读取超时；经过四次插件发布。该轮没有记录 HTTP 503，共享限流 `unavailable_closed` 观察值为 0，固定类别的限流错误日志没有触发。两个 Gateway 和 Redis 均无重启。
+
+失败期间，负载端调度间隙最高 33,879.91 毫秒，两个 Gateway 的服务心跳年龄最高均为 34.198 秒；Redis PING RTT 最高 525.15 毫秒。宿主机电源日志确认：本地时间 20:40:15 因电量 1% 进入 `Low Power Sleep`，20:42:33 接入电源后唤醒；对应 UTC 12:40:15–12:42:33。该轮出现了明确的宿主机暂停，不能用它证明产品稳定性通过，也不能将它改记为成功。此前六次 Redis 503 尚未找到对应休眠记录，根因仍未确认。
+
+原始证据保留于 `.local/hyper-limiter-diagnosis-20261001/`：`diagnostic-process.json`、负载和资源样本、两个副本日志、Redis INFO/SLOWLOG、`runtime-probe.jsonl` 和 `failure-summary.json`。运行时观察器在失败后停止；每副本每秒 2.5 次 `/metrics` 是额外诊断负载。历史两轮长测和这轮失败均保留，不算最终产物的 24 小时资格。
+
+在确认宿主机接电充电后，新建 `rgnix-hyper-limiter-awake-20261001` 命名空间单独计时，继续使用相同诊断二进制、200 毫秒超时、限流策略、失败关闭和不重试规则。临时防闲置/接电休眠保护最长三小时，不修改永久电源设置；不能保证强制休眠或断电后测试仍有效。新进程收据为 `.local/hyper-limiter-awake-20261001/diagnostic-process.json`，保护收据为同目录 `sleep-protection.json`。本次调整验证环境，产品源码没有改动；六次限流 503 仍需定位。
+
+接电复验的第一次预检发现新加逐副本检查覆盖了主流程的 `admin_port` 变量，两个副本的 Hyper 指标检查通过后，后续管理请求连接了已经关闭的端口。已改用独立的 `replica_admin_port`；完整失败日志、结果、脚本和进程收据存入 `.local/hyper-limiter-awake-20261001/preflight-port-regression/`。该次尚未进入混合负载，属于验收脚本回归。修正后的流程已复跑，并通过了此前失败的管理请求阶段；一小时诊断仍待完成。
 
 ## Gateway 默认选择检查补充
 
 发现 `gateway_e2e.py` 未指定内核时仍向 Chart 写入旧的 `experimentalHyper.enabled=false`，导致该用法选择 Pingora。本次将未指定值保留为 `null`，沿用 Chart 默认值，并在入口流程核对两个副本的 `rgnix_engine_info`；报告同时记录所检查的内核。显式 `--engine pingora` 和旧 Hyper 参数继续支持。
 
-Python 语法检查及 Gateway 模式的默认 Hyper、显式 Pingora Helm 渲染通过；这些检查不算真实 Gateway 运行通过。新默认值产品镜像的完整 Gateway 复验已排队，未指定内核参数，使用独立命名空间 `rgnix-hyper-default-gateway-20261001`，等待当前诊断成功结束后执行。收据为 `.local/hyper-default-switch-20261001/default-gateway-process.json`；若诊断失败则暂缓该复验，先处理故障。本次只修改验收脚本，产品 Rust 源码与已测产物保持一致。
+Python 语法检查及 Gateway 模式的默认 Hyper、显式 Pingora Helm 渲染通过；这些检查不算真实 Gateway 运行通过。默认 Gateway 复验因上述诊断失败而暂缓，旧收据另存为 `.local/hyper-default-switch-20261001/default-gateway-process-before-awake.json`。现已重新排队，等待新接电诊断成功结束后执行；仍使用真实产品镜像、独立命名空间 `rgnix-hyper-default-gateway-20261001`，不指定内核参数。收据为 `.local/hyper-default-switch-20261001/default-gateway-process.json`；新的诊断失败也会暂缓该复验。产品 Rust 源码与已测产物保持一致。

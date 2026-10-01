@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-01T12:23:41.827725+00:00",
+  "recorded_at": "2026-10-01T13:11:06.843874+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -596,71 +596,250 @@
         "seconds": 3600,
         "namespace": "rgnix-hyper-limiter-diagnostic-20261001",
         "scope": "instrumented reproduction, not a new 24-hour qualification",
-        "status": "BOUNDED_DIAGNOSIS_RUNNING",
+        "status": "BOUNDED_DIAGNOSIS_FAILED",
         "started_at": "2026-10-01T12:03:21.561949+00:00",
         "process_file": ".local/hyper-limiter-diagnosis-20261001/diagnostic-process.json",
-        "observed_at": "2026-10-01T12:23:23.899764+00:00",
+        "observed_at": "2026-10-01T12:42:56.415875+00:00",
         "latest": {
-          "final": false,
-          "elapsed_seconds": 900.1000813290011,
+          "final": true,
+          "elapsed_seconds": 1952.283647749995,
           "workers": [
             {
-              "requests": 20815,
+              "requests": 44083,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 20795,
+              "requests": 44088,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 34442,
+              "requests": 73182,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 20819,
+              "requests": 44085,
+              "failed_requests": 1,
+              "errors": [
+                "The read operation timed out"
+              ]
+            },
+            {
+              "requests": 44152,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 20839,
-              "failed_requests": 0,
-              "errors": []
-            },
-            {
-              "requests": 34414,
+              "requests": 73155,
               "failed_requests": 0,
               "errors": []
             }
           ],
-          "requests": 152124,
-          "failed_requests": 0,
+          "requests": 322745,
+          "failed_requests": 1,
           "retained_latency_samples": 18000,
-          "p99_ms": 46.118362006382085
+          "p99_ms": 46.622502006357536
         },
         "runtime_observer": {
-          "status": "RUNNING",
+          "status": "STOPPED_AFTER_DIAGNOSTIC_FAILURE",
           "rate_per_pod_per_second": 2.5,
           "stop_at": "2026-10-01T13:08:29.846616+00:00",
           "process_file": ".local/hyper-limiter-diagnosis-20261001/runtime-probe-process.json",
           "scope": "read-only /metrics probes at fixed pod IPs; adds diagnostic load; not a qualification"
+        },
+        "exit_code": 1,
+        "failure_summary": {
+          "recorded_at": "2026-10-01T12:54:15.124257+00:00",
+          "status": "BOUNDED_DIAGNOSIS_FAILED",
+          "measurement": {
+            "final": true,
+            "elapsed_seconds": 1952.283647749995,
+            "workers": [
+              {
+                "requests": 44083,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 44088,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 73182,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 44085,
+                "failed_requests": 1,
+                "errors": [
+                  "The read operation timed out"
+                ]
+              },
+              {
+                "requests": 44152,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 73155,
+                "failed_requests": 0,
+                "errors": []
+              }
+            ],
+            "requests": 322745,
+            "failed_requests": 1,
+            "retained_latency_samples": 18000,
+            "p99_ms": 46.622502006357536
+          },
+          "events": 4,
+          "failure_type": "TLS worker read timeout; no HTTP 503 recorded in this run",
+          "max_client_scheduler_gap_ms": 33879.912884003716,
+          "max_redis_rtt_ms": 525.1463359891204,
+          "max_runtime_heartbeat_age_seconds": 34.198,
+          "unavailable_closed_observed": 0,
+          "power_events": [
+            "2026-10-01 20:40:15 +0800 Sleep               \tEntering Sleep state due to 'Low Power Sleep':TCPKeepAlive=inactive Using Batt (Charge:1%) 138 secs  ",
+            "2026-10-01 20:42:33 +0800 Wake                \tWake from Hibernate [CDNVA] : due to trackpadkeyboard IOPortFeatureLDCM.measurement/User Using AC (Charge:1%)           "
+          ],
+          "conclusion": "host low-power sleep confirmed during this failure; prior six Redis unavailable 503 remain unexplained",
+          "qualification": "failed one-hour diagnostic, not a final-artifact 24-hour qualification; original evidence retained"
+        }
+      },
+      "awake_reproduction": {
+        "runtime_base_commit": "d2c60aba05477568b176fdbc5220645fcd5fbd94",
+        "binary_sha256": "2ab9cf0b00138a2f3de350fbcc567bdd8c137d3b79929b0854b8c7b06eee9800",
+        "image": "rgnix:hyper-limiter-diagnostic-20261001",
+        "production_changes": false,
+        "namespace": "rgnix-hyper-limiter-awake-20261001",
+        "scope": "new one-hour reproduction after host sleep adjustment and preflight fixture port fix; prior preflight failed before mixed load",
+        "seconds": 3600,
+        "status": "BOUNDED_DIAGNOSIS_RUNNING",
+        "started_at": "2026-10-01T13:00:17.901591+00:00",
+        "process_file": ".local/hyper-limiter-awake-20261001/diagnostic-process.json",
+        "sleep_protection": {
+          "pid": 48812,
+          "started_at": "2026-10-01T12:52:41.507043+00:00",
+          "seconds": 10800,
+          "scope": "temporary idle/system sleep assertions while AC powered; no permanent power setting changes",
+          "arguments": [
+            "-i",
+            "-s",
+            "-t",
+            "10800"
+          ]
+        },
+        "power": "AC power and charging verified; temporary sleep assertions verified active",
+        "observed_at": "2026-10-01T13:10:49.213350+00:00",
+        "script_sha256": "2e52cf4e136e4f802f14a22fecc3dffc3e9bdad72d6da3dd1cbfc86a909c4406",
+        "latest": {
+          "final": false,
+          "elapsed_seconds": 300.04528605600353,
+          "workers": [
+            {
+              "requests": 6930,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 6941,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 11520,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 6937,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 6955,
+              "failed_requests": 0,
+              "errors": []
+            },
+            {
+              "requests": 11510,
+              "failed_requests": 0,
+              "errors": []
+            }
+          ],
+          "requests": 50793,
+          "failed_requests": 0,
+          "retained_latency_samples": 18000,
+          "p99_ms": 47.49864400946535
+        },
+        "preflight_fixture_regression": {
+          "status": "FIXED / rerun passed the failed management-request phase",
+          "error": {
+            "type": "URLError",
+            "message": "<urlopen error [Errno 61] Connection refused>"
+          },
+          "archive": ".local/hyper-limiter-awake-20261001/preflight-port-regression",
+          "mixed_load_started": false,
+          "change": "replica_admin_port keeps the main management port intact",
+          "engine_checks": [
+            {
+              "name": "Gateway replica uses selected HTTP engine",
+              "passed": true,
+              "pod": "gateway-54c4d897d6-hd56s",
+              "engine": "hyper"
+            },
+            {
+              "name": "Gateway replica uses selected HTTP engine",
+              "passed": true,
+              "pod": "gateway-54c4d897d6-wbmr5",
+              "engine": "hyper"
+            }
+          ]
+        },
+        "deployed_pods": [
+          {
+            "name": "gateway-6d98d4bb95-mpzzz",
+            "uid": "525d3d29-eec6-41f9-87e7-9b3f106c4395",
+            "binary_sha256": "2ab9cf0b00138a2f3de350fbcc567bdd8c137d3b79929b0854b8c7b06eee9800",
+            "restarts": 0
+          },
+          {
+            "name": "gateway-6d98d4bb95-sbs4s",
+            "uid": "963614dc-980d-4059-9533-0962d140ad51",
+            "binary_sha256": "2ab9cf0b00138a2f3de350fbcc567bdd8c137d3b79929b0854b8c7b06eee9800",
+            "restarts": 0
+          }
+        ],
+        "runtime_observer": {
+          "pid": 51735,
+          "started_at": "2026-10-01T13:05:42.374907+00:00",
+          "stop_at": "2026-10-01T14:05:50.378290+00:00",
+          "targets": {
+            "gateway-6d98d4bb95-sbs4s": "10.244.2.158"
+          },
+          "stable_pod_uid": "963614dc-980d-4059-9533-0962d140ad51",
+          "rate_per_pod_per_second": 2.5,
+          "scope": "read-only runtime observer on continuous diagnostic replica; not product qualification"
         }
       }
     },
     "gateway_default_verification": {
-      "status": "WAITING_FOR_DIAGNOSIS",
+      "status": "WAITING_FOR_AWAKE_DIAGNOSIS",
       "namespace": "rgnix-hyper-default-gateway-20261001",
       "image": "rgnix:hyper-default-switch-20261001",
       "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
-      "script_sha256": "ce853c24abc3329d2884c57e59517dd14c1c943fa673676d9ef16cabd781185d",
+      "script_sha256": "71e831d5e2c647300e1e2749d6b4fb2ec20a90d1a9087ba31a55f7586e166133",
       "process_file": ".local/hyper-default-switch-20261001/default-gateway-process.json",
       "fixture_fix": "unspecified legacy flag remains null; actual kernel checked on both replicas",
       "syntax": "PASS",
       "helm_render": "PASS / default Hyper and explicit Pingora; not a runtime result",
-      "live_gateway": "NOT RUN / queued after successful diagnostic completion",
-      "runtime_source_changed": false
+      "live_gateway": "NOT RUN / queued after successful corrected awake diagnosis",
+      "runtime_source_changed": false,
+      "waits_for": ".local/hyper-limiter-awake-20261001/diagnostic-process.json",
+      "previous_deferral_receipt": ".local/hyper-default-switch-20261001/default-gateway-process-before-awake.json"
     }
   }
 }

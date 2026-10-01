@@ -260,8 +260,8 @@ with tempfile.TemporaryDirectory() as directory:
         wait("HTTPRoute status", lambda: condition("httproute", "base", "ResolvedRefs", "True"))
         wait("All replicas acknowledge the same accepted configuration", lambda: admin("/v1/fleet", credential=operator)[1].get("converged"))
         with replicas() as pairs:
-            for _, admin_port, name in pairs:
-                with urllib.request.urlopen(f"http://127.0.0.1:{admin_port}/metrics", timeout=3) as response:
+            for _, replica_admin_port, name in pairs:
+                with urllib.request.urlopen(f"http://127.0.0.1:{replica_admin_port}/metrics", timeout=3) as response:
                     metrics = [line for line in response.read().decode().splitlines() if line.startswith("rgnix_engine_info{")]
                 assert f'rgnix_engine_info{{engine="{expected_engine}"}} 1' in metrics, {"expected": expected_engine, "observed": metrics}
                 checks.append({"name": "Gateway replica uses selected HTTP engine", "passed": True, "pod": name, "engine": expected_engine})
