@@ -68,8 +68,7 @@ class Server:
 
 @contextlib.contextmanager
 def running(binary, root, **options):
-    directory = root / str(free_port())
-    directory.mkdir()
+    directory = Path(tempfile.mkdtemp(prefix="server-", dir=root))
     server = Server(binary, directory, **options)
     try:
         wait_for(lambda: request(server.admin, "/readyz")[0], 200)
