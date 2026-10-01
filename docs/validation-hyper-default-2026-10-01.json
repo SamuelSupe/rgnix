@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-01T14:02:45.957724+00:00",
+  "recorded_at": "2026-10-01T14:45:08.361847+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -717,7 +717,7 @@
         "namespace": "rgnix-hyper-limiter-awake-20261001",
         "scope": "new one-hour reproduction after host sleep adjustment and preflight fixture port fix; prior preflight failed before mixed load",
         "seconds": 3600,
-        "status": "BOUNDED_DIAGNOSIS_RUNNING",
+        "status": "BOUNDED_DIAGNOSIS_PASS",
         "started_at": "2026-10-01T13:00:17.901591+00:00",
         "process_file": ".local/hyper-limiter-awake-20261001/diagnostic-process.json",
         "sleep_protection": {
@@ -730,50 +730,52 @@
             "-s",
             "-t",
             "10800"
-          ]
+          ],
+          "status": "STOPPED_AFTER_PRIOR_TESTS",
+          "stopped_at": "2026-10-01T14:17:03.513571+00:00"
         },
         "power": "AC power and charging verified; temporary sleep assertions verified active",
-        "observed_at": "2026-10-01T13:10:49.213350+00:00",
+        "observed_at": "2026-10-01T14:11:27.773420+00:00",
         "script_sha256": "2e52cf4e136e4f802f14a22fecc3dffc3e9bdad72d6da3dd1cbfc86a909c4406",
         "latest": {
-          "final": false,
-          "elapsed_seconds": 300.04528605600353,
+          "final": true,
+          "elapsed_seconds": 3600.1206362410157,
           "workers": [
             {
-              "requests": 6930,
+              "requests": 83210,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 6941,
+              "requests": 83215,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 11520,
+              "requests": 137894,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 6937,
+              "requests": 83204,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 6955,
+              "requests": 83435,
               "failed_requests": 0,
               "errors": []
             },
             {
-              "requests": 11510,
+              "requests": 137897,
               "failed_requests": 0,
               "errors": []
             }
           ],
-          "requests": 50793,
+          "requests": 608855,
           "failed_requests": 0,
           "retained_latency_samples": 18000,
-          "p99_ms": 47.49864400946535
+          "p99_ms": 46.68941398267634
         },
         "preflight_fixture_regression": {
           "status": "FIXED / rerun passed the failed management-request phase",
@@ -823,11 +825,21 @@
           "stable_pod_uid": "963614dc-980d-4059-9533-0962d140ad51",
           "rate_per_pod_per_second": 2.5,
           "scope": "read-only runtime observer on continuous diagnostic replica; not product qualification"
+        },
+        "completed_at": "2026-10-01T14:08:54.484160+00:00",
+        "summary_file": ".local/hyper-limiter-awake-20261001/success-summary.json",
+        "power_window": {
+          "checked_at": "2026-10-01T14:17:08.649387+00:00",
+          "command_exit_code": 0,
+          "window_start": "2026-10-01T13:00:17.901591+00:00",
+          "window_end": "2026-10-01T14:08:54.484160+00:00",
+          "events": [],
+          "status": "NO_RECORDED_SLEEP_WAKE_IN_DIAGNOSTIC_WINDOW"
         }
       }
     },
     "gateway_default_verification": {
-      "status": "WAITING_FOR_AWAKE_DIAGNOSIS",
+      "status": "PASS",
       "namespace": "rgnix-hyper-default-gateway-20261001",
       "image": "rgnix:hyper-default-switch-20261001",
       "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
@@ -836,14 +848,220 @@
       "fixture_fix": "unspecified legacy flag remains null; actual kernel checked on both replicas",
       "syntax": "PASS",
       "helm_render": "PASS / default Hyper and explicit Pingora; not a runtime result",
-      "live_gateway": "NOT RUN / queued after successful corrected awake diagnosis",
+      "live_gateway": "PASS / 112 checks; both retained replicas report Hyper and exact d2c60 binary hash",
       "runtime_source_changed": false,
       "waits_for": ".local/hyper-limiter-awake-20261001/diagnostic-process.json",
-      "previous_deferral_receipt": ".local/hyper-default-switch-20261001/default-gateway-process-before-awake.json"
+      "previous_deferral_receipt": ".local/hyper-default-switch-20261001/default-gateway-process-before-awake.json",
+      "deployed_proof": {
+        "verified_at": "2026-10-01T14:24:11.952886+00:00",
+        "source_commit": "d2c60aba05477568b176fdbc5220645fcd5fbd94",
+        "namespace": "rgnix-hyper-default-gateway-20261001",
+        "checks": 112,
+        "status": "PASS",
+        "pods": [
+          {
+            "name": "gateway-68787bf5bd-8ns99",
+            "uid": "b191f0cc-be39-4821-ab4a-f3fd71caa635",
+            "address": "10.244.1.175",
+            "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+            "containers": [
+              {
+                "allocatedResources": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                },
+                "containerID": "containerd://59c82899a6ba8af78eb86e58055c915ec2786141d5a38105a6f741043a75e549",
+                "image": "docker.io/library/rgnix:hyper-default-switch-20261001",
+                "imageID": "sha256:8cf2d32c8d1f65094af917384d7594fa55ea2366d082ddc76706d03d8bebd188",
+                "lastState": {},
+                "name": "rgnix",
+                "ready": true,
+                "resources": {
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                  "running": {
+                    "startedAt": "2026-10-01T14:14:22Z"
+                  }
+                },
+                "user": {
+                  "linux": {
+                    "gid": 10101,
+                    "supplementalGroups": [
+                      10101
+                    ],
+                    "uid": 10101
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/var/run/rgnix",
+                    "name": "drain"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/global-rate-limit",
+                    "name": "global-rate-limit",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admission",
+                    "name": "admission-tls",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/release-metrics",
+                    "name": "release-metrics",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin-users",
+                    "name": "admin-users",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/tenancy",
+                    "name": "tenancy",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin",
+                    "name": "admin-token",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                    "name": "kube-api-access-9zm4x",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  }
+                ]
+              }
+            ],
+            "metrics": [
+              "rgnix_engine_info{engine=\"hyper\"} 1",
+              "rgnix_ready 1"
+            ]
+          },
+          {
+            "name": "gateway-68787bf5bd-g28gs",
+            "uid": "0a2938f2-6a2c-467c-9e41-19fdaab9bdfe",
+            "address": "10.244.2.175",
+            "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+            "containers": [
+              {
+                "allocatedResources": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                },
+                "containerID": "containerd://73ac217cb48860e0018f22e2e0d1dc4a15a71def2445d97f455faa62c2f47eee",
+                "image": "docker.io/library/rgnix:hyper-default-switch-20261001",
+                "imageID": "sha256:8cf2d32c8d1f65094af917384d7594fa55ea2366d082ddc76706d03d8bebd188",
+                "lastState": {},
+                "name": "rgnix",
+                "ready": true,
+                "resources": {
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                  "running": {
+                    "startedAt": "2026-10-01T14:14:18Z"
+                  }
+                },
+                "user": {
+                  "linux": {
+                    "gid": 10101,
+                    "supplementalGroups": [
+                      10101
+                    ],
+                    "uid": 10101
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/var/run/rgnix",
+                    "name": "drain"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/global-rate-limit",
+                    "name": "global-rate-limit",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admission",
+                    "name": "admission-tls",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/release-metrics",
+                    "name": "release-metrics",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin-users",
+                    "name": "admin-users",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/tenancy",
+                    "name": "tenancy",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin",
+                    "name": "admin-token",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                    "name": "kube-api-access-zd4fd",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  }
+                ]
+              }
+            ],
+            "metrics": [
+              "rgnix_engine_info{engine=\"hyper\"} 1",
+              "rgnix_ready 1"
+            ]
+          }
+        ]
+      },
+      "scope": "d2c60 default-selection verification; does not qualify the subsequent runtime fixes"
     }
   },
   "shared_limiter_connection_fix": {
-    "status": "SOURCE FIX / RUNTIME VALIDATION PENDING",
+    "status": "PASS / current native artifact and final image; 24-hour qualification remains pending",
     "base_commit": "354c965c7e12d4497f2734f3ed9ae0c93970e935",
     "previous_runtime_source_commit": "d2c60aba05477568b176fdbc5220645fcd5fbd94",
     "baseline": {
@@ -902,41 +1120,828 @@
     ],
     "policy": "configured deadline, failure-closed mode and no ambiguous debit replay unchanged",
     "static_checks": "PASS / Rust format, Python syntax, diff check",
-    "runtime_checks": "NOT RUN / new production executable required",
+    "runtime_checks": "PASS / fresh tested native arm64 executable and final image; see current_runtime_validation",
     "native_ci": {
+      "headSha": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36873436732",
+      "jobs": [
+        {
+          "name": "hyper (ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "hyper (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "original_six_503_root_cause": "UNCONFIRMED / this controlled concurrency reproduction does not explain their measured latency",
+    "diagnostic_scope": "small regression probes overlap instrumented diagnosis; neither is final 24-hour qualification",
+    "source_commit": "07355b3e60d7059df5c9855f897ae7910560be8b",
+    "local_validation_order": "after awake diagnosis and default Gateway, use fresh passing native CI artifact; stopped old artifact queue 59586 after readiness failure",
+    "previous_native_ci": {
       "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36869314608",
       "status": "NOT QUALIFIED / amd64 artifact failed before shared-limit suite",
       "failed_job": "artifact (amd64, ubuntu-24.04)",
       "failed_boundary": "existing repeated-start listener-readiness check under Pingora",
       "log": ".local/hyper-limiter-reconnect-20261001/ci-amd64-failure.log"
     },
-    "original_six_503_root_cause": "UNCONFIRMED / this controlled concurrency reproduction does not explain their measured latency",
-    "diagnostic_scope": "small regression probes overlap instrumented diagnosis; neither is final 24-hour qualification",
-    "source_commit": "07355b3e60d7059df5c9855f897ae7910560be8b",
-    "local_validation_order": "after awake diagnosis and default Gateway, use fresh passing native CI artifact; stopped old artifact queue 59586 after readiness failure"
+    "fixed_regression": {
+      "hyper": {
+        "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+        "engine": "hyper",
+        "timeout_ms": 200,
+        "max_inflight": 1,
+        "elapsed_seconds": 0.039273821021197364,
+        "statuses": {
+          "held": 200,
+          "overload": 503,
+          "next": 200
+        },
+        "connections": 1,
+        "commands": [
+          {
+            "connection": 1,
+            "command": "CLIENT"
+          },
+          {
+            "connection": 1,
+            "command": "CLIENT"
+          },
+          {
+            "connection": 1,
+            "command": "EVAL"
+          },
+          {
+            "connection": 1,
+            "command": "EVAL"
+          }
+        ],
+        "healthy_connection_evicted": false,
+        "metrics": [
+          "rgnix_global_rate_limit_total{result=\"allowed\"} 2",
+          "rgnix_global_rate_limit_total{result=\"unavailable_closed\"} 1"
+        ]
+      },
+      "pingora": {
+        "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+        "engine": "pingora",
+        "timeout_ms": 200,
+        "max_inflight": 1,
+        "elapsed_seconds": 0.03343603599932976,
+        "statuses": {
+          "held": 200,
+          "overload": 503,
+          "next": 200
+        },
+        "connections": 1,
+        "commands": [
+          {
+            "connection": 1,
+            "command": "CLIENT"
+          },
+          {
+            "connection": 1,
+            "command": "CLIENT"
+          },
+          {
+            "connection": 1,
+            "command": "EVAL"
+          },
+          {
+            "connection": 1,
+            "command": "EVAL"
+          }
+        ],
+        "healthy_connection_evicted": false,
+        "metrics": [
+          "rgnix_global_rate_limit_total{result=\"allowed\"} 2",
+          "rgnix_global_rate_limit_total{result=\"unavailable_closed\"} 1"
+        ]
+      }
+    }
   },
   "pingora_listener_readiness_fix": {
-    "status": "SOURCE FIX / RUNTIME VALIDATION PENDING",
+    "status": "PASS / current native artifact and final image; 24-hour qualification remains pending",
     "previous_source_commit": "07355b3e60d7059df5c9855f897ae7910560be8b",
     "failure": "readyz 200 immediately followed by refused business connection in existing repeated-start test",
     "change": "gate readiness on every data listener binding and scheduling accept tasks; share predicate for readyz and readiness metric",
     "hyper_default": "UNCHANGED",
     "test_deadlines": "UNCHANGED",
     "static_checks": "PASS / Rust format and diff check",
-    "runtime_checks": "PENDING / fresh native artifact and image proof required",
+    "runtime_checks": "PASS / fresh tested native arm64 executable and final image; see current_runtime_validation",
     "source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
     "native_ci": {
+      "headSha": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36873436732",
+      "jobs": [
+        {
+          "name": "hyper (ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "hyper (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "previous_native_ci": {
       "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36871747645",
       "overall": "NOT QUALIFIED / check job failed in log-rotation fixture before service startup; other jobs pending",
       "log": ".local/hyper-limiter-reconnect-20261001/ci-ca46-check-failure.log"
     }
   },
   "log_rotation_fixture_fix": {
-    "status": "SOURCE FIX / CI RUNTIME PENDING",
+    "status": "PASS / full new CI and preserved 20 behavior checks",
     "failure": "FileExistsError from naming a test directory with a reused free port",
     "change": "atomically create a unique temporary directory independent of network ports",
     "production_source_changed": false,
     "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
-    "checks": "20 existing behavior checks preserved; Python syntax/diff PASS"
+    "checks": "20 existing behavior checks preserved; Python syntax/diff PASS",
+    "qa_source_commit": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+    "native_ci": {
+      "headSha": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36873436732",
+      "jobs": [
+        {
+          "name": "hyper (ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "hyper (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  },
+  "current_runtime_validation": {
+    "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+    "qa_source_commit": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+    "runtime_manifest_sha256": "370dd1f8edc39e864e6b18dcf781780a908def061acba86e1102ce987ea5897d",
+    "native_ci": {
+      "headSha": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36873436732",
+      "jobs": [
+        {
+          "name": "hyper (ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "artifact (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "hyper (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "image (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "architectures": {
+      "arm64": {
+        "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+        "engines": {
+          "hyper": {
+            "integration_checks": 104,
+            "shared_limiter_checks": 14
+          },
+          "pingora": {
+            "integration_checks": 104,
+            "shared_limiter_checks": 14
+          }
+        },
+        "final_image": {
+          "image": "rgnix:ci",
+          "image_id": "sha256:9107c4b36697979c1d30180bff5dc59c97ffd41c76b3eeb0a762cc2ce8525d4b",
+          "architecture": "arm64",
+          "host_architecture": "aarch64",
+          "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+          "checks": [
+            {
+              "selection": "default",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "hyper",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "pingora",
+              "engine": "pingora",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            }
+          ]
+        }
+      },
+      "amd64": {
+        "binary_sha256": "dbf04693180c7a9a57eebd35afd45b9ae7863407bd6b50845cd75fbc6238bd51",
+        "engines": {
+          "hyper": {
+            "integration_checks": 104,
+            "shared_limiter_checks": 14
+          },
+          "pingora": {
+            "integration_checks": 104,
+            "shared_limiter_checks": 14
+          }
+        },
+        "final_image": {
+          "image": "rgnix:ci",
+          "image_id": "sha256:982a322afdc45626d5c1a67ba2e696afc006cf348ff67aa62a25dc56e41135e1",
+          "architecture": "amd64",
+          "host_architecture": "x86_64",
+          "binary_sha256": "dbf04693180c7a9a57eebd35afd45b9ae7863407bd6b50845cd75fbc6238bd51",
+          "checks": [
+            {
+              "selection": "default",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "hyper",
+              "engine": "hyper",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            },
+            {
+              "selection": "pingora",
+              "engine": "pingora",
+              "http": "PASS",
+              "ready": "PASS",
+              "metrics": "PASS"
+            }
+          ]
+        }
+      }
+    },
+    "local_image": {
+      "image": "rgnix:hyper-limiter-fix-20261001",
+      "image_id": "sha256:07a81050a738594712b4176961f0195d49e4729620a53fe286acc49311397ac0",
+      "architecture": "arm64",
+      "host_architecture": "arm64",
+      "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+      "checks": [
+        {
+          "selection": "default",
+          "engine": "hyper",
+          "http": "PASS",
+          "ready": "PASS",
+          "metrics": "PASS"
+        },
+        {
+          "selection": "hyper",
+          "engine": "hyper",
+          "http": "PASS",
+          "ready": "PASS",
+          "metrics": "PASS"
+        },
+        {
+          "selection": "pingora",
+          "engine": "pingora",
+          "http": "PASS",
+          "ready": "PASS",
+          "metrics": "PASS"
+        }
+      ]
+    },
+    "local_regression_policy": "200 ms deadline; max_inflight=1; requests 200/503/200; one TCP connection; two EVAL; no ambiguous debit replay",
+    "original_six_503_root_cause": "UNCONFIRMED",
+    "current_performance": "NOT RUN / historical 14bc benchmark is not a measurement of ca46 runtime",
+    "soak_qualification": "RUNNING / final-product load started; not a qualification pass",
+    "process_file": ".local/hyper-runtime-fix-20261001/process.json",
+    "local_kubernetes": {
+      "status": "SOAK_RUNNING",
+      "namespace": "rgnix-hyper-runtime-fix-soak-20261001",
+      "image": "rgnix:hyper-limiter-fix-20261001",
+      "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+      "script_sha256": {
+        "ingress-e2e.sh": "524a72e57daee890bd790c281487245699985be8e531f7602ec4b9b75b9a6583",
+        "gateway_e2e.py": "71e831d5e2c647300e1e2749d6b4fb2ec20a90d1a9087ba31a55f7586e166133"
+      },
+      "sleep_protection": {
+        "pid": 70575,
+        "arguments": [
+          "-i",
+          "-s",
+          "-w",
+          "70573"
+        ],
+        "status": "ACTIVE",
+        "power_at_start": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t63%; charging; 1:56 remaining present: true\n",
+        "scope": "temporary sleep assertions while AC powered; released at runner exit"
+      },
+      "ingress": {
+        "status": "PASS",
+        "ended_at": "2026-10-01T14:29:09.616524+00:00",
+        "checks": 46,
+        "pods": [
+          {
+            "name": "rgnix-qa-5db7848d47-6z22r",
+            "uid": "43b3b0aa-23c1-46d9-beb3-cffe1886fa6c",
+            "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+            "metrics": [
+              "rgnix_engine_info{engine=\"hyper\"} 1",
+              "rgnix_ready 1"
+            ],
+            "containers": [
+              {
+                "allocatedResources": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                },
+                "containerID": "containerd://62dcd0a75a79d9a0d19965c1f263dda49d930bdcfaced0a57fd321efd77d210f",
+                "image": "docker.io/library/rgnix:hyper-limiter-fix-20261001",
+                "imageID": "sha256:5c4647c45468944475b64eaca84b9d43d51dd742db43565df1aee9dded3aee58",
+                "lastState": {},
+                "name": "rgnix",
+                "ready": true,
+                "resources": {
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                  "running": {
+                    "startedAt": "2026-10-01T14:28:40Z"
+                  }
+                },
+                "user": {
+                  "linux": {
+                    "gid": 10101,
+                    "supplementalGroups": [
+                      10101
+                    ],
+                    "uid": 10101
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/var/run/rgnix",
+                    "name": "drain"
+                  },
+                  {
+                    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                    "name": "kube-api-access-kfbbc",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "rgnix-qa-5db7848d47-jd6j6",
+            "uid": "1a3880df-5e06-4c56-a300-bfd90bd08009",
+            "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+            "metrics": [
+              "rgnix_engine_info{engine=\"hyper\"} 1",
+              "rgnix_ready 1"
+            ],
+            "containers": [
+              {
+                "allocatedResources": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                },
+                "containerID": "containerd://ec8c82e4bf06a4b7e07bdb4433bae2a45748f88182f6f7f5da10f14f70a6cdb5",
+                "image": "docker.io/library/rgnix:hyper-limiter-fix-20261001",
+                "imageID": "sha256:5c4647c45468944475b64eaca84b9d43d51dd742db43565df1aee9dded3aee58",
+                "lastState": {},
+                "name": "rgnix",
+                "ready": true,
+                "resources": {
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                  "running": {
+                    "startedAt": "2026-10-01T14:28:36Z"
+                  }
+                },
+                "user": {
+                  "linux": {
+                    "gid": 10101,
+                    "supplementalGroups": [
+                      10101
+                    ],
+                    "uid": 10101
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/var/run/rgnix",
+                    "name": "drain"
+                  },
+                  {
+                    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                    "name": "kube-api-access-r4xhg",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gateway": {
+        "status": "PASS",
+        "ended_at": "2026-10-01T14:37:13.178994+00:00",
+        "checks": 112,
+        "pods": [
+          {
+            "name": "gateway-6c466d9b6f-flzh9",
+            "uid": "d1493c36-7dc6-40e1-ba6f-571c6a6081a1",
+            "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+            "metrics": [
+              "rgnix_engine_info{engine=\"hyper\"} 1",
+              "rgnix_ready 1"
+            ],
+            "containers": [
+              {
+                "allocatedResources": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                },
+                "containerID": "containerd://f3458d9bcc0d7e0850aeea4d180e1cf3aecd8b9282e2af3f45e80ea817da0480",
+                "image": "docker.io/library/rgnix:hyper-limiter-fix-20261001",
+                "imageID": "sha256:5c4647c45468944475b64eaca84b9d43d51dd742db43565df1aee9dded3aee58",
+                "lastState": {},
+                "name": "rgnix",
+                "ready": true,
+                "resources": {
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                  "running": {
+                    "startedAt": "2026-10-01T14:34:25Z"
+                  }
+                },
+                "user": {
+                  "linux": {
+                    "gid": 10101,
+                    "supplementalGroups": [
+                      10101
+                    ],
+                    "uid": 10101
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/var/run/rgnix",
+                    "name": "drain"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/global-rate-limit",
+                    "name": "global-rate-limit",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admission",
+                    "name": "admission-tls",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/release-metrics",
+                    "name": "release-metrics",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin-users",
+                    "name": "admin-users",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/tenancy",
+                    "name": "tenancy",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin",
+                    "name": "admin-token",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                    "name": "kube-api-access-49tx5",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "gateway-6c466d9b6f-jp7jn",
+            "uid": "3982b514-c8c7-433e-b0e2-aed9f2cf1588",
+            "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+            "metrics": [
+              "rgnix_engine_info{engine=\"hyper\"} 1",
+              "rgnix_ready 1"
+            ],
+            "containers": [
+              {
+                "allocatedResources": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                },
+                "containerID": "containerd://c542a339b17c062f576e72d5812f3e54bac685fe85ad61e5a747535cfef15697",
+                "image": "docker.io/library/rgnix:hyper-limiter-fix-20261001",
+                "imageID": "sha256:5c4647c45468944475b64eaca84b9d43d51dd742db43565df1aee9dded3aee58",
+                "lastState": {},
+                "name": "rgnix",
+                "ready": true,
+                "resources": {
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                  "running": {
+                    "startedAt": "2026-10-01T14:34:30Z"
+                  }
+                },
+                "user": {
+                  "linux": {
+                    "gid": 10101,
+                    "supplementalGroups": [
+                      10101
+                    ],
+                    "uid": 10101
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/var/run/rgnix",
+                    "name": "drain"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/global-rate-limit",
+                    "name": "global-rate-limit",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admission",
+                    "name": "admission-tls",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/release-metrics",
+                    "name": "release-metrics",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin-users",
+                    "name": "admin-users",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/tenancy",
+                    "name": "tenancy",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/etc/rgnix/admin",
+                    "name": "admin-token",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  },
+                  {
+                    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                    "name": "kube-api-access-6zbgg",
+                    "readOnly": true,
+                    "recursiveReadOnly": "Disabled"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "latest_observed_at": "2026-10-01T14:44:49.393779+00:00",
+      "latest_soak": {
+        "final": false,
+        "elapsed_seconds": 120.02762626798358,
+        "workers": [
+          {
+            "requests": 2766,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 2766,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4604,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 2759,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 2765,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4603,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 20263,
+        "failed_requests": 0,
+        "retained_latency_samples": 17056,
+        "p99_ms": 47.739926987560466
+      },
+      "load_first_observed_at": "2026-10-01T14:43:19.222503+00:00"
+    },
+    "downloaded_native_artifacts": {
+      "ci_run": 36873436732,
+      "head_commit": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+      "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+      "verified_at": "2026-10-01T14:35:34.026053+00:00",
+      "artifacts": {
+        "arm64": {
+          "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+          "size_bytes": 44328440,
+          "final_image_receipt_matches": true
+        },
+        "amd64": {
+          "binary_sha256": "dbf04693180c7a9a57eebd35afd45b9ae7863407bd6b50845cd75fbc6238bd51",
+          "size_bytes": 49166808,
+          "final_image_receipt_matches": true
+        }
+      }
+    }
   }
 }
