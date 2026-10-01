@@ -1,0 +1,336 @@
+--- a/vendor/hyper-util/src/client/legacy/client.rs
++++ b/vendor/hyper-util/src/client/legacy/client.rs
+@@ -53,6 +53,8 @@
+ 
+ #[derive(Clone, Copy, Debug)]
+ struct Config {
++    #[cfg(feature = "http1")]
++    inline_http1: bool,
+     retry_canceled_requests: bool,
+     set_host: bool,
+     ver: Ver,
+@@ -543,6 +545,8 @@
+         let h1_builder = self.inner.h1_builder.clone();
+         #[cfg(feature = "http2")]
+         let h2_builder = self.inner.h2_builder.clone();
++        #[cfg(feature = "http1")]
++        let inline_http1 = self.inner.config.inline_http1;
+         let ver = self.inner.config.ver;
+         let is_ver_h2 = ver == Ver::Http2;
+         let connector = self.inner.connector.clone();
+@@ -592,6 +596,8 @@
+                         let is_h2 = is_ver_h2 || connected.alpn == Alpn::H2;
+ 
+                         Either::Left(Box::pin(async move {
++                            #[cfg(feature = "http1")]
++                            let mut inline = None;
+                             let tx = if is_h2 {
+                                 #[cfg(feature = "http2")] {
+                                     let (mut tx, conn) =
+@@ -632,8 +638,7 @@
+                                     // Spawn the connection task in the background using the executor.
+                                     // The task manages the HTTP/1.1 connection, including upgrades (e.g., WebSocket).
+                                     // Errors are sent via err_tx to ensure they can be checked if the sender (tx) fails.
+-                                    executor.execute(
+-                                        conn.with_upgrades()
++                                    let task = conn.with_upgrades()
+                                             .map_err(|e| {
+                                                 // Log the connection error at debug level for diagnostic purposes.
+                                                 debug!("client connection error: {:?}", e);
+@@ -643,8 +648,14 @@
+                                                 // (e.g., if the receiver is dropped, which is handled later).
+                                                 let _ =err_tx.send(e);
+                                             })
+-                                            .map(|_| ()),
+-                                    );
++                                            .map(|_| ());
++                                    if inline_http1 {
++                                        let driver = super::inline::Driver::new(task);
++                                        executor.execute(driver.clone());
++                                        inline = Some(driver);
++                                    } else {
++                                        executor.execute(task);
++                                    }
+                                     // Log that the client is waiting for the connection to be ready.
+                                     // Readiness indicates the sender (tx) can accept a request without blocking.
+                                     trace!("waiting for connection to be ready");
+@@ -706,6 +717,8 @@
+                             Ok(pool.pooled(
+                                 connecting,
+                                 PoolClient {
++                                    #[cfg(feature = "http1")]
++                                    inline,
+                                     conn_info: connected,
+                                     tx,
+                                 },
+@@ -808,6 +821,8 @@
+ // FIXME: allow() required due to `impl Trait` leaking types to this lint
+ #[allow(missing_debug_implementations)]
+ struct PoolClient<B> {
++    #[cfg(feature = "http1")]
++    inline: Option<super::inline::Driver>,
+     conn_info: Connected,
+     tx: PoolTx<B>,
+ }
+@@ -870,7 +885,10 @@
+         #[cfg(all(feature = "http1", feature = "http2"))]
+         return match self.tx {
+             #[cfg(feature = "http1")]
+-            PoolTx::Http1(ref mut tx) => Either::Left(tx.try_send_request(req)),
++            PoolTx::Http1(ref mut tx) => Either::Left(super::inline::drive(
++                self.inline.clone(),
++                tx.try_send_request(req),
++            )),
+             #[cfg(feature = "http2")]
+             PoolTx::Http2(ref mut tx) => Either::Right(tx.try_send_request(req)),
+         };
+@@ -879,7 +897,9 @@
+         #[cfg(not(feature = "http2"))]
+         return match self.tx {
+             #[cfg(feature = "http1")]
+-            PoolTx::Http1(ref mut tx) => tx.try_send_request(req),
++            PoolTx::Http1(ref mut tx) => {
++                super::inline::drive(self.inline.clone(), tx.try_send_request(req))
++            }
+         };
+ 
+         #[cfg(not(feature = "http1"))]
+@@ -903,16 +923,21 @@
+         match self.tx {
+             #[cfg(feature = "http1")]
+             PoolTx::Http1(tx) => pool::Reservation::Unique(PoolClient {
++                inline: self.inline,
+                 conn_info: self.conn_info,
+                 tx: PoolTx::Http1(tx),
+             }),
+             #[cfg(feature = "http2")]
+             PoolTx::Http2(tx) => {
+                 let b = PoolClient {
++                    #[cfg(feature = "http1")]
++                    inline: None,
+                     conn_info: self.conn_info.clone(),
+                     tx: PoolTx::Http2(tx.clone()),
+                 };
+                 let a = PoolClient {
++                    #[cfg(feature = "http1")]
++                    inline: None,
+                     conn_info: self.conn_info,
+                     tx: PoolTx::Http2(tx),
+                 };
+@@ -1076,6 +1101,8 @@
+         let exec = Exec::new(executor);
+         Self {
+             client_config: Config {
++                #[cfg(feature = "http1")]
++                inline_http1: false,
+                 retry_canceled_requests: true,
+                 set_host: true,
+                 ver: Ver::Auto,
+@@ -1600,6 +1627,16 @@
+     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+     pub fn http2_max_send_buf_size(&mut self, max: usize) -> &mut Self {
+         self.h2_builder.max_send_buf_size(max);
++        self
++    }
++
++    /// Drive an exclusive HTTP/1 connection from its response future while
++    /// waiting for headers. Idle connections and streaming bodies continue in
++    /// the background; cancellation always returns ownership to that task.
++    /// Disabled by default. HTTP/2 connections are unaffected.
++    #[cfg(feature = "http1")]
++    pub fn http1_inline_driver(&mut self, enabled: bool) -> &mut Self {
++        self.client_config.inline_http1 = enabled;
+         self
+     }
+ 
+--- a/vendor/hyper-util/src/client/legacy/mod.rs
++++ b/vendor/hyper-util/src/client/legacy/mod.rs
+@@ -2,6 +2,8 @@
+ mod client;
+ #[cfg(any(feature = "http1", feature = "http2"))]
+ pub use client::{Builder, Client, Error, ResponseFuture};
++#[cfg(feature = "http1")]
++mod inline;
+ pub use pool::IdlePoolBudget;
+ 
+ /// Override HTTP/2 `:authority` after endpoint connection and pool selection.
+--- a/src/proxy/hyper/prepared.rs
++++ b/src/proxy/hyper/prepared.rs
+@@ -158,6 +158,7 @@
+                                 .pool_max_idle_per_host(pool_size)
+                                 .shared_idle_budget(idle_budget.clone())
+                                 .retry_canceled_requests(false)
++                                .http1_inline_driver(true)
+                                 .http2_only(transport.protocol == crate::upstream::Protocol::Http2);
+                             let telemetry = telemetry.clone();
+                             let label = name.clone();
+--- /dev/null
++++ b/vendor/hyper-util/src/client/legacy/inline.rs
+@@ -0,0 +1,167 @@
++use std::{
++    future::{poll_fn, Future},
++    pin::{pin, Pin},
++    sync::{Arc, Mutex},
++    task::{Context, Poll, Waker},
++};
++
++#[derive(Clone)]
++pub(super) struct Driver {
++    state: Arc<Mutex<State>>,
++}
++struct State {
++    connection: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
++    foreground: bool,
++    background: Option<Waker>,
++}
++
++impl Driver {
++    pub(super) fn new(connection: impl Future<Output = ()> + Send + 'static) -> Self {
++        Self {
++            state: Arc::new(Mutex::new(State {
++                connection: Some(Box::pin(connection)),
++                foreground: false,
++                background: None,
++            })),
++        }
++    }
++
++    fn claim(&self) -> Foreground {
++        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
++        // HTTP/1 pool reservations are exclusive; HTTP/2 never uses this driver.
++        assert!(!state.foreground, "HTTP/1 connection already in use");
++        state.foreground = true;
++        Foreground {
++            driver: self.clone(),
++        }
++    }
++
++    fn poll_connection(state: &mut State, cx: &mut Context<'_>) -> Poll<()> {
++        if let Some(connection) = &mut state.connection {
++            if connection.as_mut().poll(cx).is_pending() {
++                return Poll::Pending;
++            }
++        }
++        state.connection = None;
++        Poll::Ready(())
++    }
++}
++
++impl Future for Driver {
++    type Output = ();
++    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
++        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
++        // Foreground polling replaces the socket/dispatch waker even if the
++        // background task never ran while claimed. Keep its waker while idle
++        // too, so a partial response body always has a task to resume it.
++        if state
++            .background
++            .as_ref()
++            .is_none_or(|w| !w.will_wake(cx.waker()))
++        {
++            state.background = Some(cx.waker().clone());
++        }
++        if state.foreground {
++            Poll::Pending
++        } else {
++            Self::poll_connection(&mut state, cx)
++        }
++    }
++}
++
++struct Foreground {
++    driver: Driver,
++}
++impl Drop for Foreground {
++    fn drop(&mut self) {
++        let background = {
++            let mut state = self.driver.state.lock().unwrap_or_else(|e| e.into_inner());
++            state.foreground = false;
++            state.background.clone()
++        };
++        // Both completion and cancellation hand unread body/idle I/O back to the
++        // background task, which must re-register its own socket waker.
++        if let Some(waker) = background {
++            waker.wake();
++        }
++    }
++}
++
++pub(super) async fn drive<F: Future>(driver: Option<Driver>, future: F) -> F::Output {
++    let mut future = pin!(future);
++    let Some(driver) = driver else {
++        return future.await;
++    };
++    let _foreground = driver.claim();
++    poll_fn(|cx| {
++        if let Poll::Ready(result) = future.as_mut().poll(cx) {
++            return Poll::Ready(result);
++        }
++        {
++            let mut state = driver.state.lock().unwrap_or_else(|e| e.into_inner());
++            let _ = Driver::poll_connection(&mut state, cx);
++        }
++        future.as_mut().poll(cx)
++    })
++    .await
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::sync::atomic::{AtomicU8, Ordering};
++
++    #[tokio::test]
++    async fn completion_and_cancellation_resume_an_idle_driver() {
++        for cancel in [false, true] {
++            let ready = Arc::new(AtomicU8::new(0));
++            let state = ready.clone();
++            let (started, idle) = tokio::sync::oneshot::channel();
++            let (headers, response) = tokio::sync::oneshot::channel();
++            let (body, received) = tokio::sync::oneshot::channel();
++            let (mut started, mut headers, mut body) = (Some(started), Some(headers), Some(body));
++            let driver = Driver::new(poll_fn(move |_| {
++                if let Some(started) = started.take() {
++                    let _ = started.send(());
++                }
++                match state.load(Ordering::Relaxed) {
++                    1 => {
++                        if let Some(headers) = headers.take() {
++                            let _ = headers.send(());
++                        }
++                        Poll::Pending
++                    }
++                    2 => {
++                        if let Some(body) = body.take() {
++                            let _ = body.send(());
++                        }
++                        Poll::Ready(())
++                    }
++                    _ => Poll::Pending,
++                }
++            }));
++            let background = tokio::spawn(driver.clone());
++            idle.await.unwrap();
++            // Readiness can be consumed by the foreground without the idle task
++            // getting another poll. Its own waker must survive this takeover.
++            ready.store(1, Ordering::Relaxed);
++            if cancel {
++                let mut request = Box::pin(drive(Some(driver), std::future::pending::<()>()));
++                poll_fn(|cx| {
++                    assert!(request.as_mut().poll(cx).is_pending());
++                    Poll::Ready(())
++                })
++                .await;
++                drop(request);
++            } else {
++                drive(Some(driver), response).await.unwrap();
++            }
++            ready.store(2, Ordering::Relaxed);
++            tokio::time::timeout(std::time::Duration::from_secs(1), received)
++                .await
++                .unwrap()
++                .unwrap();
++            background.await.unwrap();
++        }
++    }
++}

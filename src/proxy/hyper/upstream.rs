@@ -11,10 +11,7 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::{
-    io::{AsyncRead, AsyncWrite, ReadBuf},
-    net::TcpStream,
-};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tower_service::Service;
 
 #[derive(Clone)]
@@ -22,19 +19,44 @@ pub(super) struct Connector {
     http: HttpConnector,
     read: Duration,
     write: Duration,
+    connect: Duration,
+    tls: Option<openssl::ssl::SslConnector>,
+    hostname: String,
+    http2: bool,
 }
 
 impl Connector {
-    pub fn new(connect: Duration, read: Duration, write: Duration) -> Self {
+    pub fn new(
+        connect: Duration,
+        read: Duration,
+        write: Duration,
+        transport: &crate::upstream::Transport,
+        backend: &crate::backend::Backend,
+    ) -> anyhow::Result<Self> {
         let mut http = HttpConnector::new();
+        http.enforce_http(false);
         http.set_nodelay(true);
         http.set_connect_timeout(Some(connect));
-        Self { http, read, write }
+        Ok(Self {
+            http,
+            read,
+            write,
+            connect,
+            tls: backend
+                .tls
+                .then(|| super::tls::connector(transport))
+                .transpose()?,
+            hostname: transport
+                .server_name
+                .clone()
+                .unwrap_or_else(|| backend.hostname.clone()),
+            http2: transport.protocol == crate::upstream::Protocol::Http2,
+        })
     }
 }
 
 impl Service<Uri> for Connector {
-    type Response = TokioIo<UpstreamIo<TcpStream>>;
+    type Response = UpstreamIo<super::tls::Stream>;
     type Error = BoxError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -44,10 +66,20 @@ impl Service<Uri> for Connector {
 
     fn call(&mut self, uri: Uri) -> Self::Future {
         let connecting = self.http.call(uri);
-        let (read, write) = (self.read, self.write);
+        let (read, write, timeout) = (self.read, self.write, self.connect);
+        let (tls, hostname, http2) = (self.tls.clone(), self.hostname.clone(), self.http2);
         Box::pin(async move {
-            let stream = connecting.await?.into_inner();
-            Ok(TokioIo::new(UpstreamIo::new(stream, read, write)))
+            tokio::time::timeout(timeout, async move {
+                let stream = connecting.await?.into_inner();
+                let stream = match tls {
+                    Some(tls) => super::tls::connect(&tls, &hostname, stream, http2).await?,
+                    None => super::tls::Stream::Plain(stream),
+                };
+                let multiplexed = http2 || stream.h2();
+                Ok(UpstreamIo::new(stream, read, write, multiplexed))
+            })
+            .await
+            .map_err(|_| io::Error::from(io::ErrorKind::TimedOut))?
         })
     }
 }
@@ -58,16 +90,25 @@ pub(super) struct UpstreamIo<T> {
     write: Deadline,
     read_timeout: Duration,
     write_timeout: Duration,
+    read_idle: bool,
+    multiplexed: bool,
 }
 
 impl<T> UpstreamIo<T> {
-    fn new(stream: T, read_timeout: Duration, write_timeout: Duration) -> Self {
+    pub(super) fn new(
+        stream: T,
+        read_timeout: Duration,
+        write_timeout: Duration,
+        multiplexed: bool,
+    ) -> Self {
         Self {
             stream,
             read: Deadline::default(),
             write: Deadline::default(),
             read_timeout,
             write_timeout,
+            read_idle: false,
+            multiplexed,
         }
     }
 
@@ -93,6 +134,16 @@ impl<T> UpstreamIo<T> {
     }
 }
 
+impl Connection for super::tls::Stream {
+    fn connected(&self) -> Connected {
+        if self.h2() {
+            Connected::new().negotiated_h2()
+        } else {
+            Connected::new()
+        }
+    }
+}
+
 impl<T: Connection> Connection for UpstreamIo<T> {
     fn connected(&self) -> Connected {
         self.stream.connected()
@@ -106,7 +157,7 @@ impl<T: AsyncRead + Unpin> AsyncRead for UpstreamIo<T> {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         match Pin::new(&mut self.stream).poll_read(cx, buf) {
-            Poll::Pending => {
+            Poll::Pending if !self.read_idle && !self.multiplexed => {
                 let timeout = self.read_timeout;
                 self.read.check(cx, timeout)
             }
@@ -115,6 +166,55 @@ impl<T: AsyncRead + Unpin> AsyncRead for UpstreamIo<T> {
                 ready
             }
         }
+    }
+}
+
+impl<T: AsyncRead + Unpin> hyper::rt::Read for UpstreamIo<T> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: hyper::rt::ReadBufCursor<'_>,
+    ) -> Poll<io::Result<()>> {
+        hyper::rt::Read::poll_read(Pin::new(&mut TokioIo::new(self.get_mut())), cx, buf)
+    }
+
+    fn set_read_idle(self: Pin<&mut Self>, cx: &mut Context<'_>, idle: bool) {
+        let this = self.get_mut();
+        if this.read_idle != idle {
+            // An idle socket has no response deadline. A new exchange must arm
+            // a fresh deadline rather than inherit the preceding idle probe.
+            this.read.clear();
+            this.read_idle = idle;
+        }
+        if !idle && !this.multiplexed {
+            let _ = this.read.check(cx, this.read_timeout);
+        }
+    }
+}
+
+impl<T: AsyncWrite + Unpin> hyper::rt::Write for UpstreamIo<T> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        AsyncWrite::poll_write(self, cx, buf)
+    }
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        AsyncWrite::poll_flush(self, cx)
+    }
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        AsyncWrite::poll_shutdown(self, cx)
+    }
+    fn is_write_vectored(&self) -> bool {
+        AsyncWrite::is_write_vectored(self)
+    }
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        AsyncWrite::poll_write_vectored(self, cx, bufs)
     }
 }
 
@@ -174,7 +274,7 @@ mod tests {
     async fn flush_without_upload_progress_cannot_extend_read_timeout() {
         let (client, _origin) = tokio::io::duplex(32);
         let timeout = Duration::from_millis(100);
-        let mut client = UpstreamIo::new(client, timeout, timeout);
+        let mut client = UpstreamIo::new(client, timeout, timeout, false);
         let mut buf = [0; 1];
         assert!(client.read(&mut buf).now_or_never().is_none());
         tokio::time::advance(Duration::from_millis(60)).await;
@@ -192,7 +292,7 @@ mod tests {
     async fn upload_progress_extends_read_deadline_and_success_rearms_it() {
         let (client, mut origin) = tokio::io::duplex(32);
         let timeout = Duration::from_millis(100);
-        let mut client = UpstreamIo::new(client, timeout, timeout);
+        let mut client = UpstreamIo::new(client, timeout, timeout, false);
         let mut buf = [0; 1];
         assert!(client.read(&mut buf).now_or_never().is_none());
         tokio::time::advance(Duration::from_millis(60)).await;

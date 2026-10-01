@@ -1,0 +1,680 @@
+{
+  "recorded_at": "2026-10-01T03:22:08Z",
+  "head": "1bd974f0f302b39268b4128e8e5a7785593a7176",
+  "scope": "Experimental Hyper and jemalloc plain HTTP/1 1KiB proxy on shared OrbStack Linux ARM64. Fixed request-preparation cost reduction, separate root-crate PGO trial. No commit, push, release or default data-plane switch.",
+  "compiler": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: aarch64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+  "nginx": "nginx version: nginx/1.28.0 (Ubuntu)\nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --with-cc-opt='-g -O2 -Werror=implicit-function-declaration -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -ffile-prefix-map=/build/nginx-gWX8vJ/nginx-1.28.0=. -flto=auto -ffat-lto-objects -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -mbranch-protection=standard -fdebug-prefix-map=/build/nginx-gWX8vJ/nginx-1.28.0=/usr/src/nginx-1.28.0-6ubuntu1.1 -fPIC -Wdate-time -D_FORTIFY_SOURCE=3' --with-ld-opt='-Wl,-Bsymbolic-functions -flto=auto -ffat-lto-objects -Wl,-z,relro -Wl,-z,now -fPIC' --override-system=Linux --override-release=3.16.0 --override-machine=aarch64 --prefix=/usr/share/nginx --conf-path=/etc/nginx/nginx.conf --http-log-path=/var/log/nginx/access.log --error-log-path=stderr --lock-path=/var/lock/nginx.lock --pid-path=/run/nginx.pid --modules-path=/usr/lib/nginx/modules --http-client-body-temp-path=/var/lib/nginx/body --http-fastcgi-temp-path=/var/lib/nginx/fastcgi --http-proxy-temp-path=/var/lib/nginx/proxy --http-scgi-temp-path=/var/lib/nginx/scgi --http-uwsgi-temp-path=/var/lib/nginx/uwsgi --with-compat --with-debug --with-pcre-jit --with-http_ssl_module --with-http_stub_status_module --with-http_realip_module --with-http_auth_request_module --with-http_v2_module --with-http_v3_module --with-http_dav_module --with-http_slice_module --with-threads --build=Ubuntu --with-http_addition_module --with-http_flv_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_mp4_module --with-http_random_index_module --with-http_secure_link_module --with-http_sub_module --with-mail_ssl_module --with-stream_ssl_module --with-stream_ssl_preread_module --with-stream_realip_module --with-http_geoip_module=dynamic --with-http_image_filter_module=dynamic --with-http_perl_module=dynamic --with-http_xslt_module=dynamic --with-mail=dynamic --with-stream=dynamic --with-stream_geoip_module=dynamic\n",
+  "kernel": "Linux ubuntu 7.0.14-orbstack-00380-ga7e0a2dc9535 #1 SMP PREEMPT Fri Aug  7 03:48:40 UTC 2026 aarch64 GNU/Linux\n",
+  "native_work_dir": "/var/tmp/rgnix-closegap-20261001",
+  "start_inventory": {
+    "head": "1bd974f0f302b39268b4128e8e5a7785593a7176",
+    "status": " M .github/workflows/ci.yml\n M Cargo.lock\n M Cargo.toml\n M Dockerfile\n M README.md\n M README.zh-CN.md\n M charts/rgnix/templates/controller.yaml\n M charts/rgnix/values.yaml\n M docs/hyper-experimental.md\n M docs/metrics.md\n M experiments/hyper-proxy/README.md\n M experiments/hyper-proxy/src/main.rs\n M experiments/hyper-proxy/verify.py\n M scripts/benchmark_compare.py\n M scripts/check.sh\n M scripts/gateway_e2e.py\n M scripts/hyper_integration.py\n M scripts/ingress-e2e.sh\n M scripts/integration.py\n M scripts/product_features.py\n M scripts/profile_http.py\n M src/compression.rs\n M src/main.rs\n M src/proxy/completion.rs\n M src/proxy/hyper/body.rs\n M src/proxy/hyper/io.rs\n M src/proxy/hyper/mod.rs\n M src/proxy/hyper/prepared.rs\n M src/proxy/hyper/request.rs\n M src/proxy/hyper/upstream.rs\n M src/proxy/mirror.rs\n M src/proxy/mod.rs\n M src/proxy/responses.rs\n M src/proxy/static_files.rs\n M src/proxy_protocol.rs\n M src/runtime.rs\n M src/telemetry.rs\n M src/telemetry/request.rs\n M src/telemetry/traffic.rs\n M vendor/hyper-util/src/client/legacy/client.rs\n M vendor/hyper-util/src/client/legacy/mod.rs\n M vendor/hyper-util/src/client/legacy/pool.rs\n M vendor/hyper/Cargo.toml\n M vendor/hyper/src/common/date.rs\n M vendor/hyper/src/ext/mod.rs\n M vendor/hyper/src/proto/h1/conn.rs\n M vendor/hyper/src/proto/h1/dispatch.rs\n M vendor/hyper/src/proto/h1/io.rs\n M vendor/hyper/src/proto/h1/mod.rs\n M vendor/hyper/src/proto/h1/role.rs\n M vendor/hyper/src/proto/h2/client.rs\n M vendor/hyper/src/proto/h2/mod.rs\n M vendor/hyper/src/proto/h2/server.rs\n M vendor/hyper/src/rt/io.rs\n?? docs/validation-allocator-2026-09-28.md\n?? docs/validation-hyper-deep-2026-10-01.md\n?? docs/validation-hyper-dispatch-2026-10-01.md\n?? docs/validation-hyper-forward-2026-10-01.md\n?? docs/validation-hyper-kernel-2026-09-28.md\n?? docs/validation-hyper-performance-2026-09-30.md\n?? docs/validation-hyper-plain-2026-09-30.md\n?? docs/validation-hyper-workers-2026-10-01.md\n?? docs/validation/allocator-1w-2026-09-28.json\n?? docs/validation/allocator-2026-09-28.json\n?? docs/validation/allocator-2w-2026-09-28.json\n?? docs/validation/allocator-4w-2026-09-28.json\n?? docs/validation/allocator-probe-after-2026-09-28.json\n?? docs/validation/allocator-probe-before-2026-09-28.json\n?? docs/validation/allocator-soak-2026-09-28.json\n?? docs/validation/analyze-hyper-performance-2026-09-30.py\n?? docs/validation/benchmark-hyper-idle-2026-10-01.py\n?? docs/validation/buffer-comparison-2026-09-28.json\n?? docs/validation/hyper-deep-2026-10-01.json\n?? docs/validation/hyper-deep-alloc-before-2026-10-01.json\n?? docs/validation/hyper-deep-alloc-compact-2026-10-01.json\n?? docs/validation/hyper-deep-alloc-retained-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-1w-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-1w-analysis-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-2w-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-2w-fixed-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-2w-fixed-analysis-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-owned-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-owned-fixed-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-owned-fixed-analysis-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-retained-2026-10-01.json\n?? docs/validation/hyper-deep-comparison-retained-analysis-2026-10-01.json\n?? docs/validation/hyper-deep-idle-tls-2026-10-01.json\n?? docs/validation/hyper-deep-local-2026-10-01.patch\n?? docs/validation/hyper-deep-primitives-before-2026-10-01.json\n?? docs/validation/hyper-deep-primitives-compact-2026-10-01.json\n?? docs/validation/hyper-deep-primitives-date-2026-10-01.json\n?? docs/validation/hyper-deep-primitives-dispatch-2026-10-01.json\n?? docs/validation/hyper-deep-primitives-retained-2026-10-01.json\n?? docs/validation/hyper-deep-profile-before-2026-10-01.json\n?? docs/validation/hyper-deep-profile-retained-2w-2026-10-01.json\n?? docs/validation/hyper-deep-syscalls-before-2026-10-01.json\n?? docs/validation/hyper-deep-syscalls-retained-2w-2026-10-01.json\n?? docs/validation/hyper-dispatch-2026-10-01.json\n?? docs/validation/hyper-dispatch-alloc-before-2026-10-01.json\n?? docs/validation/hyper-dispatch-alloc-direct-2026-10-01.json\n?? docs/validation/hyper-dispatch-alloc-idle-2026-10-01.json\n?? docs/validation/hyper-dispatch-alloc-inline-2026-10-01.json\n?? docs/validation/hyper-dispatch-alloc-optimized-2026-10-01.json\n?? docs/validation/hyper-dispatch-idle-1k-2026-10-01.json\n?? docs/validation/hyper-dispatch-idle-1k-analysis-2026-10-01.json\n?? docs/validation/hyper-dispatch-local-2026-10-01.patch\n?? docs/validation/hyper-dispatch-owned-local-2026-10-01.json\n?? docs/validation/hyper-dispatch-primitives-before-2026-10-01.json\n?? docs/validation/hyper-dispatch-primitives-direct-2026-10-01.json\n?? docs/validation/hyper-dispatch-primitives-idle-2026-10-01.json\n?? docs/validation/hyper-dispatch-primitives-inline-2026-10-01.json\n?? docs/validation/hyper-dispatch-primitives-optimized-2026-10-01.json\n?? docs/validation/hyper-dispatch-product-1k-2026-10-01.json\n?? docs/validation/hyper-dispatch-product-1k-analysis-2026-10-01.json\n?? docs/validation/hyper-dispatch-request-future-trial-2026-10-01.patch\n?? docs/validation/hyper-forward-2026-10-01.json\n?? docs/validation/hyper-forward-alloc-before-2026-10-01.json\n?? docs/validation/hyper-forward-alloc-metrics-2026-10-01.json\n?? docs/validation/hyper-forward-local-2026-10-01.patch\n?? docs/validation/hyper-forward-metric-lookups-2026-10-01.json\n?? docs/validation/hyper-forward-metrics-1k-2026-10-01.json\n?? docs/validation/hyper-forward-metrics-1k-analysis-2026-10-01.json\n?? docs/validation/hyper-forward-owned-local-2026-10-01.json\n?? docs/validation/hyper-forward-owned-local-analysis-2026-10-01.json\n?? docs/validation/hyper-forward-primitives-before-2026-10-01.json\n?? docs/validation/hyper-forward-primitives-metrics-2026-10-01.json\n?? docs/validation/hyper-inline-driver-rejected-2026-09-30.patch\n?? docs/validation/hyper-kernel-2026-09-28.json\n?? docs/validation/hyper-perf-baseline-2026-09-30.json\n?? docs/validation/hyper-perf-core-2026-09-30.json\n?? docs/validation/hyper-perf-final-2026-09-30.json\n?? docs/validation/hyper-perf-probe-before-2026-09-30.json\n?? docs/validation/hyper-perf-probe-final-2026-09-30.json\n?? docs/validation/hyper-performance-2026-09-30.json\n?? docs/validation/hyper-plain-2026-09-30.json\n?? docs/validation/hyper-plain-comparison-2026-09-30.json\n?? docs/validation/hyper-plain-driver-bug-2026-09-30.json\n?? docs/validation/hyper-plain-driver-rejected-2026-09-30.json\n?? docs/validation/hyper-plain-driver-stress-2026-09-30.json\n?? docs/validation/hyper-plain-probe-before-2026-09-30.json\n?? docs/validation/hyper-plain-probe-driver-2026-09-30.json\n?? docs/validation/hyper-plain-probe-retained-2026-09-30.json\n?? docs/validation/hyper-workers-2026-10-01.json\n?? docs/validation/hyper-workers-comparison-2026-10-01.json\n?? docs/validation/hyper-workers-comparison-analysis-2026-10-01.json\n?? docs/validation/hyper-workers-local-2026-10-01.patch\n?? docs/validation/hyper-workers-profile-local-2026-10-01.json\n?? docs/validation/hyper-workers-prototype-2026-10-01.json\n?? docs/validation/hyper-workers-prototype-analysis-2026-10-01.json\n?? docs/validation/hyper-workers-syscalls-before-2026-10-01.json\n?? docs/validation/hyper-workers-syscalls-local-2026-10-01.json\n?? experiments/hyper-proxy/src/owned.rs\n?? src/proxy/hyper/plain.rs\n?? src/proxy/hyper/responses.rs\n?? src/proxy/hyper/tls.rs\n?? src/proxy/policy.rs\n?? vendor/hyper/src/ext/send_informational.rs\n?? vendor/hyper/src/proto/h2/timeout.rs\n?? \"vendor/pingora-proxy/examples/connection_filter 2.rs\"\n?? \"vendor/pingora-proxy/examples/rate_limiter 2.rs\"\n?? \"vendor/pingora-proxy/src/subrequest/mod 2.rs\"\n?? \"vendor/pingora-proxy/src/subrequest/pipe 2.rs\"\n",
+    "files": {
+      "Cargo.toml": "310528e65e04ee19314334e2dfa6b6c9005dfb50843fc5e67b838e5130a20c34",
+      "Cargo.lock": "d998931a53fb0debfaca4207745adfd5d42d8fd1e08bdc7346856dcf2f70d3e2",
+      "vendor/hyper/src/client/dispatch.rs": "16c5e33bba8b08d448a5a1e1e879e9eee7985f82cd22b9f08c5cc961fe679142",
+      "src/proxy/hyper/request.rs": "f1810c6828be4a70b39f65509b733fdbdd39652fed68401af9f22ec5af9e6814",
+      "src/proxy/hyper/plain.rs": "22c61a92ba9042f329f2bb9276d4ca52639bb8b8da2010c33ac4400a65cc181e",
+      "src/backend.rs": "dc71a169908cb56e77b7ef80cffe0bd0967b3c755eb0365bcc8e7ca6ef4c285e",
+      "scripts/benchmark_compare.py": "187ae07575c78c938305cb1ba17ac495ebf95e7ca1ce2e9d0c605f7c34cbfc4e"
+    }
+  },
+  "root_source_before_sha256": "4f4e5e2d57aedd1b9478888db0b98186fe8a250fa063d632fc1b7a17b7fd26e1",
+  "root_source_final_sha256": "8fb685d25ba46a818794974ea81bdc4a48568eaaa6cb649a979fa0cff158861d",
+  "sources": {
+    "src/proxy/hyper/mod.rs": "d15be873ef267c77708f3c9228ea8277750f562022a6eaa74cd7901a077eaddb",
+    "src/proxy/hyper/request.rs": "187792f68d0351dfa29c72d87e5b2f6be06fb4bae59627f9ff86d1bdc22652f9",
+    "src/routing.rs": "6c92067dacf93a21f78a3ed23b9f1f2b1fff18c7bc8185223e54801f67a4a95e",
+    "scripts/hyper_integration.py": "137a34eadc4dc97a6f1dcb4190269838b118b31a1914ea3a67337c4f7d0a726a",
+    "scripts/nginx_parity.py": "625acecbf2a656374eb6caef8932f4e1663dd1f8fb97f3e85af5ff97231120b4",
+    "scripts/pgo.py": "b36f619b643f0b67378dd9f0548b7baffe83a65a6af863ca2dae396960ac9fc7"
+  },
+  "candidate": {
+    "path": "/var/tmp/rgnix-closegap-20261001/rgnix-hotpath",
+    "sha256": "af51b5ed2a1211a925e62966a2c94ae7601c6cb103bdb7f489d1714189f098d3"
+  },
+  "pgo": {
+    "compiler": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: aarch64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+    "source_sha256": "4f4e5e2d57aedd1b9478888db0b98186fe8a250fa063d632fc1b7a17b7fd26e1",
+    "features": "hyper-experimental,jemalloc",
+    "environment": {},
+    "builds": [
+      {
+        "mode": "generate",
+        "command": [
+          "cargo",
+          "rustc",
+          "--locked",
+          "--release",
+          "--features",
+          "hyper-experimental,jemalloc",
+          "--bin",
+          "rgnix",
+          "--target-dir",
+          "/home/livesite/.cache/rgnix-opt-target",
+          "--offline",
+          "--",
+          "-Cprofile-generate=/var/tmp/rgnix-closegap-20261001/profiles"
+        ],
+        "returncode": 0,
+        "seconds": 0.25400935200741515,
+        "binary": "/var/tmp/rgnix-closegap-20261001/rgnix-pgo-generate",
+        "sha256": "54a1b0741ad80651adcee442c1aa15c5b4ebf1e6145875399c54b7661489a2ce"
+      },
+      {
+        "mode": "use",
+        "command": [
+          "cargo",
+          "rustc",
+          "--locked",
+          "--release",
+          "--features",
+          "hyper-experimental,jemalloc",
+          "--bin",
+          "rgnix",
+          "--target-dir",
+          "/home/livesite/.cache/rgnix-opt-target",
+          "--offline",
+          "--",
+          "-Cprofile-use=/var/tmp/rgnix-closegap-20261001/rgnix.profdata",
+          "-Cllvm-args=-pgo-warn-missing-function"
+        ],
+        "returncode": 0,
+        "seconds": 116.59231745600118,
+        "binary": "/var/tmp/rgnix-closegap-20261001/rgnix-pgo-use",
+        "sha256": "63781242e41fb124dff1f9a12a48d5270938f61e3033e1ace2f06149aa8a1ca3"
+      }
+    ],
+    "profiles": {
+      "default_17429060807323465654_0.profraw": "d4ac8554430b0b6763627e433e9b8a9ce30eedda7dc45300afb01385145f2b58"
+    },
+    "llvm_profdata": "Ubuntu LLVM version 20.1.8\n  Optimized build.\n",
+    "merged_sha256": "186900be0c413457b6cb5ce9e590440282bdb55c669170d3963bf867f2289386"
+  },
+  "training": [
+    {
+      "name": "generate-tool",
+      "command": [
+        "python3",
+        "scripts/pgo.py",
+        "generate",
+        "--offline",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001",
+        "--target-dir",
+        "/home/livesite/.cache/rgnix-opt-target"
+      ],
+      "returncode": 0,
+      "seconds": 0.5656562799995299
+    },
+    {
+      "name": "training-integration",
+      "command": [
+        "python3",
+        "scripts/integration.py",
+        ".local/closegap-20261001/rgnix-pgo-generate-hyper"
+      ],
+      "returncode": 0,
+      "seconds": 23.45943632500712
+    },
+    {
+      "name": "training-load",
+      "command": [
+        "python3",
+        "scripts/benchmark_compare.py",
+        "--rgnix",
+        "/var/tmp/rgnix-closegap-20261001/rgnix-pgo-generate",
+        "--nginx",
+        "/usr/sbin/nginx",
+        "--openresty",
+        "/usr/sbin/nginx",
+        "--plain-proxy",
+        "--rgnix-transport",
+        "hyper",
+        "--engines",
+        "rgnix",
+        "--cases",
+        "proxy-1k",
+        "proxy-16k",
+        "--concurrency",
+        "16",
+        "128",
+        "--workers",
+        "1",
+        "--origin-workers",
+        "2",
+        "--client-threads",
+        "2",
+        "--server-cpus",
+        "10",
+        "--client-cpus",
+        "2,3",
+        "--origin-cpus",
+        "6,7",
+        "--rounds",
+        "1",
+        "--warmup",
+        "2",
+        "--seconds",
+        "8",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001/training-load",
+        "--output",
+        "/var/tmp/rgnix-closegap-20261001/training-load.json"
+      ],
+      "returncode": 0,
+      "seconds": 62.56744222401176
+    },
+    {
+      "name": "use-tool",
+      "command": [
+        "python3",
+        "scripts/pgo.py",
+        "use",
+        "--offline",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001",
+        "--target-dir",
+        "/home/livesite/.cache/rgnix-opt-target"
+      ],
+      "returncode": 0,
+      "seconds": 117.06005607100087
+    }
+  ],
+  "hotpath_stages": [
+    {
+      "name": "hotpath-check",
+      "command": [
+        "cargo",
+        "check",
+        "--offline",
+        "--locked",
+        "--features",
+        "hyper-experimental,jemalloc"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 15.298230806991342
+    },
+    {
+      "name": "hotpath-build",
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "--release",
+        "--features",
+        "hyper-experimental,jemalloc"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 250.78406504599843
+    },
+    {
+      "name": "alloc-before",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        ".local/allocator-opt-20260928/allocations.py",
+        "--profile",
+        "/var/tmp/rgnix-closegap-20261001/profile-before/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-forward-20261001/metrics-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001/alloc-before"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 2.036029797003721
+    },
+    {
+      "name": "primitives-before",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        "scripts/profile_http_primitives.py",
+        "--profile",
+        "/var/tmp/rgnix-closegap-20261001/profile-before/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-forward-20261001/metrics-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001/primitives-before"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 1.4186257340043085
+    },
+    {
+      "name": "alloc-hotpath",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        ".local/allocator-opt-20260928/allocations.py",
+        "--profile",
+        "/var/tmp/rgnix-closegap-20261001/profile-before/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-forward-20261001/metrics-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-closegap-20261001/rgnix-hotpath",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001/alloc-hotpath"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 1.5594192150019808
+    },
+    {
+      "name": "primitives-hotpath",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        "scripts/profile_http_primitives.py",
+        "--profile",
+        "/var/tmp/rgnix-closegap-20261001/profile-before/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-forward-20261001/metrics-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-closegap-20261001/rgnix-hotpath",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001/primitives-hotpath"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 1.4069463439955143
+    },
+    {
+      "name": "shared-hotpath",
+      "command": [
+        "python3",
+        ".local/closegap-20261001/compare_shared.py",
+        "--candidate",
+        "/var/tmp/rgnix-closegap-20261001/rgnix-hotpath",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001/shared-hotpath"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 186.50222675999976
+    },
+    {
+      "name": "normal-1k",
+      "command": [
+        "python3",
+        "scripts/benchmark_compare.py",
+        "--rgnix",
+        "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+        "--candidate",
+        "/var/tmp/rgnix-closegap-20261001/rgnix-hotpath",
+        "--nginx",
+        "/usr/sbin/nginx",
+        "--openresty",
+        "/usr/sbin/nginx",
+        "--plain-proxy",
+        "--rgnix-transport",
+        "hyper",
+        "--candidate-transport",
+        "hyper",
+        "--engines",
+        "rgnix",
+        "rgnix",
+        "candidate",
+        "candidate",
+        "nginx",
+        "nginx",
+        "--cases",
+        "proxy-1k",
+        "--concurrency",
+        "64",
+        "256",
+        "--workers",
+        "1",
+        "--origin-workers",
+        "2",
+        "--client-threads",
+        "2",
+        "--server-cpus",
+        "10",
+        "--client-cpus",
+        "2,3",
+        "--origin-cpus",
+        "6,7",
+        "--rounds",
+        "3",
+        "--warmup",
+        "3",
+        "--seconds",
+        "12",
+        "--interleave",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001/normal-1k",
+        "--output",
+        "/var/tmp/rgnix-closegap-20261001/normal-1k.json"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 566.6267555170052
+    },
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 0.6157068299944513
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--features",
+        "hyper-experimental,jemalloc",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 5.931264800994541
+    },
+    {
+      "name": "lifecycle",
+      "command": [
+        "python3",
+        "scripts/hyper_integration.py",
+        "/var/tmp/rgnix-closegap-20261001/rgnix-hotpath",
+        "--threads",
+        "2",
+        "--ephemeral-listener"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 6.064672374006477
+    },
+    {
+      "name": "integration",
+      "command": [
+        "python3",
+        "scripts/integration.py",
+        ".local/closegap-20261001/rgnix-hotpath-hyper"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 22.94083233899437
+    },
+    {
+      "name": "product",
+      "command": [
+        "python3",
+        "scripts/product_features.py",
+        ".local/closegap-20261001/rgnix-hotpath-hyper"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 47.24434904300142
+    },
+    {
+      "name": "parity-hyper",
+      "command": [
+        "python3",
+        "scripts/nginx_parity.py",
+        ".local/closegap-20261001/rgnix-hotpath-hyper"
+      ],
+      "returncode": 1,
+      "expected": 0,
+      "seconds": 5.610698948003119
+    }
+  ],
+  "parity_repair": [
+    {
+      "name": "parity-hyper-fixed",
+      "command": [
+        "python3",
+        "scripts/nginx_parity.py",
+        ".local/closegap-20261001/rgnix-hotpath-hyper"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 5.950775807010359
+    },
+    {
+      "name": "parity-pingora",
+      "command": [
+        "python3",
+        "scripts/nginx_parity.py",
+        "/var/tmp/rgnix-closegap-20261001/rgnix-hotpath"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 6.004654684002162
+    },
+    {
+      "name": "default-check",
+      "command": [
+        "cargo",
+        "check",
+        "--offline",
+        "--locked"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 2.1990234189870534
+    },
+    {
+      "name": "pgo-source-guard",
+      "command": [
+        "python3",
+        "scripts/pgo.py",
+        "use",
+        "--offline",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001"
+      ],
+      "returncode": 2,
+      "expected": 2,
+      "seconds": 0.17369779600994661
+    },
+    {
+      "name": "pgo-generation-guard",
+      "command": [
+        "python3",
+        "scripts/pgo.py",
+        "generate",
+        "--offline",
+        "--work-dir",
+        "/var/tmp/rgnix-closegap-20261001"
+      ],
+      "returncode": 2,
+      "expected": 2,
+      "seconds": 0.0658131649979623
+    },
+    {
+      "name": "python-syntax",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "scripts/pgo.py",
+        "scripts/nginx_parity.py",
+        "scripts/hyper_integration.py"
+      ],
+      "returncode": 0,
+      "expected": 0,
+      "seconds": 0.02157185999385547
+    }
+  ],
+  "first_pipeline_stopped": {
+    "reason": "Stopped queued ordinary build/formal PGO benchmark/validation after the complete shared PGO trial, to test listener sharing separately. No measured windows were interrupted or removed.",
+    "shared_pgo_windows": 36
+  },
+  "raw_files": {
+    "profile-before": {
+      "path": "docs/validation/hyper-closegap-profile-before-2026-10-01.json",
+      "sha256": "87c20e2cee23c5f25a22615f18fb67272ac3857f8220109d1ecbf3d6394f421c"
+    },
+    "normal-1k": {
+      "path": "docs/validation/hyper-closegap-normal-1k-2026-10-01.json",
+      "sha256": "1ea0fa5c81125fd83f6d9961fe2343bfd6b625a93620665a54de604813604817"
+    },
+    "normal-1k-analysis": {
+      "path": "docs/validation/hyper-closegap-normal-1k-analysis-2026-10-01.json",
+      "sha256": "2632a83dba47591c1364548924eac3fb537502626801e4dbb2c0a7dd0022113e"
+    },
+    "tail-repeat": {
+      "path": "docs/validation/hyper-closegap-tail-repeat-2026-10-01.json",
+      "sha256": "234f7223a7fbc75e75a1153aebe9e7c750c28cc58c23d64e43fbee2da8123091"
+    },
+    "tail-repeat-analysis": {
+      "path": "docs/validation/hyper-closegap-tail-repeat-analysis-2026-10-01.json",
+      "sha256": "d7e394d87cafd0cc72bcbb9751f89a34083bf869a54bfa7b56d3cb04bfe4b3eb"
+    },
+    "training-load": {
+      "path": "docs/validation/hyper-closegap-training-load-2026-10-01.json",
+      "sha256": "017b6f9845b91cedf27bcfeb4e855d306b481a4c1acce2b3ee276dee2868a22d"
+    },
+    "shared-control": {
+      "path": "docs/validation/hyper-closegap-shared-control-2026-10-01.json",
+      "sha256": "0392cf3ac261f858424b47d38270ec34968042d5f883919bdb64fae21709a6d9"
+    },
+    "shared-control-analysis": {
+      "path": "docs/validation/hyper-closegap-shared-control-analysis-2026-10-01.json",
+      "sha256": "b9cbe28e60d1b3c5e1ef31dbb510e19173fc1586c51b7220fcd9bb0aa1e15b53"
+    },
+    "shared-control-matched": {
+      "path": "docs/validation/hyper-closegap-shared-control-matched-2026-10-01.json",
+      "sha256": "05756414a2b6e23574455c1b8fa427f620cebb7a73fc8389110ea9e78fdc8960"
+    },
+    "shared-pgo": {
+      "path": "docs/validation/hyper-closegap-shared-pgo-2026-10-01.json",
+      "sha256": "db71bb7ecc6c82bd05e5a244a72f9c364a1957da568d0e6f2ff1fea7f62ca8f4"
+    },
+    "shared-pgo-analysis": {
+      "path": "docs/validation/hyper-closegap-shared-pgo-analysis-2026-10-01.json",
+      "sha256": "8e8513bee1eb26ce30f36b33074bee6e41a99563a32f2c69805d01a0a8b44504"
+    },
+    "shared-pgo-matched": {
+      "path": "docs/validation/hyper-closegap-shared-pgo-matched-2026-10-01.json",
+      "sha256": "43a87bb9d639d0cc1fcaa922e09501219d81df26414bb8624aa47c2c80aea76d"
+    },
+    "shared-hotpath": {
+      "path": "docs/validation/hyper-closegap-shared-hotpath-2026-10-01.json",
+      "sha256": "98be42c689a0a55f27412c865f4f04ee6ebb36fb0f6e2701ec102604241b7ff9"
+    },
+    "shared-hotpath-analysis": {
+      "path": "docs/validation/hyper-closegap-shared-hotpath-analysis-2026-10-01.json",
+      "sha256": "342c750aafa6dba9bce518f0501bfc8e3569f99e74f7042c5c6440231fe62edf"
+    },
+    "shared-hotpath-matched": {
+      "path": "docs/validation/hyper-closegap-shared-hotpath-matched-2026-10-01.json",
+      "sha256": "327b00af272e23d1fc328f7cbfa22bece4a878fd2676eea2b39a5239b5ae9452"
+    },
+    "alloc-before": {
+      "path": "docs/validation/hyper-closegap-alloc-before-2026-10-01.json",
+      "sha256": "c803d15abce43242f5a5919c97659d4669eaab1f7902d6abaf35cb8b5c6eb940"
+    },
+    "primitives-before": {
+      "path": "docs/validation/hyper-closegap-primitives-before-2026-10-01.json",
+      "sha256": "72a609b1dc694925b048db6af5bdad1984be3caefad44e9655eb07f2aec14daa"
+    },
+    "alloc-hotpath": {
+      "path": "docs/validation/hyper-closegap-alloc-hotpath-2026-10-01.json",
+      "sha256": "dfb911642c045b2e8d0cc33d7861422dca5d6c60c1b277dacb0a0f9ace4bd920"
+    },
+    "primitives-hotpath": {
+      "path": "docs/validation/hyper-closegap-primitives-hotpath-2026-10-01.json",
+      "sha256": "be47ea610f6607387db1420a160e2fb1ac1557ea8ebe9037816f2d15c4774b66"
+    }
+  },
+  "dso_reports": {
+    "hyper": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 4K of event 'cpu-clock'\n# Event count (approx.): 25025122500\n#\n# Overhead  Shared Object    \n# ........  .................\n#\n    52.57%  [kernel.kallsyms]\n    37.79%  rgnix-metrics    \n     6.29%  libc.so.6        \n     3.35%  [vdso]           \n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n",
+    "nginx": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 4K of event 'cpu-clock'\n# Event count (approx.): 24899494375\n#\n# Overhead  Shared Object    \n# ........  .................\n#\n    68.94%  [kernel.kallsyms]\n    21.13%  nginx            \n     9.87%  libc.so.6        \n     0.06%  [vdso]           \n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+  },
+  "runtime_validation": {
+    "lifecycle": 58,
+    "integration": 101,
+    "product": 115,
+    "parity_hyper": 49,
+    "parity_pingora": 49,
+    "pgo_expected_rejections": 2
+  },
+  "findings": [
+    "No stable throughput or CPU cost improvement established. All initial formal and co-running absolute A/A groups failed. Matched co-running ratios do not replace standalone capacity calibration.",
+    "The original parity harness treated echoed Host field names case-sensitively. Both frozen baseline and candidate failed identically. Only the oracle comparison was repaired; original failures retained.",
+    "The PGO trial was not enabled in default Cargo/container builds. Profiles were collected on the pre-optimization source, and the current helper correctly refuses using them with changed source.",
+    "Captured operations decreased, but cumulative requested bytes stayed nearly flat; an extra 8192-byte allocation occurred in the candidate probe. Counts include background work; copies exclude inlined implementations.",
+    "The 57.685ms candidate P99 window is retained; focused c64 repeat is independent, not a replacement.",
+    "No hardware cycles/instructions in this VM. No dedicated physical-host, amd64, non-Linux, TLS/H2/RGL/static throughput, long soak or multi-replica Kubernetes capacity qualification. Existing mTLS CA-rotation intermittent reset remains unexplained."
+  ],
+  "logs": {
+    "alloc-before.log": "Added new event:\n  rgnix_http_102605:malloc (on _rjem_malloc in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102605:malloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_102605:mallocx (on _rjem_mallocx in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102605:mallocx -aR sleep 1\n\nAdded new event:\n  rgnix_http_102605:calloc (on _rjem_calloc in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102605:calloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_102605:realloc (on _rjem_realloc in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102605:realloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_102605:rallocx (on _rjem_rallocx in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102605:rallocx -aR sleep 1\n\nhyper {'malloc': 8023, 'mallocx': 1} requested bytes/request 2637.944\nRemoved event: rgnix_http_102605:rallocx\nRemoved event: rgnix_http_102605:realloc\nRemoved event: rgnix_http_102605:calloc\nRemoved event: rgnix_http_102605:mallocx\nRemoved event: rgnix_http_102605:malloc\n",
+    "alloc-hotpath.log": "Added new event:\n  rgnix_http_102677:malloc (on _rjem_malloc in /var/tmp/rgnix-closegap-20261001/rgnix-hotpath with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102677:malloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_102677:mallocx (on _rjem_mallocx in /var/tmp/rgnix-closegap-20261001/rgnix-hotpath with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102677:mallocx -aR sleep 1\n\nAdded new event:\n  rgnix_http_102677:calloc (on _rjem_calloc in /var/tmp/rgnix-closegap-20261001/rgnix-hotpath with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102677:calloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_102677:realloc (on _rjem_realloc in /var/tmp/rgnix-closegap-20261001/rgnix-hotpath with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102677:realloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_102677:rallocx (on _rjem_rallocx in /var/tmp/rgnix-closegap-20261001/rgnix-hotpath with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102677:rallocx -aR sleep 1\n\nhyper {'malloc': 7025, 'mallocx': 1} requested bytes/request 2635.408\nRemoved event: rgnix_http_102677:rallocx\nRemoved event: rgnix_http_102677:realloc\nRemoved event: rgnix_http_102677:calloc\nRemoved event: rgnix_http_102677:mallocx\nRemoved event: rgnix_http_102677:malloc\n",
+    "clippy.log": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 5.86s\n",
+    "default-check.log": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 2.13s\n",
+    "fmt.log": "",
+    "generate-tool.log": "{\n  \"mode\": \"generate\",\n  \"command\": [\n    \"cargo\",\n    \"rustc\",\n    \"--locked\",\n    \"--release\",\n    \"--features\",\n    \"hyper-experimental,jemalloc\",\n    \"--bin\",\n    \"rgnix\",\n    \"--target-dir\",\n    \"/home/livesite/.cache/rgnix-opt-target\",\n    \"--offline\",\n    \"--\",\n    \"-Cprofile-generate=/var/tmp/rgnix-closegap-20261001/profiles\"\n  ],\n  \"returncode\": 0,\n  \"seconds\": 0.25400935200741515,\n  \"binary\": \"/var/tmp/rgnix-closegap-20261001/rgnix-pgo-generate\",\n  \"sha256\": \"54a1b0741ad80651adcee442c1aa15c5b4ebf1e6145875399c54b7661489a2ce\"\n}\n",
+    "hotpath-build.log": "   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 4m 10s\n",
+    "hotpath-check.log": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 15.23s\n",
+    "integration.log": "compiled /tmp/rgnix-acceptance-o_k0i0bw/routes.rgl -> /tmp/rgnix-acceptance-o_k0i0bw/routes.wasm (780 bytes)\nconfiguration valid: 2 listeners, 2 virtual hosts, 8 backends\nPASS script aliases reject upstreams with conflicting transport protocols\nPASS configuration rejects invalid body modes, limits and timeouts\nPASS header variables retain the last valid repeated value\nPASS static GET\nPASS static HEAD\nPASS static small and streamed files preserve lengths, ranges and conditional responses across file changes\nPASS atomic file replacement and ranges remain fresh across persistent requests\nPASS static single range\nPASS unsatisfiable range\nPASS conditional GET\nPASS If-Range HTTP date retains partial response\nPASS directory redirect and index\nPASS symlink containment\nPASS contained symlink still serves a regular file\nPASS FIFO files and indexes cannot exhaust the static file pool\nPASS path traversal rejection\nPASS proxy_pass URI replacement\nPASS large header sets preserve duplicates and isolate keepalive requests\nPASS proxy_pass preserves original URI\nPASS IPv6 upstream\nPASS trusted HTTPS upstream\nPASS HTTPS upstream rejects hostname mismatch\nPASS HTTPS upstream rejects untrusted certificate\nPASS Connection cannot remove framing or Host\nPASS inherited response header\nPASS streaming request body\nPASS valid chunked request keeps its connection reusable\nPASS TE plus Content-Length cannot re-enable connection reuse\nPASS HTTP/1.0 without keep-alive closes after the response\nPASS request body limit\nPASS chunked HTTP body limit\nPASS chunked HTTP body limit before a requested WebSocket upgrade\nPASS compiled request and response hooks\nPASS query-only edits preserve raw paths and can clear the query\nPASS query edits retain proxy URI replacement and explicit path rewrites\nPASS compiled Wasm artifact loads independently\nPASS static plugin redirect preserves literal percent and rewritten query\nPASS informational responses do not consume the final response hook\nPASS plugin direct response\nPASS superseded plugin decisions fail instead of selecting another backend\nPASS script backend alias preserves HTTPS and forwarded headers\nPASS script HTTPS backend still verifies certificates\nPASS fuel limits infinite loops\nPASS trapped request-only hook retains client identity in access logs\nPASS response hook failure returns 500 without staged edits\nPASS upstream disconnect never replays POST\nPASS upstream read timeout returns 504\nPASS TLS listener\nPASS HTTP/2 negotiation\nPASS JSON body routes to the selected HTTPS backend without changing bytes\nPASS JSON routing is isolated between requests\nPASS invalid JSON, incomplete JSON and non-string fields do not match\nPASS full inspection can replay bodies larger than Pingora's original 64 KiB buffer\nPASS prefix inspection routes binary uploads and preserves the entire body\nPASS body byte metrics count prefix replay once and inspection only includes the prefix\nPASS content beyond the configured prefix cannot influence routing\nPASS a closed JSON object in a truncated prefix is not treated as complete JSON\nPASS short prefix-inspected bodies may use JSON routing when fully read\nPASS UTF-8 cut at the prefix boundary is nil as text but searchable as bytes\nPASS body inspection remains opt-in\nPASS empty uploads retain complete full/prefix inspection and opt-in semantics\nPASS full inspection rejects oversized known-length bodies\nPASS fragmented and chunked prefix uploads replay once and keep the next request aligned\nPASS full inspection rejects oversized chunked bodies before proxying\nPASS prefix decisions do not wait for the tail; incomplete prefixes have a total timeout\nPASS Expect 100-continue works before inspection without a second upstream expectation\nPASS HTTP/2 full and prefix routing preserve the original body\nPASS body inspection does not enable upstream POST retries\nPASS cancelled body inspection leaves the service available\nPASS in-flight body inspection retains its policy across reload\nPASS SSE first event is streamed\nPASS WebSocket upgrade and bidirectional frames\nPASS WebSocket streams beyond the HTTP body limit (3 MiB)\nPASS WebSocket close frame survives the long stream\nPASS reload keeps in-flight snapshot\nPASS invalid reload retains active configuration\nPASS compiler rejects a flat expression with excessive AST depth\nPASS deep AST reload cannot abort the data plane\nPASS plugin budget rejects excess instances while plain routes work\nPASS inflight budget sheds requests without blocking admin\nPASS live gauges show occupied process, plugin and backend permits\nPASS completed requests release resource permits\nPASS live metrics release permits after requests finish\nPASS request-only hooks release the plugin budget before a slow upstream completes\nPASS single endpoint still ejects failed connections without retrying\nPASS failed endpoint is excluded without replaying its requests\nPASS excluded endpoint re-enters rotation after cooldown\nPASS single endpoint also recovers after cooldown\nPASS constant return preserves HEAD content length\nPASS plain proxy records headers while deferring completion until body finishes\nPASS reload adds a traffic policy to a previously plain return\nPASS plain in-flight proxy keeps its snapshot during policy reload\nPASS old and new snapshots share backend metrics and finish each request once\nPASS reload from traffic policy to dynamic return uses request variables\nPASS repeated SIGINT exits all listener workers without spinning on a stopped reactor\nPASS metrics are exposed\nPASS client cancellation preserves service\nPASS drain removes readiness while health stays live\nPASS drain finishes the next keepalive request and advertises Connection close\nPASS established WebSocket remains usable during drain\nPASS failed controller is neither healthy nor ready\n101 integration checks passed; /var/tmp/rgnix-closegap-20261001/integration.json\n",
+    "lifecycle.log": "PASS a second server cannot join the worker listener port\nPASS all workers share one port allocated by listen 0\nPASS idle connections share a hard budget across listeners without blocking admin\nPASS closing idle connections releases connection admission\nPASS plaintext listener accepts HTTP/2 prior knowledge\nPASS HTTP/1 response trailers survive streamed forwarding\nPASS HTTP/1 request trailers survive streamed forwarding\nPASS HTTP/2 flow-control timeout is isolated from concurrent stream traffic\nPASS HTTP/2 response header timeout expires on a busy multiplexed connection\nPASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS generated Date advances on a persistent connection\nPASS configured Date is preserved\nPASS HTTP/1 idle upstream outlives response read timeout and stays reusable\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS all Connection fields remove nominated headers while preserving end-to-end headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS invalid plugin reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 2,\n  \"passed\": 58,\n  \"checks\": [\n    \"a second server cannot join the worker listener port\",\n    \"all workers share one port allocated by listen 0\",\n    \"idle connections share a hard budget across listeners without blocking admin\",\n    \"closing idle connections releases connection admission\",\n    \"plaintext listener accepts HTTP/2 prior knowledge\",\n    \"HTTP/1 response trailers survive streamed forwarding\",\n    \"HTTP/1 request trailers survive streamed forwarding\",\n    \"HTTP/2 flow-control timeout is isolated from concurrent stream traffic\",\n    \"HTTP/2 response header timeout expires on a busy multiplexed connection\",\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"generated Date advances on a persistent connection\",\n    \"configured Date is preserved\",\n    \"HTTP/1 idle upstream outlives response read timeout and stays reusable\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"all Connection fields remove nominated headers while preserving end-to-end headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"invalid plugin reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n",
+    "normal-1k.log": "origin proxy-1k: 159351 req/s\nround 1 rgnix proxy-1k c64: 52884 req/s; p99 3.773 ms; CPU 0.98; PSS 28.8 MiB; errors 0\nround 1 rgnix proxy-1k c64: 63091 req/s; p99 2.139 ms; CPU 1.00; PSS 28.9 MiB; errors 0\nround 1 candidate proxy-1k c64: 52189 req/s; p99 3.451 ms; CPU 1.00; PSS 28.6 MiB; errors 0\nround 1 candidate proxy-1k c64: 37667 req/s; p99 57.685 ms; CPU 0.96; PSS 28.5 MiB; errors 0\nround 1 nginx proxy-1k c64: 71026 req/s; p99 2.025 ms; CPU 1.00; PSS 11.4 MiB; errors 0\nround 1 nginx proxy-1k c64: 73420 req/s; p99 1.784 ms; CPU 0.99; PSS 11.4 MiB; errors 0\nround 1 rgnix proxy-1k c256: 54643 req/s; p99 7.950 ms; CPU 1.00; PSS 48.5 MiB; errors 0\nround 1 rgnix proxy-1k c256: 30344 req/s; p99 12.562 ms; CPU 1.00; PSS 47.3 MiB; errors 0\nround 1 candidate proxy-1k c256: 42529 req/s; p99 11.735 ms; CPU 1.00; PSS 47.1 MiB; errors 0\nround 1 candidate proxy-1k c256: 36872 req/s; p99 13.128 ms; CPU 1.00; PSS 47.4 MiB; errors 0\nround 1 nginx proxy-1k c256: 59555 req/s; p99 8.389 ms; CPU 1.00; PSS 14.2 MiB; errors 0\nround 1 nginx proxy-1k c256: 44507 req/s; p99 9.609 ms; CPU 1.00; PSS 14.1 MiB; errors 0\nround 2 rgnix proxy-1k c256: 29489 req/s; p99 12.803 ms; CPU 1.00; PSS 46.5 MiB; errors 0\nround 2 candidate proxy-1k c256: 38266 req/s; p99 9.350 ms; CPU 1.00; PSS 47.6 MiB; errors 0\nround 2 candidate proxy-1k c256: 38917 req/s; p99 9.313 ms; CPU 1.00; PSS 46.9 MiB; errors 0\nround 2 nginx proxy-1k c256: 52650 req/s; p99 7.959 ms; CPU 1.00; PSS 14.2 MiB; errors 0\nround 2 nginx proxy-1k c256: 52826 req/s; p99 8.459 ms; CPU 1.00; PSS 14.2 MiB; errors 0\nround 2 rgnix proxy-1k c256: 42794 req/s; p99 9.171 ms; CPU 1.00; PSS 47.4 MiB; errors 0\nround 2 rgnix proxy-1k c64: 66945 req/s; p99 2.241 ms; CPU 1.00; PSS 29.3 MiB; errors 0\nround 2 candidate proxy-1k c64: 84470 req/s; p99 22.836 ms; CPU 0.96; PSS 28.5 MiB; errors 0\nround 2 candidate proxy-1k c64: 82251 req/s; p99 1.693 ms; CPU 0.99; PSS 28.6 MiB; errors 0\nround 2 nginx proxy-1k c64: 115926 req/s; p99 4.017 ms; CPU 0.98; PSS 12.4 MiB; errors 0\nround 2 nginx proxy-1k c64: 84586 req/s; p99 10.374 ms; CPU 0.95; PSS 12.4 MiB; errors 0\nround 2 rgnix proxy-1k c64: 95321 req/s; p99 1.943 ms; CPU 0.98; PSS 29.0 MiB; errors 0\nround 3 candidate proxy-1k c64: 101719 req/s; p99 1.079 ms; CPU 1.00; PSS 28.6 MiB; errors 0\nround 3 candidate proxy-1k c64: 99440 req/s; p99 1.714 ms; CPU 1.00; PSS 28.5 MiB; errors 0\nround 3 nginx proxy-1k c64: 100800 req/s; p99 1.554 ms; CPU 0.99; PSS 12.4 MiB; errors 0\nround 3 nginx proxy-1k c64: 127798 req/s; p99 1.393 ms; CPU 0.99; PSS 12.3 MiB; errors 0\nround 3 rgnix proxy-1k c64: 101554 req/s; p99 1.170 ms; CPU 1.00; PSS 29.1 MiB; errors 0\nround 3 rgnix proxy-1k c64: 102089 req/s; p99 3.453 ms; CPU 0.98; PSS 29.1 MiB; errors 0\nround 3 candidate proxy-1k c256: 65836 req/s; p99 9.952 ms; CPU 1.00; PSS 47.3 MiB; errors 0\nround 3 candidate proxy-1k c256: 62324 req/s; p99 7.866 ms; CPU 1.00; PSS 48.0 MiB; errors 0\nround 3 nginx proxy-1k c256: 91173 req/s; p99 5.523 ms; CPU 1.00; PSS 14.5 MiB; errors 0\nround 3 nginx proxy-1k c256: 85289 req/s; p99 5.389 ms; CPU 1.00; PSS 14.5 MiB; errors 0\nround 3 rgnix proxy-1k c256: 67559 req/s; p99 5.785 ms; CPU 1.00; PSS 48.3 MiB; errors 0\nround 3 rgnix proxy-1k c256: 58961 req/s; p99 11.045 ms; CPU 0.99; PSS 47.7 MiB; errors 0\nSaved 36 runs to /var/tmp/rgnix-closegap-20261001/normal-1k.json\n",
+    "parity-baseline-case-failure.log": "PASS parity / {}\nPASS parity /plain {}\nPASS parity /plain-more {}\nPASS parity /headers {}\nPASS parity /data.txt {}\nPASS parity /data.txt {'Range': 'bytes=3-5'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 14 Nov 2023 22:13:20 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 02 Jan 2024 00:00:00 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Mon, 01 Jan 2001 00:00:00 GMT'}\nPASS parity /slash {}\n[2026-10-01T03:14:42Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting\n[2026-10-01T03:14:42Z INFO  pingora_core::server::bootstrap_services] Bootstrap done\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Server starting\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting services in dependency order: [\"BG control\", \"BG rollout-metrics\", \"BG access-policy-watch\", \"BG upstream-maintenance\", \"admin\", \"BG hyper-127.0.0.1:49937-1\", \"BG hyper-127.0.0.1:49937-0\", \"BG connection-drain\"]\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: BG control\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: BG rollout-metrics\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: BG access-policy-watch\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: BG upstream-maintenance\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: admin\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: BG hyper-127.0.0.1:49937-1\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: BG hyper-127.0.0.1:49937-0\n[2026-10-01T03:14:42Z INFO  pingora_core::server] Starting service: BG connection-drain\n\n2026/10/01 11:14:42 [warn] 105480#105480: conflicting server name \"duplicate.test\" on 127.0.0.1:38679, ignored\n\nTraceback (most recent call last):\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/nginx_parity.py\", line 199, in <module>\n    main()\n    ~~~~^^\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/nginx_parity.py\", line 124, in main\n    raise AssertionError(f\"parity failed {path} {headers}: rgnix={simplified[0]!r}, nginx={simplified[1]!r}\")\nAssertionError: parity failed /api/a?x=1 {}: rgnix=(200, ('/base/a?x=1', None), 'parent', None, None, None), nginx=(200, ('/base/a?x=1', 'example.test'), 'parent', None, None, None)\n",
+    "parity-hyper-fixed.log": "PASS parity / {}\nPASS parity /plain {}\nPASS parity /plain-more {}\nPASS parity /headers {}\nPASS parity /data.txt {}\nPASS parity /data.txt {'Range': 'bytes=3-5'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 14 Nov 2023 22:13:20 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 02 Jan 2024 00:00:00 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Mon, 01 Jan 2001 00:00:00 GMT'}\nPASS parity /slash {}\nPASS parity /api/a?x=1 {}\nPASS parity /api/a%20b?x=1 {}\nPASS parity /api/%61%2Fb {}\nPASS parity /api/a%3Fb%25c {}\nPASS parity /raw/%61?x=1 {}\nPASS parity /api {}\nPASS parity /api?x=1 {}\nPASS parity /redirect {}\nPASS parity / {'Host': 'a.b.wild.test'}\nPASS parity /a%23b?x=%23 {}\nPASS parity /a%3Fb?x=1 {}\nPASS parity /a%20b {}\nPASS parity /a%25b {}\nPASS parity /a%252Fb {}\nPASS parity /%E4%B8%AD%E6%96%87 {}\nPASS parity /proxy%23b?x=%3F {}\nPASS parity / {'Host': 'EXAMPLE.TEST'}\nPASS parity / {'Host': 'example.test.'}\nPASS parity / {'Host': 'A.B.WILD.TEST.'}\nPASS parity / {'Host': 'unknown.test'}\nPASS parity / {'Host': 'closed.test'}\nPASS parity / {'Host': 'duplicate.test'}\nPASS parity /error {}\nPASS parity /timeout/ {}\nPASS parity /denied {}\nPASS parity /denied-late {}\nPASS parity missing HTTP/1.1 Host\nPASS parity empty HTTP/1.1 Host\nPASS parity invalid HTTP/1.1 Host\nPASS parity duplicate Host\nPASS parity absolute URI still requires Host\nPASS parity absolute URI cannot hide an invalid Host\nPASS parity HTTP/1.0 without Host\nPASS parity Host with port\nPASS parity IPv6 Host with port\nPASS parity absolute URI with matching Host\n49 NGINX parity scenarios passed\n",
+    "parity-hyper.log": "PASS parity / {}\nPASS parity /plain {}\nPASS parity /plain-more {}\nPASS parity /headers {}\nPASS parity /data.txt {}\nPASS parity /data.txt {'Range': 'bytes=3-5'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 14 Nov 2023 22:13:20 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 02 Jan 2024 00:00:00 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Mon, 01 Jan 2001 00:00:00 GMT'}\nPASS parity /slash {}\n[2026-10-01T03:13:54Z INFO  pingora_core::server::bootstrap_services] Bootstrap starting\n[2026-10-01T03:13:54Z INFO  pingora_core::server::bootstrap_services] Bootstrap done\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Server starting\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting services in dependency order: [\"BG control\", \"BG rollout-metrics\", \"BG access-policy-watch\", \"BG upstream-maintenance\", \"admin\", \"BG hyper-127.0.0.1:56647-1\", \"BG hyper-127.0.0.1:56647-0\", \"BG connection-drain\"]\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: BG control\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: BG rollout-metrics\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: BG access-policy-watch\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: BG upstream-maintenance\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: admin\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: BG hyper-127.0.0.1:56647-1\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: BG hyper-127.0.0.1:56647-0\n[2026-10-01T03:13:54Z INFO  pingora_core::server] Starting service: BG connection-drain\n\n2026/10/01 11:13:54 [warn] 105351#105351: conflicting server name \"duplicate.test\" on 127.0.0.1:40231, ignored\n\nTraceback (most recent call last):\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/nginx_parity.py\", line 199, in <module>\n    main()\n    ~~~~^^\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/scripts/nginx_parity.py\", line 124, in main\n    raise AssertionError(f\"parity failed {path} {headers}: rgnix={simplified[0]!r}, nginx={simplified[1]!r}\")\nAssertionError: parity failed /api/a?x=1 {}: rgnix=(200, ('/base/a?x=1', None), 'parent', None, None, None), nginx=(200, ('/base/a?x=1', 'example.test'), 'parent', None, None, None)\n",
+    "parity-pingora.log": "PASS parity / {}\nPASS parity /plain {}\nPASS parity /plain-more {}\nPASS parity /headers {}\nPASS parity /data.txt {}\nPASS parity /data.txt {'Range': 'bytes=3-5'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 14 Nov 2023 22:13:20 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Tue, 02 Jan 2024 00:00:00 GMT'}\nPASS parity /data.txt {'Range': 'bytes=3-5', 'If-Range': 'Mon, 01 Jan 2001 00:00:00 GMT'}\nPASS parity /slash {}\nPASS parity /api/a?x=1 {}\nPASS parity /api/a%20b?x=1 {}\nPASS parity /api/%61%2Fb {}\nPASS parity /api/a%3Fb%25c {}\nPASS parity /raw/%61?x=1 {}\nPASS parity /api {}\nPASS parity /api?x=1 {}\nPASS parity /redirect {}\nPASS parity / {'Host': 'a.b.wild.test'}\nPASS parity /a%23b?x=%23 {}\nPASS parity /a%3Fb?x=1 {}\nPASS parity /a%20b {}\nPASS parity /a%25b {}\nPASS parity /a%252Fb {}\nPASS parity /%E4%B8%AD%E6%96%87 {}\nPASS parity /proxy%23b?x=%3F {}\nPASS parity / {'Host': 'EXAMPLE.TEST'}\nPASS parity / {'Host': 'example.test.'}\nPASS parity / {'Host': 'A.B.WILD.TEST.'}\nPASS parity / {'Host': 'unknown.test'}\nPASS parity / {'Host': 'closed.test'}\nPASS parity / {'Host': 'duplicate.test'}\nPASS parity /error {}\nPASS parity /timeout/ {}\nPASS parity /denied {}\nPASS parity /denied-late {}\nPASS parity missing HTTP/1.1 Host\nPASS parity empty HTTP/1.1 Host\nPASS parity invalid HTTP/1.1 Host\nPASS parity duplicate Host\nPASS parity absolute URI still requires Host\nPASS parity absolute URI cannot hide an invalid Host\nPASS parity HTTP/1.0 without Host\nPASS parity Host with port\nPASS parity IPv6 Host with port\nPASS parity absolute URI with matching Host\n49 NGINX parity scenarios passed\n",
+    "pgo-generate.log": "    Finished `release` profile [optimized] target(s) in 0.22s\n",
+    "pgo-generation-guard.log": "usage: pgo.py [-h] --work-dir WORK_DIR [--target-dir TARGET_DIR]\n              [--features FEATURES] [--offline]\n              [--llvm-profdata LLVM_PROFDATA]\n              {generate,use}\npgo.py: error: use a fresh work directory to avoid mixing training generations\n",
+    "pgo-source-guard.log": "usage: pgo.py [-h] --work-dir WORK_DIR [--target-dir TARGET_DIR]\n              [--features FEATURES] [--offline]\n              [--llvm-profdata LLVM_PROFDATA]\n              {generate,use}\npgo.py: error: compiler, source, features or release flags changed; collect fresh profiles\n",
+    "pgo-use.log": "   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 1m 56s\n",
+    "primitives-before.log": "Added new event:\n  rgnix_http_102643:memcpy (on 0xa9840 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102643:memcpy -aR sleep 1\n\nAdded new event:\n  rgnix_http_102643:memmove (on 0xa9980 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102643:memmove -aR sleep 1\n\nAdded new event:\n  rgnix_http_102643:clock (on clock_gettime in /usr/lib/aarch64-linux-gnu/libc.so.6 with caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102643:clock -aR sleep 1\n\nhyper {'clock': 10042, 'memmove': 8, 'memcpy': 22131} copy bytes/request 5919.824\nRemoved event: rgnix_http_102643:clock\nRemoved event: rgnix_http_102643:memmove\nRemoved event: rgnix_http_102643:memcpy\n",
+    "primitives-hotpath.log": "Added new event:\n  rgnix_http_102720:memcpy (on 0xa9840 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102720:memcpy -aR sleep 1\n\nAdded new event:\n  rgnix_http_102720:memmove (on 0xa9980 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102720:memmove -aR sleep 1\n\nAdded new event:\n  rgnix_http_102720:clock (on clock_gettime in /usr/lib/aarch64-linux-gnu/libc.so.6 with caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_102720:clock -aR sleep 1\n\nhyper {'clock': 10042, 'memmove': 7, 'memcpy': 20131} copy bytes/request 5484.504\nRemoved event: rgnix_http_102720:clock\nRemoved event: rgnix_http_102720:memmove\nRemoved event: rgnix_http_102720:memcpy\n",
+    "product.log": "PASS trusted XFF resolves the last untrusted hop and retains socket peer\nPASS untrusted forwarding headers do not change client identity\nPASS malformed trusted forwarding chain falls back to socket peer\nPASS Forwarded supports quoted IPv6 with ports\nPASS CIDR rules apply to resolved client identity\nPASS rate bucket enforces burst and isolates tenants\nPASS route concurrency rejects excess requests\nPASS concurrency permit releases after completion\nPASS backend metrics expose concurrency occupancy and its configured limit\nPASS backend concurrency covers the upstream request lifetime\nPASS least connections selects a different idle endpoint\nPASS cookie hash affinity is stable across connections\nPASS managed affinity issues a cookie and preserves the chosen backend\nPASS active health preserves the virtual Host and excludes the specific unhealthy endpoint\nPASS backend metrics distinguish total, eligible and unready endpoints\nPASS active health invalidates the cached selection when every endpoint is withdrawn\nPASS active health restores both endpoints after an empty selection\nPASS compiled RGL reads typed JSON, decoded args and cookies\nPASS typed JSON getters use fallbacks for wrong types\nPASS JWT verifies signatures and makes claims available to RGL\nPASS JWT rejects missing, wrong audience, expired and tampered tokens\nPASS external auth replaces spoofed identity headers\nPASS external auth fails closed on deny and service failure\nPASS alias maps the matched prefix to its directory\nPASS SPA fallback serves the shell within its root\nPASS gzip transforms streamed responses and adjusts framing\nPASS Brotli negotiation produces a valid stream\nPASS compression respects quality weights and explicit wildcard exclusions\nPASS request no-transform prevents response compression\nPASS compression preserves range representation boundaries\nPASS PROXY v1 is consumed before HTTP and preserves original peer\nPASS PROXY v2 accepts bounded IPv6 TCP addresses\nPASS mTLS accepts a client issued by the configured CA\nPASS mTLS rejects an anonymous TLS client\nPASS admin diagnostics require a token\nPASS effective configuration and backend state are inspectable\nPASS route explain reports the selected prefix\nPASS authenticated rollback republishes an immutable file version\nPASS rollback increments configuration version\nPASS CA rotation also rejects old clients on reused TLS connections\nPASS offline simulation executes the compiled plugin\nPASS metrics distinguish configured routes and backends\nPASS metrics expose upstream phases, pool reuse and response bytes\nPASS metrics expose active config and successful update timing\nPASS Linux metrics expose real process memory, file descriptors and threads\nPASS removed backends disappear from current-state metrics while historical counters remain\nPASS configured upstream idle capacity controls eviction and connection reuse\nPASS gRPC h2c upstream returns data before client request EOF\nPASS gRPC bidirectional stream and trailers survive proxying\nPASS HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule\nPASS gRPC failure status survives proxy trailers\nPASS gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200\nPASS OTLP marks both server and client spans as failed for gRPC errors\nE1001 11:13:16.945430902  104945 hpack_parser.cc:1218]                 Error parsing metadata: error=invalid value key=content-type value=text/plain; charset=utf-8\nPASS HTTP/2 header timeout expires while another RPC continues\nPASS OTLP exports linked server and client spans\nPASS traceparent propagates the upstream client span identity\nPASS tracestate reaches the backend and both OTLP spans\nPASS span flags identify remote server parents and local client parents\nPASS proxy client span timestamps are contained by the server span\nPASS OTLP access logs correlate with the server span\nPASS local access logs include trace, parent and outbound span IDs\nPASS parent sampling decisions are preserved without exporting unsampled spans\nPASS pre-routing rejected requests are logged\nPASS trace payload excludes query and credential content\nPASS future traceparent versions preserve the trace while forwarding supported fields\nPASS invalid tracestate is dropped without breaking a valid traceparent\nPASS oversized tracestate retains whole vendor entries within the propagation limit\nPASS multiple tracestate headers preserve vendor order and ignore empty members\nPASS route header edits cannot detach propagation from the recorded spans\nPASS external authorization creates a distinct child span and propagates W3C context\nPASS HTTP 401 marks the client span as error and leaves server status unset\nPASS two proxy hops form one trace with four linked spans and forward the last client ID\nPASS both hops OTLP and JSON access logs correlate with their own server spans\nPASS duplicate parents start a new trace and cannot retain old tracestate\nPASS unsampled W3C context and correlated logs survive both proxy hops\nPASS invalid versions, zero IDs and malformed context start clean traces\nPASS disabled tracing preserves incoming sampling in correlated OTLP logs\nPASS HTTPS upstream validates a private CA and explicit server name\nPASS upstream pool cannot reuse a connection across different CA policies\nPASS PROXY identity is consumed before the TLS handshake\nPASS remote HTTPS JWKS authenticates a signed token\nPASS remote JWKS rotation takes effect without config reload and revokes old keys\nPASS upstream CA reload prevents reuse of previously trusted connections\nPASS archived configuration compilation preserves original include diagnostics\nPASS HTTPS health probes reuse route SNI and private CA\nPASS mTLS health probes accept traditional PEM private keys\nPASS upstream mTLS presents client identity and isolates anonymous pools\nPASS pre-auth rate admission protects the auth service\nPASS JSON local logs redact URI and Referer query credentials\nPASS local log client suppression is applied\nPASS read-only admin can inspect but cannot roll back\nPASS management simulation includes pre-auth rate budgets\nPASS simulation verifies actual JWT signatures and claims\nPASS durable publication captures plugin dependencies\nPASS rollback restores the archived plugin and configuration\nPASS restart restores committed rollback despite broken or missing source files\nPASS durable history preserves version identity across restart\nPASS historical versions remain usable after restart\nPASS management audit records denied and committed changes without tokens\nPASS durable history protects private assets with owner-only permissions\n----------------------------------------\nException occurred during processing of request from ('127.0.0.1', 42338)\nTraceback (most recent call last):\n  File \"/usr/lib/python3.13/socketserver.py\", line 697, in process_request_thread\n    self.finish_request(request, client_address)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/socketserver.py\", line 362, in finish_request\n    self.RequestHandlerClass(request, client_address, self)\n    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/socketserver.py\", line 766, in __init__\n    self.handle()\n    ~~~~~~~~~~~^^\n  File \"/usr/lib/python3.13/http/server.py\", line 438, in handle\n    self.handle_one_request()\n    ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/usr/lib/python3.13/http/server.py\", line 404, in handle_one_request\n    self.raw_requestline = self.rfile.readline(65537)\n                           ~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/usr/lib/python3.13/socket.py\", line 719, in readinto\n    return self._sock.recv_into(b)\n           ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/usr/lib/python3.13/ssl.py\", line 1304, in recv_into\n    return self.read(nbytes, buffer)\n           ~~~~~~~~~^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/ssl.py\", line 1138, in read\n    return self._sslobj.read(len, buffer)\n           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\nConnectionResetError: [Errno 104] Connection reset by peer\n----------------------------------------\nPASS TLS configuration rejects certificates for a different hostname\nPASS TLS configuration rejects expired certificates\nPASS Named management identities authenticate independently\nPASS Namespace-scoped identity cannot inspect standalone routes or history\nPASS Scoped identity cannot simulate an unauthorized route\nPASS Candidate preflight reports changes without publishing\nPASS Preflight rejects a stale base version\nPASS CLI configuration diff agrees with management preflight\nPASS Simulation reports the actual proxy_pass URI replacement\nPASS Outgoing simulation keeps configured private header values redacted\nPASS Certificate diagnostics expose hostname validity and expiration\nPASS Legacy management token rotates without restarting the process\nPASS Invalid identity updates retain the last valid authorization policy\nPASS Removing a named identity revokes it without restart\nPASS Management audit identifies the named operator without recording credentials\n{\n  \"passed\": 115,\n  \"checks\": [\n    \"trusted XFF resolves the last untrusted hop and retains socket peer\",\n    \"untrusted forwarding headers do not change client identity\",\n    \"malformed trusted forwarding chain falls back to socket peer\",\n    \"Forwarded supports quoted IPv6 with ports\",\n    \"CIDR rules apply to resolved client identity\",\n    \"rate bucket enforces burst and isolates tenants\",\n    \"route concurrency rejects excess requests\",\n    \"concurrency permit releases after completion\",\n    \"backend metrics expose concurrency occupancy and its configured limit\",\n    \"backend concurrency covers the upstream request lifetime\",\n    \"least connections selects a different idle endpoint\",\n    \"cookie hash affinity is stable across connections\",\n    \"managed affinity issues a cookie and preserves the chosen backend\",\n    \"active health preserves the virtual Host and excludes the specific unhealthy endpoint\",\n    \"backend metrics distinguish total, eligible and unready endpoints\",\n    \"active health invalidates the cached selection when every endpoint is withdrawn\",\n    \"active health restores both endpoints after an empty selection\",\n    \"compiled RGL reads typed JSON, decoded args and cookies\",\n    \"typed JSON getters use fallbacks for wrong types\",\n    \"JWT verifies signatures and makes claims available to RGL\",\n    \"JWT rejects missing, wrong audience, expired and tampered tokens\",\n    \"external auth replaces spoofed identity headers\",\n    \"external auth fails closed on deny and service failure\",\n    \"alias maps the matched prefix to its directory\",\n    \"SPA fallback serves the shell within its root\",\n    \"gzip transforms streamed responses and adjusts framing\",\n    \"Brotli negotiation produces a valid stream\",\n    \"compression respects quality weights and explicit wildcard exclusions\",\n    \"request no-transform prevents response compression\",\n    \"compression preserves range representation boundaries\",\n    \"PROXY v1 is consumed before HTTP and preserves original peer\",\n    \"PROXY v2 accepts bounded IPv6 TCP addresses\",\n    \"mTLS accepts a client issued by the configured CA\",\n    \"mTLS rejects an anonymous TLS client\",\n    \"admin diagnostics require a token\",\n    \"effective configuration and backend state are inspectable\",\n    \"route explain reports the selected prefix\",\n    \"authenticated rollback republishes an immutable file version\",\n    \"rollback increments configuration version\",\n    \"CA rotation also rejects old clients on reused TLS connections\",\n    \"offline simulation executes the compiled plugin\",\n    \"metrics distinguish configured routes and backends\",\n    \"metrics expose upstream phases, pool reuse and response bytes\",\n    \"metrics expose active config and successful update timing\",\n    \"Linux metrics expose real process memory, file descriptors and threads\",\n    \"removed backends disappear from current-state metrics while historical counters remain\",\n    \"configured upstream idle capacity controls eviction and connection reuse\",\n    \"gRPC h2c upstream returns data before client request EOF\",\n    \"gRPC bidirectional stream and trailers survive proxying\",\n    \"HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule\",\n    \"gRPC failure status survives proxy trailers\",\n    \"gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200\",\n    \"OTLP marks both server and client spans as failed for gRPC errors\",\n    \"HTTP/2 header timeout expires while another RPC continues\",\n    \"OTLP exports linked server and client spans\",\n    \"traceparent propagates the upstream client span identity\",\n    \"tracestate reaches the backend and both OTLP spans\",\n    \"span flags identify remote server parents and local client parents\",\n    \"proxy client span timestamps are contained by the server span\",\n    \"OTLP access logs correlate with the server span\",\n    \"local access logs include trace, parent and outbound span IDs\",\n    \"parent sampling decisions are preserved without exporting unsampled spans\",\n    \"pre-routing rejected requests are logged\",\n    \"trace payload excludes query and credential content\",\n    \"future traceparent versions preserve the trace while forwarding supported fields\",\n    \"invalid tracestate is dropped without breaking a valid traceparent\",\n    \"oversized tracestate retains whole vendor entries within the propagation limit\",\n    \"multiple tracestate headers preserve vendor order and ignore empty members\",\n    \"route header edits cannot detach propagation from the recorded spans\",\n    \"external authorization creates a distinct child span and propagates W3C context\",\n    \"HTTP 401 marks the client span as error and leaves server status unset\",\n    \"two proxy hops form one trace with four linked spans and forward the last client ID\",\n    \"both hops OTLP and JSON access logs correlate with their own server spans\",\n    \"duplicate parents start a new trace and cannot retain old tracestate\",\n    \"unsampled W3C context and correlated logs survive both proxy hops\",\n    \"invalid versions, zero IDs and malformed context start clean traces\",\n    \"disabled tracing preserves incoming sampling in correlated OTLP logs\",\n    \"HTTPS upstream validates a private CA and explicit server name\",\n    \"upstream pool cannot reuse a connection across different CA policies\",\n    \"PROXY identity is consumed before the TLS handshake\",\n    \"remote HTTPS JWKS authenticates a signed token\",\n    \"remote JWKS rotation takes effect without config reload and revokes old keys\",\n    \"upstream CA reload prevents reuse of previously trusted connections\",\n    \"archived configuration compilation preserves original include diagnostics\",\n    \"HTTPS health probes reuse route SNI and private CA\",\n    \"mTLS health probes accept traditional PEM private keys\",\n    \"upstream mTLS presents client identity and isolates anonymous pools\",\n    \"pre-auth rate admission protects the auth service\",\n    \"JSON local logs redact URI and Referer query credentials\",\n    \"local log client suppression is applied\",\n    \"read-only admin can inspect but cannot roll back\",\n    \"management simulation includes pre-auth rate budgets\",\n    \"simulation verifies actual JWT signatures and claims\",\n    \"durable publication captures plugin dependencies\",\n    \"rollback restores the archived plugin and configuration\",\n    \"restart restores committed rollback despite broken or missing source files\",\n    \"durable history preserves version identity across restart\",\n    \"historical versions remain usable after restart\",\n    \"management audit records denied and committed changes without tokens\",\n    \"durable history protects private assets with owner-only permissions\",\n    \"TLS configuration rejects certificates for a different hostname\",\n    \"TLS configuration rejects expired certificates\",\n    \"Named management identities authenticate independently\",\n    \"Namespace-scoped identity cannot inspect standalone routes or history\",\n    \"Scoped identity cannot simulate an unauthorized route\",\n    \"Candidate preflight reports changes without publishing\",\n    \"Preflight rejects a stale base version\",\n    \"CLI configuration diff agrees with management preflight\",\n    \"Simulation reports the actual proxy_pass URI replacement\",\n    \"Outgoing simulation keeps configured private header values redacted\",\n    \"Certificate diagnostics expose hostname validity and expiration\",\n    \"Legacy management token rotates without restarting the process\",\n    \"Invalid identity updates retain the last valid authorization policy\",\n    \"Removing a named identity revokes it without restart\",\n    \"Management audit identifies the named operator without recording credentials\"\n  ]\n}\n",
+    "profile-before.log": "hyper profile done; requests 2241600 errors 0\nnginx profile done; requests 2883273 errors 0\n",
+    "python-syntax.log": "",
+    "shared-control.log": "1 1 rgnix 64 24887 13.37\n1 1 candidate 64 25035 13.36\n1 1 nginx 64 33315 9.96\n1 2 rgnix 64 23553 14.12\n1 2 candidate 64 23753 14.07\n1 2 nginx 64 32803 10.16\n1 1 rgnix 256 12302 27.13\n1 1 candidate 256 12285 27.12\n1 1 nginx 256 17676 18.85\n1 2 rgnix 256 15697 21.23\n1 2 candidate 256 15141 22.04\n1 2 nginx 256 21808 15.23\n2 1 rgnix 256 15208 22.05\n2 1 candidate 256 15121 22.16\n2 1 nginx 256 21419 15.54\n2 2 rgnix 256 17760 18.81\n2 2 candidate 256 17910 18.67\n2 2 nginx 256 25466 13.08\n2 1 rgnix 64 17840 18.63\n2 1 candidate 64 17806 18.75\n2 1 nginx 64 25853 12.82\n2 2 rgnix 64 23372 14.32\n2 2 candidate 64 23044 14.47\n2 2 nginx 64 33472 9.94\n3 1 rgnix 64 31364 10.64\n3 1 candidate 64 31121 10.72\n3 1 nginx 64 42042 7.95\n3 2 rgnix 64 27159 12.31\n3 2 candidate 64 26730 12.47\n3 2 nginx 64 36724 9.05\n3 1 rgnix 256 15811 21.11\n3 1 candidate 256 15735 21.16\n3 1 nginx 256 22595 14.72\n3 2 rgnix 256 17806 18.75\n3 2 candidate 256 17956 18.63\n3 2 nginx 256 26115 12.71\n",
+    "shared-hotpath.log": "1 1 rgnix 64 33082 10.07\n1 1 candidate 64 33630 9.93\n1 1 nginx 64 42860 7.75\n1 2 rgnix 64 23472 13.89\n1 2 candidate 64 23807 13.65\n1 2 nginx 64 31633 10.23\n1 1 rgnix 256 14509 23.61\n1 1 candidate 256 13400 24.48\n1 1 nginx 256 20424 16.22\n1 2 rgnix 256 13288 25.34\n1 2 candidate 256 13179 25.34\n1 2 nginx 256 19762 16.76\n2 1 rgnix 256 8159 40.44\n2 1 candidate 256 8134 40.31\n2 1 nginx 256 12707 26.61\n2 2 rgnix 256 10839 30.66\n2 2 candidate 256 10881 30.78\n2 2 nginx 256 16054 20.81\n2 1 rgnix 64 17385 18.82\n2 1 candidate 64 17631 19.17\n2 1 nginx 64 25347 13.4\n2 2 rgnix 64 10941 30.26\n2 2 candidate 64 11028 30.0\n2 2 nginx 64 16062 20.51\n3 1 rgnix 64 12942 25.88\n3 1 candidate 64 12976 25.93\n3 1 nginx 64 18209 17.99\n3 2 rgnix 64 12521 26.25\n3 2 candidate 64 12462 26.47\n3 2 nginx 64 18574 17.77\n3 1 rgnix 256 11294 29.63\n3 1 candidate 256 11349 29.37\n3 1 nginx 256 16818 19.81\n3 2 rgnix 256 10706 30.82\n3 2 candidate 256 11172 30.32\n3 2 nginx 256 15845 21.05\n",
+    "shared-pgo.log": "1 1 rgnix 64 28682 11.63\n1 1 candidate 64 27900 11.94\n1 1 nginx 64 37501 8.9\n1 2 rgnix 64 27858 11.94\n1 2 candidate 64 27939 11.97\n1 2 nginx 64 37016 9.02\n1 1 rgnix 256 18655 17.9\n1 1 candidate 256 18700 17.85\n1 1 nginx 256 27093 12.27\n1 2 rgnix 256 16488 20.57\n1 2 candidate 256 16523 20.01\n1 2 nginx 256 23621 13.97\n2 1 rgnix 256 15105 22.07\n2 1 candidate 256 15476 21.61\n2 1 nginx 256 22528 14.78\n2 2 rgnix 256 16652 20.09\n2 2 candidate 256 16879 19.81\n2 2 nginx 256 24642 13.52\n2 1 rgnix 64 23970 13.92\n2 1 candidate 64 23899 13.97\n2 1 nginx 64 33726 9.84\n2 2 rgnix 64 11324 29.3\n2 2 candidate 64 11227 29.32\n2 2 nginx 64 16197 20.23\n3 1 rgnix 64 18479 18.1\n3 1 candidate 64 18190 18.33\n3 1 nginx 64 26090 12.66\n3 2 rgnix 64 18163 17.98\n3 2 candidate 64 18511 17.57\n3 2 nginx 64 25531 12.7\n3 1 rgnix 256 14752 22.59\n3 1 candidate 256 14200 23.4\n3 1 nginx 256 21295 15.59\n3 2 rgnix 256 15216 21.97\n3 2 candidate 256 15117 22.0\n3 2 nginx 256 22130 14.99\n",
+    "tail-repeat.log": "origin proxy-1k: 308200 req/s\nround 1 rgnix proxy-1k c64: 93162 req/s; p99 2.018 ms; CPU 0.99; PSS 29.1 MiB; errors 0\nround 1 candidate proxy-1k c64: 90045 req/s; p99 1.768 ms; CPU 0.99; PSS 28.6 MiB; errors 0\nround 1 rgnix proxy-1k c64: 85423 req/s; p99 2.573 ms; CPU 0.99; PSS 29.0 MiB; errors 0\nround 1 candidate proxy-1k c64: 90910 req/s; p99 1.733 ms; CPU 1.00; PSS 28.5 MiB; errors 0\nround 1 nginx proxy-1k c64: 116812 req/s; p99 1.166 ms; CPU 1.00; PSS 11.5 MiB; errors 0\nround 1 nginx proxy-1k c64: 120250 req/s; p99 2.160 ms; CPU 0.98; PSS 11.4 MiB; errors 0\nround 2 candidate proxy-1k c64: 86613 req/s; p99 1.959 ms; CPU 0.99; PSS 28.7 MiB; errors 0\nround 2 rgnix proxy-1k c64: 94100 req/s; p99 1.517 ms; CPU 0.99; PSS 29.1 MiB; errors 0\nround 2 candidate proxy-1k c64: 96309 req/s; p99 1.388 ms; CPU 1.00; PSS 28.7 MiB; errors 0\nround 2 nginx proxy-1k c64: 113419 req/s; p99 1.292 ms; CPU 0.99; PSS 12.4 MiB; errors 0\nround 2 nginx proxy-1k c64: 109234 req/s; p99 24.880 ms; CPU 0.94; PSS 13.1 MiB; errors 0\nround 2 rgnix proxy-1k c64: 90917 req/s; p99 1.871 ms; CPU 0.99; PSS 29.0 MiB; errors 0\nround 3 rgnix proxy-1k c64: 93777 req/s; p99 1.581 ms; CPU 0.99; PSS 29.0 MiB; errors 0\nround 3 candidate proxy-1k c64: 99550 req/s; p99 1.374 ms; CPU 1.00; PSS 28.4 MiB; errors 0\nround 3 nginx proxy-1k c64: 119778 req/s; p99 1.246 ms; CPU 0.99; PSS 13.1 MiB; errors 0\nround 3 nginx proxy-1k c64: 126155 req/s; p99 1.540 ms; CPU 0.98; PSS 13.1 MiB; errors 0\nround 3 rgnix proxy-1k c64: 81978 req/s; p99 4.493 ms; CPU 0.97; PSS 29.0 MiB; errors 0\nround 3 candidate proxy-1k c64: 95896 req/s; p99 1.616 ms; CPU 0.99; PSS 28.4 MiB; errors 0\nSaved 18 runs to /var/tmp/rgnix-closegap-20261001/tail-repeat.json\n",
+    "training-integration.log": "compiled /tmp/rgnix-acceptance-ut21cd8u/routes.rgl -> /tmp/rgnix-acceptance-ut21cd8u/routes.wasm (780 bytes)\nconfiguration valid: 2 listeners, 2 virtual hosts, 8 backends\nPASS script aliases reject upstreams with conflicting transport protocols\nPASS configuration rejects invalid body modes, limits and timeouts\nPASS header variables retain the last valid repeated value\nPASS static GET\nPASS static HEAD\nPASS static small and streamed files preserve lengths, ranges and conditional responses across file changes\nPASS atomic file replacement and ranges remain fresh across persistent requests\nPASS static single range\nPASS unsatisfiable range\nPASS conditional GET\nPASS If-Range HTTP date retains partial response\nPASS directory redirect and index\nPASS symlink containment\nPASS contained symlink still serves a regular file\nPASS FIFO files and indexes cannot exhaust the static file pool\nPASS path traversal rejection\nPASS proxy_pass URI replacement\nPASS large header sets preserve duplicates and isolate keepalive requests\nPASS proxy_pass preserves original URI\nPASS IPv6 upstream\nPASS trusted HTTPS upstream\nPASS HTTPS upstream rejects hostname mismatch\nPASS HTTPS upstream rejects untrusted certificate\nPASS Connection cannot remove framing or Host\nPASS inherited response header\nPASS streaming request body\nPASS valid chunked request keeps its connection reusable\nPASS TE plus Content-Length cannot re-enable connection reuse\nPASS HTTP/1.0 without keep-alive closes after the response\nPASS request body limit\nPASS chunked HTTP body limit\nPASS chunked HTTP body limit before a requested WebSocket upgrade\nPASS compiled request and response hooks\nPASS query-only edits preserve raw paths and can clear the query\nPASS query edits retain proxy URI replacement and explicit path rewrites\nPASS compiled Wasm artifact loads independently\nPASS static plugin redirect preserves literal percent and rewritten query\nPASS informational responses do not consume the final response hook\nPASS plugin direct response\nPASS superseded plugin decisions fail instead of selecting another backend\nPASS script backend alias preserves HTTPS and forwarded headers\nPASS script HTTPS backend still verifies certificates\nPASS fuel limits infinite loops\nPASS trapped request-only hook retains client identity in access logs\nPASS response hook failure returns 500 without staged edits\nPASS upstream disconnect never replays POST\nPASS upstream read timeout returns 504\nPASS TLS listener\nPASS HTTP/2 negotiation\nPASS JSON body routes to the selected HTTPS backend without changing bytes\nPASS JSON routing is isolated between requests\nPASS invalid JSON, incomplete JSON and non-string fields do not match\nPASS full inspection can replay bodies larger than Pingora's original 64 KiB buffer\nPASS prefix inspection routes binary uploads and preserves the entire body\nPASS body byte metrics count prefix replay once and inspection only includes the prefix\nPASS content beyond the configured prefix cannot influence routing\nPASS a closed JSON object in a truncated prefix is not treated as complete JSON\nPASS short prefix-inspected bodies may use JSON routing when fully read\nPASS UTF-8 cut at the prefix boundary is nil as text but searchable as bytes\nPASS body inspection remains opt-in\nPASS empty uploads retain complete full/prefix inspection and opt-in semantics\nPASS full inspection rejects oversized known-length bodies\nPASS fragmented and chunked prefix uploads replay once and keep the next request aligned\nPASS full inspection rejects oversized chunked bodies before proxying\nPASS prefix decisions do not wait for the tail; incomplete prefixes have a total timeout\nPASS Expect 100-continue works before inspection without a second upstream expectation\nPASS HTTP/2 full and prefix routing preserve the original body\nPASS body inspection does not enable upstream POST retries\nPASS cancelled body inspection leaves the service available\nPASS in-flight body inspection retains its policy across reload\nPASS SSE first event is streamed\nPASS WebSocket upgrade and bidirectional frames\nPASS WebSocket streams beyond the HTTP body limit (3 MiB)\nPASS WebSocket close frame survives the long stream\nPASS reload keeps in-flight snapshot\nPASS invalid reload retains active configuration\nPASS compiler rejects a flat expression with excessive AST depth\nPASS deep AST reload cannot abort the data plane\nPASS plugin budget rejects excess instances while plain routes work\nPASS inflight budget sheds requests without blocking admin\nPASS live gauges show occupied process, plugin and backend permits\nPASS completed requests release resource permits\nPASS live metrics release permits after requests finish\nPASS request-only hooks release the plugin budget before a slow upstream completes\nPASS single endpoint still ejects failed connections without retrying\nPASS failed endpoint is excluded without replaying its requests\nPASS excluded endpoint re-enters rotation after cooldown\nPASS single endpoint also recovers after cooldown\nPASS constant return preserves HEAD content length\nPASS plain proxy records headers while deferring completion until body finishes\nPASS reload adds a traffic policy to a previously plain return\nPASS plain in-flight proxy keeps its snapshot during policy reload\nPASS old and new snapshots share backend metrics and finish each request once\nPASS reload from traffic policy to dynamic return uses request variables\nPASS repeated SIGINT exits all listener workers without spinning on a stopped reactor\nPASS metrics are exposed\nPASS client cancellation preserves service\nPASS drain removes readiness while health stays live\nPASS drain finishes the next keepalive request and advertises Connection close\nPASS established WebSocket remains usable during drain\nPASS failed controller is neither healthy nor ready\n101 integration checks passed; /var/tmp/rgnix-closegap-20261001/training-integration.json\n",
+    "training-load.log": "origin proxy-1k: 300379 req/s\norigin proxy-16k: 260248 req/s\nround 1 rgnix proxy-1k c16: 69409 req/s; p99 0.721 ms; CPU 0.99; PSS 25.0 MiB; errors 0\nround 1 rgnix proxy-16k c16: 52990 req/s; p99 0.772 ms; CPU 0.99; PSS 26.0 MiB; errors 0\nround 1 rgnix proxy-1k c128: 61365 req/s; p99 4.107 ms; CPU 1.00; PSS 35.4 MiB; errors 0\nround 1 rgnix proxy-16k c128: 45349 req/s; p99 6.574 ms; CPU 1.00; PSS 42.0 MiB; errors 0\nSaved 4 runs to /var/tmp/rgnix-closegap-20261001/training-load.json\n",
+    "trial-generate.log": "   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 1m 10s\n",
+    "use-tool.log": "{\n  \"mode\": \"use\",\n  \"command\": [\n    \"cargo\",\n    \"rustc\",\n    \"--locked\",\n    \"--release\",\n    \"--features\",\n    \"hyper-experimental,jemalloc\",\n    \"--bin\",\n    \"rgnix\",\n    \"--target-dir\",\n    \"/home/livesite/.cache/rgnix-opt-target\",\n    \"--offline\",\n    \"--\",\n    \"-Cprofile-use=/var/tmp/rgnix-closegap-20261001/rgnix.profdata\",\n    \"-Cllvm-args=-pgo-warn-missing-function\"\n  ],\n  \"returncode\": 0,\n  \"seconds\": 116.59231745600118,\n  \"binary\": \"/var/tmp/rgnix-closegap-20261001/rgnix-pgo-use\",\n  \"sha256\": \"63781242e41fb124dff1f9a12a48d5270938f61e3033e1ace2f06149aa8a1ca3\"\n}\n"
+  },
+  "scripts": {
+    ".local/closegap-20261001/analyse_matched.py": "import json,statistics,sys\nfrom pathlib import Path\nbase=Path(sys.argv[1]);j=json.loads((base/'result.json').read_text())\nwindows={}\nfor run in j['runs']:windows.setdefault((run['concurrency'],run['round'],run['repeat']),{})[run['engine']]=run\nout={'method':'Matched ratios of intentionally co-running windows. Complements, and does not replace, unchanged absolute-throughput A/A checks. CPU cost includes all frontend threads. No standalone capacity claim.','binaries':j['binaries'],'groups':{}}\nfor concurrency in [64,256]:\n rows=[]\n for key,runs in sorted(windows.items()):\n  if key[0]!=concurrency:continue\n  b,c,n=[runs[name] for name in ['rgnix','candidate','nginx']]\n  rows.append({'round':key[1],'repeat':key[2],'before_cpu_us':b['server_cpu_us_per_request'],'candidate_cpu_us':c['server_cpu_us_per_request'],'nginx_cpu_us':n['server_cpu_us_per_request'],'candidate_cpu_change_pct':(c['server_cpu_us_per_request']/b['server_cpu_us_per_request']-1)*100,'candidate_rps_change_pct':(c['rps']/b['rps']-1)*100,'before_over_nginx_cpu':b['server_cpu_us_per_request']/n['server_cpu_us_per_request'],'candidate_over_nginx_cpu':c['server_cpu_us_per_request']/n['server_cpu_us_per_request']})\n values=[r['candidate_cpu_change_pct'] for r in rows];rps=[r['candidate_rps_change_pct'] for r in rows]\n out['groups'][str(concurrency)]={'windows':rows,'cpu_change_pct_median':statistics.median(values),'cpu_change_pct_range':[min(values),max(values)],'rps_change_pct_median':statistics.median(rps),'rps_change_pct_range':[min(rps),max(rps)],'candidate_cpu_change_max_abs_pct':max(map(abs,values)),'candidate_rps_change_max_abs_pct':max(map(abs,rps)),'before_over_nginx_cpu_median':statistics.median(r['before_over_nginx_cpu'] for r in rows),'candidate_over_nginx_cpu_median':statistics.median(r['candidate_over_nginx_cpu'] for r in rows)}\n print(concurrency,round(statistics.median(values),2),'CPU%',round(statistics.median(rps),2),'RPS%',flush=True)\n(base/'matched-analysis.json').write_text(json.dumps(out,indent=2)+'\\n')\n",
+    ".local/closegap-20261001/archive.py": "import json,hashlib,shutil,subprocess,difflib,time,importlib.util\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-closegap-20261001');repo=Path.cwd();local=repo/'.local/closegap-20261001';out=repo/'docs/validation'\nfiles=['src/proxy/hyper/mod.rs','src/proxy/hyper/request.rs','src/routing.rs','scripts/hyper_integration.py','scripts/nginx_parity.py']\nexpected=json.loads((local/'hotpath-sources.json').read_text())\nfor name in files[:3]:assert hashlib.sha256((repo/name).read_bytes()).hexdigest()==expected[name],name\nassert len(json.loads((base/'normal-1k.json').read_text())['runs'])==36\nassert len(json.loads((base/'tail-repeat.json').read_text())['runs'])==18\npatch=''.join(''.join(difflib.unified_diff((local/'before'/name).read_text().splitlines(keepends=True),(repo/name).read_text().splitlines(keepends=True),fromfile='a/'+name,tofile='b/'+name)) for name in files)\n(out/'hyper-closegap-local-2026-10-01.patch').write_text(patch)\nraw={'profile-before':'profile-before/result.json','normal-1k':'normal-1k.json','normal-1k-analysis':'normal-1k-analysis.json','tail-repeat':'tail-repeat.json','tail-repeat-analysis':'tail-repeat-analysis.json','training-load':'training-load.json'}\nfor label in ['shared-control','shared-pgo','shared-hotpath']:\n for suffix,path in [('',label+'/result.json'),('-analysis',label+'/result-analysis.json'),('-matched',label+'/matched-analysis.json')]:raw[label+suffix]=path\nfor phase in ['before','hotpath']:\n for kind in ['alloc','primitives']:raw[kind+'-'+phase]=kind+'-'+phase+'/result.json'\nfor label,path in raw.items():shutil.copyfile(base/path,out/('hyper-closegap-'+label+'-2026-10-01.json'))\nspec=importlib.util.spec_from_file_location('pgo',repo/'scripts/pgo.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\nlogs={p.name:p.read_text() for p in sorted(base.glob('*.log'))}\nscripts={str(p.relative_to(repo)):p.read_text() for p in sorted(local.iterdir()) if p.suffix=='.py' or p.name.endswith('-hyper')}\nrecord={'recorded_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'head':json.loads((local/'start.json').read_text())['head'],'scope':'Experimental Hyper and jemalloc plain HTTP/1 1KiB proxy on shared OrbStack Linux ARM64. Fixed request-preparation cost reduction, separate root-crate PGO trial. No commit, push, release or default data-plane switch.','compiler':subprocess.check_output(['rustc','-Vv'],text=True),'nginx':subprocess.run(['/usr/sbin/nginx','-V'],capture_output=True,text=True).stderr,'kernel':subprocess.check_output(['uname','-a'],text=True),'native_work_dir':str(base),'start_inventory':json.loads((local/'start.json').read_text()),'root_source_before_sha256':json.loads((base/'pgo.json').read_text())['source_sha256'],'root_source_final_sha256':m.source_digest(),'sources':{name:hashlib.sha256((repo/name).read_bytes()).hexdigest() for name in files+['scripts/pgo.py']},'candidate':json.loads((base/'hotpath-binary.json').read_text()),'pgo':json.loads((base/'pgo.json').read_text()),'training':json.loads((base/'training.json').read_text()),'hotpath_stages':json.loads((base/'hotpath-stages.json').read_text()),'parity_repair':json.loads((base/'parity-repair.json').read_text()),'first_pipeline_stopped':json.loads((base/'first-pipeline-stopped.json').read_text()),'raw_files':{label:{'path':'docs/validation/hyper-closegap-'+label+'-2026-10-01.json','sha256':hashlib.sha256((base/path).read_bytes()).hexdigest()} for label,path in raw.items()},'dso_reports':{engine:(base/'profile-before'/(engine+'-dso.txt')).read_text() for engine in ['hyper','nginx']},'runtime_validation':{'lifecycle':58,'integration':101,'product':115,'parity_hyper':json.loads((base/'parity-hyper-fixed.json').read_text())['passed'],'parity_pingora':json.loads((base/'parity-pingora.json').read_text())['passed'],'pgo_expected_rejections':2},'findings':['No stable throughput or CPU cost improvement established. All initial formal and co-running absolute A/A groups failed. Matched co-running ratios do not replace standalone capacity calibration.','The original parity harness treated echoed Host field names case-sensitively. Both frozen baseline and candidate failed identically. Only the oracle comparison was repaired; original failures retained.','The PGO trial was not enabled in default Cargo/container builds. Profiles were collected on the pre-optimization source, and the current helper correctly refuses using them with changed source.','Captured operations decreased, but cumulative requested bytes stayed nearly flat; an extra 8192-byte allocation occurred in the candidate probe. Counts include background work; copies exclude inlined implementations.','The 57.685ms candidate P99 window is retained; focused c64 repeat is independent, not a replacement.','No hardware cycles/instructions in this VM. No dedicated physical-host, amd64, non-Linux, TLS/H2/RGL/static throughput, long soak or multi-replica Kubernetes capacity qualification. Existing mTLS CA-rotation intermittent reset remains unexplained.'],'logs':logs,'scripts':scripts}\n(out/'hyper-closegap-2026-10-01.json').write_text(json.dumps(record,indent=2)+'\\n')\nprint('Archived',len(raw),'raw/analysis files and machine record',flush=True)\n",
+    ".local/closegap-20261001/build_trial.py": "import subprocess,os,json,time,hashlib,shutil,sys\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-closegap-20261001');phase=sys.argv[1]\nenv=os.environ.copy();env['CARGO_TARGET_DIR']='/home/livesite/.cache/rgnix-opt-target'\nflags={'generate':['-Cprofile-generate='+str(base/'profiles')],'use':['-Cprofile-use='+str(base/'rgnix.profdata'),'-Cllvm-args=-pgo-warn-missing-function']}[phase]\ncommand=['cargo','rustc','--offline','--locked','--release','--features','hyper-experimental,jemalloc','--bin','rgnix','--',*flags]\nstart=time.monotonic()\nwith (base/('pgo-'+phase+'.log')).open('w') as log:r=subprocess.run(command,env=env,stdout=log,stderr=log)\nresult=dict(command=command,returncode=r.returncode,seconds=time.monotonic()-start,root_only=True)\nif not r.returncode:\n binary=base/('rgnix-pgo-'+phase);shutil.copyfile('/home/livesite/.cache/rgnix-opt-target/release/rgnix',binary);binary.chmod(0o755)\n result.update(binary=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest())\n(base/('pgo-'+phase+'.json')).write_text(json.dumps(result,indent=2)+'\\n')\nprint(json.dumps(result),flush=True)\nraise SystemExit(r.returncode)\n",
+    ".local/closegap-20261001/compare_shared.py": "\"\"\"Diagnostic co-running comparison; raw throughput is not standalone capacity.\"\"\"\nimport argparse,json,hashlib,multiprocessing,sys,time\nfrom pathlib import Path\nfrom types import SimpleNamespace\nsys.path.insert(0,str(Path.cwd()/'scripts'))\nimport benchmark_compare as b\nfrom integration import free_port,request,wait_for\n\nBARRIER=None\n\ndef sample(spec):\n engine,args,ports,seconds,server,origin=spec\n BARRIER.wait(timeout=30)\n run=b.measure(args,f\"http://127.0.0.1:{ports['http']}/proxy-1k\",Path(args.work_dir)/'wrk-proxy-1k.lua',args.concurrency,seconds,SimpleNamespace(pid=server),SimpleNamespace(pid=origin),ports['admin'] if engine!='nginx' else None)\n assert run['requests'] and not run['errors'],run\n return engine,run\n\ndef main():\n global BARRIER\n parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--candidate',required=True);parser.add_argument('--work-dir',type=Path,required=True)\n options=parser.parse_args();work=options.work_dir.resolve();work.mkdir(exist_ok=False)\n binaries={'rgnix':'/var/tmp/rgnix-forward-20261001/rgnix-metrics','candidate':str(Path(options.candidate).resolve()),'nginx':'/usr/sbin/nginx','openresty':'/usr/sbin/nginx'}\n ctx=multiprocessing.get_context('fork');BARRIER=ctx.Barrier(3)\n engines=['rgnix','candidate','nginx'];ports={};settings={};allports=set()\n def port():\n  value=free_port()\n  while value in allports:value=free_port()\n  allports.add(value);return value\n shared={'primary':port(),'canary':port()}\n for engine in engines:\n  directory=work/engine;directory.mkdir()\n  p={**shared,'http':port(),'tls':port(),'admin':port()};ports[engine]=p\n  args=SimpleNamespace(plain_proxy=True,workers=1,origin_workers=2,client_threads=2,client_cpus='2,3',origin_cpus='6,7',server_cpus='10',connection_close=False,wrk='wrk',cases=['proxy-1k'],work_dir=str(directory),concurrency=64)\n  settings[engine]=args;b.fixtures(args,directory,p)\n output={'settings':{'rounds':3,'concurrency':[64,256],'cases':['proxy-1k'],'workers':1,'origin_workers':2,'client_threads':2,'server_cpus':'10','origin_cpus':'6,7','warmup':3,'seconds':12,'synchronized_shared_cpu':True},'method':'Three frontends intentionally co-run on guest CPU 10, with synchronized warmup/load and disjoint client CPU pairs rotated every round. Diagnostic CPU cost and relative scheduling comparison only, not isolated throughput capacity. No builds, tests or probes during this experiment. Forked measuring workers isolate client child CPU accounting. All windows retained.','binaries':{name:{'path':path,'sha256':hashlib.sha256(Path(path).read_bytes()).hexdigest()} for name,path in binaries.items()},'ports':ports,'runs':[],'preflight':{},'started_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}\n origin=None;servers={}\n try:\n  origin_dir=work/'rgnix/origin';origin=b.start(['taskset','-c','6,7','/usr/sbin/nginx','-p',str(origin_dir),'-c',str(origin_dir/'nginx.conf'),'-g','daemon off;'],work/'origin.log')\n  wait_for(lambda:request(shared['primary'],'/proxy-1k')[0],200)\n  for round_index in range(3):\n   for index,engine in enumerate(engines):\n    args=settings[engine];args.client_cpus=[\"0,1\",\"2,3\",\"4,5\"][(index+round_index)%3]\n    directory=work/engine\n    if engine=='nginx':command=[binaries[engine],'-p',str(directory/'nginx'),'-c',str(directory/'nginx/nginx.conf'),'-g','daemon off;']\n    else:command=[binaries[engine],'serve','-c',str(directory/'rgnix/nginx.conf'),'--admin',f\"127.0.0.1:{ports[engine]['admin']}\",'--threads','1','--max-inflight','4096','--max-plugin-instances','512','--upstream-keepalive-pool-size','128','--shutdown-grace-seconds','0','--shutdown-timeout-seconds','5','--experimental-hyper']\n    server=b.start(['taskset','-c','10',*command],work/f'{engine}-round{round_index+1}.log');servers[engine]=server\n    wait_for(lambda:request(ports[engine]['admin'] if engine!='nginx' else ports[engine]['http'],'/readyz' if engine!='nginx' else '/proxy-1k')[0],200)\n    output['preflight'][f'{engine}/round{round_index+1}']=b.preflight(engine,ports[engine],True,['proxy-1k'])\n   with ctx.Pool(3) as pool:\n    for concurrency in ([64,256] if round_index%2==0 else [256,64]):\n     for repeat in range(2):\n      for args in settings.values():args.concurrency=concurrency\n      def specs(seconds):return [(engine,settings[engine],ports[engine],seconds,servers[engine].pid,origin.pid) for engine in engines]\n      pool.map_async(sample,specs(3)).get(timeout=45)\n      runs=pool.map_async(sample,specs(12)).get(timeout=55)\n      for engine,run in runs:\n       run.update(engine=engine,case='proxy-1k',concurrency=concurrency,round=round_index+1,repeat=repeat+1,client_cpus=settings[engine].client_cpus)\n       output['runs'].append(run)\n       print(round_index+1,repeat+1,engine,concurrency,round(run['rps']),round(run['server_cpu_us_per_request'],2),flush=True)\n      (work/'result.json').write_text(json.dumps(output,indent=2)+'\\n')\n   for server in servers.values():b.stop(server)\n   servers={}\n  output['completed_at']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())\n finally:\n  for server in servers.values():b.stop(server)\n  b.stop(origin);(work/'result.json').write_text(json.dumps(output,indent=2)+'\\n')\n\nif __name__=='__main__':main()\n",
+    ".local/closegap-20261001/final_hotpath.py": "import subprocess,os,json,time,hashlib,shutil\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-closegap-20261001');binary=base/'rgnix-hotpath'\nenv=os.environ.copy();env['CARGO_TARGET_DIR']='/home/livesite/.cache/rgnix-opt-target';env['RGNIX_RESULTS']=str(base/'integration.json')\nresults=[]\ndef run(name,command,expected=0):\n begun=time.monotonic()\n with (base/(name+'.log')).open('w') as log:r=subprocess.run(command,env=env,stdout=log,stderr=log)\n results.append(dict(name=name,command=command,returncode=r.returncode,expected=expected,seconds=time.monotonic()-begun));(base/'hotpath-stages.json').write_text(json.dumps(results,indent=2)+'\\n')\n print(name,r.returncode,flush=True)\n if r.returncode!=expected:raise SystemExit(r.returncode or 1)\nrun('hotpath-check',['cargo','check','--offline','--locked','--features','hyper-experimental,jemalloc'])\nrun('hotpath-build',['cargo','build','--offline','--locked','--release','--features','hyper-experimental,jemalloc'])\nshutil.copyfile('/home/livesite/.cache/rgnix-opt-target/release/rgnix',binary);binary.chmod(0o755)\n(base/'hotpath-binary.json').write_text(json.dumps(dict(path=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest()),indent=2)+'\\n')\nfor phase,elf in [('before',Path('/var/tmp/rgnix-forward-20261001/rgnix-metrics')),('hotpath',binary)]:\n for kind,script in [('alloc','.local/allocator-opt-20260928/allocations.py'),('primitives','scripts/profile_http_primitives.py')]:\n  run(kind+'-'+phase,['sudo','-n','python3',script,'--profile','/var/tmp/rgnix-closegap-20261001/profile-before/result.json','--matrix','/var/tmp/rgnix-forward-20261001/metrics-1k.json','--engines','hyper','--binary',str(elf),'--work-dir',str(base/(kind+'-'+phase))])\nrun('shared-hotpath',['python3','.local/closegap-20261001/compare_shared.py','--candidate',str(binary),'--work-dir',str(base/'shared-hotpath')])\nrun('normal-1k',['python3','scripts/benchmark_compare.py','--rgnix','/var/tmp/rgnix-forward-20261001/rgnix-metrics','--candidate',str(binary),'--nginx','/usr/sbin/nginx','--openresty','/usr/sbin/nginx','--plain-proxy','--rgnix-transport','hyper','--candidate-transport','hyper','--engines','rgnix','rgnix','candidate','candidate','nginx','nginx','--cases','proxy-1k','--concurrency','64','256','--workers','1','--origin-workers','2','--client-threads','2','--server-cpus','10','--client-cpus','2,3','--origin-cpus','6,7','--rounds','3','--warmup','3','--seconds','12','--interleave','--work-dir',str(base/'normal-1k'),'--output',str(base/'normal-1k.json')])\nrun('fmt',['cargo','fmt','--all','--check'])\nrun('clippy',['cargo','clippy','--offline','--locked','--features','hyper-experimental,jemalloc','--all-targets','--','-D','warnings'])\nrun('lifecycle',['python3','scripts/hyper_integration.py',str(binary),'--threads','2','--ephemeral-listener'])\nrun('integration',['python3','scripts/integration.py','.local/closegap-20261001/rgnix-hotpath-hyper'])\nrun('product',['python3','scripts/product_features.py','.local/closegap-20261001/rgnix-hotpath-hyper'])\nrun('parity-hyper',['python3','scripts/nginx_parity.py','.local/closegap-20261001/rgnix-hotpath-hyper'])\nrun('parity-pingora',['python3','scripts/nginx_parity.py',str(binary)])\nrun('default-check',['cargo','check','--offline','--locked'])\nrun('pgo-source-guard',['python3','scripts/pgo.py','use','--offline','--work-dir',str(base)],expected=2)\nrun('pgo-generation-guard',['python3','scripts/pgo.py','generate','--offline','--work-dir',str(base)],expected=2)\nrun('python-syntax',['python3','-m','py_compile','scripts/pgo.py','scripts/nginx_parity.py','scripts/hyper_integration.py'])\n",
+    ".local/closegap-20261001/finish.py": "import subprocess,os,json,time,hashlib,shutil\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-closegap-20261001')\nenv=os.environ.copy();env['CARGO_TARGET_DIR']='/home/livesite/.cache/rgnix-opt-target';env['RGNIX_RESULTS']=str(base/'integration.json')\nresults=[]\ndef run(name,command,expected=0):\n begun=time.monotonic()\n with (base/(name+'.log')).open('w') as log:r=subprocess.run(command,env=env,stdout=log,stderr=log)\n results.append(dict(name=name,command=command,returncode=r.returncode,expected=expected,seconds=time.monotonic()-begun));(base/'final-stages.json').write_text(json.dumps(results,indent=2)+'\\n')\n print(name,r.returncode,flush=True)\n if r.returncode!=expected:raise SystemExit(r.returncode or 1)\nrun('shared-pgo',['python3','.local/closegap-20261001/compare_shared.py','--candidate',str(base/'rgnix-pgo-use'),'--work-dir',str(base/'shared-pgo')])\nrun('ordinary-build',['cargo','build','--offline','--locked','--release','--features','hyper-experimental,jemalloc'])\nbinary=base/'rgnix-before';shutil.copyfile('/home/livesite/.cache/rgnix-opt-target/release/rgnix',binary);binary.chmod(0o755)\n(base/'ordinary-binary.json').write_text(json.dumps(dict(path=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest()),indent=2)+'\\n')\nrun('normal-1k',['python3','scripts/benchmark_compare.py','--rgnix',str(binary),'--candidate',str(base/'rgnix-pgo-use'),'--nginx','/usr/sbin/nginx','--openresty','/usr/sbin/nginx','--plain-proxy','--rgnix-transport','hyper','--candidate-transport','hyper','--engines','rgnix','rgnix','candidate','candidate','nginx','nginx','--cases','proxy-1k','--concurrency','64','256','--workers','1','--origin-workers','2','--client-threads','2','--server-cpus','10','--client-cpus','2,3','--origin-cpus','6,7','--rounds','3','--warmup','3','--seconds','12','--interleave','--work-dir',str(base/'normal-1k'),'--output',str(base/'normal-1k.json')])\nrun('lifecycle',['python3','scripts/hyper_integration.py',str(base/'rgnix-pgo-use'),'--threads','2','--ephemeral-listener'])\nrun('integration',['python3','scripts/integration.py','.local/closegap-20261001/rgnix-pgo-use-hyper'])\nrun('product',['python3','scripts/product_features.py','.local/closegap-20261001/rgnix-pgo-use-hyper'])\nrun('pgo-source-guard',['python3','scripts/pgo.py','use','--offline','--work-dir',str(base),'--features','hyper-experimental'],expected=2)\nrun('pgo-generation-guard',['python3','scripts/pgo.py','generate','--offline','--work-dir',str(base)],expected=2)\nrun('python-syntax',['python3','-m','py_compile','scripts/pgo.py'])\n",
+    ".local/closegap-20261001/rgnix-hotpath-hyper": "#!/usr/bin/env python3\nimport os,sys\nbinary=\"/var/tmp/rgnix-closegap-20261001/rgnix-hotpath\"\nargs=sys.argv[1:]\nif args and args[0] in [\"serve\",\"ingress\",\"gateway\"] and \"--experimental-hyper\" not in args:args.append(\"--experimental-hyper\")\nos.execv(binary,[binary,*args])\n",
+    ".local/closegap-20261001/rgnix-pgo-generate-hyper": "#!/usr/bin/env python3\nimport os,sys\nbinary=\"/var/tmp/rgnix-closegap-20261001/rgnix-pgo-generate\"\nargs=sys.argv[1:]\nif args and args[0] in [\"serve\",\"ingress\",\"gateway\"] and \"--experimental-hyper\" not in args:args.append(\"--experimental-hyper\")\nos.execv(binary,[binary,*args])\n",
+    ".local/closegap-20261001/rgnix-pgo-use-hyper": "#!/usr/bin/env python3\nimport os,sys\nbinary=\"/var/tmp/rgnix-closegap-20261001/rgnix-pgo-use\"\nargs=sys.argv[1:]\nif args and args[0] in [\"serve\",\"ingress\",\"gateway\"] and \"--experimental-hyper\" not in args:args.append(\"--experimental-hyper\")\nos.execv(binary,[binary,*args])\n",
+    ".local/closegap-20261001/tail_repeat.py": "import subprocess,json\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-closegap-20261001')\ncommand=['python3','scripts/benchmark_compare.py','--rgnix','/var/tmp/rgnix-forward-20261001/rgnix-metrics','--candidate',str(base/'rgnix-hotpath'),'--nginx','/usr/sbin/nginx','--openresty','/usr/sbin/nginx','--plain-proxy','--rgnix-transport','hyper','--candidate-transport','hyper','--engines','rgnix','candidate','rgnix','candidate','nginx','nginx','--cases','proxy-1k','--concurrency','64','--workers','1','--origin-workers','2','--client-threads','2','--server-cpus','10','--client-cpus','2,3','--origin-cpus','6,7','--rounds','3','--warmup','3','--seconds','8','--interleave','--work-dir',str(base/'tail-repeat'),'--output',str(base/'tail-repeat.json')]\n(base/'tail-repeat.command').write_text(json.dumps(command)+'\\n')\nwith (base/'tail-repeat.log').open('w') as log:r=subprocess.run(command,stdout=log,stderr=log)\nprint('tail-repeat',r.returncode,flush=True)\nraise SystemExit(r.returncode)\n",
+    ".local/closegap-20261001/train.py": "import subprocess,os,json,time,shutil\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-closegap-20261001')\nshutil.copyfile(base/'pgo-generate.log',base/'trial-generate.log')\ncommands=[('generate-tool',['python3','scripts/pgo.py','generate','--offline','--work-dir',str(base),'--target-dir','/home/livesite/.cache/rgnix-opt-target']),('training-integration',['python3','scripts/integration.py','.local/closegap-20261001/rgnix-pgo-generate-hyper']),('training-load',['python3','scripts/benchmark_compare.py','--rgnix',str(base/'rgnix-pgo-generate'),'--nginx','/usr/sbin/nginx','--openresty','/usr/sbin/nginx','--plain-proxy','--rgnix-transport','hyper','--engines','rgnix','--cases','proxy-1k','proxy-16k','--concurrency','16','128','--workers','1','--origin-workers','2','--client-threads','2','--server-cpus','10','--client-cpus','2,3','--origin-cpus','6,7','--rounds','1','--warmup','2','--seconds','8','--work-dir',str(base/'training-load'),'--output',str(base/'training-load.json')]),('use-tool',['python3','scripts/pgo.py','use','--offline','--work-dir',str(base),'--target-dir','/home/livesite/.cache/rgnix-opt-target'])]\nenv=os.environ.copy();env['RGNIX_RESULTS']=str(base/'training-integration.json')\nresults=[]\nfor name,command in commands:\n begun=time.monotonic()\n with (base/(name+'.log')).open('w') as log:r=subprocess.run(command,env=env,stdout=log,stderr=log)\n results.append(dict(name=name,command=command,returncode=r.returncode,seconds=time.monotonic()-begun));(base/'training.json').write_text(json.dumps(results,indent=2)+'\\n')\n print(name,r.returncode,flush=True)\n if r.returncode:raise SystemExit(r.returncode)\n",
+    ".local/closegap-20261001/validate_parity.py": "import subprocess,os,json,time,shutil\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-closegap-20261001');env=os.environ.copy();env['CARGO_TARGET_DIR']='/home/livesite/.cache/rgnix-opt-target'\ncommands=[('parity-hyper-fixed',['python3','scripts/nginx_parity.py','.local/closegap-20261001/rgnix-hotpath-hyper'],0),('parity-pingora',['python3','scripts/nginx_parity.py',str(base/'rgnix-hotpath')],0),('default-check',['cargo','check','--offline','--locked'],0),('pgo-source-guard',['python3','scripts/pgo.py','use','--offline','--work-dir',str(base)],2),('pgo-generation-guard',['python3','scripts/pgo.py','generate','--offline','--work-dir',str(base)],2),('python-syntax',['python3','-m','py_compile','scripts/pgo.py','scripts/nginx_parity.py','scripts/hyper_integration.py'],0)]\nresults=[]\nfor name,command,expected in commands:\n begun=time.monotonic()\n with (base/(name+'.log')).open('w') as log:r=subprocess.run(command,env=env,stdout=log,stderr=log)\n results.append(dict(name=name,command=command,returncode=r.returncode,expected=expected,seconds=time.monotonic()-begun));(base/'parity-repair.json').write_text(json.dumps(results,indent=2)+'\\n')\n print(name,r.returncode,flush=True)\n if r.returncode!=expected:raise SystemExit(r.returncode or 1)\n if name.startswith('parity'):shutil.copyfile('.local/nginx-parity.json',base/(name+'.json'))\n"
+  }
+}

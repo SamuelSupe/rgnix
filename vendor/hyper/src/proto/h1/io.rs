@@ -37,6 +37,8 @@ pub(crate) struct Buffered<T, B> {
     read_buf: BytesMut,
     read_buf_strategy: ReadStrategy,
     write_buf: WriteBuf<B>,
+    #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+    send_file: Option<crate::ext::SendFile>,
 }
 
 impl<T, B> fmt::Debug for Buffered<T, B>
@@ -71,6 +73,8 @@ where
             read_buf: BytesMut::with_capacity(0),
             read_buf_strategy: ReadStrategy::default(),
             write_buf,
+            #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+            send_file: None,
         }
     }
 
@@ -115,6 +119,11 @@ where
         self.read_buf.as_ref()
     }
 
+    #[cfg(feature = "rgnix-extensions")]
+    pub(crate) fn set_read_idle(&mut self, cx: &mut Context<'_>, idle: bool) {
+        Pin::new(&mut self.io).set_read_idle(cx, idle);
+    }
+
     #[cfg(test)]
     #[cfg(feature = "nightly")]
     pub(super) fn read_buf_mut(&mut self) -> &mut BytesMut {
@@ -151,7 +160,27 @@ where
 
     /// Whether there are bytes waiting in the write buffer to be flushed.
     pub(crate) fn has_buffered_write(&self) -> bool {
+        #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+        if self.send_file.is_some() { return true; }
         self.write_buf.remaining() > 0
+    }
+
+    #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+    pub(crate) fn send_file(&mut self, file: crate::ext::SendFile) { self.send_file = Some(file); }
+
+    fn poll_file_and_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+        {
+            let mut progress = 0;
+            while let Some(file) = &mut self.send_file {
+                if file.length == 0 { self.send_file = None; break; }
+                let n = ready!(Pin::new(&mut self.io).poll_sendfile(cx, &file.file, file.offset, file.length.min(65536) as usize))?;
+                if n == 0 { return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())); }
+                file.offset += n as u64; file.length -= n as u64; progress += n;
+                if progress >= 262144 { cx.waker().wake_by_ref(); return Poll::Pending; }
+            }
+        }
+        Pin::new(&mut self.io).poll_flush(cx)
     }
 
     pub(crate) fn can_buffer(&self) -> bool {
@@ -221,6 +250,28 @@ where
         }
     }
 
+    #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
+    pub(crate) fn poll_read_idle(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
+        debug_assert!(self.read_buf.is_empty());
+        self.read_blocked = false;
+        // Idle clients only distinguish EOF, Pending, and unexpected data. A
+        // response can still own the receive allocation: reserving a full buffer
+        // here would detach it even when no new data is available.
+        let mut scratch = [0; 1];
+        let mut buf = ReadBuf::new(&mut scratch);
+        match Pin::new(&mut self.io).poll_read(cx, buf.unfilled()) {
+            Poll::Ready(Ok(())) => {
+                self.read_buf.extend_from_slice(buf.filled());
+                Poll::Ready(Ok(buf.filled().len()))
+            }
+            Poll::Pending => {
+                self.read_blocked = true;
+                Poll::Pending
+            }
+            Poll::Ready(Err(error)) => Poll::Ready(Err(error)),
+        }
+    }
+
     pub(crate) fn poll_read_from_io(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         self.read_blocked = false;
         // Get the next amount to allocate, but make sure we don't go over
@@ -231,7 +282,26 @@ where
                 .max()
                 .saturating_sub(self.read_buf.len()),
         );
-        if self.read_buf_remaining_mut() < next {
+        #[cfg(feature = "rgnix-reuse-buffer")]
+        let reserve_at = if self.read_buf.is_empty()
+            && matches!(
+                self.read_buf_strategy,
+                ReadStrategy::Adaptive {
+                    next: INIT_BUFFER_SIZE,
+                    ..
+                }
+            ) {
+            // Parsed headers and body frames may still share this allocation.
+            // Use its remaining tail for small messages before detaching it;
+            // partial messages, growing streams and exact-size reads keep the
+            // original reservation strategy.
+            next / 2
+        } else {
+            next
+        };
+        #[cfg(not(feature = "rgnix-reuse-buffer"))]
+        let reserve_at = next;
+        if self.read_buf_remaining_mut() < reserve_at {
             self.read_buf.reserve(next);
         }
 
@@ -272,7 +342,7 @@ where
         if self.flush_pipeline && !self.read_buf.is_empty() {
             Poll::Ready(Ok(()))
         } else if self.write_buf.remaining() == 0 {
-            Pin::new(&mut self.io).poll_flush(cx)
+            self.poll_file_and_flush(cx)
         } else {
             if let WriteStrategy::Flatten = self.write_buf.strategy {
                 return self.poll_flush_flattened(cx);
@@ -300,7 +370,7 @@ where
                     return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
                 }
             }
-            Pin::new(&mut self.io).poll_flush(cx)
+            self.poll_file_and_flush(cx)
         }
     }
 
@@ -324,7 +394,7 @@ where
                 return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
             }
         }
-        Pin::new(&mut self.io).poll_flush(cx)
+        self.poll_file_and_flush(cx)
     }
 
     pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -720,6 +790,38 @@ mod tests {
             buffered.read_buf,
             b"HTTP/1.1 200 OK\r\nServer: hyper\r\n"[..]
         );
+    }
+
+    #[cfg(feature = "rgnix-reuse-buffer")]
+    #[tokio::test]
+    async fn retained_frames_survive_mixed_size_reads() {
+        let chunks: Vec<_> = (0..32)
+            .map(|i| vec![i; if i % 7 == 6 { 32768 } else { 1024 }])
+            .collect();
+        let mut mock = Mock::new();
+        for chunk in &chunks {
+            mock.read(chunk);
+        }
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock.build()));
+        let mut retained = Vec::new();
+        for chunk in &chunks {
+            let mut remaining = chunk.len();
+            while remaining > 0 {
+                let frame = futures_util::future::poll_fn(|cx| buffered.read_mem(cx, remaining))
+                    .await
+                    .unwrap();
+                assert!(!frame.is_empty());
+                remaining -= frame.len();
+                retained.push(frame);
+            }
+        }
+        drop(buffered);
+        let actual: Vec<_> = retained
+            .iter()
+            .flat_map(|frame| frame.iter().copied())
+            .collect();
+        let expected: Vec<_> = chunks.into_iter().flatten().collect();
+        assert_eq!(actual, expected);
     }
 
     #[test]

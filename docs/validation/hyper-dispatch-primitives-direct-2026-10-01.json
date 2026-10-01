@@ -1,0 +1,82 @@
+{
+  "method": "Resolved libc memcpy/memmove and clock_gettime uprobes. One connection, 10 warm and 500 measured requests. Counts include background operations and exclude inlined copies; not throughput or latency. AArch64 return addresses are mapped to ELF symbols.",
+  "records": [
+    {
+      "engine": "hyper",
+      "binary": "/var/tmp/rgnix-dispatch-20261001/rgnix-direct",
+      "sha256": "20bc4b74b59e6af324d9b4b7e688fb23f82676280a1cde80555a74f5bf5ae9b1",
+      "requests": 500,
+      "events": {
+        "clock": 10038,
+        "memmove": 2,
+        "memcpy": 23631
+      },
+      "copy_bytes": 3138000,
+      "sizes": {
+        "0": 633,
+        "264": 4500,
+        "448": 500,
+        "296": 2500,
+        "9": 2500,
+        "304": 1000,
+        "543": 1000,
+        "3": 500,
+        "1": 500,
+        "15": 500,
+        "8": 1500,
+        "4": 2000,
+        "10": 500,
+        "6": 500,
+        "12": 1000,
+        "29": 1000,
+        "24": 500,
+        "13": 1000,
+        "5": 500,
+        "14": 500,
+        "7": 500
+      },
+      "copy_bytes_by_caller": {
+        "rgnix::proxy::hyper::request::serve::{{closure}}": 2231000,
+        "<hyper::proto::h1::dispatch::Server<S,hyper::body::incoming::Incoming> as hyper::proto::h1::dispatch::Dispatch>::recv_msg": 488000,
+        "<rgnix::proxy::hyper::Listener as pingora_core::services::background::BackgroundService>::start::{{closure}}::{{closure}}::{{closure}}::{{closure}}": 280000,
+        "<hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode": 92000,
+        "hyper::proto::h1::role::write_headers": 18000,
+        "http::header::name::HeaderName::from_bytes": 9000,
+        "<hyper::proto::h1::role::FastWrite as core::fmt::Write>::write_str": 5000,
+        "<http::uri::authority::Authority as core::str::traits::FromStr>::from_str": 4500,
+        "rgnix::proxy::request_host_parts::{{closure}}": 4500,
+        "rgnix::model::RuntimeSnapshot::route": 4500,
+        "<hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::encode": 1500,
+        "std::sync::mpmc::waker::SyncWaker::unregister": 0,
+        "<rgnix::proxy::hyper::Listener as core::clone::Clone>::clone": 0,
+        "bytes::bytes_mut::BytesMut::reserve_inner": 0
+      },
+      "clock_calls_by_caller": {
+        "std::sys::pal::unix::time::Timespec::now": 10038
+      },
+      "record_output": "[ perf record: Woken up 13 times to write data ]\n[ perf record: Captured and wrote 3.141 MB /var/tmp/rgnix-dispatch-20261001/primitives-direct/hyper.data (33671 samples) ]\n",
+      "server_command": [
+        "taskset",
+        "-c",
+        "10,11",
+        "/var/tmp/rgnix-dispatch-20261001/rgnix-direct",
+        "serve",
+        "-c",
+        "/var/tmp/rgnix-worker-20261001/profile-local/fixture/rgnix/nginx.conf",
+        "--admin",
+        "127.0.0.1:55875",
+        "--threads",
+        "2",
+        "--max-inflight",
+        "4096",
+        "--max-plugin-instances",
+        "512",
+        "--shutdown-grace-seconds",
+        "0",
+        "--shutdown-timeout-seconds",
+        "5",
+        "--experimental-hyper"
+      ]
+    }
+  ]
+}

@@ -26,8 +26,9 @@ def main():
     parser.add_argument("--work-dir", type=Path, required=True)
     args = parser.parse_args()
     matrix = json.loads(args.matrix.read_text())
-    if not matrix["settings"].get("plain_proxy") or matrix["settings"]["workers"] != 1:
-        parser.error("requires a plain-proxy, single-worker fixture")
+    if not matrix["settings"].get("plain_proxy"):
+        parser.error("requires a plain-proxy fixture")
+    workers = matrix["settings"]["workers"]
     if "prototype" in args.engines and not args.prototype:
         parser.error("--engines prototype requires --prototype")
     if args.seconds < 1:
@@ -55,7 +56,7 @@ def main():
     result = {"mode": args.mode, "fixture_settings": matrix["settings"],
               "profile_settings": {"concurrency": 64, "warmup_seconds": 3, "seconds": args.seconds, "engines": args.engines},
               "network_namespace": os.readlink("/proc/self/ns/net"),
-              "method": "Single-worker CPU-pinned c64 plain HTTP/1 proxy; 3s warmup; cpu-clock 199 Hz DWARF stacks or separate syscall counters. Instrumented counts and stack samples, not throughput evidence. Stack scopes overlap; flat samples do not identify every inlined caller.",
+              "method": f"{workers}-worker CPU-pinned c64 plain HTTP/1 proxy; 3s warmup; cpu-clock 199 Hz DWARF stacks or separate syscall counters. Instrumented counts and stack samples, not throughput evidence. Stack scopes overlap; flat samples do not identify every inlined caller.",
               "binaries": {name: {"path": path, "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest()} for name, path in binaries.items()}, "records": []}
     origin = server = instrument = None
     output = work / "result.json"
@@ -65,11 +66,11 @@ def main():
         for engine in args.engines:
             product = engine in ["pingora", "hyper"]
             if product:
-                command = [binaries[engine], "serve", "-c", str(fixture / "rgnix/nginx.conf"), "--admin", f"127.0.0.1:{ports['admin']}", "--threads", "1", "--max-inflight", "4096", "--max-plugin-instances", "512", "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "5"]
+                command = [binaries[engine], "serve", "-c", str(fixture / "rgnix/nginx.conf"), "--admin", f"127.0.0.1:{ports['admin']}", "--threads", str(workers), "--max-inflight", "4096", "--max-plugin-instances", "512", "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "5"]
                 if engine == "hyper":
                     command.append("--experimental-hyper")
             elif engine == "prototype":
-                command = [binaries[engine], "--listen", f"127.0.0.1:{ports['http']}", "--upstream", f"127.0.0.1:{ports['primary']}", "--workers", "1"]
+                command = [binaries[engine], "--listen", f"127.0.0.1:{ports['http']}", "--upstream", f"127.0.0.1:{ports['primary']}", "--workers", str(workers)]
             else:
                 command = [binaries[engine], "-p", str(fixture / "nginx"), "-c", str(fixture / "nginx/nginx.conf"), "-g", "daemon off;"]
             command = ["taskset", "-c", matrix["settings"]["server_cpus"], *command]

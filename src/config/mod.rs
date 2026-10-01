@@ -656,6 +656,30 @@ fn apply(s: &mut Scope, n: &Directive, base: &Path, context: &str) -> Result<()>
                 one(n)?;
                 s.settings.keepalive = duration(&n.args[0])?;
             }
+            "client_header_timeout" => {
+                one(n)?;
+                ensure!(
+                    context != "location",
+                    "client_header_timeout belongs in http or server"
+                );
+                s.settings.client_header_timeout = duration(&n.args[0])?;
+            }
+            "client_body_timeout" => {
+                one(n)?;
+                s.settings.client_body_timeout = duration(&n.args[0])?;
+            }
+            "send_timeout" => {
+                one(n)?;
+                s.settings.send_timeout = duration(&n.args[0])?;
+            }
+            "rgnix_connect" => {
+                one(n)?;
+                s.settings.connect_tunnel = match n.args[0].as_str() {
+                    "on" => true,
+                    "off" => false,
+                    _ => bail!("rgnix_connect expects on/off"),
+                };
+            }
             "ssl_certificate" => {
                 one(n)?;
                 ensure!(context != "location", "TLS is not valid in location");
@@ -673,6 +697,19 @@ fn apply(s: &mut Scope, n: &Directive, base: &Path, context: &str) -> Result<()>
                     "on" => true,
                     "off" => false,
                     _ => bail!("http2 expects on/off"),
+                };
+            }
+            "http3" => {
+                one(n)?;
+                ensure!(
+                    n.args[0] != "on" || cfg!(feature = "http3"),
+                    "HTTP/3 requires the http3 build feature"
+                );
+                ensure!(context != "location", "http3 belongs in http or server");
+                s.settings.http3 = match n.args[0].as_str() {
+                    "on" => true,
+                    "off" => false,
+                    _ => bail!("http3 expects on/off"),
                 };
             }
             "rgnix_script" => {

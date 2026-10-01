@@ -1,0 +1,72 @@
+{
+  "method": "Prefixed jemalloc allocation/reallocation entry uprobes for Rust GlobalAlloc. One connection, 10 warm and 500 status/body-validated requests. Background allocations included; internal jemalloc callers excluded to avoid nested API double counting. calloc assumes the verified Rust wrapper calloc(1,size). Requested bytes are cumulative, not live memory; not throughput evidence.",
+  "records": [
+    {
+      "engine": "hyper",
+      "binary": "/var/tmp/rgnix-worker-20261001/rgnix-local",
+      "sha256": "30b0882c80645d6e895818df2020340e62451fbf3fa39b00063d30164cb470d3",
+      "requests": 500,
+      "events": {
+        "malloc": 8263
+      },
+      "requested_bytes": 2347116,
+      "sizes": {
+        "32": 1000,
+        "16": 1000,
+        "140": 500,
+        "9": 1500,
+        "40": 631,
+        "192": 500,
+        "1368": 500,
+        "208": 500,
+        "8": 500,
+        "8192": 131,
+        "320": 500,
+        "10": 500,
+        "112": 500,
+        "8224": 1
+      },
+      "requested_bytes_by_caller": {
+        "bytes::bytes_mut::BytesMut::reserve_inner": 1073152,
+        "hyper_util::client::legacy::client::Client<C,B>::request": 684000,
+        "alloc::raw_vec::finish_grow": 160000,
+        "rgnix::proxy::hyper::request::serve::{{closure}}": 116000,
+        "hyper_util::client::legacy::client::Client<C,B>::request::{{closure}}": 104000,
+        "hashbrown::raw::RawTable<T,A>::reserve_rehash": 70000,
+        "<hyper_util::rt::tokio::TokioTimer as hyper::rt::timer::Timer>::sleep_until": 56000,
+        "http::extensions::Extensions::insert": 32000,
+        "hyper::ext::informational::on_informational": 16000,
+        "http::header::name::HeaderName::from_bytes": 9000,
+        "tokio::sync::mpsc::list::Tx<T>::find_block": 8224,
+        "bytes::bytes_mut::BytesMut::split_to": 5240,
+        "<http::uri::authority::Authority as core::str::traits::FromStr>::from_str": 4500,
+        "rgnix::proxy::request_host_parts::{{closure}}": 4500,
+        "rgnix::model::RuntimeSnapshot::route": 4500
+      },
+      "perf_script_diagnostics": "'trace' not valid for hardware events. Ignoring.\n'trace' not valid for software events. Ignoring.\n'trace' not valid for hardware-cache events. Ignoring.\n'trace' not valid for raw events. Ignoring.\n'trace' not valid for breakpoint events. Ignoring.\n'trace' not valid for unknown events. Ignoring.\n'trace' not valid for unknown events. Ignoring.\n",
+      "record_output": "[ perf record: Woken up 3 times to write data ]\n[ perf record: Captured and wrote 0.908 MB /var/tmp/rgnix-dispatch-20261001/alloc-before/hyper.data (8263 samples) ]\n",
+      "server_command": [
+        "taskset",
+        "-c",
+        "10,11",
+        "/var/tmp/rgnix-worker-20261001/rgnix-local",
+        "serve",
+        "-c",
+        "/var/tmp/rgnix-worker-20261001/profile-local/fixture/rgnix/nginx.conf",
+        "--admin",
+        "127.0.0.1:55875",
+        "--threads",
+        "2",
+        "--max-inflight",
+        "4096",
+        "--max-plugin-instances",
+        "512",
+        "--shutdown-grace-seconds",
+        "0",
+        "--shutdown-timeout-seconds",
+        "5",
+        "--experimental-hyper"
+      ]
+    }
+  ]
+}

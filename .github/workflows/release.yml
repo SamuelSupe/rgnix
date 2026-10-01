@@ -32,7 +32,9 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     container: rust:1.98-bookworm
-    timeout-minutes: 60
+    timeout-minutes: 90
+    env:
+      RGNIX_CARGO_FEATURES: http3,jemalloc
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -44,7 +46,7 @@ jobs:
           cache-on-failure: true
       - name: Native dependencies
         run: |
-          apt-get update && apt-get install -y cmake pkg-config libssl-dev openssl python3-grpcio python3-brotli logrotate redis-server
+          apt-get update && apt-get install -y cmake pkg-config libssl-dev openssl python3-grpcio python3-brotli python3-h2 python3-venv curl logrotate redis-server
           useradd --create-home --uid 10001 rgnix-ci
           chown -R rgnix-ci:rgnix-ci "$GITHUB_WORKSPACE" "$CARGO_HOME"
       - name: Validate version and complete behavioral gates
@@ -55,9 +57,15 @@ jobs:
           runuser -u rgnix-ci -- env PATH="$PATH" CARGO_HOME="$CARGO_HOME" RUSTUP_HOME="$RUSTUP_HOME" bash -euo pipefail <<'CHECKS'
           python3 scripts/release_version.py
           python3 scripts/release_version.py --notes > /dev/null
-          bash scripts/check.sh
-          cargo clippy --locked --all-targets -j 2 -- -D warnings
-          cargo build --release --locked -j 2
+          RGNIX_ENGINE=pingora RGNIX_EXPERIMENTAL_HYPER=false bash scripts/check.sh
+          RGNIX_ENGINE=hyper RGNIX_EXPERIMENTAL_HYPER=true bash scripts/check.sh
+          cargo clippy --locked --features http3,jemalloc --all-targets -j 2 -- -D warnings
+          cargo test --manifest-path vendor/hyper/Cargo.toml --lib --features client,server,http1,http2,rgnix-full-body,rgnix-reuse-buffer,rgnix-extensions -j 2
+          cargo test --manifest-path vendor/hyper-util/Cargo.toml --lib --features client-legacy,server-auto,http1,http2,tokio,rgnix-sendfile -j 2 client::legacy
+          cargo build --release --locked --features http3,jemalloc -j 2
+          python3 -m venv --system-site-packages .local/protocol-venv
+          .local/protocol-venv/bin/pip install -r scripts/requirements-protocols.txt
+          RGNIX_PROTOCOL_PYTHON=.local/protocol-venv/bin/python bash scripts/validate_artifact.sh target/release/rgnix
           test "$(target/release/rgnix --version)" = "rgnix $(python3 scripts/release_version.py)"
           CHECKS
       - name: Package native executable
@@ -91,6 +99,7 @@ jobs:
             .local/ingress-recovery.json
             .local/log-rotation.json
             .local/global-rate-results.json
+            .local/artifact-validation/
 
   gateway:
     needs: native
@@ -127,11 +136,14 @@ jobs:
         run: |
           python3 -c 'import os; assert 120 <= int(os.environ["SOAK_SECONDS"]) <= 3600'
           python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-release-qa --image rgnix:gateway-ci --require-multiple-nodes --soak-seconds "$SOAK_SECONDS" --scale-routes "$SCALE_ROUTES" --output gateway-results.json
+          python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-hyper-release-qa --image rgnix:gateway-ci --experimental-hyper --require-multiple-nodes --soak-seconds "$SOAK_SECONDS" --scale-routes "$SCALE_ROUTES" --output gateway-hyper-results.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: gateway-validation
-          path: gateway-results.json
+          path: |
+            gateway-results.json
+            gateway-hyper-results.json
 
   distribution:
     needs: [native, gateway]

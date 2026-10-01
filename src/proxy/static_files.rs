@@ -253,6 +253,87 @@ pub fn range(value: &str, length: u64) -> Result<Option<(u64, u64)>, ()> {
     Ok(Some((start, end)))
 }
 
+pub(super) struct Selection {
+    pub response: pingora::http::ResponseHeader,
+    pub start: u64,
+    pub length: u64,
+}
+pub(super) fn select(
+    file: &StaticFile,
+    headers: &crate::script::RequestHeaders,
+) -> pingora::Result<Selection> {
+    use pingora::http::ResponseHeader;
+    let not_modified = if let Some(tag) = headers.get("if-none-match") {
+        tag.split(',')
+            .any(|s| s.trim() == "*" || s.trim().trim_start_matches("W/") == file.etag)
+    } else {
+        headers
+            .get("if-modified-since")
+            .and_then(|s| httpdate::parse_http_date(s).ok())
+            .is_some_and(|date| {
+                file.modified
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
+                    <= date
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+            })
+    };
+    let mut status = if not_modified { 304 } else { 200 };
+    let mut start = 0;
+    let mut length = file.length;
+    let mut content_range = None;
+    let if_range = headers.get("if-range").is_none_or(|s| {
+        s == file.etag
+            || httpdate::parse_http_date(s).ok().is_some_and(|d| {
+                file.modified
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
+                    == d.duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+            })
+    });
+    if !not_modified
+        && if_range
+        && let Some(range) = headers.get("range")
+    {
+        match self::range(range, file.length) {
+            Ok(Some((a, b))) => {
+                status = 206;
+                start = a;
+                length = b - a + 1;
+                content_range = Some(format!("bytes {a}-{b}/{}", file.length));
+            }
+            Ok(None) => {}
+            Err(()) => {
+                status = 416;
+                length = 0;
+                content_range = Some(format!("bytes */{}", file.length));
+            }
+        }
+    }
+    let mut response = ResponseHeader::build(status, None)?;
+    response.insert_header("Content-Type", file.mime.clone())?;
+    response.insert_header("ETag", file.etag.clone())?;
+    response.insert_header("Last-Modified", httpdate::fmt_http_date(file.modified))?;
+    response.insert_header("Accept-Ranges", "bytes")?;
+    if status != 304 {
+        response.insert_header("Content-Length", length.to_string())?;
+    }
+    if let Some(range) = content_range {
+        response.insert_header("Content-Range", range)?;
+    }
+    Ok(Selection {
+        response,
+        start,
+        length,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

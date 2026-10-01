@@ -52,6 +52,12 @@ pub trait ProxyHttp {
     /// Define how the `ctx` should be created.
     fn new_ctx(&self) -> Self::CTX;
 
+    /// HTTP/1 header read idle timeout, selected before a request is available.
+    /// Keepalive idle time remains controlled by the previous session policy.
+    fn downstream_header_timeout(&self) -> Option<Duration> {
+        None
+    }
+
     /// Absolute transaction deadline, evaluated before request_filter. Expiry cancels
     /// in-flight work and uses the normal error/logging path; it never enables retries.
     fn request_deadline(&self, _session: &Session, _ctx: &mut Self::CTX) -> Option<std::time::Instant> {

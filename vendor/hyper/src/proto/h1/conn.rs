@@ -455,6 +455,11 @@ where
     pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
+        #[cfg(feature = "rgnix-extensions")]
+        if T::is_client() {
+            self.io.set_read_idle(cx, !self.is_mid_message());
+        }
+
         if self.is_read_closed() {
             Poll::Pending
         } else if self.is_mid_message() {
@@ -485,6 +490,12 @@ where
             return Poll::Ready(Err(crate::Error::new_unexpected_message()));
         }
 
+        #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
+        let num_read = ready!(self.io.poll_read_idle(cx)).map_err(|error| {
+            self.state.close();
+            crate::Error::new_io(error)
+        })?;
+        #[cfg(not(all(feature = "client", feature = "rgnix-reuse-buffer")))]
         let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
 
         if num_read == 0 {
@@ -558,7 +569,15 @@ where
 
         if !self.io.is_read_blocked() {
             if self.io.read_buf().is_empty() {
-                match self.io.poll_read_from_io(cx) {
+                #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
+                let reading = if T::is_client() && self.state.is_idle() {
+                    self.io.poll_read_idle(cx)
+                } else {
+                    self.io.poll_read_from_io(cx)
+                };
+                #[cfg(not(all(feature = "client", feature = "rgnix-reuse-buffer")))]
+                let reading = self.io.poll_read_from_io(cx);
+                match reading {
                     Poll::Ready(Ok(n)) => {
                         if n == 0 {
                             trace!("maybe_notify; read eof");
@@ -608,6 +627,30 @@ where
         }
     }
 
+    #[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+    pub(crate) fn write_informational(&mut self, response: http::Response<()>) {
+        debug_assert!(T::should_read_first() && self.can_write_head());
+        let buf = self.io.headers_buf();
+        buf.extend_from_slice(b"HTTP/1.1 ");
+        buf.extend_from_slice(response.status().as_str().as_bytes());
+        buf.extend_from_slice(b" ");
+        buf.extend_from_slice(
+            response
+                .status()
+                .canonical_reason()
+                .unwrap_or("")
+                .as_bytes(),
+        );
+        buf.extend_from_slice(b"\r\n");
+        for (name, value) in response.headers() {
+            buf.extend_from_slice(name.as_str().as_bytes());
+            buf.extend_from_slice(b": ");
+            buf.extend_from_slice(value.as_bytes());
+            buf.extend_from_slice(b"\r\n");
+        }
+        buf.extend_from_slice(b"\r\n");
+    }
+
     pub(crate) fn can_buffer_body(&self) -> bool {
         self.io.can_buffer()
     }
@@ -626,6 +669,15 @@ where
             } else {
                 Writing::KeepAlive
             };
+        }
+    }
+
+    #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+    pub(crate) fn write_file(&mut self, file: crate::ext::SendFile) {
+        if let Writing::Body(encoder) = &self.state.writing {
+            let last = encoder.is_last();
+            self.io.send_file(file);
+            self.state.writing = if last { Writing::Closed } else { Writing::KeepAlive };
         }
     }
 
@@ -862,6 +914,12 @@ where
     pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
         self.try_keep_alive(cx);
+        #[cfg(feature = "rgnix-extensions")]
+        if T::is_client() {
+            // Flushing a new request must register a response timer even when
+            // the earlier idle probe is still blocked on socket readiness.
+            self.io.set_read_idle(cx, !self.is_mid_message());
+        }
         trace!("flushed({}): {:?}", T::LOG, self.state);
         Poll::Ready(Ok(()))
     }
@@ -1403,6 +1461,29 @@ mod tests {
             .expect("response")
             .expect("valid response");
         assert_eq!(body, DecodedLength::ZERO);
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn client_rejects_unsolicited_idle_data() {
+        for delayed in [false, true] {
+            tokio_test::task::spawn(()).enter(|cx, _| {
+                let (io, mut handle) = tokio_test::io::Builder::new().build_with_handle();
+                let mut conn = Conn::<_, Bytes, ClientTransaction>::new(Compat::new(io));
+                conn.state.idle::<ClientTransaction>();
+                if delayed {
+                    assert!(conn.poll_read_keep_alive(cx).is_pending());
+                }
+                handle.read(b"H");
+                conn.maybe_notify(cx);
+                let error = ready(conn.poll_read_keep_alive(cx))
+                    .expect_err("an unsolicited response must not be reused");
+                assert!(matches!(
+                    error.kind(),
+                    crate::error::Kind::UnexpectedMessage
+                ));
+            });
+        }
     }
 
     #[cfg(feature = "server")]

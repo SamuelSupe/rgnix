@@ -91,6 +91,11 @@ pub struct Settings {
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     pub write_timeout: Duration,
+    pub client_header_timeout: Duration,
+    pub client_body_timeout: Duration,
+    pub send_timeout: Duration,
+    pub connect_tunnel: bool,
+    pub http3: bool,
     pub keepalive: Duration,
     pub access_log: Option<PathBuf>,
     pub log_policy: crate::logging::access::Policy,
@@ -123,6 +128,11 @@ impl Default for Settings {
             connect_timeout: Duration::from_secs(60),
             read_timeout: Duration::from_secs(60),
             write_timeout: Duration::from_secs(60),
+            client_header_timeout: Duration::from_secs(60),
+            client_body_timeout: Duration::from_secs(60),
+            send_timeout: Duration::from_secs(60),
+            connect_tunnel: false,
+            http3: false,
             keepalive: Duration::from_secs(75),
             access_log: Some(PathBuf::from("/dev/stdout")),
             log_policy: Default::default(),
@@ -197,6 +207,16 @@ pub struct RuntimeSnapshot {
 }
 
 impl RuntimeSnapshot {
+    pub(crate) fn header_timeout(&self, listener: SocketAddr) -> Duration {
+        self.hosts
+            .iter()
+            .find(|h| h.listener == listener && h.default)
+            .or_else(|| self.hosts.iter().find(|h| h.listener == listener))
+            .and_then(|h| h.routes.first())
+            .map_or(Duration::from_secs(60), |r| {
+                r.settings.client_header_timeout
+            })
+    }
     pub fn empty(listeners: Vec<Listener>) -> Self {
         Self {
             #[cfg(feature = "hyper-experimental")]

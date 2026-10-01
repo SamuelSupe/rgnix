@@ -35,6 +35,26 @@
 //!
 //! See the documentation on each item for details about its usage and requirements.
 
+#[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+pub(crate) mod send_informational;
+#[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+pub use send_informational::{Receiver as InformationalReceiver, SendInformational};
+#[cfg(all(feature = "http1", feature = "rgnix-extensions", target_os = "linux"))]
+mod send_file;
+#[cfg(all(feature = "http1", feature = "rgnix-extensions", target_os = "linux"))]
+pub use send_file::SendFile;
+
+#[cfg(all(feature = "http2", feature = "rgnix-extensions"))]
+/// Per-stream HTTP/2 idle limits. Read covers response headers and is extended
+/// only by this stream's upload progress; write covers blocked flow control.
+#[derive(Clone, Copy, Debug)]
+pub struct H2Timeouts {
+    /// Upstream response header idle timeout.
+    pub read: std::time::Duration,
+    /// Outgoing DATA flow-control idle timeout.
+    pub write: std::time::Duration,
+}
+
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use bytes::Bytes;
 #[cfg(any(

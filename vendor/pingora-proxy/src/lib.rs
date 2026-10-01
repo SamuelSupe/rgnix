@@ -329,6 +329,9 @@ where
         SV::CTX: Send + Sync,
     {
         // phase 1 read request header
+        if let Some(timeout) = self.inner.downstream_header_timeout() {
+            downstream_session.set_read_timeout(Some(timeout));
+        }
 
         let res = tokio::select! {
             biased; // biased select is cheaper, and we don't want to drop already buffered requests

@@ -1,0 +1,118 @@
+--- a/src/proxy/hyper/mod.rs
++++ b/src/proxy/hyper/mod.rs
+@@ -159,6 +159,7 @@
+                 return;
+             }
+         };
++        let request_listener = Arc::new(self.clone());
+         let mut connections = tokio::task::JoinSet::new();
+         loop {
+             tokio::select! {
+@@ -176,7 +177,7 @@
+                             let lease = ConnectionLease { _permit: permit, active };
+                             let _ = stream.set_nodelay(true);
+                             let stop = shutdown.clone();
+-                            let listener = self.clone();
++                            let listener = request_listener.clone();
+                             connections.spawn(async move {
+                                 let _lease = lease;
+                                 let mut state = io::Connection::default();
+--- a/src/proxy/hyper/request.rs
++++ b/src/proxy/hyper/request.rs
+@@ -593,8 +593,13 @@
+         .iter()
+         .filter_map(|v| v.to_str().ok())
+         .flat_map(|v| v.split(','))
+-        .filter_map(|v| v.trim().parse().ok())
+-        .filter(|name| !HOP_HEADERS.contains(name))
++        .map(str::trim)
++        .filter(|v| {
++            !HOP_HEADERS
++                .iter()
++                .any(|name| v.eq_ignore_ascii_case(name.as_str()))
++        })
++        .filter_map(|v| v.parse().ok())
+         .collect();
+     for name in names {
+         headers.remove(name);
+--- a/src/routing.rs
++++ b/src/routing.rs
+@@ -1,5 +1,5 @@
+ use crate::model::{PathMatch, Route, VirtualHost};
+-use std::{collections::BTreeMap, net::SocketAddr, sync::Arc};
++use std::{borrow::Cow, collections::BTreeMap, net::SocketAddr, sync::Arc};
+ 
+ #[derive(Clone, Default)]
+ pub(crate) struct Index {
+@@ -87,10 +87,15 @@
+         path: &str,
+     ) -> Option<Arc<Route>> {
+         let names = self.listeners.get(&listener)?;
+-        let host = host.trim_end_matches('.').to_ascii_lowercase();
++        let host = host.trim_end_matches('.');
++        let host = if host.bytes().any(|b| b.is_ascii_uppercase()) {
++            Cow::Owned(host.to_ascii_lowercase())
++        } else {
++            Cow::Borrowed(host)
++        };
+         let selected = names
+             .exact
+-            .get(&host)
++            .get(host.as_ref())
+             .copied()
+             .or_else(|| {
+                 host.match_indices('.').find_map(|(dot, _)| {
+--- a/scripts/hyper_integration.py
++++ b/scripts/hyper_integration.py
+@@ -327,6 +327,20 @@
+             forwarded = {k.lower(): v for k, v in forwarded.items()}
+             check("selective context capture preserves all forwarded headers", all(forwarded[k.lower()] == v for k,v in many.items()))
+             conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
++            conn.putrequest("GET", "/projected", skip_host=True)
++            for name, value in [("Host", "example.test"), ("Connection", "KeEp-AlIvE, X-Hop"),
++                                ("Connection", "X-Other-Hop"), ("Keep-Alive", "timeout=30"),
++                                ("Proxy-Connection", "keep-alive"), ("X-Hop", "remove"),
++                                ("X-Other-Hop", "remove"), ("X-End-To-End", "keep")]:
++                conn.putheader(name, value)
++            conn.endheaders()
++            response = conn.getresponse()
++            forwarded = {k.lower(): v for k, v in json.loads(response.read())["headers"].items()}
++            conn.close()
++            check("all Connection fields remove nominated headers while preserving end-to-end headers",
++                  response.status == 200 and forwarded.get("x-end-to-end") == "keep"
++                  and not any(name in forwarded for name in ["x-hop", "x-other-hop", "keep-alive", "proxy-connection"]))
++            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+             conn.putrequest("GET", "/capture", skip_host=True)
+             for name, value in [("Host", "example.test"), ("X-Original", "first"),
+                                 ("X-Original", "last"), ("X-Original", b"\xff"),
+--- a/scripts/nginx_parity.py
++++ b/scripts/nginx_parity.py
+@@ -103,6 +103,8 @@
+                      ("/api?x=1", {}), ("/redirect", {}), ("/", {"Host": "a.b.wild.test"}),
+                      ("/a%23b?x=%23", {}), ("/a%3Fb?x=1", {}), ("/a%20b", {}),
+                      ("/a%25b", {}), ("/a%252Fb", {}), ("/%E4%B8%AD%E6%96%87", {}), ("/proxy%23b?x=%3F", {}),
++                     ("/", {"Host": "EXAMPLE.TEST"}), ("/", {"Host": "example.test."}),
++                     ("/", {"Host": "A.B.WILD.TEST."}),
+                      ("/", {"Host": "unknown.test"}), ("/", {"Host": "closed.test"}),
+                      ("/", {"Host": "duplicate.test"}), ("/error", {}), ("/timeout/", {}), ("/denied", {}), ("/denied-late", {})]
+             for path, headers in cases:
+@@ -111,7 +113,8 @@
+                 for status, response_headers, body in results:
+                     if response_headers.get("content-type") == "application/json":
+                         value = json.loads(body)
+-                        body = (value["path"], value["headers"].get("Host"))
++                        forwarded_headers = {name.lower(): value for name, value in value["headers"].items()}
++                        body = (value["path"], forwarded_headers.get("host"))
+                     if status in (301, 302):
+                         location = urlsplit(response_headers.get("location", ""))
+                         body = (location.path, location.query, location.fragment)
+@@ -158,7 +161,8 @@
+                     response = http.client.HTTPResponse(connection)
+                     response.begin()
+                     assert response.status == 200
+-                    assert json.loads(response.read())["headers"].get("Host") == "example.test"
++                    forwarded_headers = {name.lower(): value for name, value in json.loads(response.read())["headers"].items()}
++                    assert forwarded_headers.get("host") == "example.test"
+             passed.append("hostless HTTP/1.0 uses the selected server name for $host")
+             for port in ports:
+                 connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)

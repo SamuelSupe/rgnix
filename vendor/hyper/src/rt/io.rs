@@ -86,12 +86,31 @@ pub trait Read {
         cx: &mut Context<'_>,
         buf: ReadBufCursor<'_>,
     ) -> Poll<Result<(), std::io::Error>>;
+
+    /// Marks an HTTP/1 client read as an idle keepalive probe or an active
+    /// exchange. Adapters may suspend response deadlines while idle; reads,
+    /// EOF detection and connection-pool expiry must continue normally.
+    /// HTTP/2 does not use this signal. The default implementation does nothing.
+    #[cfg(feature = "rgnix-extensions")]
+    fn set_read_idle(self: Pin<&mut Self>, _cx: &mut Context<'_>, _idle: bool) {}
 }
 
 /// Write bytes asynchronously.
 ///
 /// This trait is similar to `std::io::Write`, but for asynchronous writes.
 pub trait Write {
+    /// Send bytes from an opened file without copying through a userspace buffer.
+    /// The default adapter rejects the optional HTTP/1 file-region extension.
+    #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+    fn poll_sendfile(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        _file: &std::fs::File,
+        _offset: u64,
+        _length: usize,
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Poll::Ready(Err(std::io::ErrorKind::Unsupported.into()))
+    }
     /// Attempt to write bytes from `buf` into the destination.
     ///
     /// On success, returns `Poll::Ready(Ok(num_bytes_written)))`. If
@@ -433,6 +452,11 @@ macro_rules! deref_async_read {
         ) -> Poll<std::io::Result<()>> {
             Pin::new(&mut **self).poll_read(cx, buf)
         }
+
+        #[cfg(feature = "rgnix-extensions")]
+        fn set_read_idle(mut self: Pin<&mut Self>, cx: &mut Context<'_>, idle: bool) {
+            Pin::new(&mut **self).set_read_idle(cx, idle);
+        }
     };
 }
 
@@ -455,6 +479,11 @@ where
         buf: ReadBufCursor<'_>,
     ) -> Poll<std::io::Result<()>> {
         pin_as_deref_mut(self).poll_read(cx, buf)
+    }
+
+    #[cfg(feature = "rgnix-extensions")]
+    fn set_read_idle(self: Pin<&mut Self>, cx: &mut Context<'_>, idle: bool) {
+        pin_as_deref_mut(self).set_read_idle(cx, idle);
     }
 }
 

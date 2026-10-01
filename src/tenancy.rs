@@ -88,6 +88,9 @@ impl Quota {
         settings.connect_timeout = settings.connect_timeout.min(timeout);
         settings.read_timeout = settings.read_timeout.min(timeout);
         settings.write_timeout = settings.write_timeout.min(timeout);
+        settings.client_header_timeout = settings.client_header_timeout.min(timeout);
+        settings.client_body_timeout = settings.client_body_timeout.min(timeout);
+        settings.send_timeout = settings.send_timeout.min(timeout);
         settings.keepalive = settings.keepalive.min(timeout);
         settings.body_policy.timeout = settings.body_policy.timeout.min(timeout);
     }

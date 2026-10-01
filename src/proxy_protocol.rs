@@ -43,7 +43,9 @@ impl PreTlsProcess for ProxyProtocol {
 fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "invalid PROXY protocol header")
 }
-async fn read(stream: &mut Stream) -> io::Result<Option<SocketAddr>> {
+pub(crate) async fn read<T: tokio::io::AsyncRead + Unpin>(
+    stream: &mut T,
+) -> io::Result<Option<SocketAddr>> {
     let mut first = [0; 12];
     stream.read_exact(&mut first).await?;
     if &first == b"\r\n\r\n\0\r\nQUIT\n" {

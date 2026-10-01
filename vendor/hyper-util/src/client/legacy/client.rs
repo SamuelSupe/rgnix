@@ -48,6 +48,7 @@ struct ClientInner<C, B> {
     #[cfg(feature = "http2")]
     h2_builder: hyper::client::conn::http2::Builder<Exec>,
     pool: pool::Pool<PoolClient<B>, PoolKey>,
+    connection_observer: Option<Arc<dyn Fn(bool, std::time::Duration) + Send + Sync>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -240,7 +241,32 @@ where
             }
         };
 
-        ResponseFuture::new(self.clone().send_request(Box::new(req), pool_key))
+        let client = self.clone();
+        if !self.inner.config.retry_canceled_requests {
+            return ResponseFuture::new(
+                async move { client.send_request_once(req, pool_key).await },
+            );
+        }
+        ResponseFuture::new(client.send_request(Box::new(req), pool_key))
+    }
+
+    async fn send_request_once(
+        &self,
+        mut req: Request<B>,
+        pool_key: PoolKey,
+    ) -> Result<Response<hyper::body::Incoming>, Error> {
+        let mut pooled = self.connection_for_request(&mut req, pool_key).await?;
+        // The no-replay callback carries only a response or error. Recovering a
+        // full request would enlarge every response channel and serve no purpose.
+        let res = pooled.send_request(req).await.map_err(|error| {
+            let error = if error.is_canceled() {
+                e!(Canceled, error)
+            } else {
+                e!(SendRequest, error)
+            };
+            error.with_connect_info(pooled.conn_info.clone())
+        })?;
+        Ok(self.finish_response(pooled, res))
     }
 
     async fn send_request(
@@ -282,11 +308,47 @@ where
         pool_key: PoolKey,
     ) -> Result<Response<hyper::body::Incoming>, TrySendError<B>> {
         let mut pooled = self
-            .connection_for(pool_key)
+            .connection_for_request(&mut req, pool_key)
             .await
-            // `connection_for` already retries checkout errors, so if
-            // it returns an error, there's not much else to retry
             .map_err(TrySendError::Nope)?;
+
+        let res = match pooled.try_send_request(*req).await {
+            Ok(res) => res,
+            Err(mut err) => {
+                return if let Some(req) = err.take_message() {
+                    Err(TrySendError::Retryable {
+                        connection_reused: pooled.is_reused(),
+                        error: e!(Canceled, err.into_error())
+                            .with_connect_info(pooled.conn_info.clone()),
+                        req: Box::new(req),
+                    })
+                } else {
+                    Err(TrySendError::Nope(
+                        e!(SendRequest, err.into_error())
+                            .with_connect_info(pooled.conn_info.clone()),
+                    ))
+                };
+            }
+        };
+        Ok(self.finish_response(pooled, res))
+    }
+
+    async fn connection_for_request(
+        &self,
+        req: &mut Request<B>,
+        pool_key: PoolKey,
+    ) -> Result<pool::Pooled<PoolClient<B>, PoolKey>, Error> {
+        let started = self
+            .inner
+            .connection_observer
+            .as_ref()
+            .map(|_| std::time::Instant::now());
+        // Checkout failures have already been retried by connection_for.
+        let pooled = self.connection_for(pool_key).await?;
+
+        if let (Some(observer), Some(started)) = (&self.inner.connection_observer, started) {
+            observer(pooled.is_reused(), started.elapsed());
+        }
 
         if let Some(conn) = req.extensions_mut().get_mut::<CaptureConnectionExtension>() {
             conn.set(&pooled.conn_info);
@@ -295,9 +357,7 @@ where
         if pooled.is_http1() {
             if req.version() == Version::HTTP_2 {
                 warn!("Connection is HTTP/1, but request requires HTTP/2");
-                return Err(TrySendError::Nope(
-                    e!(UserUnsupportedVersion).with_connect_info(pooled.conn_info.clone()),
-                ));
+                return Err(e!(UserUnsupportedVersion).with_connect_info(pooled.conn_info.clone()));
             }
 
             if self.inner.config.set_host {
@@ -322,29 +382,25 @@ where
             } else {
                 origin_form(req.uri_mut());
             }
-        } else if req.method() == Method::CONNECT && !pooled.is_http2() {
+        } else if pooled.is_http2() {
+            if let Some(authority) = req.extensions_mut().remove::<super::RequestAuthority>() {
+                let mut uri = req.uri().clone().into_parts();
+                uri.authority = Some(authority.0);
+                *req.uri_mut() = Uri::from_parts(uri).expect("validated request authority");
+                req.headers_mut().remove(HOST);
+            }
+        } else if req.method() == Method::CONNECT {
             authority_form(req.uri_mut());
         }
 
-        let mut res = match pooled.try_send_request(*req).await {
-            Ok(res) => res,
-            Err(mut err) => {
-                return if let Some(req) = err.take_message() {
-                    Err(TrySendError::Retryable {
-                        connection_reused: pooled.is_reused(),
-                        error: e!(Canceled, err.into_error())
-                            .with_connect_info(pooled.conn_info.clone()),
-                        req: Box::new(req),
-                    })
-                } else {
-                    Err(TrySendError::Nope(
-                        e!(SendRequest, err.into_error())
-                            .with_connect_info(pooled.conn_info.clone()),
-                    ))
-                };
-            }
-        };
+        Ok(pooled)
+    }
 
+    fn finish_response(
+        &self,
+        mut pooled: pool::Pooled<PoolClient<B>, PoolKey>,
+        mut res: Response<hyper::body::Incoming>,
+    ) -> Response<hyper::body::Incoming> {
         // If the Connector included 'extra' info, add to Response...
         if let Some(extra) = &pooled.conn_info.extra {
             extra.set(res.extensions_mut());
@@ -367,7 +423,7 @@ where
             self.inner.exec.execute(on_idle);
         }
 
-        Ok(res)
+        res
     }
 
     async fn connection_for(
@@ -829,6 +885,30 @@ impl<B> PoolClient<B> {
 }
 
 impl<B: Body + 'static> PoolClient<B> {
+    fn send_request(
+        &mut self,
+        req: Request<B>,
+    ) -> impl Future<Output = Result<Response<hyper::body::Incoming>, hyper::Error>>
+    where
+        B: Send,
+    {
+        #[cfg(all(feature = "http1", feature = "http2"))]
+        return match self.tx {
+            PoolTx::Http1(ref mut tx) => Either::Left(tx.send_request(req)),
+            PoolTx::Http2(ref mut tx) => Either::Right(tx.send_request(req)),
+        };
+
+        #[cfg(all(feature = "http1", not(feature = "http2")))]
+        return match self.tx {
+            PoolTx::Http1(ref mut tx) => tx.send_request(req),
+        };
+
+        #[cfg(all(feature = "http2", not(feature = "http1")))]
+        return match self.tx {
+            PoolTx::Http2(ref mut tx) => tx.send_request(req),
+        };
+    }
+
     fn try_send_request(
         &mut self,
         req: Request<B>,
@@ -1033,6 +1113,7 @@ pub struct Builder {
     h2_builder: hyper::client::conn::http2::Builder<Exec>,
     pool_config: pool::Config,
     pool_timer: Option<timer::Timer>,
+    connection_observer: Option<Arc<dyn Fn(bool, std::time::Duration) + Send + Sync>>,
 }
 
 impl Builder {
@@ -1056,8 +1137,10 @@ impl Builder {
             pool_config: pool::Config {
                 idle_timeout: Some(Duration::from_secs(90)),
                 max_idle_per_host: usize::MAX,
+                shared_budget: None,
             },
             pool_timer: None,
+            connection_observer: None,
         }
     }
     /// Set an optional timeout for idle sockets being kept-alive.
@@ -1105,6 +1188,22 @@ impl Builder {
     /// Default is `usize::MAX` (no limit).
     pub fn pool_max_idle_per_host(&mut self, max_idle: usize) -> &mut Self {
         self.pool_config.max_idle_per_host = max_idle;
+        self
+    }
+
+    /// Apply one idle budget across multiple clients and configuration generations.
+    pub fn shared_idle_budget(&mut self, budget: super::IdlePoolBudget) -> &mut Self {
+        self.pool_config.shared_budget = Some(budget);
+        self
+    }
+
+    /// Observe successful connection checkout, including reuse, before sending headers.
+    /// The callback must not block and is not called for connection failures.
+    pub fn connection_observer<F>(&mut self, observer: F) -> &mut Self
+    where
+        F: Fn(bool, std::time::Duration) + Send + Sync + 'static,
+    {
+        self.connection_observer = Some(Arc::new(observer));
         self
     }
 
@@ -1614,7 +1713,8 @@ impl Builder {
                 #[cfg(feature = "http2")]
                 h2_builder: self.h2_builder.clone(),
                 connector,
-                pool: pool::Pool::new(self.pool_config, exec, timer),
+                pool: pool::Pool::new(self.pool_config.clone(), exec, timer),
+                connection_observer: self.connection_observer.clone(),
             }),
         }
     }

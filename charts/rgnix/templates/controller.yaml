@@ -5,6 +5,16 @@
 {{- if not (has .Values.mode (list "ingress" "gateway")) }}
 {{- fail "mode must be ingress or gateway" }}
 {{- end }}
+{{- $engine := default "pingora" .Values.engine }}
+{{- if and (not .Values.engine) (ne .Values.experimentalHyper.enabled nil) }}
+{{- $engine = ternary "hyper" "pingora" .Values.experimentalHyper.enabled }}
+{{- end }}
+{{- if not (has $engine (list "hyper" "pingora")) }}
+{{- fail "engine must be hyper or pingora" }}
+{{- end }}
+{{- if and .Values.experimentalHyper.http3 (ne $engine "hyper") }}
+{{- fail "HTTP/3 requires engine=hyper" }}
+{{- end }}
 {{- if and .Values.requireMultipleNodes (lt (int .Values.replicaCount) 2) }}
 {{- fail "requireMultipleNodes requires at least two replicas" }}
 {{- end }}
@@ -273,6 +283,21 @@ spec:
             - --admission-controller-user=system:serviceaccount:{{ .Release.Namespace }}:{{ .Release.Name }}
             {{- end }}
             - --threads={{ .Values.threads }}
+            {{- if .Values.engine }}
+            - --engine={{ $engine }}
+            {{- end }}
+            {{- if eq $engine "hyper" }}
+            - --experimental-hyper
+            - --hyper-max-connections={{ .Values.experimentalHyper.maxConnections }}
+            - --hyper-max-connections-per-ip={{ .Values.experimentalHyper.maxConnectionsPerIp | default 0 }}
+            - --hyper-max-connections-per-listener={{ .Values.experimentalHyper.maxConnectionsPerListener | default 0 }}
+            - --hyper-max-handshakes={{ .Values.experimentalHyper.maxHandshakes | default 0 }}
+            - --hyper-max-handshakes-per-ip={{ .Values.experimentalHyper.maxHandshakesPerIp | default 0 }}
+            - --hyper-worker-stall-timeout-seconds={{ .Values.experimentalHyper.workerStallTimeoutSeconds | default 5 }}
+            {{- if .Values.experimentalHyper.http3 }}
+            - --hyper-http3
+            {{- end }}
+            {{- end }}
             {{- if ne .Values.upstreamKeepalivePoolSize nil }}
             - --upstream-keepalive-pool-size={{ .Values.upstreamKeepalivePoolSize }}
             {{- end }}
@@ -311,6 +336,10 @@ spec:
             - --tenant-policy-file=/etc/rgnix/tenancy/policy.json
             {{- end }}
           env:
+            - name: RGNIX_ENGINE
+              value: {{ $engine | quote }}
+            - name: RGNIX_EXPERIMENTAL_HYPER
+              value: {{ eq $engine "hyper" | quote }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -367,6 +396,11 @@ spec:
               containerPort: 8080
             - name: https
               containerPort: 8443
+            {{- if .Values.experimentalHyper.http3 }}
+            - name: http3
+              containerPort: 8443
+              protocol: UDP
+            {{- end }}
             - name: admin
               containerPort: 9090
           startupProbe:
@@ -541,6 +575,12 @@ spec:
     - name: https
       port: {{ .Values.service.httpsPort }}
       targetPort: https
+    {{- if .Values.experimentalHyper.http3 }}
+    - name: http3
+      port: {{ .Values.service.httpsPort }}
+      targetPort: http3
+      protocol: UDP
+    {{- end }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

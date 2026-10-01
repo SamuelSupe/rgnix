@@ -40,6 +40,12 @@ pub(crate) trait Dispatch {
         -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
+    #[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+    fn poll_informational(&mut self, _cx: &mut Context<'_>) -> Poll<Option<http::Response<()>>> {
+        Poll::Ready(None)
+    }
+    #[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+    fn finish_informational(&mut self) {}
 }
 
 cfg_server! {
@@ -48,6 +54,8 @@ cfg_server! {
     pub(crate) struct Server<S: HttpService<B>, B> {
         in_flight: Pin<Box<Option<S::Future>>>,
         pub(crate) service: S,
+        #[cfg(feature = "rgnix-extensions")]
+        informational: Option<crate::ext::send_informational::Receiver>,
     }
 }
 
@@ -145,8 +153,6 @@ where
         cx: &mut Context<'_>,
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
-        T::update_date();
-
         ready!(self.poll_loop(cx))?;
 
         if self.is_done() {
@@ -378,8 +384,32 @@ where
                 && self.conn.can_write_head()
                 && self.dispatch.should_poll()
             {
-                if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
-                    let (head, body) = msg.map_err(crate::Error::new_user_service)?;
+                let message = Pin::new(&mut self.dispatch).poll_msg(cx);
+                #[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+                for _ in 0..4 {
+                    match self.dispatch.poll_informational(cx) {
+                        Poll::Ready(Some(response)) => self.conn.write_informational(response),
+                        _ => break,
+                    }
+                }
+                #[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+                if message.is_ready() {
+                    self.dispatch.finish_informational();
+                }
+                if let Some(msg) = ready!(message) {
+                    #[allow(unused_mut)]
+                    let (mut head, body) = msg.map_err(crate::Error::new_user_service)?;
+                    #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+                    if let Some(file) = head.extensions.remove::<crate::ext::SendFile>() {
+                        if head.headers.contains_key(http::header::TRANSFER_ENCODING)
+                            || crate::headers::content_length_parse_all(&head.headers) != Some(file.length) {
+                            return Poll::Ready(Err(crate::Error::new_user_header()));
+                        }
+                        self.conn.write_head(head, Some(BodyLength::Known(file.length)));
+                        self.conn.write_file(file);
+                        self.body_rx.set(None);
+                        continue;
+                    }
 
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
@@ -588,6 +618,8 @@ cfg_server! {
         pub(crate) fn new(service: S) -> Server<S, B> {
             Server {
                 in_flight: Box::pin(None),
+                #[cfg(feature = "rgnix-extensions")]
+                informational: None,
                 service,
             }
         }
@@ -643,6 +675,18 @@ cfg_server! {
             *req.headers_mut() = msg.headers;
             *req.version_mut() = msg.version;
             *req.extensions_mut() = msg.extensions;
+            #[cfg(feature = "rgnix-extensions")]
+            {
+                let sender = match self.informational.as_mut() {
+                    Some(receiver) => receiver.begin_request(),
+                    None => {
+                        let (sender, receiver) = crate::ext::send_informational::channel();
+                        self.informational = Some(receiver);
+                        sender
+                    }
+                };
+                req.extensions_mut().insert(sender);
+            }
             let fut = self.service.call(req);
             self.in_flight.set(Some(fut));
             Ok(())
@@ -658,6 +702,16 @@ cfg_server! {
 
         fn should_poll(&self) -> bool {
             self.in_flight.is_some()
+        }
+        #[cfg(feature = "rgnix-extensions")]
+        fn poll_informational(&mut self, cx: &mut Context<'_>) -> Poll<Option<http::Response<()>>> {
+            self.informational.as_mut().map_or(Poll::Ready(None), |rx| rx.poll_recv(cx))
+        }
+        #[cfg(feature = "rgnix-extensions")]
+        fn finish_informational(&mut self) {
+            if let Some(receiver) = self.informational.as_mut() {
+                receiver.end_request();
+            }
         }
     }
 }
@@ -886,7 +940,8 @@ mod tests {
 
             // Unblock our IO, which has a response before we've sent request!
             //
-            handle.read(b"HTTP/1.1 200 OK\r\n\r\n");
+            // The idle probe needs only one unsolicited byte to reject the peer.
+            handle.read(b"H");
 
             let mut res_rx = tx
                 .try_send(crate::Request::new(IncomingBody::empty()))

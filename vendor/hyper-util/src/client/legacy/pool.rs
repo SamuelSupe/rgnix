@@ -8,6 +8,7 @@ use std::future::Future;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::task::{self, ready, Poll};
 
@@ -83,6 +84,7 @@ struct PoolInner<T, K: Eq + Hash> {
     // state, waiting to receive a new Request to send on the socket.
     idle: HashMap<K, Vec<Idle<T>>>,
     max_idle_per_host: usize,
+    shared_budget: Option<IdlePoolBudget>,
     // These are outstanding Checkouts that are waiting for a socket to be
     // able to send a Request one. This is used when "racing" for a new
     // connection.
@@ -105,10 +107,41 @@ struct PoolInner<T, K: Eq + Hash> {
 // doesn't need it!
 struct WeakOpt<T>(Option<Weak<T>>);
 
-#[derive(Clone, Copy, Debug)]
+/// A hard idle-connection budget shared by clients, authorities and generations.
+#[derive(Clone, Debug)]
+pub struct IdlePoolBudget {
+    used: Arc<AtomicUsize>,
+    limit: usize,
+}
+impl IdlePoolBudget {
+    /// New connections remain usable when the budget is full, but cannot be cached.
+    pub fn new(limit: usize) -> Self {
+        Self {
+            used: Arc::new(AtomicUsize::new(0)),
+            limit,
+        }
+    }
+    fn acquire(&self) -> Option<IdlePermit> {
+        self.used
+            .fetch_update(Ordering::AcqRel, Ordering::Relaxed, |used| {
+                (used < self.limit).then_some(used + 1)
+            })
+            .ok()
+            .map(|_| IdlePermit(self.used.clone()))
+    }
+}
+struct IdlePermit(Arc<AtomicUsize>);
+impl Drop for IdlePermit {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Release);
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Config {
     pub idle_timeout: Option<Duration>,
     pub max_idle_per_host: usize,
+    pub shared_budget: Option<IdlePoolBudget>,
 }
 
 impl Config {
@@ -131,6 +164,7 @@ impl<T, K: Key> Pool<T, K> {
                 idle: HashMap::new(),
                 idle_interval_ref: None,
                 max_idle_per_host: config.max_idle_per_host,
+                shared_budget: config.shared_budget,
                 waiters: HashMap::new(),
                 exec,
                 timer,
@@ -322,6 +356,7 @@ impl<'a, T: Poolable + 'a, K: Debug> IdlePopper<'a, T, K> {
                     self.list.push(Idle {
                         idle_at: now,
                         value: to_reinsert,
+                        _budget: entry._budget,
                     });
                     to_checkout
                 }
@@ -331,6 +366,7 @@ impl<'a, T: Poolable + 'a, K: Debug> IdlePopper<'a, T, K> {
             return Some(Idle {
                 idle_at: entry.idle_at,
                 value,
+                _budget: None,
             });
         }
 
@@ -389,6 +425,34 @@ impl<T: Poolable, K: Key> PoolInner<T, K> {
 
         match value {
             Some(value) => {
+                let permit = if let Some(budget) = &self.shared_budget {
+                    if budget.used.load(Ordering::Relaxed) >= budget.limit {
+                        // Reclaim this client's oldest idle entry first. Other clients'
+                        // entries stay bounded by the same shared permit counter.
+                        let oldest =
+                            self.idle
+                                .iter()
+                                .flat_map(|(key, entries)| {
+                                    entries.iter().enumerate().map(move |(index, entry)| {
+                                        (key.clone(), index, entry.idle_at)
+                                    })
+                                })
+                                .min_by_key(|(_, _, time)| *time);
+                        if let Some((key, index, _)) = oldest {
+                            let entries = self.idle.get_mut(&key).unwrap();
+                            entries.swap_remove(index);
+                            if entries.is_empty() {
+                                self.idle.remove(&key);
+                            }
+                        }
+                    }
+                    let Some(permit) = budget.acquire() else {
+                        return;
+                    };
+                    Some(permit)
+                } else {
+                    None
+                };
                 // borrow-check scope...
                 {
                     let now = self.now();
@@ -402,6 +466,7 @@ impl<T: Poolable, K: Key> PoolInner<T, K> {
                     idle_list.push(Idle {
                         value,
                         idle_at: now,
+                        _budget: permit,
                     });
                 }
 
@@ -588,6 +653,7 @@ impl<T: Poolable, K: Key> fmt::Debug for Pooled<T, K> {
 struct Idle<T> {
     idle_at: Instant,
     value: T,
+    _budget: Option<IdlePermit>,
 }
 
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
@@ -890,6 +956,7 @@ mod tests {
             super::Config {
                 idle_timeout: Some(Duration::from_millis(100)),
                 max_idle_per_host: max_idle,
+                shared_budget: None,
             },
             TokioExecutor::new(),
             Option::<timer::Timer>::None,
@@ -910,6 +977,62 @@ mod tests {
             Ok(pooled) => assert_eq!(*pooled, Uniq(41)),
             Err(_) => panic!("not ready"),
         };
+    }
+
+    #[tokio::test]
+    async fn shared_budget_bounds_clients_and_releases_checked_out_and_dropped_entries() {
+        let budget = super::IdlePoolBudget::new(1);
+        let first = pool_no_timer();
+        let second = pool_no_timer();
+        first.locked().shared_budget = Some(budget.clone());
+        second.locked().shared_budget = Some(budget.clone());
+        let a = host_key("first");
+        let b = host_key("second");
+        drop(first.pooled(c(a.clone()), Uniq(1)));
+        drop(second.pooled(c(b.clone()), Uniq(2)));
+        assert!(second.locked().idle.is_empty());
+        let checked_out = first.checkout(a.clone()).await.unwrap();
+        drop(second.pooled(c(b), Uniq(3)));
+        drop(checked_out);
+        assert!(first.locked().idle.is_empty());
+        drop(second);
+        drop(first.pooled(c(a.clone()), Uniq(4)));
+        assert_eq!(*first.checkout(a).await.unwrap(), Uniq(4));
+    }
+
+    #[cfg(feature = "http2")]
+    #[tokio::test]
+    async fn shared_connections_keep_one_budget_per_connection_across_checkouts() {
+        #[derive(Clone)]
+        struct Shared;
+        impl Poolable for Shared {
+            fn is_open(&self) -> bool {
+                true
+            }
+            fn can_share(&self) -> bool {
+                true
+            }
+            fn reserve(self) -> Reservation<Self> {
+                Reservation::Shared(self.clone(), self)
+            }
+        }
+        let budget = super::IdlePoolBudget::new(1);
+        let first = pool_no_timer();
+        let second = pool_no_timer();
+        first.locked().shared_budget = Some(budget.clone());
+        second.locked().shared_budget = Some(budget);
+        let a = host_key("h2");
+        let connecting = first.connecting(&a, super::Ver::Http2).unwrap();
+        drop(first.pooled(connecting, Shared));
+        let one = first.checkout(a.clone()).await.unwrap();
+        let two = first.checkout(a.clone()).await.unwrap();
+        drop(second.pooled(c(host_key("h1")), Uniq(1)));
+        assert!(second.locked().idle.is_empty());
+        drop((one, two));
+        assert_eq!(first.locked().idle[&a].len(), 1);
+        drop(first);
+        drop(second.pooled(c(host_key("h1")), Uniq(2)));
+        assert_eq!(*second.checkout(host_key("h1")).await.unwrap(), Uniq(2));
     }
 
     /// Helper to check if the future is ready after polling once.
@@ -997,6 +1120,7 @@ mod tests {
             super::Config {
                 idle_timeout: Some(Duration::from_millis(10)),
                 max_idle_per_host: usize::MAX,
+                shared_budget: None,
             },
             TokioExecutor::new(),
             Some(TokioTimer::new()),

@@ -1,0 +1,504 @@
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3184,6 +3184,7 @@
+  "serde_yaml_ng",
+  "sha2",
+  "signal-hook",
++ "socket2",
+  "tempfile",
+  "tikv-jemallocator",
+  "tokio",
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -9,7 +9,7 @@
+ readme = "README.md"
+ 
+ [features]
+-hyper-experimental = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:tower-service", "dep:tokio-openssl"]
++hyper-experimental = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:tower-service", "dep:tokio-openssl", "dep:socket2"]
+ jemalloc = ["dep:tikv-jemallocator"]
+ 
+ [dependencies]
+@@ -63,6 +63,7 @@
+ 
+ [target.'cfg(target_os = "linux")'.dependencies]
+ aya = "0.14.0"
++socket2 = { version = "0.6", features = ["all"], optional = true }
+ 
+ [target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+ tikv-jemallocator = { version = "0.6.1", optional = true }
+--- a/docs/hyper-experimental.md
++++ b/docs/hyper-experimental.md
+@@ -44,12 +44,12 @@
+ - `--hyper-max-connections` 默认 16384，限制所有监听地址合计的已接收连接，包含 TLS 握手、keepalive 和 WebSocket。超限关闭新连接，管理端口保持独立；请求和租户并发预算继续单独执行。
+ - 空闲上游预算 `upstream_keepalive_pool_size × threads` 现在在监听器、路由客户端、端点和配置版本间共享。预算满时优先淘汰当前客户端最旧的空闲连接，否则不缓存新连接。HTTP/2 的共享连接占一个池名额，不按 stream 重复计算。
+ - TLS 每次握手从当前快照选择并校验证书，关闭会话缓存和票据，避免撤销 Secret 或收紧 mTLS 策略后通过旧会话恢复。已有连接上的请求仍执行当前快照的认证规则。
+-- 超时不同的路由使用不同客户端连接池。客户端、固定请求/响应头和端点 authority 在发布前准备，并由不可变快照持有。新配置版本更换池；旧请求继续使用原快照。历史记录不持有空闲池，回退时重新准备客户端。DNS 刷新后的新地址按实际选中的端点解析，不会固定到旧地址。
++- 超时不同的路由使用不同客户端连接池。传输设置、TLS 上下文、固定请求/响应头和端点 authority 在发布前准备，并由不可变快照持有；客户端池在所属 worker 首次使用时创建。新配置版本更换池；旧请求继续使用原快照。历史记录不持有空闲池，回退时重新准备客户端。DNS 刷新后的新地址按实际选中的端点解析，不会固定到旧地址。
+ - 下游首部总期限为 60 秒；下游 body 读、响应写空闲期限为 60 秒。完成响应后使用路由的 `keepalive_timeout`。上游使用路由 connect/read/write 超时。HTTP/1 空闲上游不运行响应读取期限，继续检测 EOF 并由连接池期限管理；新请求 flush 后登记新的响应期限。HTTP/2 底层连接的读空闲期限仍可能比 keepalive 更早关闭连接，各 stream 另有独立期限。
+ - HTTP/2 响应头和 DATA 流控分别使用每个 stream 的读写期限；其他 stream 的活动不能延长它们。当前 stream 的上传进展可以延长自己的响应头期限。
+ - Hyper 请求 future 同时覆盖上传和等待响应头。无法可靠区分的上游 I/O 超时使用 `upstream_timeout` 错误标签；响应 body 读超时仍使用 `read_timeout`，来源标签为 `upstream`。没有伪造分阶段时间。
+ - `rgnix_upstream_connect_seconds{backend,reused}` 记录连接获取时间和是否复用。新增 `rgnix_hyper_connections`、`rgnix_hyper_connection_rejections_total`、`rgnix_hyper_tls_handshake_errors_total`。标签不包含请求路径或任意域名。
+-- Hyper 用 Tokio 共享调度器分配连接任务；Pingora 保留原有调度模式。传输对照包含这项调度差异，不能归因为单一 parser 优化。
++- Hyper 每个 worker 使用独立的单线程 Tokio reactor，连接及其显式 HTTP/1 上游池在该 worker 内推进。Linux 多 worker 使用 SO_REUSEPORT 分配新连接；其他平台共用接受 socket，但本轮只在 Linux 验证。HTTP/2 和 ALPN 自动协商继续共享客户端池以保留跨 worker 多路复用；各 stream 的超时仍独立。进程连接、请求、租户和后端预算，以及空闲上游总预算继续共享。Pingora 保留原有调度模式；对照包含这项 worker 和池归属调整，不能归因为单一 parser 优化。
+ - 静态文件复用安全打开、条件请求和 Range 选择逻辑，通过 Tokio 文件流发送；尚未接入默认 Pingora 路径的 Linux sendfile 优化。功能验证不代表两种文件发送路径具有相同性能。
+ - Hyper 顺序处理 HTTP/1 流水线请求；默认 Pingora 配置关闭 pipelining，发送首个响应后关闭连接。本次未修改默认路径的行为。
+ 
+@@ -77,8 +77,10 @@
+ 
+ 实验依赖现在同时隔离 `vendor/hyper` 与 `vendor/hyper-util`，不修改 reqwest/kube 的注册表副本。上游 Content-Length 为 1～8192 字节、且 body 已全部在现有读缓冲区时，复用原 decoder 完成 framing 后直接交付 `Bytes`，省去 body 通道。不会为了命中而等待或额外读取；未完整响应、chunked、未知长度、trailer 和升级继续原路径。请求 dispatch 和响应回调通道仍存在。
+ 
+-独立测量中，1 KiB 代理分配从约 42.3 降至 30.5 次/请求；这不是吞吐提升百分比。固定 worker/独立池也做了试验，但校准未通过，改动已撤下；当前仍使用共享 Tokio 调度器，试验补丁和全部窗口保存在验证记录中。
++独立测量中，1 KiB 代理分配从约 42.3 降至 30.5 次/请求；这不是吞吐提升百分比。当时固定 worker/独立池试验未通过校准，已撤下，试验补丁和全部窗口保存在验证记录中。当前 worker 归属方案见下方的新验证记录。
+ 
+-后续[精简执行路径验证](validation-hyper-plain-2026-09-30.md)在发布时准备适用的 HTTP/1.1 固定响应和不带 URI 的普通代理计划，减少完整上下文和逐请求字符串构造。访问日志、trace、认证、限流、租户、RGL、Gateway、灰度、压缩和动态变量仍走完整路径；已配置的功能不会被跳过。保留方案的 1 KiB 代理分配降至约 17.6 次/请求，但吞吐对照未通过完整校准。前台借用上游连接驱动也做了独立试验，修复了负载下的唤醒遗漏后仍没有保留收益依据，已撤下并归档；当前没有消除请求通道，也没有切换 worker 模型。
++后续[精简执行路径验证](validation-hyper-plain-2026-09-30.md)在发布时准备适用的 HTTP/1.1 固定响应和不带 URI 的普通代理计划，减少完整上下文和逐请求字符串构造。访问日志、trace、认证、限流、租户、RGL、Gateway、灰度、压缩和动态变量仍走完整路径；已配置的功能不会被跳过。保留方案的 1 KiB 代理分配降至约 17.6 次/请求，但吞吐对照未通过完整校准。前台借用上游连接驱动也做了独立试验，修复了负载下的唤醒遗漏后仍没有保留收益依据，已撤下并归档；该阶段没有消除请求通道，也没有切换 worker 模型。
+ 
+ 后续[深度剖析与连接期限修复](validation-hyper-deep-2026-10-01.md)缩小上传状态，禁止重放时使用不携带待恢复请求的响应回调，自动 Date 仅在编码时检查。同时修复 HTTP/1 空闲探测错误运行响应读取期限的问题；活动请求的超时和取消规则保留。捕获的复制字节、分配和正式吞吐分别记录，不能将复制下降比例当成吞吐收益。默认数据面仍为 Pingora。
++
++后续[worker 归属与 NGINX 对照](validation-hyper-workers-2026-10-01.md)保留独立 reactor 和显式 HTTP/1 独立池，HTTP/2 / Auto 继续共享复用客户端。最终 327 项运行检查通过，独立计数中的 futex 调用和上下文切换明显减少。双 worker 的 1 KiB 代理观测吞吐提高约 33% / 23%，但旧版、候选和 NGINX 的校准均失败，候选也有尾延迟尖峰；该数字不是已确认的稳定提升或生产容量。mTLS CA 轮换的偶发 reset 在旧版也复现，尚未解释或修复。
+--- a/experiments/hyper-proxy/src/main.rs
++++ b/experiments/hyper-proxy/src/main.rs
+@@ -14,11 +14,14 @@
+     client::legacy::{Client, connect::HttpConnector},
+     rt::{TokioExecutor, TokioIo, TokioTimer},
+ };
+-use tokio::{net::TcpListener, task::JoinSet};
++use tokio::{
++    net::{TcpListener, TcpSocket},
++    task::JoinSet,
++};
+ 
+ mod owned;
+ 
+-#[derive(Parser)]
++#[derive(Clone, Parser)]
+ #[command(
+     version,
+     about = "Experimental HTTP/1 transport; not a production rgnix server"
+@@ -32,6 +35,8 @@
+     workers: usize,
+     #[arg(long)]
+     owned_http1: bool,
++    #[arg(long)]
++    local_workers: bool,
+ }
+ 
+ type ProxyClient = Client<HttpConnector, Incoming>;
+@@ -40,6 +45,42 @@
+ fn main() -> anyhow::Result<()> {
+     let args = Args::parse();
+     anyhow::ensure!(args.workers > 0, "workers must be positive");
++    if args.local_workers {
++        let mut sockets = Vec::new();
++        let mut address = args.listen;
++        for _ in 0..args.workers {
++            let socket = if address.is_ipv4() {
++                TcpSocket::new_v4()?
++            } else {
++                TcpSocket::new_v6()?
++            };
++            socket.set_reuseaddr(true)?;
++            socket.set_reuseport(true)?;
++            socket.bind(address)?;
++            address = socket.local_addr()?;
++            sockets.push(socket);
++        }
++        return std::thread::scope(|scope| {
++            let workers: Vec<_> = sockets
++                .into_iter()
++                .map(|socket| {
++                    let args = args.clone();
++                    scope.spawn(move || {
++                        tokio::runtime::Builder::new_current_thread()
++                            .enable_all()
++                            .build()?
++                            .block_on(serve(args, Some(socket)))
++                    })
++                })
++                .collect();
++            for worker in workers {
++                worker
++                    .join()
++                    .map_err(|_| anyhow::anyhow!("worker panicked"))??;
++            }
++            Ok(())
++        });
++    }
+     let mut runtime = if args.workers == 1 {
+         tokio::runtime::Builder::new_current_thread()
+     } else {
+@@ -47,24 +88,31 @@
+         builder.worker_threads(args.workers);
+         builder
+     };
+-    runtime.enable_all().build()?.block_on(serve(args))
+-}
+-
+-async fn serve(args: Args) -> anyhow::Result<()> {
++    runtime.enable_all().build()?.block_on(serve(args, None))
++}
++
++async fn serve(args: Args, socket: Option<TcpSocket>) -> anyhow::Result<()> {
+     let mut connector = HttpConnector::new();
+     connector.set_nodelay(true);
+     connector.set_connect_timeout(Some(Duration::from_secs(5)));
+     let client = Client::builder(TokioExecutor::new())
+         .pool_timer(TokioTimer::new())
+         .pool_idle_timeout(Duration::from_secs(60))
+-        .pool_max_idle_per_host(512)
++        .pool_max_idle_per_host(if args.local_workers {
++            512 / args.workers
++        } else {
++            512
++        })
+         .retry_canceled_requests(false)
+         .build(connector);
+     let upstream = args
+         .upstream
+         .to_string()
+         .parse::<hyper::http::uri::Authority>()?;
+-    let listener = TcpListener::bind(args.listen).await?;
++    let listener = match socket {
++        Some(socket) => socket.listen(1024)?,
++        None => TcpListener::bind(args.listen).await?,
++    };
+     let mut connections = JoinSet::new();
+     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+     loop {
+--- a/scripts/hyper_integration.py
++++ b/scripts/hyper_integration.py
+@@ -127,6 +127,7 @@
+     parser.add_argument("binary", type=Path)
+     parser.add_argument("--pingora", action="store_true")
+     parser.add_argument("--threads", type=int, default=1)
++    parser.add_argument("--ephemeral-listener", action="store_true")
+     args = parser.parse_args()
+     binary = str(args.binary.resolve())
+     hyper = not args.pingora
+@@ -141,6 +142,7 @@
+     with tempfile.TemporaryDirectory(prefix="rgnix-hyper-product-") as temp:
+         directory = Path(temp)
+         port, admin, auxiliary = free_port(), free_port(), free_port()
++        auxiliary_config = 0 if args.ephemeral_listener else auxiliary
+         access = directory / "access.jsonl"
+         config = directory / "nginx.conf"
+         def configuration(marker="old", extra=""):
+@@ -184,7 +186,7 @@
+ {extra}
+ }}
+ server {{ listen 127.0.0.1:{port}; server_name other.test; location / {{ return 200 other; }} }}
+-server {{ listen 127.0.0.1:{auxiliary}; http2 on; location / {{ return 200 auxiliary; }} }}
++server {{ listen 127.0.0.1:{auxiliary_config}; http2 on; location / {{ return 200 auxiliary; }} }}
+ }}'''
+         token = directory / "admin.token"
+         token.write_text("hyper-integration-private-token-20260928")
+@@ -222,6 +224,27 @@
+             return records
+         try:
+             wait_for(lambda: request(admin, "/readyz")[0], 200)
++            if hyper:
++                duplicate = command.copy()
++                duplicate[duplicate.index("--admin") + 1] = f"127.0.0.1:{free_port()}"
++                conflict = subprocess.run(duplicate, capture_output=True, env=env, timeout=10)
++                check("a second server cannot join the worker listener port",
++                      conflict.returncode != 0 and request(admin, "/healthz")[0] == 200)
++            if args.ephemeral_listener:
++                inodes = set()
++                for fd in Path(f"/proc/{process.pid}/fd").iterdir():
++                    try:
++                        target = str(fd.readlink())
++                    except FileNotFoundError:
++                        continue
++                    if target.startswith("socket:["):
++                        inodes.add(target[8:-1])
++                ports = {int(parts[1].split(":")[1], 16)
++                         for line in Path(f"/proc/{process.pid}/net/tcp").read_text().splitlines()[1:]
++                         if (parts := line.split())[3] == "0A" and parts[9] in inodes}
++                ephemeral = ports - {port, admin}
++                check("all workers share one port allocated by listen 0", len(ephemeral) == 1)
++                auxiliary = ephemeral.pop()
+             if hyper:
+                 active = lambda: metric_value(metrics(), "rgnix_hyper_connections")
+                 wait_for(active, 0)
+--- a/src/proxy/hyper/mod.rs
++++ b/src/proxy/hyper/mod.rs
+@@ -34,6 +34,7 @@
+ }
+ #[derive(Clone)]
+ pub(crate) struct Listener {
++    pub(crate) worker: usize,
+     shared: Arc<Shared>,
+     address: SocketAddr,
+     socket: Arc<Mutex<Option<std::net::TcpListener>>>,
+@@ -85,22 +86,60 @@
+         shared: Arc<Shared>,
+         config: &crate::model::Listener,
+         limits: &Limits,
+-    ) -> Result<Self> {
++    ) -> Result<Vec<Self>> {
+         let address = config.address;
+         let acceptor = config
+             .tls
+             .then(|| tls::acceptor(shared.clone(), config))
+             .transpose()?;
+-        let socket = std::net::TcpListener::bind(address)?;
+-        socket.set_nonblocking(true)?;
+-        Ok(Self {
+-            shared,
+-            address,
+-            socket: Arc::new(Mutex::new(Some(socket))),
+-            drain_timeout: Duration::from_secs(limits.shutdown_timeout_seconds),
+-            config: config.clone(),
+-            acceptor,
+-        })
++        let mut listeners = Vec::with_capacity(limits.threads);
++        #[cfg(target_os = "linux")]
++        let mut bind_address = address;
++        for worker in 0..limits.threads {
++            #[cfg(target_os = "linux")]
++            let socket = {
++                let socket = socket2::Socket::new(
++                    socket2::Domain::for_address(address),
++                    socket2::Type::STREAM,
++                    Some(socket2::Protocol::TCP),
++                )?;
++                socket.set_reuse_address(true)?;
++                socket.set_reuse_port(worker > 0)?;
++                socket.set_nonblocking(true)?;
++                socket.bind(&bind_address.into())?;
++                // The first bind stays exclusive; only this listener's workers join its port.
++                socket.set_reuse_port(limits.threads > 1)?;
++                socket.listen(1024)?;
++                let socket = std::net::TcpListener::from(socket);
++                bind_address = socket.local_addr()?;
++                socket
++            };
++            #[cfg(not(target_os = "linux"))]
++            let socket = if let Some(listener) = listeners.first() {
++                let listener: &Self = listener;
++                listener
++                    .socket
++                    .lock()
++                    .unwrap()
++                    .as_ref()
++                    .unwrap()
++                    .try_clone()?
++            } else {
++                let socket = std::net::TcpListener::bind(address)?;
++                socket.set_nonblocking(true)?;
++                socket
++            };
++            listeners.push(Self {
++                worker,
++                shared: shared.clone(),
++                address,
++                socket: Arc::new(Mutex::new(Some(socket))),
++                drain_timeout: Duration::from_secs(limits.shutdown_timeout_seconds),
++                config: config.clone(),
++                acceptor: acceptor.clone(),
++            });
++        }
++        Ok(listeners)
+     }
+ }
+ 
+--- a/src/proxy/hyper/plain.rs
++++ b/src/proxy/hyper/plain.rs
+@@ -413,7 +413,7 @@
+     }
+     let request =
+         request.map(|body| RequestBody::new(body, guard.counts.clone(), settings.max_body));
+-    let result = selected.client.request(request).await;
++    let result = selected.client(listener.worker).request(request).await;
+     let mut response =
+         result.map_err(
+             |failure| match guard.counts.request_error.load(Ordering::Relaxed) {
+--- a/src/proxy/hyper/prepared.rs
++++ b/src/proxy/hyper/prepared.rs
+@@ -9,12 +9,17 @@
+     client::legacy::Client,
+     rt::{TokioExecutor, TokioTimer},
+ };
+-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
++use std::{
++    collections::HashMap,
++    net::SocketAddr,
++    sync::{Arc, OnceLock},
++};
+ 
+ pub(crate) struct Prepared {
+     pub has_plain: bool,
+     pub slash_redirects: bool,
+     pub pool_size: usize,
++    pub workers: usize,
+     pub idle_budget: hyper_util::client::legacy::IdlePoolBudget,
+     // Route IDs need not be unique (exact and prefix locations can share a path).
+     // These identities remain valid while the owning snapshot retains its routes.
+@@ -33,7 +38,27 @@
+ 
+ pub(super) struct PreparedTarget {
+     pub backend: Arc<PreparedBackend>,
+-    pub client: ProxyClient,
++    clients: Arc<Clients>,
++}
++
++struct Clients {
++    builder: hyper_util::client::legacy::Builder,
++    connector: Connector,
++    workers: Vec<OnceLock<ProxyClient>>,
++}
++
++impl PreparedTarget {
++    pub fn client(&self, worker: usize) -> &ProxyClient {
++        // HTTP/1 pools stay on their reactor; HTTP/2 and ALPN auto retain one
++        // shared multiplexer. Transport validation stays on the control plane.
++        let worker = if self.clients.workers.len() == 1 {
++            0
++        } else {
++            worker
++        };
++        self.clients.workers[worker]
++            .get_or_init(|| self.clients.builder.build(self.clients.connector.clone()))
++    }
+ }
+ 
+ pub(super) struct PreparedBackend {
+@@ -80,10 +105,11 @@
+     pub fn new(
+         snapshot: &RuntimeSnapshot,
+         pool_size: usize,
++        workers: usize,
+         idle_budget: hyper_util::client::legacy::IdlePoolBudget,
+         telemetry: &Arc<crate::telemetry::Telemetry>,
+     ) -> Result<Self> {
+-        let mut clients: HashMap<_, ProxyClient> = HashMap::new();
++        let mut clients: HashMap<_, Arc<Clients>> = HashMap::new();
+         let backends: HashMap<_, _> = snapshot
+             .backends
+             .iter()
+@@ -151,11 +177,17 @@
+                     let client = match clients.entry(key) {
+                         std::collections::hash_map::Entry::Occupied(entry) => entry.get().clone(),
+                         std::collections::hash_map::Entry::Vacant(entry) => {
++                            let client_workers =
++                                if transport.protocol == crate::upstream::Protocol::Http1 {
++                                    workers
++                                } else {
++                                    1
++                                };
+                             let mut builder = Client::builder(TokioExecutor::new());
+                             builder
+                                 .pool_timer(TokioTimer::new())
+                                 .pool_idle_timeout(settings.keepalive)
+-                                .pool_max_idle_per_host(pool_size)
++                                .pool_max_idle_per_host(pool_size / client_workers)
+                                 .shared_idle_budget(idle_budget.clone())
+                                 .retry_canceled_requests(false)
+                                 .http2_only(transport.protocol == crate::upstream::Protocol::Http2);
+@@ -172,13 +204,18 @@
+                                     ])
+                                     .observe(elapsed.as_secs_f64());
+                             });
+-                            let client = builder.build(Connector::new(
++                            let connector = Connector::new(
+                                 settings.connect_timeout,
+                                 settings.read_timeout,
+                                 settings.write_timeout,
+                                 transport,
+                                 &backend.backend,
+-                            )?);
++                            )?;
++                            let client = Arc::new(Clients {
++                                builder,
++                                connector,
++                                workers: (0..client_workers).map(|_| OnceLock::new()).collect(),
++                            });
+                             entry.insert(client).clone()
+                         }
+                     };
+@@ -186,7 +223,7 @@
+                         name,
+                         PreparedTarget {
+                             backend: backend.clone(),
+-                            client,
++                            clients: client,
+                         },
+                     );
+                 }
+@@ -235,6 +272,7 @@
+                     && matches!(r.action, Action::Proxy { .. })
+             }),
+             pool_size,
++            workers,
+             routes,
+             idle_budget,
+         })
+--- a/src/proxy/hyper/request.rs
++++ b/src/proxy/hyper/request.rs
+@@ -504,7 +504,7 @@
+             write: settings.write_timeout,
+         });
+     }
+-    let future = selected.client.request(request);
++    let future = selected.client(listener.worker).request(request);
+     let result = match settings
+         .gateway
+         .as_ref()
+--- a/src/runtime.rs
++++ b/src/runtime.rs
+@@ -198,6 +198,7 @@
+             snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(
+                 &snapshot,
+                 current.hyper.as_ref().unwrap().pool_size,
++                current.hyper.as_ref().unwrap().workers,
+                 current.hyper.as_ref().unwrap().idle_budget.clone(),
+                 &self.telemetry,
+             )?));
+@@ -439,6 +440,7 @@
+         snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(
+             &snapshot,
+             limits.upstream_keepalive_pool_size * limits.threads,
++            limits.threads,
+             hyper_util::client::legacy::IdlePoolBudget::new(
+                 limits.upstream_keepalive_pool_size * limits.threads,
+             ),
+@@ -505,16 +507,10 @@
+         upstream_fail_timeout: std::time::Duration::from_secs(limits.upstream_fail_timeout_secs),
+     });
+     Telemetry::observe_runtime(&shared, &limits)?;
+-    let work_stealing = false;
+-    #[cfg(feature = "hyper-experimental")]
+-    let work_stealing = limits.experimental_hyper || work_stealing;
+     let conf = ServerConf {
+         threads,
+         upstream_keepalive_pool_size: limits.upstream_keepalive_pool_size,
+-        // Pingora distributes accepted connections and HTTP/2 streams across
+-        // workers; keep each task on its reactor after admission. Hyper spawns
+-        // accepted connections on a shared scheduler instead.
+-        work_stealing,
++        work_stealing: false,
+         daemon: false,
+         // Pingora includes the first attempt in this budget.
+         max_retries: 1,
+@@ -542,12 +538,14 @@
+     for listener in listeners {
+         #[cfg(feature = "hyper-experimental")]
+         if limits.experimental_hyper {
+-            let mut service = background_service(
+-                &format!("hyper-{}", listener.address),
+-                crate::proxy::hyper::Listener::bind(shared.clone(), &listener, &limits)?,
+-            );
+-            service.threads = Some(threads);
+-            server.add_service(service);
++            for worker in crate::proxy::hyper::Listener::bind(shared.clone(), &listener, &limits)? {
++                let mut service = background_service(
++                    &format!("hyper-{}-{}", listener.address, worker.worker),
++                    worker,
++                );
++                service.threads = Some(1);
++                server.add_service(service);
++            }
+             continue;
+         }
+         let mut service = pingora::proxy::http_proxy_service(

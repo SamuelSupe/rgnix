@@ -504,10 +504,6 @@ impl Http1Transaction for Server {
     fn is_server() -> bool {
         true
     }
-
-    fn update_date() {
-        date::update();
-    }
 }
 
 #[cfg(feature = "server")]

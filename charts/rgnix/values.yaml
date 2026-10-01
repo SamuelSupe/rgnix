@@ -52,6 +52,21 @@ shutdown:
   timeoutSeconds: 25
   terminationGracePeriodSeconds: 60
 threads: 2
+# Explicit hyper/pingora for current development images; null uses the compatibility selection.
+engine: null
+# Requires a current development image with the hyper-experimental Cargo feature and admission flags.
+experimentalHyper:
+  # Deprecated selector: true selects Hyper, false selects Pingora, null uses the chart default.
+  enabled: null
+  maxConnections: 16384
+  # 0 selects bounded automatic limits; override for trusted shared proxy/NAT sources.
+  maxConnectionsPerIp: 0
+  maxConnectionsPerListener: 0
+  maxHandshakes: 0
+  maxHandshakesPerIp: 0
+  workerStallTimeoutSeconds: 5
+  # Requires an image built with the http3 Cargo feature; exposes HTTPS over UDP.
+  http3: false
 # Available in v0.5.0+; leave unset when using a v0.4.0 image.
 upstreamKeepalivePoolSize: null
 maxInflight: 1024

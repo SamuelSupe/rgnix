@@ -2,13 +2,16 @@ use crate::{
     config, ingress, model::RuntimeSnapshot, proxy::Proxy, script::Compiler, telemetry::Telemetry,
 };
 mod drain;
+mod engine;
+mod host;
 use anyhow::{Context, Result, ensure};
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
+pub use engine::{DEFAULT_ENGINE, Engine, EngineOptions};
 use futures::FutureExt;
 use pingora::{
     listeners::{TlsAccept, tls::TlsSettings},
-    server::{Server, ShutdownWatch, configuration::ServerConf},
+    server::{ShutdownWatch, configuration::ServerConf},
     services::{
         background::{BackgroundService, background_service},
         listening::Service,
@@ -24,6 +27,8 @@ use std::{
 pub struct Shared {
     #[cfg(feature = "hyper-experimental")]
     pub(crate) experimental_hyper: bool,
+    #[cfg(feature = "hyper-experimental")]
+    pub(crate) hyper_admission: Arc<crate::proxy::hyper::admission::Admission>,
     pub(crate) fleet: crate::fleet::State,
     pub audit: Arc<crate::audit::Audit>,
     pub snapshot: ArcSwap<RuntimeSnapshot>,
@@ -49,10 +54,36 @@ pub struct Shared {
 }
 #[derive(Clone, clap::Args)]
 pub struct Limits {
-    /// Experimental HTTP/1 data plane; rejects unsupported configuration.
+    #[command(flatten)]
+    pub engine: EngineOptions,
+    /// Maximum accepted Hyper connections across listeners, including TLS handshakes and tunnels.
     #[cfg(feature = "hyper-experimental")]
-    #[arg(long)]
-    pub experimental_hyper: bool,
+    #[arg(long, default_value_t = 16384)]
+    pub hyper_max_connections: usize,
+    /// Per-source IP connection limit; 0 selects min(process limit / 4, 1024).
+    #[cfg(feature = "hyper-experimental")]
+    #[arg(long, default_value_t = 0)]
+    pub hyper_max_connections_per_ip: usize,
+    /// Per-listener connection limit; 0 divides the process limit across listeners.
+    #[cfg(feature = "hyper-experimental")]
+    #[arg(long, default_value_t = 0)]
+    pub hyper_max_connections_per_listener: usize,
+    /// Pending TLS/QUIC handshakes and initial TCP requests; 0 selects an automatic limit.
+    #[cfg(feature = "hyper-experimental")]
+    #[arg(long, default_value_t = 0)]
+    pub hyper_max_handshakes: usize,
+    /// Pending handshakes/initial requests per source IP; 0 selects an automatic limit.
+    #[cfg(feature = "hyper-experimental")]
+    #[arg(long, default_value_t = 0)]
+    pub hyper_max_handshakes_per_ip: usize,
+    /// A stale native runtime heartbeat makes healthz and readyz fail.
+    #[cfg(feature = "hyper-experimental")]
+    #[arg(long, default_value_t = 5)]
+    pub hyper_worker_stall_timeout_seconds: u64,
+    /// Enable HTTP/3 on the UDP port of each TLS listener (requires the http3 feature).
+    #[cfg(feature = "http3")]
+    #[arg(long, env = "RGNIX_HYPER_HTTP3")]
+    pub hyper_http3: bool,
     /// Optional administrator-owned marker file; creation starts connection draining.
     #[arg(long)]
     pub drain_file: Option<PathBuf>,
@@ -103,6 +134,8 @@ impl Shared {
         Self {
             #[cfg(feature = "hyper-experimental")]
             experimental_hyper: self.experimental_hyper,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_admission: self.hyper_admission.clone(),
             fleet: Default::default(),
             audit: self.audit.clone(),
             snapshot: ArcSwap::from(self.snapshot.load_full()),
@@ -168,6 +201,16 @@ impl Shared {
         mut snapshot: RuntimeSnapshot,
         publication: &mut Publication,
     ) -> Result<()> {
+        validate_engine(&snapshot, {
+            #[cfg(feature = "hyper-experimental")]
+            {
+                self.experimental_hyper
+            }
+            #[cfg(not(feature = "hyper-experimental"))]
+            {
+                false
+            }
+        })?;
         #[cfg(feature = "hyper-experimental")]
         if self.experimental_hyper {
             crate::proxy::hyper::validate(&snapshot)?;
@@ -189,8 +232,32 @@ impl Shared {
         if self.experimental_hyper {
             snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(
                 &snapshot,
+                current.hyper.as_deref(),
                 current.hyper.as_ref().unwrap().pool_size,
+                current.hyper.as_ref().unwrap().workers,
+                current.hyper.as_ref().unwrap().idle_budget.clone(),
+                &self.telemetry,
+                #[cfg(feature = "http3")]
+                current.hyper.as_ref().unwrap().http3_all,
             )?));
+            #[cfg(feature = "http3")]
+            ensure!(
+                current
+                    .hyper
+                    .as_ref()
+                    .unwrap()
+                    .quic
+                    .keys()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    == snapshot
+                        .hyper
+                        .as_ref()
+                        .unwrap()
+                        .quic
+                        .keys()
+                        .collect::<std::collections::BTreeSet<_>>(),
+                "changing HTTP/3 UDP listeners requires restart"
+            );
         }
         snapshot.content_hash = snapshot.fingerprint()?;
         snapshot.reindex();
@@ -350,6 +417,27 @@ impl BackgroundService for Control {
     }
 }
 
+fn validate_engine(snapshot: &RuntimeSnapshot, hyper: bool) -> Result<()> {
+    for route in snapshot.hosts.iter().flat_map(|h| &h.routes) {
+        ensure!(
+            hyper || (!route.settings.http3 && !route.settings.connect_tunnel),
+            "http3 and rgnix_connect require --engine hyper"
+        );
+    }
+    Ok(())
+}
+
+/// Check configuration compatibility with the selected engine without opening listeners.
+pub fn check(snapshot: &RuntimeSnapshot, options: &EngineOptions) -> Result<Engine> {
+    let engine = options.resolve()?;
+    validate_engine(snapshot, engine == Engine::Hyper)?;
+    #[cfg(feature = "hyper-experimental")]
+    if engine == Engine::Hyper {
+        crate::proxy::hyper::validate(snapshot)?;
+    }
+    Ok(engine)
+}
+
 pub fn serve(
     mut snapshot: RuntimeSnapshot,
     compiler: Arc<Compiler>,
@@ -359,20 +447,13 @@ pub fn serve(
     otlp: crate::otlp::Options,
     diagnostics: crate::diagnostics::Options,
 ) -> Result<()> {
-    #[cfg(feature = "hyper-experimental")]
-    if limits.experimental_hyper {
-        ensure!(
-            matches!(source, Source::File(_)),
-            "experimental Hyper supports standalone mode only"
-        );
-        ensure!(
-            limits.tenant_policy_file.is_none()
-                && limits.global_rate_limit_file.is_none()
-                && limits.rollout_metrics_file.is_none(),
-            "experimental Hyper does not support external tenant/rate/rollout policies"
-        );
-        crate::proxy::hyper::validate(&snapshot)?;
-    }
+    let engine = check(&snapshot, &limits.engine)?;
+    log::info!("HTTP engine: {}", engine.name());
+    #[cfg(feature = "http3")]
+    ensure!(
+        !limits.hyper_http3 || engine == Engine::Hyper,
+        "--hyper-http3 requires --engine hyper"
+    );
     ensure!(
         !limits.report_replicas || !matches!(source, Source::File(_)),
         "report-replicas requires Ingress or Gateway mode"
@@ -428,16 +509,42 @@ pub fn serve(
         limits.max_plugin_instances > 0 && limits.max_plugin_instances <= limits.max_inflight,
         "max-plugin-instances must be 1..max-inflight"
     );
+    let telemetry = Telemetry::new(otlp)?;
     #[cfg(feature = "hyper-experimental")]
-    if limits.experimental_hyper {
+    ensure!(
+        (1..=1_000_000).contains(&limits.hyper_max_connections),
+        "hyper-max-connections must be 1..1000000"
+    );
+    #[cfg(feature = "hyper-experimental")]
+    ensure!(
+        [
+            limits.hyper_max_connections_per_ip,
+            limits.hyper_max_connections_per_listener,
+            limits.hyper_max_handshakes,
+            limits.hyper_max_handshakes_per_ip
+        ]
+        .iter()
+        .all(|n| *n <= 1_000_000)
+            && (1..=3600).contains(&limits.hyper_worker_stall_timeout_seconds),
+        "Hyper admission limits must be 0..1000000 and worker stall timeout 1..3600 seconds"
+    );
+    #[cfg(feature = "hyper-experimental")]
+    if engine == Engine::Hyper {
         snapshot.hyper = Some(Arc::new(crate::proxy::hyper::Prepared::new(
             &snapshot,
+            None,
             limits.upstream_keepalive_pool_size * limits.threads,
+            limits.threads,
+            hyper_util::client::legacy::IdlePoolBudget::new(
+                limits.upstream_keepalive_pool_size * limits.threads,
+            ),
+            &telemetry,
+            #[cfg(feature = "http3")]
+            limits.hyper_http3,
         )?));
     }
     snapshot.content_hash = snapshot.fingerprint()?;
     snapshot.reindex();
-    let telemetry = Telemetry::new(otlp)?;
     crate::logging::install_files(telemetry.files.clone());
     crate::logging::configure(snapshot.error_log.clone());
     telemetry.files.configure(snapshot.log_rotation.clone());
@@ -464,7 +571,13 @@ pub fn serve(
     }
     let shared = Arc::new(Shared {
         #[cfg(feature = "hyper-experimental")]
-        experimental_hyper: limits.experimental_hyper,
+        experimental_hyper: engine == Engine::Hyper,
+        #[cfg(feature = "hyper-experimental")]
+        hyper_admission: crate::proxy::hyper::admission::Admission::new(
+            &limits,
+            listeners.len(),
+            telemetry.clone(),
+        ),
         fleet: crate::fleet::State::new(limits.report_replicas),
         audit: audit.clone(),
         snapshot: ArcSwap::from_pointee(snapshot),
@@ -494,16 +607,10 @@ pub fn serve(
         upstream_fail_timeout: std::time::Duration::from_secs(limits.upstream_fail_timeout_secs),
     });
     Telemetry::observe_runtime(&shared, &limits)?;
-    let work_stealing = false;
-    #[cfg(feature = "hyper-experimental")]
-    let work_stealing = limits.experimental_hyper || work_stealing;
     let conf = ServerConf {
         threads,
         upstream_keepalive_pool_size: limits.upstream_keepalive_pool_size,
-        // Pingora distributes accepted connections and HTTP/2 streams across
-        // workers; keep each task on its reactor after admission. Hyper spawns
-        // accepted connections on a shared scheduler instead.
-        work_stealing,
+        work_stealing: false,
         daemon: false,
         // Pingora includes the first attempt in this budget.
         max_retries: 1,
@@ -515,11 +622,7 @@ pub fn serve(
         max_blocking_threads: Some((16 / threads).clamp(1, 2)),
         ..ServerConf::default()
     };
-    let mut server = Server::new_with_opt_and_conf(None, conf);
-    let draining = shared.clone();
-    server.set_graceful_shutdown_check(move || {
-        draining.requests.available_permits() == limits.max_inflight
-    });
+    let mut server = host::Host::new(conf, shared.clone(), &limits);
     server.add_service(background_service(
         "connection-drain",
         drain::Drain {
@@ -530,13 +633,40 @@ pub fn serve(
     server.bootstrap();
     for listener in listeners {
         #[cfg(feature = "hyper-experimental")]
-        if limits.experimental_hyper {
-            let mut service = background_service(
-                &format!("hyper-{}", listener.address),
-                crate::proxy::hyper::Listener::bind(shared.clone(), listener.address, &limits)?,
-            );
-            service.threads = Some(threads);
-            server.add_service(service);
+        if engine == Engine::Hyper {
+            #[cfg(feature = "http3")]
+            if listener.tls
+                && (limits.hyper_http3
+                    || shared
+                        .snapshot
+                        .load()
+                        .hosts
+                        .iter()
+                        .filter(|h| h.listener == listener.address)
+                        .flat_map(|h| &h.routes)
+                        .any(|r| r.settings.http3))
+            {
+                ensure!(
+                    !listener.proxy_protocol,
+                    "HTTP/3 does not accept PROXY protocol"
+                );
+                ensure!(
+                    listener.address.port() != 0,
+                    "HTTP/3 needs a fixed UDP port"
+                );
+                server.add_service(background_service(
+                    &format!("http3-{}", listener.address),
+                    crate::proxy::hyper::h3::Listener::bind(shared.clone(), &listener, &limits)?,
+                ));
+            }
+            for worker in crate::proxy::hyper::Listener::bind(shared.clone(), &listener, &limits)? {
+                let mut service = background_service(
+                    &format!("hyper-{}-{}", listener.address, worker.worker),
+                    worker,
+                );
+                service.threads = Some(1);
+                server.add_service(service);
+            }
             continue;
         }
         let mut service = pingora::proxy::http_proxy_service(
@@ -618,7 +748,7 @@ pub fn serve(
         crate::rollout::metrics::Poller(shared.clone()),
     ));
     server.add_service(background_service("control", Control { shared, source }));
-    server.run(pingora::server::RunArgs::default());
+    let result = server.run();
     if let Some(exporter) = &telemetry.otlp {
         exporter.shutdown();
     }
@@ -626,5 +756,6 @@ pub fn serve(
         exporter.shutdown();
     }
     telemetry.files.shutdown();
+    result?;
     Ok(())
 }

@@ -20,6 +20,8 @@
 
 > **v0.5.0 预览版**更新 HTTP/1 执行路径、后端选择、Gateway 路由索引、RGL 请求状态及 Linux 静态文件传输，同时公开 NGINX/OpenResty 对照差距和未解决的性能限制；不宣称已达到性能对等。[下载](https://github.com/SamuelSupe/rgnix/releases/tag/v0.5.0) · [发布说明](docs/releases/v0.5.0.md) · [更新记录](CHANGELOG.md)。部署前请查看[验证范围](#实际验证)和 [NGINX 兼容矩阵](docs/compatibility.md)。
 
+当前实验分支已把 TLS/SNI、HTTP/2/h2c/gRPC、WebSocket、RGL/body 检查、认证、静态文件/压缩及 Ingress/Gateway 策略接入 Hyper 内核，并加入跨监听器连接上限和共享空闲池预算。默认仍为 Pingora。启用方式和限制见 [Hyper 数据面](docs/hyper-experimental.md)，实际验证见[内核补齐记录](docs/validation-hyper-kernel-2026-09-28.md)；旧 HTTP/1 性能结果不能代表这一版。
+
 ## 主要能力
 
 **HTTP 处理之前的报文策略：**[RGL XDP 入口过滤](docs/xdp.md)将 `on_xdp()` 编译为 eBPF，支持观察模式、作用范围、包和字节令牌桶、可过期地址集合、规则指标、OTLP 报文事件、自动更新、持久化回退和 PCAP 回放。可选 Helm 节点代理独立于 HTTP Deployment 运行；另提供兼容 libxdp dispatcher 的编译产物。
@@ -82,6 +84,8 @@ sudo apt-get install -y build-essential cmake pkg-config libssl-dev
 cargo build --release --locked
 ./target/release/rgnix serve -c examples/nginx.conf
 ```
+
+普通 Cargo 构建包含两种内核，继续使用系统分配器。使用 `--engine hyper` 启用 Hyper、`--engine pingora` 显式回退，`check` 按所选内核预检。当前开发分支的 Docker 构建与未来原生发行包默认启用 `http3,jemalloc`，镜像构建可用 `CARGO_FEATURES` 覆盖；[发行与稳定性门槛](docs/hyper-default-rollout.md)通过前，默认运行仍为 Pingora。这不改变已有 v0.5.0 发行产物。
 
 [镜像签名、校验和与产物证明](docs/releases.md) · [部署文档](docs/deployment.md)。
 
@@ -269,13 +273,15 @@ v0.5.0 候选版在两种架构上分别通过 **22 项 Rust 测试、340 项原
 
 后续[单 worker 诊断](docs/validation-pingora-audit-2026-09-28.md)发现，使用我们**修改过的 vendor 依赖**的最小代理也明显慢于 NGINX；它不是官方原版 Pingora 的基准。新发现的头部数组、body 所有权和 vectored write 优化均**尚未实现，不属于 v0.5.0 的能力或收益**。
 
+完整内核的[9 月 30 日 Hyper 优化](docs/validation-hyper-performance-2026-09-30.md)复用提示响应队列、避免普通代理 URI 重建，并合并小文件读取。1 KiB 代理分配/重分配调用从约 **36.5 降到 30.6 次/请求**，累计申请字节减少约 **43%**。最终 90 窗 NGINX 1.28.0 对照零错误，但没有场景的两个对照程序同时通过校准；静态文件峰值内存更高，不能宣布稳定吞吐收益或性能对等。
+
 [最初的 NGINX/OpenResty 对照](docs/validation-nginx-openresty-2026-09-27.md)针对已发布的 v0.4.0。后续 NGINX 重测中 OpenResty 仅作为共同上游，不是更新后的 OpenResty 前端成绩。报告保留所有原始窗口、被否决的实验与适用限制。
 
 **仍未完成的验收：**稳定生产容量、完整 Gateway conformance、24 小时压力、物理节点/网络故障、云负载均衡、生产 CNI 兼容及 Redis Sentinel/Cluster 故障切换。此前 [Gateway](docs/validation-gateway-hardening-2026-09-26.md)、[tracing](docs/validation-tracing-2026-09-25.md)及[metrics](docs/validation-metrics-2026-09-25.md)记录保持其原版本与范围。
 
 ## 范围与文档
 
-rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则及嵌套 location、`rewrite/map/if`、响应缓存、HTTP/3、ingress-nginx 注解或自动业务请求重试。Gateway API 的范围见[独立兼容说明](docs/gateway-api.md)。不支持的配置会给出诊断。
+rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则及嵌套 location、`rewrite/map/if`、响应缓存、ingress-nginx 注解或自动业务请求重试。Gateway API 的范围见[独立兼容说明](docs/gateway-api.md)。不支持的配置会给出诊断。
 
 | 文档 | 内容 |
 | :--- | :--- |
@@ -293,3 +299,7 @@ rgnix 实现明确的 NGINX 子集，不包含完整 Lua/NGINX 兼容、正则�
 ## 许可证
 
 [Apache License 2.0](LICENSE)。Pingora 补丁及上游来源见 [vendor/README.md](vendor/README.md)。
+
+当前 Hyper 加固增加来源/监听器连接隔离、待建连接限额、资源耗尽后的接收恢复和服务 reactor 健康探针。路由更新保留安全等价的上游池与 TLS 会话；凭据和策略变化继续隔离。构建/发布门槛让同一产物覆盖两种内核，实际实现与运行范围见[加固记录](docs/validation-hyper-primary-2026-10-01.md)；远端发行门槛尚未执行。
+
+Hyper 可选构建进一步支持受限 CONNECT、H2 WebSocket 转换、有界 h2c Upgrade、Linux sendfile、按配置版本隔离的 TLS 恢复、下游可配置超时和独立进程宿主。`http3` 特性提供 QUIC 下游、CONNECT、转发到 H1/H2 的 WebSocket、中间响应和包含 mTLS 的会话恢复，并支持 Helm UDP 暴露。H2 未完成首部块也有不受活跃流干扰的总时限。详见[支持边界](docs/hyper-experimental.md)、[部署验证](docs/validation-hyper-gaps-2026-10-01.md)及[协议验证](docs/validation-hyper-protocols-2026-10-01.md)。默认仍为 Pingora；完整 Gateway conformance 和生产性能对等尚未确认。

@@ -8,33 +8,48 @@ pub(super) struct Completion<'a> {
     pub error: Option<&'a pingora::Error>,
 }
 
+pub(super) struct UpstreamCompletion<'a> {
+    pub lease: &'a crate::backend::Lease,
+    pub label: &'a str,
+    pub duration_metric: Option<&'a prometheus::Histogram>,
+    pub started: Instant,
+}
+
 impl Proxy {
-    pub(super) fn complete(&self, ctx: &mut Context, completion: Completion<'_>) {
-        let Completion {
-            version,
-            status,
-            request_bytes,
-            response_bytes,
-            error: e,
-        } = completion;
+    pub(super) fn record_completion(
+        &self,
+        started: Instant,
+        upstream: Option<UpstreamCompletion<'_>>,
+        completion: &Completion<'_>,
+    ) -> std::time::Duration {
         let finished = Instant::now();
-        let duration = finished.saturating_duration_since(ctx.started);
+        let duration = finished.saturating_duration_since(started);
+        let status = completion.status;
+        let request_bytes = completion.request_bytes;
+        let response_bytes = completion.response_bytes;
+        let e = completion.error;
         let traffic = &self.shared.telemetry.traffic;
         traffic.request_bytes.inc_by(request_bytes as u64);
         traffic.response_bytes.inc_by(response_bytes as u64);
         if let Some(error) = e {
             traffic.failure(error);
         }
-        if let (Some(started), Some(backend)) = (ctx.upstream_started, &ctx.upstream_label) {
-            traffic
-                .upstream_duration
-                .with_label_values(&[backend])
-                .observe(finished.saturating_duration_since(started).as_secs_f64());
+        if let Some(upstream) = &upstream {
+            let duration = finished
+                .saturating_duration_since(upstream.started)
+                .as_secs_f64();
+            match upstream.duration_metric {
+                Some(metric) => metric.observe(duration),
+                None => traffic
+                    .upstream_duration
+                    .with_label_values(&[upstream.label])
+                    .observe(duration),
+            }
         }
-        if let Some(lease) = &ctx.upstream_lease
+        if let Some(upstream) = &upstream
             && (e.is_none()
                 || e.is_some_and(|error| error.esource() == &pingora::ErrorSource::Upstream))
-            && lease.record_result(
+            && upstream.lease.record_result(
                 e.is_some(),
                 self.shared.upstream_max_fails,
                 self.shared.upstream_fail_timeout,
@@ -43,7 +58,7 @@ impl Proxy {
             self.shared.telemetry.upstream_ejections.inc();
             log::warn!(
                 "temporarily excluding upstream {} after repeated transport failures",
-                lease.address
+                upstream.lease.address
             );
         }
         self.shared.telemetry.request_completed(status);
@@ -51,6 +66,35 @@ impl Proxy {
             .telemetry
             .duration
             .observe(duration.as_secs_f64());
+        duration
+    }
+
+    pub(super) fn complete(&self, ctx: &mut Context, completion: Completion<'_>) {
+        let Completion {
+            version,
+            status,
+            request_bytes,
+            response_bytes,
+            error: e,
+        } = completion;
+        let duration = self.record_completion(
+            ctx.started,
+            ctx.upstream_lease.as_ref().and_then(|lease| {
+                Some(UpstreamCompletion {
+                    lease,
+                    label: ctx.upstream_label.as_deref()?,
+                    duration_metric: None,
+                    started: ctx.upstream_started?,
+                })
+            }),
+            &Completion {
+                version,
+                status,
+                request_bytes,
+                response_bytes,
+                error: e,
+            },
+        );
         let route_id = ctx.route.as_ref().map_or("_unmatched", |r| r.id.as_str());
         let upstream_failed = e.is_some_and(|e| e.esource() == &pingora::ErrorSource::Upstream);
         let grpc = ctx
@@ -148,6 +192,7 @@ impl Proxy {
                         http::Version::HTTP_10 => "1.0",
                         http::Version::HTTP_11 => "1.1",
                         http::Version::HTTP_2 => "2",
+                        http::Version::HTTP_3 => "3",
                         _ => "unknown",
                     },
                     tls: self.tls,

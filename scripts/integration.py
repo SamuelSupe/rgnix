@@ -118,8 +118,8 @@ class Upstream(http.server.BaseHTTPRequestHandler):
         if self.path == "/early":
             self.wfile.write(b"HTTP/1.1 103 Early Hints\r\nLink: </app.css>; rel=preload\r\n\r\n")
             self.wfile.flush()
-        if self.path in ("/held", "/held-plain"):
-            (HELD_ENTERED if self.path == "/held" else HELD_PLAIN_ENTERED).set()
+        if self.path == "/held":
+            HELD_ENTERED.set()
             HELD_RELEASE.wait(10)
         payload = json.dumps({"path": self.path, "port": self.server.server_port, "headers": dict(self.headers), "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}).encode()
         self.send_response(200)
@@ -132,6 +132,12 @@ class Upstream(http.server.BaseHTTPRequestHandler):
             self.send_header("Set-Cookie", "second=2")
         self.end_headers()
         try:
+            if self.path == "/held-plain":
+                self.wfile.write(payload[:1])
+                self.wfile.flush()
+                HELD_PLAIN_ENTERED.set()
+                HELD_RELEASE.wait(10)
+                payload = payload[1:]
             self.wfile.write(payload)
         except (BrokenPipeError, ConnectionResetError):
             pass
@@ -165,6 +171,8 @@ upstream app {{ server 127.0.0.1:{upstream}; }}
 upstream balanced {{ server 127.0.0.1:{unavailable}; server 127.0.0.1:{upstream}; }}
 upstream single {{ server 127.0.0.1:{unavailable}; }}
 server {{ listen 127.0.0.1:{port};
+add_header X-Revision old always;
+location = /switch {{ return 200 old; }}
 location /plugin/ {{ rgnix_script {script}; proxy_pass http://app/; }}
 location /request-only/ {{ rgnix_script {request_only}; proxy_pass http://app/; }}
 location /balanced {{ proxy_pass http://balanced; }}
@@ -184,7 +192,10 @@ location / {{ proxy_pass http://app; }}
                 first = pool.submit(request, port, "/plugin/held")
                 try:
                     assert HELD_ENTERED.wait(3)
-                    check("plugin budget rejects excess instances while plain routes work", request(port, "/plugin/")[0] == 503 and request(port, "/")[0] == 200)
+                    rejected = request(port, "/plugin/")[0]
+                    wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 1)
+                    check("plugin budget rejects excess instances while plain routes work", rejected == 503 and request(port, "/")[0] == 200)
+                    wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 1)
                     second = pool.submit(request, port, "/held-plain")
                     assert HELD_PLAIN_ENTERED.wait(3)
                     wait_for(lambda: request(port, "/")[0], 503)
@@ -194,6 +205,7 @@ location / {{ proxy_pass http://app; }}
                 finally:
                     HELD_RELEASE.set()
                 assert first.result()[0] == 200 and second.result()[0] == 200
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
             check("completed requests release resource permits", request(port, "/plugin/")[0] == 200)
             wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
             check("live metrics release permits after requests finish", metric_value(request(admin, "/metrics")[2].decode(), "rgnix_backend_inflight", backend="app") == 0)
@@ -209,8 +221,18 @@ location / {{ proxy_pass http://app; }}
                 finally:
                     HELD_RELEASE.set()
                 assert pending.result()[0] == 200
-            check("single endpoint still ejects failed connections without retrying", [request(port, "/single")[0] for _ in range(4)] == [502, 502, 502, 503])
-            statuses = [request(port, "/balanced")[0] for _ in range(8)]
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
+            # The client may receive bytes before the server completes its flush.
+            # Observe completion before asserting sequential ejection decisions.
+            singles = []
+            for _ in range(4):
+                singles.append(request(port, "/single")[0])
+                wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
+            check("single endpoint still ejects failed connections without retrying", singles == [502, 502, 502, 503])
+            statuses = []
+            for _ in range(8):
+                statuses.append(request(port, "/balanced")[0])
+                wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
             check("failed endpoint is excluded without replaying its requests", statuses.count(502) == 3 and statuses[-3:] == [200] * 3)
             recovered = http.server.ThreadingHTTPServer(("127.0.0.1", unavailable), Upstream)
             recovered.daemon_threads = True
@@ -219,6 +241,43 @@ location / {{ proxy_pass http://app; }}
             reached = {json.loads(request(port, "/balanced")[2])["port"] for _ in range(6)}
             check("excluded endpoint re-enters rotation after cooldown", reached == {upstream, unavailable})
             check("single endpoint also recovers after cooldown", request(port, "/single")[0] == 200)
+            check("constant return preserves HEAD content length", request(port, "/switch", method="HEAD")[1].get("content-length") == "3")
+            HELD_PLAIN_ENTERED.clear()
+            HELD_RELEASE.clear()
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
+            def upstream_metrics():
+                text = request(admin, "/metrics")[2].decode()
+                return {name: sum(float(value) for value in re.findall(rf"^{name}\{{[^}}]+\}} ([^\n]+)$", text, re.M))
+                        for name in ("rgnix_backend_requests_total", "rgnix_upstream_header_seconds_count", "rgnix_upstream_request_seconds_count")}
+            before = upstream_metrics()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                pending = pool.submit(request, port, "/held-plain")
+                try:
+                    assert HELD_PLAIN_ENTERED.wait(3)
+                    wait_for(lambda: upstream_metrics()["rgnix_upstream_header_seconds_count"], before["rgnix_upstream_header_seconds_count"] + 1)
+                    held_metrics = upstream_metrics()
+                    check("plain proxy records headers while deferring completion until body finishes",
+                          held_metrics["rgnix_backend_requests_total"] == before["rgnix_backend_requests_total"]
+                          and held_metrics["rgnix_upstream_request_seconds_count"] == before["rgnix_upstream_request_seconds_count"])
+                    version = metric_value(request(admin, "/metrics")[2].decode(), "rgnix_config_version")
+                    conf.write_text(conf.read_text().replace("X-Revision old", "X-Revision new").replace("return 200 old;", "rgnix_limit_rate 1 burst=1 key=route; return 200 new;"))
+                    process.send_signal(signal.SIGHUP)
+                    wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_config_version") > version)
+                    switched = request(port, "/switch")
+                    wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 1)
+                    check("reload adds a traffic policy to a previously plain return", switched[2] == b"new" and request(port, "/switch")[0] == 429)
+                finally:
+                    HELD_RELEASE.set()
+                check("plain in-flight proxy keeps its snapshot during policy reload", pending.result()[1].get("x-revision") == "old")
+            assert request(port, "/held-plain")[0] == 200
+            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
+            after = upstream_metrics()
+            check("old and new snapshots share backend metrics and finish each request once",
+                  all(after[name] == count + 2 for name, count in before.items()))
+            conf.write_text(conf.read_text().replace("rgnix_limit_rate 1 burst=1 key=route; return 200 new;", "return 200 $request_method;").replace("X-Revision new", "X-Revision variable"))
+            process.send_signal(signal.SIGHUP)
+            wait_for(lambda: request(port, "/switch")[2], b"GET")
+            check("reload from traffic policy to dynamic return uses request variables", request(port, "/switch", method="POST")[2] == b"POST")
         except BaseException:
             print((directory / "budget.log").read_text()[-6000:], file=sys.stderr)
             raise
@@ -307,6 +366,10 @@ def exercise_body_routing(port, tls_port, upstream, canary, directory, admin):
     check("UTF-8 cut at the prefix boundary is nil as text but searchable as bytes", result["port"] == canary and result["headers"].get("x-body-text") == "nil")
     result, _ = upload("/body-off/", b'{"tenant":"vip"}')
     check("body inspection remains opt-in", result["port"] == upstream and result["headers"].get("x-body-state") == "off")
+    for mode, state in (("full", "complete"), ("prefix", "complete"), ("off", "off")):
+        result, _ = upload(f"/body-{mode}/", b"")
+        assert result["port"] == upstream and result["headers"].get("x-body-state") == state
+    check("empty uploads retain complete full/prefix inspection and opt-in semantics", True)
     check("full inspection rejects oversized known-length bodies", request(port, "/body-full/", "POST", body=b"x" * 65537)[0] == 413)
 
     for chunked in (False, True):
@@ -374,10 +437,62 @@ def exercise_body_routing(port, tls_port, upstream, canary, directory, admin):
     check("cancelled body inspection leaves the service available", request(port, "/alive")[0] == 200)
 
 
+def exercise_engines(binary, directory):
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in ("RGNIX_ENGINE", "RGNIX_EXPERIMENTAL_HYPER")}
+    config = directory / "engine.conf"
+    port, admin = free_port(), free_port()
+    config.write_text(f"events {{}} http {{ server {{ listen 127.0.0.1:{port}; return 200 engine; }} }}")
+    help_text = subprocess.check_output([binary, "serve", "--help"], text=True, env=environment)
+    has_hyper = "--hyper-max-connections" in help_text
+    cases = [(["--engine", "pingora"], {"RGNIX_ENGINE": "hyper"}, "pingora"),
+             (["--experimental-hyper=false"], {"RGNIX_EXPERIMENTAL_HYPER": "true"}, "pingora"),
+             (["--engine", "pingora", "--experimental-hyper"], {}, "pingora")]
+    if has_hyper:
+        cases += [(["--engine", "hyper"], {"RGNIX_ENGINE": "pingora"}, "hyper"),
+                  (["--experimental-hyper"], {}, "hyper"),
+                  ([], {"RGNIX_ENGINE": "hyper", "RGNIX_EXPERIMENTAL_HYPER": "false"}, "hyper")]
+    else:
+        result = subprocess.run([binary, "check", "-c", str(config), "--engine", "hyper"],
+                                env=environment, capture_output=True, text=True)
+        check("Pingora-only builds reject unavailable Hyper explicitly", result.returncode != 0 and "unavailable" in result.stderr)
+    for options, variables, expected in cases:
+        result = subprocess.run([binary, "check", "-c", str(config), *options],
+                                env=environment | variables, capture_output=True, text=True)
+        assert result.returncode == 0 and f"engine={expected}" in result.stdout, result.stderr or result.stdout
+    check("Engine selection preserves explicit rollback, CLI precedence and legacy compatibility", True)
+    default = subprocess.check_output([binary, "check", "-c", str(config)], text=True, env=environment)
+    selected_default = default.strip().rsplit("engine=", 1)[1]
+    for options, expected in [([], selected_default), (["--engine", "pingora"], "pingora")] + (
+            [(["--engine", "hyper"], "hyper")] if has_hyper else []):
+        with (directory / f"engine-{expected}.log").open("w") as log:
+            process = subprocess.Popen([binary, "serve", "-c", str(config), *options,
+                "--admin", f"127.0.0.1:{admin}", "--shutdown-grace-seconds", "0"],
+                env=environment, stdout=log, stderr=log)
+            try:
+                wait_for(lambda: request(admin, "/readyz")[0] == 200)
+                assert request(port)[2] == b"engine"
+                metrics = request(admin, "/metrics")[2].decode()
+                assert metric_value(metrics, "rgnix_engine_info", engine=expected) == 1, metrics
+            finally:
+                process.terminate()
+                process.wait(timeout=10)
+    check("Serve uses the checked engine and exposes its selection in metrics", True)
+    if "--hyper-http3" in help_text:
+        config.write_text("events {} http { server { listen 127.0.0.1:0; http3 on; return 200 invalid; } }")
+        for engine in ("hyper", "pingora"):
+            for command in ("check", "serve"):
+                result = subprocess.run([binary, command, "-c", str(config), "--engine", engine],
+                    env=environment, capture_output=True, text=True, timeout=10)
+                assert result.returncode != 0, (engine, command, result.stdout)
+        check("Check rejects incompatible HTTP/3 listeners before serve for both engines", True)
+
+
 def main():
     binary = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory(prefix="rgnix-acceptance-") as temporary:
         directory = Path(temporary)
+        exercise_engines(binary, directory)
         certificate(directory, 1)
         root = directory / "html"
         root.mkdir()
@@ -582,21 +697,21 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 check("FIFO files and indexes cannot exhaust the static file pool", statuses == [403] * 20 + [200])
                 check("path traversal rejection", request(port, "/%2e%2e/key.pem")[0] == 400)
                 reply = json.loads(request(port, "/api/item?q=1")[2])
-                check("proxy_pass URI replacement", reply["path"] == "/base/item?q=1" and reply["headers"]["Host"] == "example.test")
+                check("proxy_pass URI replacement", reply["path"] == "/base/item?q=1" and {k.lower(): v for k, v in reply["headers"].items()}["host"] == "example.test")
                 connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
                 try:
                     fields = {f"X-Request-{i}": f"value-{i}" for i in range(40)}
                     connection.request("GET", "/api/many-headers", headers={"Host": "example.test", **fields})
                     response = connection.getresponse()
                     replies = response.getheaders()
-                    echoed = json.loads(response.read())["headers"]
-                    preserved = response.status == 200 and all(echoed.get(k) == v for k, v in fields.items())
+                    echoed = {k.lower(): v for k, v in json.loads(response.read())["headers"].items()}
+                    preserved = response.status == 200 and all(echoed.get(k.lower()) == v for k, v in fields.items())
                     preserved &= all(dict((k.lower(), v) for k, v in replies).get(f"x-reply-{i}") == f"value-{i}" for i in range(40))
                     preserved &= [v for k, v in replies if k.lower() == "set-cookie"] == ["first=1", "second=2"]
                     connection.request("GET", "/api/next", headers={"Host": "example.test"})
                     response = connection.getresponse()
-                    next_fields = json.loads(response.read())["headers"]
-                    check("large header sets preserve duplicates and isolate keepalive requests", preserved and response.status == 200 and "X-Request-0" not in next_fields and response.getheader("X-Reply-0") is None)
+                    next_fields = {k.lower(): v for k, v in json.loads(response.read())["headers"].items()}
+                    check("large header sets preserve duplicates and isolate keepalive requests", preserved and response.status == 200 and "x-request-0" not in next_fields and response.getheader("X-Reply-0") is None)
                 finally:
                     connection.close()
                 reply = json.loads(request(port, "/raw/%61?q=2")[2])
@@ -673,7 +788,7 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 check("plugin direct response", request(port, "/plugin/item", headers={"x-deny": "yes"})[0] == 403)
                 check("superseded plugin decisions fail instead of selecting another backend", request(port, "/plugin/item", headers={"x-double-decision": "yes"})[0] == 500)
                 status, _, body = request(port, "/secure-plugin/item", headers={"x-backend": "localhost", "Authorization": "Bearer test-marker"})
-                check("script backend alias preserves HTTPS and forwarded headers", status == 200 and json.loads(body)["port"] == secure_server.server_port and json.loads(body)["headers"]["Authorization"] == "Bearer test-marker")
+                check("script backend alias preserves HTTPS and forwarded headers", status == 200 and json.loads(body)["port"] == secure_server.server_port and {k.lower(): v for k, v in json.loads(body)["headers"].items()}["authorization"] == "Bearer test-marker")
                 check("script HTTPS backend still verifies certificates", request(port, "/plugin/item", headers={"x-backend": "example.test"})[0] == 502)
                 check("fuel limits infinite loops", request(port, "/loop/")[0] == 500 and request(port, "/alive")[0] == 200)
                 failed_log = directory / "plugin-fail.log"

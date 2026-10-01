@@ -46,9 +46,32 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
         return;
     }
     let req = session.req_header();
-    let Some(encoding) = negotiated_encoding(&req.headers, policy) else {
+    let Some(encoding) = selected_encoding(&req.method, &req.headers, response, policy) else {
         return;
     };
+    // Pingora's parser ignores quality values. Pass only the negotiated coding
+    // to the compression module, without changing the upstream request headers.
+    let mut req = req.clone();
+    req.insert_header("accept-encoding", encoding).unwrap();
+    let compression = session
+        .downstream_modules_ctx
+        .get_mut::<ResponseCompression>()
+        .unwrap();
+    compression.adjust_algorithm_level(Algorithm::Gzip, policy.gzip);
+    compression.adjust_algorithm_level(Algorithm::Brotli, policy.brotli);
+    compression.request_filter(&req);
+}
+
+pub(crate) fn selected_encoding(
+    method: &http::Method,
+    headers: &http::HeaderMap,
+    response: &ResponseHeader,
+    policy: &Compression,
+) -> Option<&'static str> {
+    if policy.gzip == 0 && policy.brotli == 0 {
+        return None;
+    }
+    let encoding = negotiated_encoding(headers, policy)?;
     let content_type = response
         .headers
         .get("content-type")
@@ -62,7 +85,7 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
         .headers
         .get_all("cache-control")
         .iter()
-        .chain(req.headers.get_all("cache-control").iter())
+        .chain(headers.get_all("cache-control").iter())
         .filter_map(|v| v.to_str().ok())
         .any(|v| {
             v.split(',')
@@ -74,8 +97,8 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok())
         .is_some_and(|n| n < policy.min_length);
-    if req.method == http::Method::HEAD
-        || req.headers.contains_key("range")
+    if *method == http::Method::HEAD
+        || headers.contains_key("range")
         || response.status.as_u16() != 200
         || response.headers.contains_key("content-encoding")
         || response.headers.contains_key("content-range")
@@ -90,19 +113,9 @@ pub fn prepare(session: &mut Session, response: &ResponseHeader, policy: &Compre
             .iter()
             .any(|t| t.eq_ignore_ascii_case(content_type))
     {
-        return;
+        return None;
     }
-    // Pingora's parser ignores quality values. Pass only the negotiated coding
-    // to the compression module, without changing the upstream request headers.
-    let mut req = req.clone();
-    req.insert_header("accept-encoding", encoding).unwrap();
-    let compression = session
-        .downstream_modules_ctx
-        .get_mut::<ResponseCompression>()
-        .unwrap();
-    compression.adjust_algorithm_level(Algorithm::Gzip, policy.gzip);
-    compression.adjust_algorithm_level(Algorithm::Brotli, policy.brotli);
-    compression.request_filter(&req);
+    Some(encoding)
 }
 
 fn negotiated_encoding(headers: &http::HeaderMap, policy: &Compression) -> Option<&'static str> {

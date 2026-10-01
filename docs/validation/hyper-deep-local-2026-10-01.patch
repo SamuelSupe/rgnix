@@ -1,0 +1,918 @@
+--- a/experiments/hyper-proxy/src/main.rs
++++ b/experiments/hyper-proxy/src/main.rs
+@@ -16,6 +16,8 @@
+ };
+ use tokio::{net::TcpListener, task::JoinSet};
+ 
++mod owned;
++
+ #[derive(Parser)]
+ #[command(
+     version,
+@@ -28,10 +30,12 @@
+     upstream: SocketAddr,
+     #[arg(long, default_value_t = 1)]
+     workers: usize,
++    #[arg(long)]
++    owned_http1: bool,
+ }
+ 
+ type ProxyClient = Client<HttpConnector, Incoming>;
+-type ProxyBody = Either<Incoming, Full<Bytes>>;
++type ProxyBody = Either<Box<owned::Payload>, Full<Bytes>>;
+ 
+ fn main() -> anyhow::Result<()> {
+     let args = Args::parse();
+@@ -73,14 +77,25 @@
+                 stream.set_nodelay(true)?;
+                 let client = client.clone();
+                 let upstream = upstream.clone();
++                let paired = args.owned_http1.then(owned::Paired::default);
++                let address = args.upstream;
+                 connections.spawn(async move {
+-                    let service = service_fn(move |request| forward(request, client.clone(), upstream.clone()));
++                    let idle = paired.clone();
++                    let service = service_fn(move |request| forward(request, client.clone(), upstream.clone(), address, paired.clone()));
+                     // Hyper owns each connection's parser and buffers across keepalive requests.
+-                    let _ = http1::Builder::new()
++                    let connection = http1::Builder::new()
+                         .timer(TokioTimer::new())
+                         .header_read_timeout(Duration::from_secs(60))
+-                        .serve_connection(TokioIo::new(stream), service)
+-                        .await;
++                        .serve_connection(TokioIo::new(stream), service);
++                    tokio::pin!(connection);
++                    let _ = std::future::poll_fn(|cx| {
++                        // Register idle upstream readiness on the downstream task, too.
++                        // Poll again after it can return a completed response's session.
++                        if let Some(idle) = &idle { idle.poll_idle(cx); }
++                        let result = std::future::Future::poll(connection.as_mut(), cx);
++                        if let Some(idle) = &idle { idle.poll_idle(cx); }
++                        result
++                    }).await;
+                 });
+             }
+         }
+@@ -97,6 +112,8 @@
+     mut request: Request<Incoming>,
+     client: ProxyClient,
+     upstream: hyper::http::uri::Authority,
++    address: SocketAddr,
++    paired: Option<owned::Paired>,
+ ) -> Result<Response<ProxyBody>, Infallible> {
+     if request.method() == Method::CONNECT || request.headers().contains_key("upgrade") {
+         return Ok(reply(
+@@ -116,10 +133,28 @@
+         .headers_mut()
+         .insert(HOST, HeaderValue::from_static("localhost"));
+     // There is no application retry. Also disable the client's stale-pool retry above.
+-    match tokio::time::timeout(Duration::from_secs(5), client.request(request)).await {
++    let response = tokio::time::timeout(Duration::from_secs(5), async {
++        if let Some(paired) = paired {
++            let path = request
++                .uri()
++                .path_and_query()
++                .cloned()
++                .unwrap_or_else(|| hyper::http::uri::PathAndQuery::from_static("/"));
++            *request.uri_mut() = Uri::builder().path_and_query(path).build()?;
++            paired.request(request, address).await
++        } else {
++            client
++                .request(request)
++                .await
++                .map(|response| response.map(owned::Payload::detached))
++                .map_err(Into::into)
++        }
++    })
++    .await;
++    match response {
+         Ok(Ok(mut response)) => {
+             strip_hop_headers(response.headers_mut());
+-            Ok(response.map(Either::Left))
++            Ok(response.map(|body| Either::Left(Box::new(body))))
+         }
+         Ok(Err(_)) => Ok(reply(StatusCode::BAD_GATEWAY, "upstream failed\n")),
+         Err(_) => Ok(reply(
+--- a/experiments/hyper-proxy/verify.py
++++ b/experiments/hyper-proxy/verify.py
+@@ -17,6 +17,8 @@
+     stream_tail = threading.Event()
+     stream_timed_out = False
+     attempts = 0
++    idle_closed = threading.Event()
++    canceled = threading.Event()
+ 
+     def log_message(self, *args):
+         pass
+@@ -51,6 +53,32 @@
+             self.send_header("Transfer-Encoding", "chunked")
+             self.end_headers()
+             self.wfile.write(b"3\r\none\r\n3\r\ntwo\r\n0\r\n\r\n")
++        elif self.path == "/idle-close":
++            self.answer(b"closed while idle")
++            self.wfile.flush()
++            self.close_connection = True
++            self.connection.shutdown(socket.SHUT_WR)
++            self.idle_closed.set()
++        elif self.path == "/truncated":
++            self.send_response(200)
++            self.send_header("Content-Length", "4096")
++            self.end_headers()
++            self.wfile.write(b"partial")
++            self.wfile.flush()
++            self.close_connection = True
++            self.connection.shutdown(socket.SHUT_WR)
++        elif self.path == "/cancel":
++            self.send_response(200)
++            self.send_header("Content-Length", str(8 * 1024 * 1024))
++            self.end_headers()
++            try:
++                for _ in range(8192):
++                    self.wfile.write(b"x" * 1024)
++                    self.wfile.flush()
++                    time.sleep(0.001)
++            except (BrokenPipeError, ConnectionResetError):
++                self.canceled.set()
++                self.close_connection = True
+         else:
+             self.answer(json.dumps({"path": self.path, "headers": dict(self.headers)}).encode())
+ 
+@@ -92,6 +120,7 @@
+ def main():
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument("binary")
++    parser.add_argument("--workers", type=int, default=1)
+     args = parser.parse_args()
+     with socket.socket() as reserve:
+         reserve.bind(("127.0.0.1", 0))
+@@ -99,7 +128,7 @@
+     origin = ThreadingHTTPServer(("127.0.0.1", 0), Origin)
+     threading.Thread(target=origin.serve_forever, daemon=True).start()
+     process = subprocess.Popen([args.binary, "--listen", f"127.0.0.1:{port}", "--upstream",
+-                                f"127.0.0.1:{origin.server_port}"])
++                                f"127.0.0.1:{origin.server_port}", "--workers", str(args.workers)])
+     checks = []
+     try:
+         for attempt in range(100):
+@@ -127,8 +156,10 @@
+             assert echoed["path"] == "/raw%2Fpath?q=a%20b"
+             headers = {name.lower(): value for name, value in echoed["headers"].items()}
+             assert "x-private-one" not in headers and "x-private-two" not in headers
+-        assert len(upstream_ports) == 1, upstream_ports
+-        checks.append("10 keepalive requests reuse origin connection; raw URI, duplicate cookies and hop headers")
++        # A shared client can acquire another socket before the previous
++        # connection's background task has made it idle, especially across workers.
++        assert len(upstream_ports) < 10, upstream_ports
++        checks.append("persistent requests reuse origin connections; raw URI, duplicate cookies and hop headers")
+ 
+         connection.request("HEAD", "/head")
+         response = connection.getresponse()
+@@ -163,6 +194,42 @@
+         response = connection.getresponse()
+         assert response.read() == b"onetwo"
+         checks.append("response streams before origin finishes; chunked response decoded correctly")
++
++        connection.request("GET", "/idle-close")
++        response = connection.getresponse()
++        assert response.read() == b"closed while idle"
++        assert Origin.idle_closed.wait(1)
++        time.sleep(0.1)
++        connection.request("GET", "/after-idle-close")
++        response = connection.getresponse()
++        assert response.status == 200, "closed idle upstream was reused"
++        assert json.loads(response.read())["path"] == "/after-idle-close"
++        checks.append("upstream idle EOF is observed before a later downstream request")
++
++        connection.request("GET", "/truncated")
++        response = connection.getresponse()
++        assert response.status == 200
++        try:
++            response.read()
++            raise AssertionError("truncated upstream body was accepted")
++        except http.client.IncompleteRead:
++            pass
++        connection.close()
++        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
++        connection.request("GET", "/after-truncation")
++        response = connection.getresponse()
++        assert response.status == 200
++        response.read()
++        checks.append("truncated body fails the downstream stream and a later request succeeds")
++
++        canceled = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
++        canceled.request("GET", "/cancel")
++        response = canceled.getresponse()
++        assert response.read(1) == b"x"
++        response.close()
++        canceled.close()
++        assert Origin.canceled.wait(3), "downstream cancellation did not close upstream"
++        checks.append("downstream cancellation closes the unfinished upstream stream")
+ 
+         connection.request("POST", "/drop", body=b"side-effect")
+         response = connection.getresponse()
+--- a/src/proxy/hyper/body.rs
++++ b/src/proxy/hyper/body.rs
+@@ -109,7 +109,81 @@
+ }
+ 
+ pub(super) struct RequestBody {
+-    pub mirror: Option<Box<crate::proxy::mirror::MirrorRequest>>,
++    stream: Option<Box<Upload>>,
++}
++impl RequestBody {
++    pub fn new(inner: Incoming, counts: Arc<Counters>, max: u64) -> Self {
++        // Keeping upload state inline enlarges every client request and its
++        // channel/future moves, including the common requests without a body.
++        Self {
++            stream: (!inner.is_end_stream()).then(|| Box::new(Upload::new(inner, counts, max))),
++        }
++    }
++
++    pub async fn inspect(
++        &mut self,
++        policy: crate::body::BodyPolicy,
++    ) -> pingora::Result<Option<crate::body::BodyView>> {
++        match &mut self.stream {
++            Some(stream) => stream.inspect(policy).await,
++            None => Ok(
++                (policy.inspection != crate::body::Inspection::Off).then(|| {
++                    crate::body::BodyView {
++                        bytes: Bytes::new(),
++                        complete: true,
++                    }
++                }),
++            ),
++        }
++    }
++
++    pub async fn reject_upgrade_body(&mut self) -> pingora::Result<()> {
++        match &mut self.stream {
++            Some(stream) => stream.reject_upgrade_body().await,
++            None => Err(super::super::error(
++                400,
++                "WebSocket handshake must not contain a body",
++            )),
++        }
++    }
++
++    pub fn set_mirror(&mut self, mut mirror: Option<Box<crate::proxy::mirror::MirrorRequest>>) {
++        if let Some(stream) = &mut self.stream {
++            stream.mirror = mirror;
++        } else {
++            crate::proxy::mirror::feed(&mut mirror, None, true);
++        }
++    }
++}
++impl Body for RequestBody {
++    type Data = Bytes;
++    type Error = BoxError;
++
++    fn poll_frame(
++        mut self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++    ) -> Poll<Option<Result<Frame<Bytes>, BoxError>>> {
++        match &mut self.stream {
++            Some(stream) => Pin::new(stream.as_mut()).poll_frame(cx),
++            None => Poll::Ready(None),
++        }
++    }
++
++    fn size_hint(&self) -> SizeHint {
++        self.stream
++            .as_ref()
++            .map_or_else(|| SizeHint::with_exact(0), |stream| stream.size_hint())
++    }
++
++    fn is_end_stream(&self) -> bool {
++        self.stream
++            .as_ref()
++            .is_none_or(|stream| stream.is_end_stream())
++    }
++}
++
++struct Upload {
++    mirror: Option<Box<crate::proxy::mirror::MirrorRequest>>,
+     inner: Incoming,
+     counts: Arc<Counters>,
+     max: u64,
+@@ -117,8 +191,8 @@
+     read: super::io::Deadline,
+     timeout: Duration,
+ }
+-impl RequestBody {
+-    pub fn new(inner: Incoming, counts: Arc<Counters>, max: u64) -> Self {
++impl Upload {
++    fn new(inner: Incoming, counts: Arc<Counters>, max: u64) -> Self {
+         Self {
+             inner,
+             counts,
+@@ -235,7 +309,7 @@
+         }
+     }
+ }
+-impl Body for RequestBody {
++impl Body for Upload {
+     type Data = Bytes;
+     type Error = BoxError;
+     fn poll_frame(
+--- a/src/proxy/hyper/request.rs
++++ b/src/proxy/hyper/request.rs
+@@ -473,7 +473,7 @@
+         guard
+             .proxy
+             .prepare_mirror_headers(&header, ctx, websocket, empty);
+-        body.mirror = ctx.mirror.take();
++        body.set_mirror(ctx.mirror.take());
+         request = Request::from_parts(header.as_owned_parts(), body);
+     }
+     if let Some(sender) = request
+--- a/src/proxy/hyper/upstream.rs
++++ b/src/proxy/hyper/upstream.rs
+@@ -56,7 +56,7 @@
+ }
+ 
+ impl Service<Uri> for Connector {
+-    type Response = TokioIo<UpstreamIo<super::tls::Stream>>;
++    type Response = UpstreamIo<super::tls::Stream>;
+     type Error = BoxError;
+     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+ 
+@@ -75,7 +75,7 @@
+                     Some(tls) => super::tls::connect(&tls, &hostname, stream, http2).await?,
+                     None => super::tls::Stream::Plain(stream),
+                 };
+-                Ok(TokioIo::new(UpstreamIo::new(stream, read, write)))
++                Ok(UpstreamIo::new(stream, read, write))
+             })
+             .await
+             .map_err(|_| io::Error::from(io::ErrorKind::TimedOut))?
+@@ -89,6 +89,7 @@
+     write: Deadline,
+     read_timeout: Duration,
+     write_timeout: Duration,
++    read_idle: bool,
+ }
+ 
+ impl<T> UpstreamIo<T> {
+@@ -99,6 +100,7 @@
+             write: Deadline::default(),
+             read_timeout,
+             write_timeout,
++            read_idle: false,
+         }
+     }
+ 
+@@ -147,7 +149,7 @@
+         buf: &mut ReadBuf<'_>,
+     ) -> Poll<io::Result<()>> {
+         match Pin::new(&mut self.stream).poll_read(cx, buf) {
+-            Poll::Pending => {
++            Poll::Pending if !self.read_idle => {
+                 let timeout = self.read_timeout;
+                 self.read.check(cx, timeout)
+             }
+@@ -156,6 +158,55 @@
+                 ready
+             }
+         }
++    }
++}
++
++impl<T: AsyncRead + Unpin> hyper::rt::Read for UpstreamIo<T> {
++    fn poll_read(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        buf: hyper::rt::ReadBufCursor<'_>,
++    ) -> Poll<io::Result<()>> {
++        hyper::rt::Read::poll_read(Pin::new(&mut TokioIo::new(self.get_mut())), cx, buf)
++    }
++
++    fn set_read_idle(self: Pin<&mut Self>, cx: &mut Context<'_>, idle: bool) {
++        let this = self.get_mut();
++        if this.read_idle != idle {
++            // An idle socket has no response deadline. A new exchange must arm
++            // a fresh deadline rather than inherit the preceding idle probe.
++            this.read.clear();
++            this.read_idle = idle;
++        }
++        if !idle {
++            let _ = this.read.check(cx, this.read_timeout);
++        }
++    }
++}
++
++impl<T: AsyncWrite + Unpin> hyper::rt::Write for UpstreamIo<T> {
++    fn poll_write(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        buf: &[u8],
++    ) -> Poll<io::Result<usize>> {
++        AsyncWrite::poll_write(self, cx, buf)
++    }
++    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++        AsyncWrite::poll_flush(self, cx)
++    }
++    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++        AsyncWrite::poll_shutdown(self, cx)
++    }
++    fn is_write_vectored(&self) -> bool {
++        AsyncWrite::is_write_vectored(self)
++    }
++    fn poll_write_vectored(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        bufs: &[io::IoSlice<'_>],
++    ) -> Poll<io::Result<usize>> {
++        AsyncWrite::poll_write_vectored(self, cx, bufs)
+     }
+ }
+ 
+--- a/vendor/hyper/src/common/date.rs
++++ b/vendor/hyper/src/common/date.rs
+@@ -13,14 +13,9 @@
+ #[cfg(feature = "http1")]
+ pub(crate) fn extend(dst: &mut Vec<u8>) {
+     CACHED.with(|cache| {
+-        dst.extend_from_slice(cache.borrow().buffer());
+-    });
+-}
+-
+-#[cfg(feature = "http1")]
+-pub(crate) fn update() {
+-    CACHED.with(|cache| {
+-        cache.borrow_mut().check();
++        let mut cache = cache.borrow_mut();
++        cache.check();
++        dst.extend_from_slice(cache.buffer());
+     });
+ }
+ 
+--- a/vendor/hyper/src/proto/h1/conn.rs
++++ b/vendor/hyper/src/proto/h1/conn.rs
+@@ -455,6 +455,11 @@
+     pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+         debug_assert!(!self.can_read_head() && !self.can_read_body());
+ 
++        #[cfg(feature = "rgnix-extensions")]
++        if T::is_client() {
++            self.io.set_read_idle(cx, !self.is_mid_message());
++        }
++
+         if self.is_read_closed() {
+             Poll::Pending
+         } else if self.is_mid_message() {
+@@ -886,6 +891,12 @@
+     pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
+         self.try_keep_alive(cx);
++        #[cfg(feature = "rgnix-extensions")]
++        if T::is_client() {
++            // Flushing a new request must register a response timer even when
++            // the earlier idle probe is still blocked on socket readiness.
++            self.io.set_read_idle(cx, !self.is_mid_message());
++        }
+         trace!("flushed({}): {:?}", T::LOG, self.state);
+         Poll::Ready(Ok(()))
+     }
+--- a/vendor/hyper/src/proto/h1/dispatch.rs
++++ b/vendor/hyper/src/proto/h1/dispatch.rs
+@@ -153,8 +153,6 @@
+         cx: &mut Context<'_>,
+         should_shutdown: bool,
+     ) -> Poll<crate::Result<Dispatched>> {
+-        T::update_date();
+-
+         ready!(self.poll_loop(cx))?;
+ 
+         if self.is_done() {
+--- a/vendor/hyper/src/proto/h1/io.rs
++++ b/vendor/hyper/src/proto/h1/io.rs
+@@ -113,6 +113,11 @@
+ 
+     pub(crate) fn read_buf(&self) -> &[u8] {
+         self.read_buf.as_ref()
++    }
++
++    #[cfg(feature = "rgnix-extensions")]
++    pub(crate) fn set_read_idle(&mut self, cx: &mut Context<'_>, idle: bool) {
++        Pin::new(&mut self.io).set_read_idle(cx, idle);
+     }
+ 
+     #[cfg(test)]
+--- a/vendor/hyper/src/proto/h1/mod.rs
++++ b/vendor/hyper/src/proto/h1/mod.rs
+@@ -52,8 +52,6 @@
+     fn should_read_first() -> bool {
+         Self::is_server()
+     }
+-
+-    fn update_date() {}
+ }
+ 
+ /// Result newtype for `Http1Transaction::parse`.
+--- a/vendor/hyper/src/proto/h1/role.rs
++++ b/vendor/hyper/src/proto/h1/role.rs
+@@ -503,10 +503,6 @@
+ 
+     fn is_server() -> bool {
+         true
+-    }
+-
+-    fn update_date() {
+-        date::update();
+     }
+ }
+ 
+--- a/vendor/hyper/src/rt/io.rs
++++ b/vendor/hyper/src/rt/io.rs
+@@ -86,6 +86,13 @@
+         cx: &mut Context<'_>,
+         buf: ReadBufCursor<'_>,
+     ) -> Poll<Result<(), std::io::Error>>;
++
++    /// Marks an HTTP/1 client read as an idle keepalive probe or an active
++    /// exchange. Adapters may suspend response deadlines while idle; reads,
++    /// EOF detection and connection-pool expiry must continue normally.
++    /// HTTP/2 does not use this signal. The default implementation does nothing.
++    #[cfg(feature = "rgnix-extensions")]
++    fn set_read_idle(self: Pin<&mut Self>, _cx: &mut Context<'_>, _idle: bool) {}
+ }
+ 
+ /// Write bytes asynchronously.
+@@ -433,6 +440,11 @@
+         ) -> Poll<std::io::Result<()>> {
+             Pin::new(&mut **self).poll_read(cx, buf)
+         }
++
++        #[cfg(feature = "rgnix-extensions")]
++        fn set_read_idle(mut self: Pin<&mut Self>, cx: &mut Context<'_>, idle: bool) {
++            Pin::new(&mut **self).set_read_idle(cx, idle);
++        }
+     };
+ }
+ 
+@@ -455,6 +467,11 @@
+         buf: ReadBufCursor<'_>,
+     ) -> Poll<std::io::Result<()>> {
+         pin_as_deref_mut(self).poll_read(cx, buf)
++    }
++
++    #[cfg(feature = "rgnix-extensions")]
++    fn set_read_idle(self: Pin<&mut Self>, cx: &mut Context<'_>, idle: bool) {
++        pin_as_deref_mut(self).set_read_idle(cx, idle);
+     }
+ }
+ 
+--- a/vendor/hyper-util/src/client/legacy/client.rs
++++ b/vendor/hyper-util/src/client/legacy/client.rs
+@@ -242,20 +242,31 @@
+         };
+ 
+         let client = self.clone();
+-        let req = Box::new(req);
+         if !self.inner.config.retry_canceled_requests {
+-            // A proxy that forbids replay does not need the retry future's
+-            // retained URI and pool-key clone on each exchange.
+-            return ResponseFuture::new(async move {
+-                client
+-                    .try_send_request(req, pool_key)
+-                    .await
+-                    .map_err(|error| match error {
+-                        TrySendError::Nope(error) | TrySendError::Retryable { error, .. } => error,
+-                    })
+-            });
+-        }
+-        ResponseFuture::new(client.send_request(req, pool_key))
++            return ResponseFuture::new(
++                async move { client.send_request_once(req, pool_key).await },
++            );
++        }
++        ResponseFuture::new(client.send_request(Box::new(req), pool_key))
++    }
++
++    async fn send_request_once(
++        &self,
++        mut req: Request<B>,
++        pool_key: PoolKey,
++    ) -> Result<Response<hyper::body::Incoming>, Error> {
++        let mut pooled = self.connection_for_request(&mut req, pool_key).await?;
++        // The no-replay callback carries only a response or error. Recovering a
++        // full request would enlarge every response channel and serve no purpose.
++        let res = pooled.send_request(req).await.map_err(|error| {
++            let error = if error.is_canceled() {
++                e!(Canceled, error)
++            } else {
++                e!(SendRequest, error)
++            };
++            error.with_connect_info(pooled.conn_info.clone())
++        })?;
++        Ok(self.finish_response(pooled, res))
+     }
+ 
+     async fn send_request(
+@@ -296,17 +307,44 @@
+         mut req: Box<Request<B>>,
+         pool_key: PoolKey,
+     ) -> Result<Response<hyper::body::Incoming>, TrySendError<B>> {
++        let mut pooled = self
++            .connection_for_request(&mut req, pool_key)
++            .await
++            .map_err(TrySendError::Nope)?;
++
++        let res = match pooled.try_send_request(*req).await {
++            Ok(res) => res,
++            Err(mut err) => {
++                return if let Some(req) = err.take_message() {
++                    Err(TrySendError::Retryable {
++                        connection_reused: pooled.is_reused(),
++                        error: e!(Canceled, err.into_error())
++                            .with_connect_info(pooled.conn_info.clone()),
++                        req: Box::new(req),
++                    })
++                } else {
++                    Err(TrySendError::Nope(
++                        e!(SendRequest, err.into_error())
++                            .with_connect_info(pooled.conn_info.clone()),
++                    ))
++                };
++            }
++        };
++        Ok(self.finish_response(pooled, res))
++    }
++
++    async fn connection_for_request(
++        &self,
++        req: &mut Request<B>,
++        pool_key: PoolKey,
++    ) -> Result<pool::Pooled<PoolClient<B>, PoolKey>, Error> {
+         let started = self
+             .inner
+             .connection_observer
+             .as_ref()
+             .map(|_| std::time::Instant::now());
+-        let mut pooled = self
+-            .connection_for(pool_key)
+-            .await
+-            // `connection_for` already retries checkout errors, so if
+-            // it returns an error, there's not much else to retry
+-            .map_err(TrySendError::Nope)?;
++        // Checkout failures have already been retried by connection_for.
++        let pooled = self.connection_for(pool_key).await?;
+ 
+         if let (Some(observer), Some(started)) = (&self.inner.connection_observer, started) {
+             observer(pooled.is_reused(), started.elapsed());
+@@ -319,9 +357,7 @@
+         if pooled.is_http1() {
+             if req.version() == Version::HTTP_2 {
+                 warn!("Connection is HTTP/1, but request requires HTTP/2");
+-                return Err(TrySendError::Nope(
+-                    e!(UserUnsupportedVersion).with_connect_info(pooled.conn_info.clone()),
+-                ));
++                return Err(e!(UserUnsupportedVersion).with_connect_info(pooled.conn_info.clone()));
+             }
+ 
+             if self.inner.config.set_host {
+@@ -357,25 +393,14 @@
+             authority_form(req.uri_mut());
+         }
+ 
+-        let mut res = match pooled.try_send_request(*req).await {
+-            Ok(res) => res,
+-            Err(mut err) => {
+-                return if let Some(req) = err.take_message() {
+-                    Err(TrySendError::Retryable {
+-                        connection_reused: pooled.is_reused(),
+-                        error: e!(Canceled, err.into_error())
+-                            .with_connect_info(pooled.conn_info.clone()),
+-                        req: Box::new(req),
+-                    })
+-                } else {
+-                    Err(TrySendError::Nope(
+-                        e!(SendRequest, err.into_error())
+-                            .with_connect_info(pooled.conn_info.clone()),
+-                    ))
+-                };
+-            }
+-        };
+-
++        Ok(pooled)
++    }
++
++    fn finish_response(
++        &self,
++        mut pooled: pool::Pooled<PoolClient<B>, PoolKey>,
++        mut res: Response<hyper::body::Incoming>,
++    ) -> Response<hyper::body::Incoming> {
+         // If the Connector included 'extra' info, add to Response...
+         if let Some(extra) = &pooled.conn_info.extra {
+             extra.set(res.extensions_mut());
+@@ -398,7 +423,7 @@
+             self.inner.exec.execute(on_idle);
+         }
+ 
+-        Ok(res)
++        res
+     }
+ 
+     async fn connection_for(
+@@ -860,6 +885,30 @@
+ }
+ 
+ impl<B: Body + 'static> PoolClient<B> {
++    fn send_request(
++        &mut self,
++        req: Request<B>,
++    ) -> impl Future<Output = Result<Response<hyper::body::Incoming>, hyper::Error>>
++    where
++        B: Send,
++    {
++        #[cfg(all(feature = "http1", feature = "http2"))]
++        return match self.tx {
++            PoolTx::Http1(ref mut tx) => Either::Left(tx.send_request(req)),
++            PoolTx::Http2(ref mut tx) => Either::Right(tx.send_request(req)),
++        };
++
++        #[cfg(all(feature = "http1", not(feature = "http2")))]
++        return match self.tx {
++            PoolTx::Http1(ref mut tx) => tx.send_request(req),
++        };
++
++        #[cfg(all(feature = "http2", not(feature = "http1")))]
++        return match self.tx {
++            PoolTx::Http2(ref mut tx) => tx.send_request(req),
++        };
++    }
++
+     fn try_send_request(
+         &mut self,
+         req: Request<B>,
+--- /dev/null
++++ b/experiments/hyper-proxy/src/owned.rs
+@@ -0,0 +1,167 @@
++use std::{
++    future::Future,
++    io,
++    net::SocketAddr,
++    pin::Pin,
++    sync::{Arc, Mutex},
++    task::{Context, Poll},
++};
++
++use bytes::Bytes;
++use hyper::{
++    Request, Response,
++    body::{Body, Frame, Incoming, SizeHint},
++    client::conn::http1::{Connection, SendRequest},
++};
++use hyper_util::rt::TokioIo;
++use tokio::net::TcpStream;
++
++type BoxError = Box<dyn std::error::Error + Send + Sync>;
++type SessionSlot = Arc<Mutex<Option<Session>>>;
++
++struct Session {
++    sender: SendRequest<Incoming>,
++    connection: Pin<Box<Connection<TokioIo<TcpStream>, Incoming>>>,
++    closed: bool,
++}
++
++impl Session {
++    async fn connect(address: SocketAddr) -> Result<Self, BoxError> {
++        let socket = TcpStream::connect(address).await?;
++        socket.set_nodelay(true)?;
++        let (sender, connection) =
++            hyper::client::conn::http1::handshake(TokioIo::new(socket)).await?;
++        Ok(Self {
++            sender,
++            connection: Box::pin(connection),
++            closed: false,
++        })
++    }
++
++    fn drive(&mut self, cx: &mut Context<'_>) -> Result<(), BoxError> {
++        if self.closed {
++            return Ok(());
++        }
++        match self.connection.as_mut().poll(cx) {
++            Poll::Pending => Ok(()),
++            Poll::Ready(result) => {
++                self.closed = true;
++                result.map_err(Into::into)
++            }
++        }
++    }
++}
++
++#[derive(Clone, Default)]
++pub(super) struct Paired {
++    slot: SessionSlot,
++}
++
++impl Paired {
++    pub fn poll_idle(&self, cx: &mut Context<'_>) {
++        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
++        if let Some(session) = slot.as_mut()
++            && (session.drive(cx).is_err() || session.closed)
++        {
++            *slot = None;
++        }
++    }
++
++    pub async fn request(
++        &self,
++        request: Request<Incoming>,
++        upstream: SocketAddr,
++    ) -> Result<Response<Payload>, BoxError> {
++        let existing = self.slot.lock().unwrap_or_else(|e| e.into_inner()).take();
++        let mut session = match existing {
++            Some(session) => session,
++            None => Session::connect(upstream).await?,
++        };
++        let response = session.sender.send_request(request);
++        tokio::pin!(response);
++        let response = std::future::poll_fn(|cx| {
++            // The connection has no separate task or shared foreground lock.
++            // Dropping this future closes the session rather than replaying it.
++            if let Err(error) = session.drive(cx) {
++                return Poll::Ready(Err(error));
++            }
++            let result = response.as_mut().poll(cx).map_err(Into::into);
++            if result.is_pending() && session.closed {
++                return Poll::Ready(Err(io::Error::from(io::ErrorKind::UnexpectedEof).into()));
++            }
++            result
++        })
++        .await?;
++        Ok(response.map(|incoming| Payload {
++            incoming,
++            session: Some(session),
++            slot: Some(self.slot.clone()),
++        }))
++    }
++}
++
++pub(super) struct Payload {
++    incoming: Incoming,
++    session: Option<Session>,
++    slot: Option<SessionSlot>,
++}
++
++impl Payload {
++    pub fn detached(incoming: Incoming) -> Self {
++        Self {
++            incoming,
++            session: None,
++            slot: None,
++        }
++    }
++}
++
++impl Body for Payload {
++    type Data = Bytes;
++    type Error = BoxError;
++
++    fn poll_frame(
++        mut self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++    ) -> Poll<Option<Result<Frame<Bytes>, BoxError>>> {
++        if let Some(session) = &mut self.session
++            && let Err(error) = session.drive(cx)
++        {
++            self.session = None;
++            return Poll::Ready(Some(Err(error)));
++        }
++        let result = Pin::new(&mut self.incoming)
++            .poll_frame(cx)
++            .map(|frame| frame.map(|frame| frame.map_err(Into::into)));
++        if matches!(result, Poll::Ready(Some(Err(_)))) {
++            self.session = None;
++        }
++        if result.is_pending() && self.session.as_ref().is_some_and(|s| s.closed) {
++            return Poll::Ready(Some(Err(
++                io::Error::from(io::ErrorKind::UnexpectedEof).into()
++            )));
++        }
++        result
++    }
++
++    fn size_hint(&self) -> SizeHint {
++        self.incoming.size_hint()
++    }
++
++    fn is_end_stream(&self) -> bool {
++        self.incoming.is_end_stream()
++    }
++}
++
++impl Drop for Payload {
++    fn drop(&mut self) {
++        if self.incoming.is_end_stream()
++            && let Some(session) = self.session.take()
++            && !session.closed
++            && session.sender.is_ready()
++            && let Some(slot) = &self.slot
++        {
++            *slot.lock().unwrap_or_else(|e| e.into_inner()) = Some(session);
++        }
++    }
++}

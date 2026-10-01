@@ -22,14 +22,18 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--context", default="orbstack")
 parser.add_argument("--namespace", required=True)
 parser.add_argument("--image", required=True)
+parser.add_argument("--experimental-hyper", action="store_true")
 parser.add_argument("--output", required=True)
 parser.add_argument("--soak-seconds", type=int, default=0)
+parser.add_argument("--soak-event-seconds", type=int, default=600)
 parser.add_argument("--scale-routes", type=int, default=100)
 parser.add_argument("--require-multiple-nodes", action="store_true")
 parser.add_argument("--grpc-image", default="rgnix:gateway-grpc-fixture")
 args = parser.parse_args()
 assert 0 <= args.soak_seconds <= 86400 and 1 <= args.scale_routes <= 2000
+assert args.soak_event_seconds >= 30
 ns, peer = args.namespace, args.namespace + "-peer"
+pathlib.Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 root = pathlib.Path(__file__).resolve().parents[1]
 checks = []
 kubectl = ["kubectl", "--context", args.context]
@@ -155,6 +159,7 @@ with tempfile.TemporaryDirectory() as directory:
     values["reportReplicas"] = True
     values["shutdown"] = {"enabled": True}
     values["requireMultipleNodes"] = args.require_multiple_nodes
+    values["experimentalHyper"] = {"enabled": args.experimental_hyper, "maxConnections": 16384}
     values["upstreamMaxFails"] = 0
     cli_token = "gateway-qa-wait-" + ns
     apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"wait-token","namespace":ns},"stringData":{"token":cli_token}})
@@ -193,7 +198,9 @@ with tempfile.TemporaryDirectory() as directory:
         data = response.read()
         try: data = json.loads(data)
         except ValueError: pass
-        return response.status, dict(response.headers), data
+        if isinstance(data, dict) and isinstance(data.get("headers"), dict):
+            data["headers"] = {k.lower(): v for k, v in data["headers"].items()}
+        return response.status, response.headers, data
 
     def reconnect(restart=True):
         global forward
@@ -245,7 +252,7 @@ with tempfile.TemporaryDirectory() as directory:
     try:
         wait("Gateway status reflects published generation", lambda: condition("gateway", "gateway", "Programmed", "True"))
         apply(route("base", [rule()]))
-        wait("Service backend and Host preservation", lambda: request()[2].get("headers", {}).get("Host") == "api.example.test")
+        wait("Service backend and Host preservation", lambda: request()[2].get("headers", {}).get("host") == "api.example.test")
         wait("HTTPRoute status", lambda: condition("httproute", "base", "ResolvedRefs", "True"))
         wait("All replicas acknowledge the same accepted configuration", lambda: admin("/v1/fleet", credential=operator)[1].get("converged"))
         if args.require_multiple_nodes:
@@ -351,7 +358,7 @@ finally: connection.close()
         apply(route("rewrite", [rule("/old", filters=[{"type": "URLRewrite", "urlRewrite": {"hostname": "backend.test", "path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/new"}}}, {"type": "RequestHeaderModifier", "requestHeaderModifier": {"set": [{"name": "X-Literal", "value": "$host"}], "remove": ["X-Remove"]}}, {"type": "ResponseHeaderModifier", "responseHeaderModifier": {"set": [{"name": "X-Gateway", "value": "yes"}], "remove": ["X-Origin"]}}])]))
         def rewritten():
             code, headers, data = request("/old/item?q=1", headers={"X-Remove": "secret"})
-            return code == 200 and data["path"] == "/new/item?q=1" and data["headers"].get("Host") == "backend.test" and data["headers"].get("X-Literal") == "$host" and "X-Remove" not in data["headers"] and headers.get("X-Gateway") == "yes" and "X-Origin" not in headers
+            return code == 200 and data["path"] == "/new/item?q=1" and data["headers"].get("host") == "backend.test" and data["headers"].get("x-literal") == "$host" and "x-remove" not in data["headers"] and headers.get("X-Gateway") == "yes" and "X-Origin" not in headers
         wait("Rewrite and literal request/response header modifiers", rewritten)
         apply(route("redirect", [{"matches": [{"path": {"type": "PathPrefix", "value": "/redirect"}}], "filters": [{"type": "RequestRedirect", "requestRedirect": {"scheme": "https", "statusCode": 301, "path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/secure"}}}]}]))
         wait("Redirect preserves suffix/query and scheme default port", lambda: request("/redirect/a?q=1")[0] == 301 and request("/redirect/a?q=1")[1].get("Location") == "https://api.example.test/secure/a?q=1")
@@ -614,14 +621,23 @@ finally: connection.close()
                 wait("New requests use the newly published plugin",lambda:request("/plugin")[1].get("x-release")=="new")
                 assert old.result()[1].get("x-release")=="old"
             checks.append({"name":"In-flight requests retain their plugin snapshot across publication", "passed":True})
-            load_script = r'''import concurrent.futures,http.client,json,socket,ssl,time
+            load_script = r'''import concurrent.futures,http.client,json,socket,ssl,threading,time
 from collections import deque
 host = "gateway.NAMESPACE.svc"
-stop = time.monotonic()+SECONDS
+started_at = time.monotonic()
+stop = started_at+SECONDS
 payload = b"body-routing-soak"*256
+lock = threading.Lock()
+workers = [{"requests":0,"failed_requests":0,"errors":[],"samples":deque(maxlen=3000)} for _ in range(6)]
+
+def report(final=False):
+ with lock:
+  results=[{key:value for key,value in worker.items() if key!="samples"} for worker in workers]
+  samples=sorted(v for worker in workers for v in worker["samples"])
+ print(json.dumps({"final":final,"elapsed_seconds":time.monotonic()-started_at,"workers":results,"requests":sum(r["requests"] for r in results),"failed_requests":sum(r["failed_requests"] for r in results),"retained_latency_samples":len(samples),"p99_ms":samples[min(len(samples)-1,int(len(samples)*0.99))]*1000 if samples else None}),flush=True)
 
 def load(worker):
- samples=deque(maxlen=10000); errors=[]; completed=0; failed=0
+ state=workers[worker]
  client=http.client.HTTPConnection(host,80,timeout=3)
  while time.monotonic()<stop:
   started=time.monotonic()
@@ -634,32 +650,64 @@ def load(worker):
    assert response.status==200, f"HTTP {response.status}: {body[:120]!r}"
    data=json.loads(body)
    assert worker%3!=2 or data["body"]==payload.decode(), "request body changed"
-   completed+=1; samples.append(time.monotonic()-started)
+   with lock:
+    state["requests"]+=1; state["samples"].append(time.monotonic()-started)
   except Exception as error:
-   failed+=1
-   if len(errors)<20: errors.append(str(error))
+   with lock:
+    state["failed_requests"]+=1
+    if len(state["errors"])<20: state["errors"].append(str(error))
    client.close()
   time.sleep(max(0, 0.025-(time.monotonic()-started)))
  client.close()
- return {"requests":completed,"failed_requests":failed,"errors":errors,"samples":list(samples)}
-with concurrent.futures.ThreadPoolExecutor(6) as pool: results=list(pool.map(load,range(6)))
-samples=sorted(v for result in results for v in result.pop("samples"))
-print(json.dumps({"workers":results,"requests":sum(r["requests"] for r in results),"failed_requests":sum(r["failed_requests"] for r in results),"retained_latency_samples":len(samples),"p99_ms":samples[min(len(samples)-1,int(len(samples)*0.99))]*1000 if samples else None}),flush=True)
-assert all(r["failed_requests"]==0 and r["requests"]>0 for r in results)
+with concurrent.futures.ThreadPoolExecutor(6) as pool:
+ futures=[pool.submit(load,worker) for worker in range(6)]
+ while any(not future.done() for future in futures):
+  time.sleep(min(30,max(0.1,stop-time.monotonic())))
+  report()
+ for future in futures: future.result()
+report(final=True)
+assert all(r["failed_requests"]==0 and r["requests"]>0 for r in workers)
 '''.replace("NAMESPACE",ns).replace("SECONDS",str(args.soak_seconds))
-            output_file=directory/"soak.log"
+            output_file=pathlib.Path(args.output).with_suffix(".load.jsonl")
+            samples_file=pathlib.Path(args.output).with_suffix(".samples.jsonl")
             with output_file.open("w+") as output:
                 load=subprocess.Popen([*kubectl,"-n",ns,"exec","-i","deployment/a","--","python","-"],stdin=subprocess.PIPE,stdout=output,stderr=subprocess.STDOUT,text=True)
                 load.stdin.write(load_script);load.stdin.close()
-                time.sleep(min(3,args.soak_seconds/4))
-                publish_plugin("soak")
-                pods=json.loads(command(*kubectl,"-n",ns,"get","pods","-l","app.kubernetes.io/instance=gateway","-o","json"))["items"]
-                command(*kubectl,"-n",ns,"delete","pod",pods[0]["metadata"]["name"],"--wait=false")
-                status=load.wait(timeout=args.soak_seconds+30)
+                started=time.monotonic(); next_event=started+min(3,args.soak_seconds/4); events=0
+                try:
+                    with samples_file.open("w") as samples:
+                        while load.poll() is None:
+                            now=time.monotonic()
+                            assert now-started < args.soak_seconds+120, "soak load exceeded its deadline"
+                            pods=json.loads(command(*kubectl,"-n",ns,"get","pods","-l","app.kubernetes.io/instance=gateway","-o","json"))["items"]
+                            active=[p for p in pods if p.get("status",{}).get("podIP") and not p["metadata"].get("deletionTimestamp")]
+                            addresses={p["metadata"]["name"]:p["status"]["podIP"] for p in active}
+                            probe='import json,urllib.request\nresult={}\nfor name,address in '+repr(addresses)+'.items():\n try:\n  metrics=urllib.request.urlopen("http://"+address+":9090/metrics",timeout=3).read().decode()\n  result[name]={line.split()[0]:float(line.split()[1]) for line in metrics.splitlines() if line.startswith(("process_","rgnix_engine_info","rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready "))}\n except Exception as error: result[name]={"error":str(error)}\nprint(json.dumps(result))'
+                            observation=json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",probe))
+                            sample={"elapsed_seconds":now-started,"pods":observation,"images":{p["metadata"]["name"]:[c.get("imageID") for c in p.get("status",{}).get("containerStatuses",[])] for p in active}}
+                            if now>=next_event and now-started<args.soak_seconds-5:
+                                events+=1
+                                publish_plugin(f"soak-{events}")
+                                sample["event"]="plugin publication"
+                                if events==1 or events%6==0:
+                                    certificate(100+events)
+                                    ready=[p for p in active if any(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[]))]
+                                    if len(ready)==2:
+                                        command(*kubectl,"-n",ns,"delete","pod",ready[0]["metadata"]["name"],"--wait=false")
+                                        sample["event"]+="; TLS rotation; Pod replacement"
+                                next_event=now+args.soak_event_seconds
+                            samples.write(json.dumps(sample)+"\n"); samples.flush()
+                            print(f"SOAK {int(now-started)}/{args.soak_seconds}s, samples={samples_file}, events={events}",flush=True)
+                            try: load.wait(timeout=min(30,max(0.1,args.soak_seconds-(time.monotonic()-started))))
+                            except subprocess.TimeoutExpired: pass
+                    status=load.returncode
+                finally:
+                    if load.poll() is None:
+                        load.terminate(); load.wait(timeout=10)
                 output.seek(0); data=output.read()
                 measurements=[json.loads(line) for line in data.splitlines() if line.startswith('{')]
                 soak=measurements[-1] if measurements else {"error":data[-4096:]}
-                checks.append({"name":"Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement","passed":status==0,"seconds":args.soak_seconds,"scale_routes":args.scale_routes,"connection_mode":"HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker","measurement":soak})
+                checks.append({"name":"Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement","passed":status==0,"seconds":args.soak_seconds,"scale_routes":args.scale_routes,"events":events,"samples_file":str(samples_file),"load_file":str(output_file),"connection_mode":"HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker; latency samples retain at most 3000 successes per worker","measurement":soak})
                 assert status==0,data
             reconnect()
             wait("Replacement replica acknowledges the accepted configuration",lambda:admin("/v1/fleet",credential=operator)[1].get("converged"),seconds=180)

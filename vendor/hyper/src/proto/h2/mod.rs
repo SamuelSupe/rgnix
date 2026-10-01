@@ -91,6 +91,15 @@ fn strip_connection_headers(headers: &mut HeaderMap, kind: MessageKind) {
 
 // body adapters used by both Client and Server
 
+#[cfg(feature = "rgnix-extensions")]
+mod timeout;
+#[cfg(feature = "rgnix-extensions")]
+use timeout::{BodyTimeout, HeaderTimeout};
+#[cfg(not(feature = "rgnix-extensions"))]
+type BodyTimeout = ();
+#[cfg(not(feature = "rgnix-extensions"))]
+type HeaderTimeout = ();
+
 pin_project! {
     pub(crate) struct PipeToSendStream<S>
     where
@@ -98,6 +107,7 @@ pin_project! {
     {
         body_tx: SendStream<SendBuf<S::Data>>,
         data_done: bool,
+        timeout: Option<BodyTimeout>,
         // A data chunk that has been polled from the body but is still waiting
         // for stream-level capacity before it can be shipped. Stored here so
         // it survives across `Poll::Pending` returns from `poll_capacity`; if
@@ -121,9 +131,16 @@ where
         PipeToSendStream {
             body_tx: tx,
             data_done: false,
+            timeout: None,
             buffered_data: None,
             stream,
         }
+    }
+
+    #[cfg(feature = "rgnix-extensions")]
+    fn with_timeout(mut self, timeout: Option<BodyTimeout>) -> Self {
+        self.timeout = timeout;
+        self
     }
 
     #[cfg(feature = "client")]
@@ -159,7 +176,15 @@ where
             // body again.
             if me.buffered_data.is_some() {
                 while me.body_tx.capacity() == 0 {
-                    match ready!(me.body_tx.poll_capacity(cx)) {
+                    let capacity = me.body_tx.poll_capacity(cx);
+                    #[cfg(feature = "rgnix-extensions")]
+                    if capacity.is_pending() && me.timeout.as_mut().is_some_and(|t| t.expired(cx)) {
+                        me.body_tx.send_reset(h2::Reason::CANCEL);
+                        return Poll::Ready(Err(crate::Error::new_body_write(
+                            std::io::Error::from(std::io::ErrorKind::TimedOut),
+                        )));
+                    }
+                    match ready!(capacity) {
                         Some(Ok(0)) => {}
                         Some(Ok(_)) => break,
                         Some(Err(e)) => return Poll::Ready(Err(crate::Error::new_body_write(e))),
@@ -179,6 +204,10 @@ where
                 me.body_tx
                     .send_data(buf, peeked.is_eos)
                     .map_err(crate::Error::new_body_write)?;
+                #[cfg(feature = "rgnix-extensions")]
+                if let Some(timeout) = me.timeout {
+                    timeout.progress();
+                }
 
                 if peeked.is_eos {
                     return Poll::Ready(Ok(()));

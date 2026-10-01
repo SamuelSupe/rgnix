@@ -306,12 +306,21 @@ where
                             req.extensions_mut().insert(Protocol::from_inner(protocol));
                         }
 
+                        #[cfg(feature = "rgnix-extensions")]
+                        let informational = {
+                            let (sender, receiver) = crate::ext::send_informational::channel();
+                            req.extensions_mut().insert(sender);
+                            Some(receiver)
+                        };
+                        #[cfg(not(feature = "rgnix-extensions"))]
+                        let informational = None;
                         let fut = H2Stream::new(
                             service.call(req),
                             connect_parts,
                             respond,
                             self.date_header,
                             exec.clone(),
+                            informational,
                         );
 
                         exec.execute_h2stream(fut);
@@ -370,6 +379,7 @@ pin_project! {
         state: H2StreamState<F, B>,
         date_header: bool,
         exec: E,
+        informational: Option<crate::ext::send_informational::Receiver>,
     }
 }
 
@@ -407,12 +417,14 @@ where
         respond: SendResponse<SendBuf<B::Data>>,
         date_header: bool,
         exec: E,
+        informational: Option<crate::ext::send_informational::Receiver>,
     ) -> H2Stream<F, B, E> {
         H2Stream {
             reply: respond,
             state: H2StreamState::Service { fut, connect_parts },
             date_header,
             exec,
+            informational,
         }
     }
 }
@@ -447,7 +459,18 @@ where
                     fut: h,
                     connect_parts,
                 } => {
-                    let res = match h.poll(cx) {
+                    let response = h.poll(cx);
+                    #[cfg(feature = "rgnix-extensions")]
+                    for _ in 0..4 {
+                        match me.informational.as_mut().unwrap().poll_recv(cx) {
+                            Poll::Ready(Some(response)) => me
+                                .reply
+                                .send_informational(response)
+                                .map_err(crate::Error::new_h2)?,
+                            _ => break,
+                        }
+                    }
+                    let res = match response {
                         Poll::Ready(Ok(r)) => r,
                         Poll::Pending => {
                             // Response is not yet ready, so we want to check if the client has sent a
@@ -518,10 +541,16 @@ where
                             headers::set_content_length_if_missing(res.headers_mut(), len);
                         }
 
+                        #[cfg(feature = "rgnix-extensions")]
+                        let timeout = res
+                            .extensions_mut()
+                            .remove::<crate::ext::H2Timeouts>()
+                            .map(|p| super::BodyTimeout::new(p.write));
                         let body_tx = reply!(me, res, false);
-                        H2StreamState::Body {
-                            pipe: PipeToSendStream::new(body, body_tx),
-                        }
+                        let pipe = PipeToSendStream::new(body, body_tx);
+                        #[cfg(feature = "rgnix-extensions")]
+                        let pipe = pipe.with_timeout(timeout);
+                        H2StreamState::Body { pipe }
                     } else {
                         reply!(me, res, true);
                         return Poll::Ready(Ok(()));

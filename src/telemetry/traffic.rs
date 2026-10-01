@@ -2,6 +2,18 @@ use anyhow::Result;
 use prometheus::{HistogramVec, IntCounter, IntCounterVec, Registry};
 
 pub struct Traffic {
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_connections: prometheus::IntGauge,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_pending: prometheus::IntGauge,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_admission_rejected: IntCounterVec,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_accept_errors: IntCounterVec,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_rejected: IntCounter,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_handshake_errors: IntCounter,
     pub request_bytes: IntCounter,
     pub response_bytes: IntCounter,
     pub failures: IntCounterVec,
@@ -18,6 +30,44 @@ impl Traffic {
     pub fn new(registry: &Registry) -> Result<Self> {
         use prometheus::*;
         Ok(Self {
+            #[cfg(feature = "hyper-experimental")]
+            hyper_connections: register_int_gauge_with_registry!(
+                "rgnix_hyper_connections",
+                "Accepted Hyper connections including handshakes and tunnels",
+                registry
+            )?,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_pending: register_int_gauge_with_registry!(
+                "rgnix_hyper_pending_connections",
+                "Connections waiting for handshake or initial request headers",
+                registry
+            )?,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_admission_rejected: register_int_counter_vec_with_registry!(
+                "rgnix_hyper_admission_rejections_total",
+                "Rejected connection admission by bounded policy reason",
+                &["reason"],
+                registry
+            )?,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_accept_errors: register_int_counter_vec_with_registry!(
+                "rgnix_hyper_accept_errors_total",
+                "Listener accept failures by recovery class",
+                &["reason"],
+                registry
+            )?,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_rejected: register_int_counter_with_registry!(
+                "rgnix_hyper_connection_rejections_total",
+                "Hyper connections rejected by the process connection budget",
+                registry
+            )?,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_handshake_errors: register_int_counter_with_registry!(
+                "rgnix_hyper_tls_handshake_errors_total",
+                "Failed downstream TLS handshakes",
+                registry
+            )?,
             shared_limit: register_int_counter_vec_with_registry!(
                 "rgnix_global_rate_limit_total",
                 "Shared admission decisions and dependency fallbacks",

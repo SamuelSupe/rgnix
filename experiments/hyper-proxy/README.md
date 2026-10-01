@@ -21,6 +21,22 @@ experiments/hyper-proxy/target/release/rgnix-hyper-prototype \
 
 `verify.py` 使用真实 TCP HTTP/1 上游，验证 URI、逐跳头、多值 Cookie、连接复用、HEAD、8 MiB 定长/分块上传、双向流式行为及 POST 失败不重放；它不是完整 HTTP 协议符合性测试。
 
+## 连接绑定试验
+
+独立原型可加 `--owned-http1`，将一个下游 HTTP/1 连接绑定到一个上游连接，由同一任务推进两个协议状态机。空闲上游也在该任务中检测 EOF，未完成的 body 被取消时关闭上游。该模式使用低层客户端接口，同时绕过 legacy 客户端状态和共享池；请求 dispatch 与响应回调通道仍存在，因此这不是对线程交接的单因素消融。
+
+```sh
+experiments/hyper-proxy/target/release/rgnix-hyper-prototype \
+  --listen 127.0.0.1:8080 --upstream 127.0.0.1:9000 --workers 2 --owned-http1
+python3 experiments/hyper-proxy/verify.py /path/to/prototype --workers 2
+```
+
+这个开关仅属于独立原型，未接入 `rgnix`。它不使用 legacy 模式的全局池容量和上游空闲期限，空闲连接随下游连接及上游 EOF 关闭；也未接入产品的端点选择、快照隔离、TLS 信任隔离和预算。[实际验证记录](../../docs/validation-hyper-deep-2026-10-01.md)中，两个模式分别通过单、双 worker 行为检查，但连接绑定模式的吞吐校准失败，不能声称稳定收益或据此切换产品内核。
+
+`verify.py` 还覆盖空闲 EOF、截断响应和下游取消。共享客户端跨 worker 时，前一个连接尚未归还池就可能建立另一个连接；验证要求真实发生复用，不要求十次顺序请求永远使用同一个上游 TCP 连接。
+
+独立原型还提供 `--local-workers`：每个 worker 使用自己的单线程运行时、SO_REUSEPORT 监听 socket 和 HTTP/1 客户端池。总空闲上限 512 按 worker 分配；与 `--owned-http1` 可组合。该开关用于比较共享调度与 worker 归属，原型仍缺少产品的策略和预算。仅在 Linux 验证。
+
 ## 比较方法
 
 现有 `scripts/benchmark_compare.py` 增加 `--hyper` 与 `--hyper-control`：两者接受同一二进制以做 A/A。最小代理仅参与 `proxy-1k` 和 `proxy-16k`，不会把缺少静态服务、脚本或 TLS 的场景误算成性能提升。

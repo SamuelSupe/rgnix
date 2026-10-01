@@ -1,0 +1,441 @@
+--- a/src/telemetry.rs
++++ b/src/telemetry.rs
+@@ -1,6 +1,8 @@
+ mod controller;
+ mod request;
+ mod runtime;
++#[cfg(feature = "hyper-experimental")]
++pub(crate) use request::BackendMetrics;
+ pub(crate) use request::RouteMetrics;
+ pub(crate) mod traffic;
+ use anyhow::Result;
+@@ -371,6 +373,22 @@
+         failed: bool,
+         grpc_status: Option<u16>,
+     ) {
++        self.route_completed(route, status, seconds, grpc_status);
++        if let Some(backend) = backend {
++            let backend = self.label("backend", backend);
++            self.backend_requests
++                .with_label_values(&[backend, if failed { "error" } else { "ok" }])
++                .inc();
++        }
++    }
++
++    pub(crate) fn route_completed(
++        &self,
++        route: Option<&crate::model::Route>,
++        status: u16,
++        seconds: f64,
++        grpc_status: Option<u16>,
++    ) {
+         let metrics = match route {
+             Some(route) => route
+                 .metrics
+@@ -380,12 +398,6 @@
+                 .get_or_init(|| RouteMetrics::new(self, "_unmatched")),
+         };
+         metrics.completed(self, status, seconds, grpc_status);
+-        if let Some(backend) = backend {
+-            let backend = self.label("backend", backend);
+-            self.backend_requests
+-                .with_label_values(&[backend, if failed { "error" } else { "ok" }])
+-                .inc();
+-        }
+     }
+     pub fn render(&self, path: &str) -> (u16, Vec<u8>, &'static str) {
+         match path {
+--- a/src/telemetry/request.rs
++++ b/src/telemetry/request.rs
+@@ -1,6 +1,50 @@
+ use super::Telemetry;
+ use prometheus::{Histogram, IntCounter};
+ use std::sync::OnceLock;
++
++#[cfg(feature = "hyper-experimental")]
++pub(crate) struct BackendMetrics {
++    pub connect: [Histogram; 2],
++    pub headers: Histogram,
++    pub duration: Histogram,
++    results: [IntCounter; 2],
++}
++
++#[cfg(feature = "hyper-experimental")]
++impl BackendMetrics {
++    pub(crate) fn new(telemetry: &Telemetry, backend: &str) -> Option<Self> {
++        // Overflow observations keep the original path so every observation
++        // still increments the label overflow counter.
++        if telemetry.resolve_label("backend", backend) != backend {
++            return None;
++        }
++        Some(Self {
++            connect: ["false", "true"].map(|reused| {
++                telemetry
++                    .traffic
++                    .upstream_connect
++                    .with_label_values(&[backend, reused])
++            }),
++            headers: telemetry
++                .traffic
++                .upstream_headers
++                .with_label_values(&[backend]),
++            duration: telemetry
++                .traffic
++                .upstream_duration
++                .with_label_values(&[backend]),
++            results: ["ok", "error"].map(|result| {
++                telemetry
++                    .backend_requests
++                    .with_label_values(&[backend, result])
++            }),
++        })
++    }
++
++    pub(crate) fn completed(&self, failed: bool) {
++        self.results[usize::from(failed)].inc();
++    }
++}
+ 
+ #[derive(Clone)]
+ pub(crate) struct RouteMetrics {
+--- a/src/proxy/hyper/prepared.rs
++++ b/src/proxy/hyper/prepared.rs
+@@ -36,6 +36,7 @@
+     pub original_headers: Option<Vec<HeaderName>>,
+ }
+ 
++#[derive(Clone)]
+ pub(super) struct PreparedTarget {
+     pub backend: Arc<PreparedBackend>,
+     clients: Arc<Clients>,
+@@ -65,9 +66,20 @@
+     pub backend: Arc<crate::backend::Backend>,
+     pub host: HeaderValue,
+     authorities: HashMap<SocketAddr, Authority>,
++    metrics: OnceLock<Option<crate::telemetry::BackendMetrics>>,
+ }
+ 
+ impl PreparedBackend {
++    pub fn metrics(
++        &self,
++        telemetry: &crate::telemetry::Telemetry,
++        name: &str,
++    ) -> Option<&crate::telemetry::BackendMetrics> {
++        self.metrics
++            .get_or_init(|| crate::telemetry::BackendMetrics::new(telemetry, name))
++            .as_ref()
++    }
++
+     pub fn authority(&self, address: SocketAddr) -> Result<Authority, http::uri::InvalidUri> {
+         match self.authorities.get(&address) {
+             Some(authority) => Ok(authority.clone()),
+@@ -125,6 +137,7 @@
+                         backend: backend.clone(),
+                         host: backend.host_header.parse()?,
+                         authorities,
++                        metrics: OnceLock::new(),
+                     }),
+                 ))
+             })
+@@ -193,7 +206,13 @@
+                                 .http2_only(transport.protocol == crate::upstream::Protocol::Http2);
+                             let telemetry = telemetry.clone();
+                             let label = name.clone();
++                            let observed = backend.clone();
+                             builder.connection_observer(move |reused, elapsed| {
++                                if let Some(metrics) = observed.metrics(&telemetry, &label) {
++                                    metrics.connect[usize::from(reused)]
++                                        .observe(elapsed.as_secs_f64());
++                                    return;
++                                }
+                                 let label = telemetry.label("backend", &label);
+                                 telemetry
+                                     .traffic
+@@ -253,10 +272,17 @@
+                     _ => None,
+                 };
+                 let original_headers = original_headers(route, backend.as_deref());
++                let plain = super::plain::Action::prepare(
++                    route,
++                    match &route.action {
++                        Action::Proxy { backend, .. } => targets.get(backend),
++                        _ => None,
++                    },
++                )?;
+                 routes.insert(
+                     (host.listener, Arc::as_ptr(route) as usize),
+                     PreparedRoute {
+-                        plain: super::plain::Action::prepare(route, backend.as_deref())?,
++                        plain,
+                         targets,
+                         request_headers,
+                         response_headers,
+--- a/src/proxy/hyper/plain.rs
++++ b/src/proxy/hyper/plain.rs
+@@ -2,7 +2,7 @@
+     Listener,
+     body::{Counters, Payload, RequestBody, ResponseBody},
+     io::Connection,
+-    prepared::{PreparedBackend, Value},
++    prepared::{PreparedTarget, Value},
+     request::{FailurePhase, failure_response, strip_hop_headers, upstream_error},
+ };
+ use crate::{
+@@ -23,7 +23,7 @@
+ };
+ 
+ pub(super) enum Action {
+-    Proxy,
++    Proxy(PreparedTarget),
+     Reply {
+         status: http::StatusCode,
+         headers: http::HeaderMap,
+@@ -32,10 +32,7 @@
+ }
+ 
+ impl Action {
+-    pub fn prepare(
+-        route: &Route,
+-        backend: Option<&PreparedBackend>,
+-    ) -> anyhow::Result<Option<Self>> {
++    pub fn prepare(route: &Route, target: Option<&PreparedTarget>) -> anyhow::Result<Option<Self>> {
+         let s = &route.settings;
+         // Only policy-free routes can omit the original request view. A later
+         // snapshot must re-evaluate this gate before publishing its execution plan.
+@@ -61,15 +58,15 @@
+         }
+         Ok(match &route.action {
+             RouteAction::Proxy { uri: None, .. }
+-                if backend.is_some_and(|b| {
++                if target.is_some_and(|b| {
+                     matches!(
+-                        b.backend.options.balance,
++                        b.backend.backend.options.balance,
+                         crate::backend::Balance::RoundRobin
+                             | crate::backend::Balance::LeastConnections
+                     ) && s.upstream.protocol == crate::upstream::Protocol::Http1
+                 }) =>
+             {
+-                Some(Self::Proxy)
++                Some(Self::Proxy(target.unwrap().clone()))
+             }
+             RouteAction::Return { status, text } if !text.contains('$') => {
+                 let redirect = (300..400).contains(status) && !text.is_empty();
+@@ -188,7 +185,27 @@
+             RouteAction::Proxy { backend, .. } => Some(backend.as_str()),
+             _ => None,
+         };
+-        let label = backend.map(|b| self.proxy.shared.telemetry.label("backend", b));
++        let telemetry = &self.proxy.shared.telemetry;
++        let metrics = backend.and_then(|name| {
++            let Action::Proxy(target) = self
++                .snapshot
++                .hyper
++                .as_ref()?
++                .route(self.proxy.listener, &self.route)
++                .plain
++                .as_ref()?
++            else {
++                return None;
++            };
++            target.backend.metrics(telemetry, name)
++        });
++        let label = backend.map(|b| {
++            if metrics.is_some() {
++                b
++            } else {
++                telemetry.label("backend", b)
++            }
++        });
+         let completion = Completion {
+             version: http::Version::HTTP_11,
+             status: self.status,
+@@ -202,6 +219,7 @@
+                 Some(UpstreamCompletion {
+                     lease,
+                     label: label?,
++                    duration_metric: metrics.map(|m| &m.duration),
+                     started: self.upstream_started?,
+                 })
+             }),
+@@ -211,14 +229,21 @@
+             .error
+             .as_ref()
+             .is_some_and(|e| e.esource() == &pingora::ErrorSource::Upstream);
+-        self.proxy.shared.telemetry.completed(
+-            Some(&self.route),
+-            backend.filter(|_| self.backend_attempted),
+-            self.status,
+-            duration.as_secs_f64(),
+-            upstream_failed || self.status >= 500,
+-            None,
+-        );
++        if let Some(metrics) = metrics {
++            telemetry.route_completed(Some(&self.route), self.status, duration.as_secs_f64(), None);
++            if self.backend_attempted {
++                metrics.completed(upstream_failed || self.status >= 500);
++            }
++        } else {
++            telemetry.completed(
++                Some(&self.route),
++                backend.filter(|_| self.backend_attempted),
++                self.status,
++                duration.as_secs_f64(),
++                upstream_failed || self.status >= 500,
++                None,
++            );
++        }
+         if let Some(e) = &self.error {
+             if upstream_failed {
+                 self.proxy.shared.telemetry.upstream_errors.inc();
+@@ -327,7 +352,7 @@
+         .as_ref()
+         .unwrap()
+         .route(listener.address, &guard.route);
+-    match prepared.plain.as_ref().unwrap() {
++    let selected = match prepared.plain.as_ref().unwrap() {
+         Action::Reply {
+             status,
+             headers,
+@@ -338,12 +363,11 @@
+             *response.headers_mut() = headers.clone();
+             return Ok(response);
+         }
+-        Action::Proxy => {}
+-    }
++        Action::Proxy(target) => target,
++    };
+     let RouteAction::Proxy { backend: name, .. } = &guard.route.action else {
+         unreachable!()
+     };
+-    let selected = &prepared.targets[name];
+     guard.backend_attempted = true;
+     let lease = selected
+         .backend
+@@ -430,13 +454,16 @@
+                 ),
+             },
+         )?;
+-    listener
+-        .shared
+-        .telemetry
+-        .traffic
+-        .upstream_headers
+-        .with_label_values(&[listener.shared.telemetry.label("backend", name)])
+-        .observe(guard.upstream_started.unwrap().elapsed().as_secs_f64());
++    let seconds = guard.upstream_started.unwrap().elapsed().as_secs_f64();
++    let telemetry = &listener.shared.telemetry;
++    match selected.backend.metrics(telemetry, name) {
++        Some(metrics) => metrics.headers.observe(seconds),
++        None => telemetry
++            .traffic
++            .upstream_headers
++            .with_label_values(&[telemetry.label("backend", name)])
++            .observe(seconds),
++    }
+     if response.status() == http::StatusCode::SWITCHING_PROTOCOLS {
+         return Err(error(502, "unsolicited upstream upgrade"));
+     }
+--- a/src/proxy/completion.rs
++++ b/src/proxy/completion.rs
+@@ -11,6 +11,7 @@
+ pub(super) struct UpstreamCompletion<'a> {
+     pub lease: &'a crate::backend::Lease,
+     pub label: &'a str,
++    pub duration_metric: Option<&'a prometheus::Histogram>,
+     pub started: Instant,
+ }
+ 
+@@ -34,14 +35,16 @@
+             traffic.failure(error);
+         }
+         if let Some(upstream) = &upstream {
+-            traffic
+-                .upstream_duration
+-                .with_label_values(&[upstream.label])
+-                .observe(
+-                    finished
+-                        .saturating_duration_since(upstream.started)
+-                        .as_secs_f64(),
+-                );
++            let duration = finished
++                .saturating_duration_since(upstream.started)
++                .as_secs_f64();
++            match upstream.duration_metric {
++                Some(metric) => metric.observe(duration),
++                None => traffic
++                    .upstream_duration
++                    .with_label_values(&[upstream.label])
++                    .observe(duration),
++            }
+         }
+         if let Some(upstream) = &upstream
+             && (e.is_none()
+@@ -80,6 +83,7 @@
+                 Some(UpstreamCompletion {
+                     lease,
+                     label: ctx.upstream_label.as_deref()?,
++                    duration_metric: None,
+                     started: ctx.upstream_started?,
+                 })
+             }),
+--- a/scripts/integration.py
++++ b/scripts/integration.py
+@@ -118,8 +118,8 @@
+         if self.path == "/early":
+             self.wfile.write(b"HTTP/1.1 103 Early Hints\r\nLink: </app.css>; rel=preload\r\n\r\n")
+             self.wfile.flush()
+-        if self.path in ("/held", "/held-plain"):
+-            (HELD_ENTERED if self.path == "/held" else HELD_PLAIN_ENTERED).set()
++        if self.path == "/held":
++            HELD_ENTERED.set()
+             HELD_RELEASE.wait(10)
+         payload = json.dumps({"path": self.path, "port": self.server.server_port, "headers": dict(self.headers), "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}).encode()
+         self.send_response(200)
+@@ -132,6 +132,12 @@
+             self.send_header("Set-Cookie", "second=2")
+         self.end_headers()
+         try:
++            if self.path == "/held-plain":
++                self.wfile.write(payload[:1])
++                self.wfile.flush()
++                HELD_PLAIN_ENTERED.set()
++                HELD_RELEASE.wait(10)
++                payload = payload[1:]
+             self.wfile.write(payload)
+         except (BrokenPipeError, ConnectionResetError):
+             pass
+@@ -224,10 +230,21 @@
+             check("constant return preserves HEAD content length", request(port, "/switch", method="HEAD")[1].get("content-length") == "3")
+             HELD_PLAIN_ENTERED.clear()
+             HELD_RELEASE.clear()
++            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
++            def upstream_metrics():
++                text = request(admin, "/metrics")[2].decode()
++                return {name: sum(float(value) for value in re.findall(rf"^{name}\{{[^}}]+\}} ([^\n]+)$", text, re.M))
++                        for name in ("rgnix_backend_requests_total", "rgnix_upstream_header_seconds_count", "rgnix_upstream_request_seconds_count")}
++            before = upstream_metrics()
+             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                 pending = pool.submit(request, port, "/held-plain")
+                 try:
+                     assert HELD_PLAIN_ENTERED.wait(3)
++                    wait_for(lambda: upstream_metrics()["rgnix_upstream_header_seconds_count"], before["rgnix_upstream_header_seconds_count"] + 1)
++                    held_metrics = upstream_metrics()
++                    check("plain proxy records headers while deferring completion until body finishes",
++                          held_metrics["rgnix_backend_requests_total"] == before["rgnix_backend_requests_total"]
++                          and held_metrics["rgnix_upstream_request_seconds_count"] == before["rgnix_upstream_request_seconds_count"])
+                     version = metric_value(request(admin, "/metrics")[2].decode(), "rgnix_config_version")
+                     conf.write_text(conf.read_text().replace("X-Revision old", "X-Revision new").replace("return 200 old;", "rgnix_limit_rate 1 burst=1 key=route; return 200 new;"))
+                     process.send_signal(signal.SIGHUP)
+@@ -236,6 +253,11 @@
+                 finally:
+                     HELD_RELEASE.set()
+                 check("plain in-flight proxy keeps its snapshot during policy reload", pending.result()[1].get("x-revision") == "old")
++            assert request(port, "/held-plain")[0] == 200
++            wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 0)
++            after = upstream_metrics()
++            check("old and new snapshots share backend metrics and finish each request once",
++                  all(after[name] == count + 2 for name, count in before.items()))
+             conf.write_text(conf.read_text().replace("rgnix_limit_rate 1 burst=1 key=route; return 200 new;", "return 200 $request_method;").replace("X-Revision new", "X-Revision variable"))
+             process.send_signal(signal.SIGHUP)
+             wait_for(lambda: request(port, "/switch")[2], b"GET")

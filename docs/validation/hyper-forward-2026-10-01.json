@@ -1,0 +1,523 @@
+{
+  "date": "2026-10-01",
+  "branch": "experiment/replace-pingora",
+  "base_commit": "1bd974f0f302b39268b4128e8e5a7785593a7176",
+  "status": "Local validated changes; no commit, push or release.",
+  "default_transport": "Pingora remains the default. Cached fixed plans and metric handles belong to the experimental Hyper transport.",
+  "binaries": {
+    "before": {
+      "native_path": "/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe",
+      "sha256": "0046f8339f0fdeb9c4134f5f3a06c79480d0907026aae09d9f621f5834331dbb"
+    },
+    "metrics": {
+      "native_path": "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+      "sha256": "e42e8c3ffb3ab7e4c00378014b011ee5b74c6ec42415fb8ee36efd9d8e90a972"
+    },
+    "prototype": {
+      "native_path": "/var/tmp/rgnix-dispatch-20261001/prototype",
+      "sha256": "a22abd1e36c9afb102e5db8a57a08a41574c853de399a94d5d12c79912bc73cc"
+    },
+    "nginx": {
+      "native_path": "/usr/sbin/nginx",
+      "sha256": "f6543200b866fad21ee74f2e3b753e27c0a5c39c671e95ba001529270471f77d"
+    }
+  },
+  "final_source_sha256": {
+    "src/telemetry.rs": "31b45ad9566cf9bb9964ae59bad85a16e451b49b3c7507a3409c4b1a2fd38298",
+    "src/telemetry/request.rs": "039d3008b6b5fb78f0f6a9f6e87bdc1cea98f70951388aba32e84b62165c4b91",
+    "src/proxy/hyper/prepared.rs": "55acc883873327805d642f36c8b18dcb996f05e308541a4cfc1c79a8b995c782",
+    "src/proxy/hyper/plain.rs": "22c61a92ba9042f329f2bb9276d4ca52639bb8b8da2010c33ac4400a65cc181e",
+    "src/proxy/completion.rs": "c11cd4e6b89a12b73be85644c42e8c4c57ab88d5bb12a0315114817d4d455f7a",
+    "scripts/integration.py": "6b5c46002ed1a15c413d17d8c24bb51f0bb0315592808ee90f5c2340ae75d164"
+  },
+  "source_hash_scope": "Changed Rust modules and the expanded existing integration verifier, captured before the release build and checked unchanged after all validation. Not a full clean-checkout provenance record.",
+  "baseline": {
+    "commit": "1bd974f0f302b39268b4128e8e5a7785593a7176",
+    "sources": {
+      "src/telemetry.rs": "b4d17c4c8d49d3e0b47d1bbd7fc4873344e0c0627aa88fff13e86211f21aeb80",
+      "src/telemetry/traffic.rs": "2c00ca80d106f4b3f6a32a7affe7be63f1e930adb647295d62ab6490c8b8ce7b",
+      "src/proxy/hyper/prepared.rs": "afd0693b4b150a3aff8bb92902a1f561fa42a62a632996399cfd461adecb63e4",
+      "src/proxy/hyper/plain.rs": "8fcfda38dddc5c9c6848e39f0c01b174c8f1e5bc2e8e404bb2f8e393187c9497",
+      "src/proxy/completion.rs": "2bcf99be848287adee70ea88861b0a5cfbc7e79b329dae8fe2f396776743dafa",
+      "src/proxy/hyper/request.rs": "f1810c6828be4a70b39f65509b733fdbdd39652fed68401af9f22ec5af9e6814",
+      "src/proxy/mod.rs": "9ea32b01269dbd01ec214718fcaeaa5aa81277792e59b61c70c6f87b470038e9",
+      "src/proxy/policy.rs": "54fee96a56ca29ac7e4c68e1ef3e7650eb65003b8c9b12dcc649c1317e9d3465",
+      "experiments/hyper-proxy/src/owned.rs": "1ee28e696050889bb0a3de4a91d1a935fbbc9f07c1c4db15a63d3264fa35c5c6",
+      "src/telemetry/request.rs": "d0d6ae3f05df61e701e3bf0a3c01d7b4537115a2a81498575a3aeb65ae7301b3",
+      "scripts/integration.py": "99bd148d337e7a6039d0e143c4db643725f352322bcaa6fffae5978d969e7012"
+    }
+  },
+  "dependency_sha256": {
+    "Cargo.toml": "310528e65e04ee19314334e2dfa6b6c9005dfb50843fc5e67b838e5130a20c34",
+    "Cargo.lock": "d998931a53fb0debfaca4207745adfd5d42d8fd1e08bdc7346856dcf2f70d3e2"
+  },
+  "patch": {
+    "path": "docs/validation/hyper-forward-local-2026-10-01.patch",
+    "scope": "Delta against this turn's captured dirty worktree, not against clean HEAD."
+  },
+  "artifacts": {
+    "owned-local": "docs/validation/hyper-forward-owned-local-2026-10-01.json",
+    "owned-local-analysis": "docs/validation/hyper-forward-owned-local-analysis-2026-10-01.json",
+    "metrics-1k": "docs/validation/hyper-forward-metrics-1k-2026-10-01.json",
+    "metrics-1k-analysis": "docs/validation/hyper-forward-metrics-1k-analysis-2026-10-01.json",
+    "metric-lookups": "docs/validation/hyper-forward-metric-lookups-2026-10-01.json",
+    "alloc-before": "docs/validation/hyper-forward-alloc-before-2026-10-01.json",
+    "primitives-before": "docs/validation/hyper-forward-primitives-before-2026-10-01.json",
+    "alloc-metrics": "docs/validation/hyper-forward-alloc-metrics-2026-10-01.json",
+    "primitives-metrics": "docs/validation/hyper-forward-primitives-metrics-2026-10-01.json"
+  },
+  "builds": [
+    {
+      "name": "metrics-check",
+      "command": [
+        "cargo",
+        "check",
+        "--offline",
+        "--locked",
+        "--features",
+        "hyper-experimental,jemalloc"
+      ],
+      "returncode": 0,
+      "seconds": 42.0964831559977
+    },
+    {
+      "name": "metrics-build",
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "--release",
+        "--features",
+        "hyper-experimental,jemalloc"
+      ],
+      "returncode": 0,
+      "seconds": 250.47227481399023
+    }
+  ],
+  "validation": {
+    "binary": "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+    "sha256": "e42e8c3ffb3ab7e4c00378014b011ee5b74c6ec42415fb8ee36efd9d8e90a972",
+    "results": [
+      {
+        "name": "fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--check"
+        ],
+        "returncode": 0,
+        "seconds": 0.8098271890048636
+      },
+      {
+        "name": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--offline",
+          "--locked",
+          "--features",
+          "hyper-experimental,jemalloc",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "returncode": 0,
+        "seconds": 23.462833501995192
+      },
+      {
+        "name": "lifecycle",
+        "command": [
+          "python3",
+          "scripts/hyper_integration.py",
+          "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+          "--threads",
+          "2",
+          "--ephemeral-listener"
+        ],
+        "returncode": 0,
+        "seconds": 5.976128284994047
+      },
+      {
+        "name": "integration",
+        "command": [
+          "python3",
+          "scripts/integration.py",
+          ".local/forward-20261001/rgnix-metrics-hyper"
+        ],
+        "returncode": 0,
+        "seconds": 23.992570789007004
+      },
+      {
+        "name": "product",
+        "command": [
+          "python3",
+          "scripts/product_features.py",
+          ".local/forward-20261001/rgnix-metrics-hyper"
+        ],
+        "returncode": 0,
+        "seconds": 48.74916408699937
+      },
+      {
+        "name": "default-check",
+        "command": [
+          "cargo",
+          "check",
+          "--offline",
+          "--locked"
+        ],
+        "returncode": 0,
+        "seconds": 1.646473392000189
+      }
+    ]
+  },
+  "runtime_checks": {
+    "two_worker_lifecycle": 57,
+    "integration": 101,
+    "product_features": 115,
+    "total": 273
+  },
+  "probes": [
+    {
+      "name": "lookups",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        ".local/forward-20261001/metric_lookups.py"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "alloc-before",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        ".local/allocator-opt-20260928/allocations.py",
+        "--profile",
+        "/var/tmp/rgnix-worker-20261001/profile-local/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-worker-20261001/product-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe",
+        "--work-dir",
+        "/var/tmp/rgnix-forward-20261001/alloc-before"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "primitives-before",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        "scripts/profile_http_primitives.py",
+        "--profile",
+        "/var/tmp/rgnix-worker-20261001/profile-local/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-worker-20261001/product-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe",
+        "--work-dir",
+        "/var/tmp/rgnix-forward-20261001/primitives-before"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "alloc-metrics",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        ".local/allocator-opt-20260928/allocations.py",
+        "--profile",
+        "/var/tmp/rgnix-worker-20261001/profile-local/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-worker-20261001/product-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+        "--work-dir",
+        "/var/tmp/rgnix-forward-20261001/alloc-metrics"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "primitives-metrics",
+      "command": [
+        "sudo",
+        "-n",
+        "python3",
+        "scripts/profile_http_primitives.py",
+        "--profile",
+        "/var/tmp/rgnix-worker-20261001/profile-local/result.json",
+        "--matrix",
+        "/var/tmp/rgnix-worker-20261001/product-1k.json",
+        "--engines",
+        "hyper",
+        "--binary",
+        "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+        "--work-dir",
+        "/var/tmp/rgnix-forward-20261001/primitives-metrics"
+      ],
+      "returncode": 0
+    }
+  ],
+  "probe_initial_failure": {
+    "method": "All emitted MetricVec::with_label_values monomorphs traced by ELF-symbol uprobes. One persistent connection, 10 warm and 500 GET requests, each validating status and the complete 1 KiB body. A separate one-request W3C control forces the general request path and verifies probes record nonzero lookups. Background calls included; counts exclude inlined lookups and are not throughput evidence.",
+    "records": [
+      {
+        "phase": "before",
+        "binary": "/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe",
+        "sha256": "0046f8339f0fdeb9c4134f5f3a06c79480d0907026aae09d9f621f5834331dbb",
+        "symbols": [
+          "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h1aaf0cea1f5b241dE",
+          "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h3b0287587228eee3E",
+          "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h555ef320e69d86b3E",
+          "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h56f0a97c01c63e95E",
+          "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h9a1b2e131c351e43E",
+          "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17hdc42b13863214fd9E",
+          "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17hdf98aa68c26aa63aE"
+        ],
+        "windows": []
+      }
+    ]
+  },
+  "logs": {
+    "metrics-check": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 41.89s\n",
+    "metrics-build": "   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 4m 10s\n",
+    "fmt": "",
+    "clippy": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 23.38s\n",
+    "lifecycle": "PASS a second server cannot join the worker listener port\nPASS all workers share one port allocated by listen 0\nPASS idle connections share a hard budget across listeners without blocking admin\nPASS closing idle connections releases connection admission\nPASS plaintext listener accepts HTTP/2 prior knowledge\nPASS HTTP/1 response trailers survive streamed forwarding\nPASS HTTP/1 request trailers survive streamed forwarding\nPASS HTTP/2 flow-control timeout is isolated from concurrent stream traffic\nPASS HTTP/2 response header timeout expires on a busy multiplexed connection\nPASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS generated Date advances on a persistent connection\nPASS configured Date is preserved\nPASS HTTP/1 idle upstream outlives response read timeout and stays reusable\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS invalid plugin reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 2,\n  \"passed\": 57,\n  \"checks\": [\n    \"a second server cannot join the worker listener port\",\n    \"all workers share one port allocated by listen 0\",\n    \"idle connections share a hard budget across listeners without blocking admin\",\n    \"closing idle connections releases connection admission\",\n    \"plaintext listener accepts HTTP/2 prior knowledge\",\n    \"HTTP/1 response trailers survive streamed forwarding\",\n    \"HTTP/1 request trailers survive streamed forwarding\",\n    \"HTTP/2 flow-control timeout is isolated from concurrent stream traffic\",\n    \"HTTP/2 response header timeout expires on a busy multiplexed connection\",\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"generated Date advances on a persistent connection\",\n    \"configured Date is preserved\",\n    \"HTTP/1 idle upstream outlives response read timeout and stays reusable\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"invalid plugin reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n",
+    "integration": "compiled /tmp/rgnix-acceptance-w88utp7d/routes.rgl -> /tmp/rgnix-acceptance-w88utp7d/routes.wasm (780 bytes)\nconfiguration valid: 2 listeners, 2 virtual hosts, 8 backends\nPASS script aliases reject upstreams with conflicting transport protocols\nPASS configuration rejects invalid body modes, limits and timeouts\nPASS header variables retain the last valid repeated value\nPASS static GET\nPASS static HEAD\nPASS static small and streamed files preserve lengths, ranges and conditional responses across file changes\nPASS atomic file replacement and ranges remain fresh across persistent requests\nPASS static single range\nPASS unsatisfiable range\nPASS conditional GET\nPASS If-Range HTTP date retains partial response\nPASS directory redirect and index\nPASS symlink containment\nPASS contained symlink still serves a regular file\nPASS FIFO files and indexes cannot exhaust the static file pool\nPASS path traversal rejection\nPASS proxy_pass URI replacement\nPASS large header sets preserve duplicates and isolate keepalive requests\nPASS proxy_pass preserves original URI\nPASS IPv6 upstream\nPASS trusted HTTPS upstream\nPASS HTTPS upstream rejects hostname mismatch\nPASS HTTPS upstream rejects untrusted certificate\nPASS Connection cannot remove framing or Host\nPASS inherited response header\nPASS streaming request body\nPASS valid chunked request keeps its connection reusable\nPASS TE plus Content-Length cannot re-enable connection reuse\nPASS HTTP/1.0 without keep-alive closes after the response\nPASS request body limit\nPASS chunked HTTP body limit\nPASS chunked HTTP body limit before a requested WebSocket upgrade\nPASS compiled request and response hooks\nPASS query-only edits preserve raw paths and can clear the query\nPASS query edits retain proxy URI replacement and explicit path rewrites\nPASS compiled Wasm artifact loads independently\nPASS static plugin redirect preserves literal percent and rewritten query\nPASS informational responses do not consume the final response hook\nPASS plugin direct response\nPASS superseded plugin decisions fail instead of selecting another backend\nPASS script backend alias preserves HTTPS and forwarded headers\nPASS script HTTPS backend still verifies certificates\nPASS fuel limits infinite loops\nPASS trapped request-only hook retains client identity in access logs\nPASS response hook failure returns 500 without staged edits\nPASS upstream disconnect never replays POST\nPASS upstream read timeout returns 504\nPASS TLS listener\nPASS HTTP/2 negotiation\nPASS JSON body routes to the selected HTTPS backend without changing bytes\nPASS JSON routing is isolated between requests\nPASS invalid JSON, incomplete JSON and non-string fields do not match\nPASS full inspection can replay bodies larger than Pingora's original 64 KiB buffer\nPASS prefix inspection routes binary uploads and preserves the entire body\nPASS body byte metrics count prefix replay once and inspection only includes the prefix\nPASS content beyond the configured prefix cannot influence routing\nPASS a closed JSON object in a truncated prefix is not treated as complete JSON\nPASS short prefix-inspected bodies may use JSON routing when fully read\nPASS UTF-8 cut at the prefix boundary is nil as text but searchable as bytes\nPASS body inspection remains opt-in\nPASS empty uploads retain complete full/prefix inspection and opt-in semantics\nPASS full inspection rejects oversized known-length bodies\nPASS fragmented and chunked prefix uploads replay once and keep the next request aligned\nPASS full inspection rejects oversized chunked bodies before proxying\nPASS prefix decisions do not wait for the tail; incomplete prefixes have a total timeout\nPASS Expect 100-continue works before inspection without a second upstream expectation\nPASS HTTP/2 full and prefix routing preserve the original body\nPASS body inspection does not enable upstream POST retries\nPASS cancelled body inspection leaves the service available\nPASS in-flight body inspection retains its policy across reload\nPASS SSE first event is streamed\nPASS WebSocket upgrade and bidirectional frames\nPASS WebSocket streams beyond the HTTP body limit (3 MiB)\nPASS WebSocket close frame survives the long stream\nPASS reload keeps in-flight snapshot\nPASS invalid reload retains active configuration\nPASS compiler rejects a flat expression with excessive AST depth\nPASS deep AST reload cannot abort the data plane\nPASS plugin budget rejects excess instances while plain routes work\nPASS inflight budget sheds requests without blocking admin\nPASS live gauges show occupied process, plugin and backend permits\nPASS completed requests release resource permits\nPASS live metrics release permits after requests finish\nPASS request-only hooks release the plugin budget before a slow upstream completes\nPASS single endpoint still ejects failed connections without retrying\nPASS failed endpoint is excluded without replaying its requests\nPASS excluded endpoint re-enters rotation after cooldown\nPASS single endpoint also recovers after cooldown\nPASS constant return preserves HEAD content length\nPASS plain proxy records headers while deferring completion until body finishes\nPASS reload adds a traffic policy to a previously plain return\nPASS plain in-flight proxy keeps its snapshot during policy reload\nPASS old and new snapshots share backend metrics and finish each request once\nPASS reload from traffic policy to dynamic return uses request variables\nPASS repeated SIGINT exits all listener workers without spinning on a stopped reactor\nPASS metrics are exposed\nPASS client cancellation preserves service\nPASS drain removes readiness while health stays live\nPASS drain finishes the next keepalive request and advertises Connection close\nPASS established WebSocket remains usable during drain\nPASS failed controller is neither healthy nor ready\n101 integration checks passed; /var/tmp/rgnix-forward-20261001/integration.json\n",
+    "product": "PASS trusted XFF resolves the last untrusted hop and retains socket peer\nPASS untrusted forwarding headers do not change client identity\nPASS malformed trusted forwarding chain falls back to socket peer\nPASS Forwarded supports quoted IPv6 with ports\nPASS CIDR rules apply to resolved client identity\nPASS rate bucket enforces burst and isolates tenants\nPASS route concurrency rejects excess requests\nPASS concurrency permit releases after completion\nPASS backend metrics expose concurrency occupancy and its configured limit\nPASS backend concurrency covers the upstream request lifetime\nPASS least connections selects a different idle endpoint\nPASS cookie hash affinity is stable across connections\nPASS managed affinity issues a cookie and preserves the chosen backend\nPASS active health preserves the virtual Host and excludes the specific unhealthy endpoint\nPASS backend metrics distinguish total, eligible and unready endpoints\nPASS active health invalidates the cached selection when every endpoint is withdrawn\nPASS active health restores both endpoints after an empty selection\nPASS compiled RGL reads typed JSON, decoded args and cookies\nPASS typed JSON getters use fallbacks for wrong types\nPASS JWT verifies signatures and makes claims available to RGL\nPASS JWT rejects missing, wrong audience, expired and tampered tokens\nPASS external auth replaces spoofed identity headers\nPASS external auth fails closed on deny and service failure\nPASS alias maps the matched prefix to its directory\nPASS SPA fallback serves the shell within its root\nPASS gzip transforms streamed responses and adjusts framing\nPASS Brotli negotiation produces a valid stream\nPASS compression respects quality weights and explicit wildcard exclusions\nPASS request no-transform prevents response compression\nPASS compression preserves range representation boundaries\nPASS PROXY v1 is consumed before HTTP and preserves original peer\nPASS PROXY v2 accepts bounded IPv6 TCP addresses\nPASS mTLS accepts a client issued by the configured CA\nPASS mTLS rejects an anonymous TLS client\nPASS admin diagnostics require a token\nPASS effective configuration and backend state are inspectable\nPASS route explain reports the selected prefix\nPASS authenticated rollback republishes an immutable file version\nPASS rollback increments configuration version\nPASS CA rotation also rejects old clients on reused TLS connections\nPASS offline simulation executes the compiled plugin\nPASS metrics distinguish configured routes and backends\nPASS metrics expose upstream phases, pool reuse and response bytes\nPASS metrics expose active config and successful update timing\nPASS Linux metrics expose real process memory, file descriptors and threads\nPASS removed backends disappear from current-state metrics while historical counters remain\nPASS configured upstream idle capacity controls eviction and connection reuse\nPASS gRPC h2c upstream returns data before client request EOF\nPASS gRPC bidirectional stream and trailers survive proxying\nPASS HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule\nPASS gRPC failure status survives proxy trailers\nPASS gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200\nPASS OTLP marks both server and client spans as failed for gRPC errors\nE1001 09:30:38.463480649   96826 hpack_parser.cc:1218]                 Error parsing metadata: error=invalid value key=content-type value=text/plain; charset=utf-8\nPASS HTTP/2 header timeout expires while another RPC continues\nPASS OTLP exports linked server and client spans\nPASS traceparent propagates the upstream client span identity\nPASS tracestate reaches the backend and both OTLP spans\nPASS span flags identify remote server parents and local client parents\nPASS proxy client span timestamps are contained by the server span\nPASS OTLP access logs correlate with the server span\nPASS local access logs include trace, parent and outbound span IDs\nPASS parent sampling decisions are preserved without exporting unsampled spans\nPASS pre-routing rejected requests are logged\nPASS trace payload excludes query and credential content\nPASS future traceparent versions preserve the trace while forwarding supported fields\nPASS invalid tracestate is dropped without breaking a valid traceparent\nPASS oversized tracestate retains whole vendor entries within the propagation limit\nPASS multiple tracestate headers preserve vendor order and ignore empty members\nPASS route header edits cannot detach propagation from the recorded spans\nPASS external authorization creates a distinct child span and propagates W3C context\nPASS HTTP 401 marks the client span as error and leaves server status unset\nPASS two proxy hops form one trace with four linked spans and forward the last client ID\nPASS both hops OTLP and JSON access logs correlate with their own server spans\nPASS duplicate parents start a new trace and cannot retain old tracestate\nPASS unsampled W3C context and correlated logs survive both proxy hops\nPASS invalid versions, zero IDs and malformed context start clean traces\nPASS disabled tracing preserves incoming sampling in correlated OTLP logs\nPASS HTTPS upstream validates a private CA and explicit server name\nPASS upstream pool cannot reuse a connection across different CA policies\nPASS PROXY identity is consumed before the TLS handshake\nPASS remote HTTPS JWKS authenticates a signed token\nPASS remote JWKS rotation takes effect without config reload and revokes old keys\nPASS upstream CA reload prevents reuse of previously trusted connections\nPASS archived configuration compilation preserves original include diagnostics\nPASS HTTPS health probes reuse route SNI and private CA\nPASS mTLS health probes accept traditional PEM private keys\nPASS upstream mTLS presents client identity and isolates anonymous pools\nPASS pre-auth rate admission protects the auth service\nPASS JSON local logs redact URI and Referer query credentials\nPASS local log client suppression is applied\nPASS read-only admin can inspect but cannot roll back\nPASS management simulation includes pre-auth rate budgets\nPASS simulation verifies actual JWT signatures and claims\nPASS durable publication captures plugin dependencies\nPASS rollback restores the archived plugin and configuration\nPASS restart restores committed rollback despite broken or missing source files\nPASS durable history preserves version identity across restart\nPASS historical versions remain usable after restart\nPASS management audit records denied and committed changes without tokens\nPASS durable history protects private assets with owner-only permissions\n----------------------------------------\nException occurred during processing of request from ('127.0.0.1', 49192)\nTraceback (most recent call last):\n  File \"/usr/lib/python3.13/socketserver.py\", line 697, in process_request_thread\n    self.finish_request(request, client_address)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/socketserver.py\", line 362, in finish_request\n    self.RequestHandlerClass(request, client_address, self)\n    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/socketserver.py\", line 766, in __init__\n    self.handle()\n    ~~~~~~~~~~~^^\n  File \"/usr/lib/python3.13/http/server.py\", line 438, in handle\n    self.handle_one_request()\n    ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/usr/lib/python3.13/http/server.py\", line 404, in handle_one_request\n    self.raw_requestline = self.rfile.readline(65537)\n                           ~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/usr/lib/python3.13/socket.py\", line 719, in readinto\n    return self._sock.recv_into(b)\n           ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/usr/lib/python3.13/ssl.py\", line 1304, in recv_into\n    return self.read(nbytes, buffer)\n           ~~~~~~~~~^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/ssl.py\", line 1138, in read\n    return self._sslobj.read(len, buffer)\n           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\nConnectionResetError: [Errno 104] Connection reset by peer\n----------------------------------------\nPASS TLS configuration rejects certificates for a different hostname\nPASS TLS configuration rejects expired certificates\nPASS Named management identities authenticate independently\nPASS Namespace-scoped identity cannot inspect standalone routes or history\nPASS Scoped identity cannot simulate an unauthorized route\nPASS Candidate preflight reports changes without publishing\nPASS Preflight rejects a stale base version\nPASS CLI configuration diff agrees with management preflight\nPASS Simulation reports the actual proxy_pass URI replacement\nPASS Outgoing simulation keeps configured private header values redacted\nPASS Certificate diagnostics expose hostname validity and expiration\nPASS Legacy management token rotates without restarting the process\nPASS Invalid identity updates retain the last valid authorization policy\nPASS Removing a named identity revokes it without restart\nPASS Management audit identifies the named operator without recording credentials\n{\n  \"passed\": 115,\n  \"checks\": [\n    \"trusted XFF resolves the last untrusted hop and retains socket peer\",\n    \"untrusted forwarding headers do not change client identity\",\n    \"malformed trusted forwarding chain falls back to socket peer\",\n    \"Forwarded supports quoted IPv6 with ports\",\n    \"CIDR rules apply to resolved client identity\",\n    \"rate bucket enforces burst and isolates tenants\",\n    \"route concurrency rejects excess requests\",\n    \"concurrency permit releases after completion\",\n    \"backend metrics expose concurrency occupancy and its configured limit\",\n    \"backend concurrency covers the upstream request lifetime\",\n    \"least connections selects a different idle endpoint\",\n    \"cookie hash affinity is stable across connections\",\n    \"managed affinity issues a cookie and preserves the chosen backend\",\n    \"active health preserves the virtual Host and excludes the specific unhealthy endpoint\",\n    \"backend metrics distinguish total, eligible and unready endpoints\",\n    \"active health invalidates the cached selection when every endpoint is withdrawn\",\n    \"active health restores both endpoints after an empty selection\",\n    \"compiled RGL reads typed JSON, decoded args and cookies\",\n    \"typed JSON getters use fallbacks for wrong types\",\n    \"JWT verifies signatures and makes claims available to RGL\",\n    \"JWT rejects missing, wrong audience, expired and tampered tokens\",\n    \"external auth replaces spoofed identity headers\",\n    \"external auth fails closed on deny and service failure\",\n    \"alias maps the matched prefix to its directory\",\n    \"SPA fallback serves the shell within its root\",\n    \"gzip transforms streamed responses and adjusts framing\",\n    \"Brotli negotiation produces a valid stream\",\n    \"compression respects quality weights and explicit wildcard exclusions\",\n    \"request no-transform prevents response compression\",\n    \"compression preserves range representation boundaries\",\n    \"PROXY v1 is consumed before HTTP and preserves original peer\",\n    \"PROXY v2 accepts bounded IPv6 TCP addresses\",\n    \"mTLS accepts a client issued by the configured CA\",\n    \"mTLS rejects an anonymous TLS client\",\n    \"admin diagnostics require a token\",\n    \"effective configuration and backend state are inspectable\",\n    \"route explain reports the selected prefix\",\n    \"authenticated rollback republishes an immutable file version\",\n    \"rollback increments configuration version\",\n    \"CA rotation also rejects old clients on reused TLS connections\",\n    \"offline simulation executes the compiled plugin\",\n    \"metrics distinguish configured routes and backends\",\n    \"metrics expose upstream phases, pool reuse and response bytes\",\n    \"metrics expose active config and successful update timing\",\n    \"Linux metrics expose real process memory, file descriptors and threads\",\n    \"removed backends disappear from current-state metrics while historical counters remain\",\n    \"configured upstream idle capacity controls eviction and connection reuse\",\n    \"gRPC h2c upstream returns data before client request EOF\",\n    \"gRPC bidirectional stream and trailers survive proxying\",\n    \"HTTP compression cannot corrupt a gRPC stream even with an explicit MIME rule\",\n    \"gRPC failure status survives proxy trailers\",\n    \"gRPC metrics distinguish OK and UNAVAILABLE independently of HTTP 200\",\n    \"OTLP marks both server and client spans as failed for gRPC errors\",\n    \"HTTP/2 header timeout expires while another RPC continues\",\n    \"OTLP exports linked server and client spans\",\n    \"traceparent propagates the upstream client span identity\",\n    \"tracestate reaches the backend and both OTLP spans\",\n    \"span flags identify remote server parents and local client parents\",\n    \"proxy client span timestamps are contained by the server span\",\n    \"OTLP access logs correlate with the server span\",\n    \"local access logs include trace, parent and outbound span IDs\",\n    \"parent sampling decisions are preserved without exporting unsampled spans\",\n    \"pre-routing rejected requests are logged\",\n    \"trace payload excludes query and credential content\",\n    \"future traceparent versions preserve the trace while forwarding supported fields\",\n    \"invalid tracestate is dropped without breaking a valid traceparent\",\n    \"oversized tracestate retains whole vendor entries within the propagation limit\",\n    \"multiple tracestate headers preserve vendor order and ignore empty members\",\n    \"route header edits cannot detach propagation from the recorded spans\",\n    \"external authorization creates a distinct child span and propagates W3C context\",\n    \"HTTP 401 marks the client span as error and leaves server status unset\",\n    \"two proxy hops form one trace with four linked spans and forward the last client ID\",\n    \"both hops OTLP and JSON access logs correlate with their own server spans\",\n    \"duplicate parents start a new trace and cannot retain old tracestate\",\n    \"unsampled W3C context and correlated logs survive both proxy hops\",\n    \"invalid versions, zero IDs and malformed context start clean traces\",\n    \"disabled tracing preserves incoming sampling in correlated OTLP logs\",\n    \"HTTPS upstream validates a private CA and explicit server name\",\n    \"upstream pool cannot reuse a connection across different CA policies\",\n    \"PROXY identity is consumed before the TLS handshake\",\n    \"remote HTTPS JWKS authenticates a signed token\",\n    \"remote JWKS rotation takes effect without config reload and revokes old keys\",\n    \"upstream CA reload prevents reuse of previously trusted connections\",\n    \"archived configuration compilation preserves original include diagnostics\",\n    \"HTTPS health probes reuse route SNI and private CA\",\n    \"mTLS health probes accept traditional PEM private keys\",\n    \"upstream mTLS presents client identity and isolates anonymous pools\",\n    \"pre-auth rate admission protects the auth service\",\n    \"JSON local logs redact URI and Referer query credentials\",\n    \"local log client suppression is applied\",\n    \"read-only admin can inspect but cannot roll back\",\n    \"management simulation includes pre-auth rate budgets\",\n    \"simulation verifies actual JWT signatures and claims\",\n    \"durable publication captures plugin dependencies\",\n    \"rollback restores the archived plugin and configuration\",\n    \"restart restores committed rollback despite broken or missing source files\",\n    \"durable history preserves version identity across restart\",\n    \"historical versions remain usable after restart\",\n    \"management audit records denied and committed changes without tokens\",\n    \"durable history protects private assets with owner-only permissions\",\n    \"TLS configuration rejects certificates for a different hostname\",\n    \"TLS configuration rejects expired certificates\",\n    \"Named management identities authenticate independently\",\n    \"Namespace-scoped identity cannot inspect standalone routes or history\",\n    \"Scoped identity cannot simulate an unauthorized route\",\n    \"Candidate preflight reports changes without publishing\",\n    \"Preflight rejects a stale base version\",\n    \"CLI configuration diff agrees with management preflight\",\n    \"Simulation reports the actual proxy_pass URI replacement\",\n    \"Outgoing simulation keeps configured private header values redacted\",\n    \"Certificate diagnostics expose hostname validity and expiration\",\n    \"Legacy management token rotates without restarting the process\",\n    \"Invalid identity updates retain the last valid authorization policy\",\n    \"Removing a named identity revokes it without restart\",\n    \"Management audit identifies the named operator without recording credentials\"\n  ]\n}\n",
+    "default-check": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 1.60s\n",
+    "lookups": "Added new event:\n  rgnix_lookup_95572:lookup_0 (on 0xa93f50 in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_0 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_1 (on 0xa943f4 in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_1 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_2 (on 0xa949d8 in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_2 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_3 (on 0xa94fb8 in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_3 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_4 (on 0xa955d0 in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_4 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_5 (on 0xa95a74 in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_5 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_6 (on 0xa96054 in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_6 -aR sleep 1\n\nbefore [('plain', 2000), ('control', 4)]\nRemoved event: rgnix_lookup_95572:lookup_6\nRemoved event: rgnix_lookup_95572:lookup_5\nRemoved event: rgnix_lookup_95572:lookup_4\nRemoved event: rgnix_lookup_95572:lookup_3\nRemoved event: rgnix_lookup_95572:lookup_2\nRemoved event: rgnix_lookup_95572:lookup_1\nRemoved event: rgnix_lookup_95572:lookup_0\nAdded new event:\n  rgnix_lookup_95572:lookup_0 (on 0xa91044 in /var/tmp/rgnix-forward-20261001/rgnix-metrics)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_0 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_1 (on 0xa914e8 in /var/tmp/rgnix-forward-20261001/rgnix-metrics)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_1 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_2 (on 0xa91acc in /var/tmp/rgnix-forward-20261001/rgnix-metrics)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_2 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_3 (on 0xa920ac in /var/tmp/rgnix-forward-20261001/rgnix-metrics)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_3 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_4 (on 0xa926c4 in /var/tmp/rgnix-forward-20261001/rgnix-metrics)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_4 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_5 (on 0xa92b68 in /var/tmp/rgnix-forward-20261001/rgnix-metrics)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_5 -aR sleep 1\n\nAdded new event:\n  rgnix_lookup_95572:lookup_6 (on 0xa93148 in /var/tmp/rgnix-forward-20261001/rgnix-metrics)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_lookup_95572:lookup_6 -aR sleep 1\n\nmetrics [('plain', 0), ('control', 3)]\nRemoved event: rgnix_lookup_95572:lookup_6\nRemoved event: rgnix_lookup_95572:lookup_5\nRemoved event: rgnix_lookup_95572:lookup_4\nRemoved event: rgnix_lookup_95572:lookup_3\nRemoved event: rgnix_lookup_95572:lookup_2\nRemoved event: rgnix_lookup_95572:lookup_1\nRemoved event: rgnix_lookup_95572:lookup_0\n",
+    "lookups-initial-failure": "Failed to find symbol _ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h1aaf0cea1f5b241dE in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe\n  Error: Failed to add events.\nTraceback (most recent call last):\n  File \"/Users/livesite/Documents/ChatGPT/rgnix/.local/forward-20261001/metric_lookups.py\", line 38, in <module>\n    subprocess.run(['perf', 'probe', '-x', str(binary), '-a', f'{event}={symbol}'], check=True, stdout=subprocess.DEVNULL)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 577, in run\n    raise CalledProcessError(retcode, process.args,\n                             output=stdout, stderr=stderr)\nsubprocess.CalledProcessError: Command '['perf', 'probe', '-x', '/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe', '-a', 'rgnix_lookup_95516:lookup_0=_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h1aaf0cea1f5b241dE']' returned non-zero exit status 254.\n",
+    "alloc-before": "Added new event:\n  rgnix_http_95671:malloc (on _rjem_malloc in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95671:malloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_95671:mallocx (on _rjem_mallocx in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95671:mallocx -aR sleep 1\n\nAdded new event:\n  rgnix_http_95671:calloc (on _rjem_calloc in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95671:calloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_95671:realloc (on _rjem_realloc in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95671:realloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_95671:rallocx (on _rjem_rallocx in /var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95671:rallocx -aR sleep 1\n\nhyper {'malloc': 8035, 'mallocx': 2} requested bytes/request 2656.12\nRemoved event: rgnix_http_95671:rallocx\nRemoved event: rgnix_http_95671:realloc\nRemoved event: rgnix_http_95671:calloc\nRemoved event: rgnix_http_95671:mallocx\nRemoved event: rgnix_http_95671:malloc\n",
+    "alloc-metrics": "Added new event:\n  rgnix_http_95751:malloc (on _rjem_malloc in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95751:malloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_95751:mallocx (on _rjem_mallocx in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95751:mallocx -aR sleep 1\n\nAdded new event:\n  rgnix_http_95751:calloc (on _rjem_calloc in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95751:calloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_95751:realloc (on _rjem_realloc in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95751:realloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_95751:rallocx (on _rjem_rallocx in /var/tmp/rgnix-forward-20261001/rgnix-metrics with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95751:rallocx -aR sleep 1\n\nhyper {'malloc': 8053, 'mallocx': 4} requested bytes/request 2643.08\nRemoved event: rgnix_http_95751:rallocx\nRemoved event: rgnix_http_95751:realloc\nRemoved event: rgnix_http_95751:calloc\nRemoved event: rgnix_http_95751:mallocx\nRemoved event: rgnix_http_95751:malloc\n",
+    "primitives-before": "Added new event:\n  rgnix_http_95713:memcpy (on 0xa9840 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95713:memcpy -aR sleep 1\n\nAdded new event:\n  rgnix_http_95713:memmove (on 0xa9980 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95713:memmove -aR sleep 1\n\nAdded new event:\n  rgnix_http_95713:clock (on clock_gettime in /usr/lib/aarch64-linux-gnu/libc.so.6 with caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95713:clock -aR sleep 1\n\nhyper {'clock': 10044, 'memmove': 8, 'memcpy': 22131} copy bytes/request 5919.92\nRemoved event: rgnix_http_95713:clock\nRemoved event: rgnix_http_95713:memmove\nRemoved event: rgnix_http_95713:memcpy\n",
+    "primitives-metrics": "Added new event:\n  rgnix_http_95793:memcpy (on 0xa9840 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95793:memcpy -aR sleep 1\n\nAdded new event:\n  rgnix_http_95793:memmove (on 0xa9980 in /usr/lib/aarch64-linux-gnu/libc.so.6 with bytes=%x2:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95793:memmove -aR sleep 1\n\nAdded new event:\n  rgnix_http_95793:clock (on clock_gettime in /usr/lib/aarch64-linux-gnu/libc.so.6 with caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_95793:clock -aR sleep 1\n\nhyper {'clock': 10060, 'memmove': 8, 'memcpy': 22131} copy bytes/request 5919.872\nRemoved event: rgnix_http_95793:clock\nRemoved event: rgnix_http_95793:memmove\nRemoved event: rgnix_http_95793:memcpy\n"
+  },
+  "runner_sources": {
+    "run_owned.py": "import subprocess,json\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-forward-20261001')\nbase.mkdir(exist_ok=True)\ncommand=['python3','scripts/benchmark_compare.py','--rgnix','/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe','--nginx','/usr/sbin/nginx','--openresty','/usr/sbin/nginx','--hyper','.local/dispatch-20261001/prototype-local','--hyper-control','.local/dispatch-20261001/prototype-local-owned','--engines','hyper','hyper','hyper-control','hyper-control','nginx','nginx','--cases','proxy-1k','--concurrency','64','256','--workers','2','--origin-workers','4','--client-threads','4','--server-cpus','10,11','--client-cpus','2,3,4,5','--origin-cpus','6,7,8,9','--rounds','3','--warmup','3','--seconds','12','--interleave','--work-dir',str(base/'owned-local'),'--output',str(base/'owned-local.json')]\n(base/'owned-local.command').write_text(json.dumps(command)+'\\n')\nwith (base/'owned-local.log').open('w') as log:\n result=subprocess.run(command,stdout=log,stderr=log)\nraise SystemExit(result.returncode)\n",
+    "build_metrics.py": "import subprocess,os,json,time,hashlib\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-forward-20261001')\nenv=os.environ.copy();env['CARGO_TARGET_DIR']='/home/livesite/.cache/rgnix-opt-target'\ncommands=[('metrics-check',['cargo','check','--offline','--locked','--features','hyper-experimental,jemalloc']),('metrics-build',['cargo','build','--offline','--locked','--release','--features','hyper-experimental,jemalloc'])]\nresults=[]\nfor name,command in commands:\n begun=time.monotonic()\n with (base/(name+'.log')).open('w') as log: r=subprocess.run(command,stdout=log,stderr=log,env=env)\n results.append(dict(name=name,command=command,returncode=r.returncode,seconds=time.monotonic()-begun));(base/'builds.json').write_text(json.dumps(results,indent=2)+'\\n')\n print(name,r.returncode,flush=True)\n if r.returncode:raise SystemExit(r.returncode)\nimport shutil\nshutil.copyfile('/home/livesite/.cache/rgnix-opt-target/release/rgnix',base/'rgnix-metrics');(base/'rgnix-metrics').chmod(0o755)\nprint('binary',hashlib.sha256((base/'rgnix-metrics').read_bytes()).hexdigest(),flush=True)\n",
+    "validate_metrics.py": "import subprocess,os,json,time,hashlib\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-forward-20261001');binary=base/'rgnix-metrics'\nenv=os.environ.copy();env['CARGO_TARGET_DIR']='/home/livesite/.cache/rgnix-opt-target';env['RGNIX_RESULTS']=str(base/'integration.json');env['RUST_LOG']='rgnix=debug,pingora_core=warn'\ncommands=[('fmt',['cargo','fmt','--all','--check']),('clippy',['cargo','clippy','--offline','--locked','--features','hyper-experimental,jemalloc','--all-targets','--','-D','warnings']),('lifecycle',['python3','scripts/hyper_integration.py',str(binary),'--threads','2','--ephemeral-listener']),('integration',['python3','scripts/integration.py','.local/forward-20261001/rgnix-metrics-hyper']),('product',['python3','scripts/product_features.py','.local/forward-20261001/rgnix-metrics-hyper']),('default-check',['cargo','check','--offline','--locked'])]\nresults=[]\nfor name,command in commands:\n begun=time.monotonic()\n with (base/(name+'.log')).open('w') as log:r=subprocess.run(command,stdout=log,stderr=log,env=env)\n results.append(dict(name=name,command=command,returncode=r.returncode,seconds=time.monotonic()-begun));(base/'validation.json').write_text(json.dumps(dict(binary=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),results=results),indent=2)+'\\n')\n print(name,r.returncode,flush=True)\n if r.returncode:raise SystemExit(r.returncode)\n",
+    "benchmark_metrics.py": "import subprocess,json\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-forward-20261001')\ncommand=['python3','scripts/benchmark_compare.py','--rgnix','/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe','--candidate',str(base/'rgnix-metrics'),'--nginx','/usr/sbin/nginx','--openresty','/usr/sbin/nginx','--plain-proxy','--rgnix-transport','hyper','--candidate-transport','hyper','--engines','rgnix','rgnix','candidate','candidate','nginx','nginx','--cases','proxy-1k','--concurrency','64','256','--workers','1','--origin-workers','2','--client-threads','2','--server-cpus','10','--client-cpus','2,3','--origin-cpus','6,7','--rounds','3','--warmup','3','--seconds','12','--interleave','--work-dir',str(base/'metrics-1k'),'--output',str(base/'metrics-1k.json')]\n(base/'metrics-1k.command').write_text(json.dumps(command)+'\\n')\nwith (base/'metrics-1k.log').open('w') as log:result=subprocess.run(command,stdout=log,stderr=log)\nraise SystemExit(result.returncode)\n",
+    "probe_metrics.py": "import subprocess,json\nfrom pathlib import Path\nbase=Path('/var/tmp/rgnix-forward-20261001')\ncommands=[('lookups',['sudo','-n','python3','.local/forward-20261001/metric_lookups.py'])]\nfor phase,binary in [('before',Path('/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe')),('metrics',base/'rgnix-metrics')]:\n for kind,script in [('alloc','.local/allocator-opt-20260928/allocations.py'),('primitives','scripts/profile_http_primitives.py')]:\n  commands.append((kind+'-'+phase,['sudo','-n','python3',script,'--profile','/var/tmp/rgnix-worker-20261001/profile-local/result.json','--matrix','/var/tmp/rgnix-worker-20261001/product-1k.json','--engines','hyper','--binary',str(binary),'--work-dir',str(base/(kind+'-'+phase))]))\nresults=[]\nfor name,command in commands:\n with (base/(name+'.log')).open('w') as log:r=subprocess.run(command,stdout=log,stderr=log)\n results.append(dict(name=name,command=command,returncode=r.returncode));(base/'probes.json').write_text(json.dumps(results,indent=2)+'\\n')\n print(name,r.returncode,flush=True)\n if r.returncode:raise SystemExit(r.returncode)\n",
+    "metric_lookups.py": "import collections\nimport hashlib\nimport http.client\nimport json\nimport os\nfrom pathlib import Path\nimport re\nimport signal\nimport subprocess\nimport sys\nimport time\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))\nfrom benchmark_compare import start, stop\nfrom integration import request, wait_for\n\nbase = Path('/var/tmp/rgnix-forward-20261001')\nprofile = json.loads(Path('/var/tmp/rgnix-worker-20261001/profile-local/result.json').read_text())\nmatrix = json.loads(Path('/var/tmp/rgnix-worker-20261001/product-1k.json').read_text())\nfixture = Path('/var/tmp/rgnix-worker-20261001/profile-local/fixture')\nprevious = next(r for r in profile['records'] if r['engine'] == 'hyper')\nports = matrix['ports']\nresult = {'method': 'All emitted MetricVec::with_label_values monomorphs traced by ELF-symbol uprobes. One persistent connection, 10 warm and 500 GET requests, each validating status and the complete 1 KiB body. A separate one-request W3C control forces the general request path and verifies probes record nonzero lookups. Background calls included; counts exclude inlined lookups and are not throughput evidence.', 'records': []}\n\nfor name, binary in [('before', Path('/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe')), ('metrics', base/'rgnix-metrics')]:\n    work = base / ('lookups-fixed-' + name)\n    work.mkdir(exist_ok=False)\n    demangled = subprocess.check_output(['nm', '-nC', str(binary)], text=True)\n    addresses = {line.split()[0] for line in demangled.splitlines() if 'MetricVec<T>::with_label_values' in line}\n    symbols = [line.split()[2] for line in subprocess.check_output(['nm', '-n', str(binary)], text=True).splitlines() if len(line.split()) >= 3 and line.split()[0] in addresses]\n    assert symbols, 'no emitted lookup functions'\n    text = next(line.split() for line in subprocess.check_output(['objdump', '-h', str(binary)], text=True).splitlines() if len(line.split()) >= 7 and line.split()[1] == '.text')\n    text_address, text_offset = int(text[3], 16), int(text[5], 16)\n    offsets = [int(address, 16) - text_address + text_offset for address in sorted(addresses)]\n    group = f'rgnix_lookup_{os.getpid()}'\n    events, origin, server, recorder = [], None, None, None\n    item = {'phase': name, 'binary': str(binary), 'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'symbols': symbols, 'file_offsets': offsets, 'windows': []}\n    try:\n        for index, offset in enumerate(offsets):\n            event = f'{group}:lookup_{index}'\n            subprocess.run(['perf', 'probe', '-x', str(binary), '-a', f'{event}={offset:#x}'], check=True, stdout=subprocess.DEVNULL)\n            events.append(event)\n        origin = start(['taskset','-c',matrix['settings']['origin_cpus'],profile['binaries']['origin']['path'],'-p',str(fixture/'origin'),'-c',str(fixture/'origin/nginx.conf'),'-g','daemon off;'], work/'origin.log')\n        wait_for(lambda: request(ports['primary'], '/proxy-1k')[0], 200)\n        command = [str(binary) if value == profile['binaries']['hyper']['path'] else value for value in previous['server_command']]\n        item['server_command'] = command\n        server = start(command, work/'server.log')\n        wait_for(lambda: request(ports['http'], '/proxy-1k')[0], 200)\n        client = http.client.HTTPConnection('127.0.0.1', ports['http'], timeout=10)\n        def send(control=False):\n            headers = {'Host': 'localhost'}\n            if control:\n                headers['traceparent'] = '00-0123456789abcdef0123456789abcdef-0123456789abcdef-01'\n            client.request('GET', '/proxy-1k', headers=headers)\n            response = client.getresponse()\n            assert response.status == 200 and response.read() == b'x'*1024\n        for _ in range(10):\n            send()\n        for window, count in [('plain', 500), ('control', 1)]:\n            data = work / (window+'.data')\n            recorder = subprocess.Popen(['perf','record','-e',','.join(events),'-p',str(server.pid),'-o',str(data)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)\n            time.sleep(.3)\n            assert recorder.poll() is None\n            for _ in range(count):\n                send(window == 'control')\n            time.sleep(.3)\n            recorder.send_signal(signal.SIGINT)\n            _, diagnostic = recorder.communicate(timeout=15)\n            assert recorder.returncode in [0, -signal.SIGINT], diagnostic\n            recorder = None\n            decoded = subprocess.check_output(['perf','script','-i',str(data),'-F','comm,pid,tid,time,event'], text=True, stderr=subprocess.DEVNULL)\n            counts = collections.Counter(re.findall(group+r':(lookup_\\d+)', decoded))\n            item['windows'].append({'name': window, 'requests': count, 'calls': sum(counts.values()), 'calls_by_event': dict(counts), 'instrument_output': diagnostic})\n        assert item['windows'][1]['calls'] > 0, 'control did not trigger the installed probes'\n        client.close()\n        print(name, [(w['name'], w['calls']) for w in item['windows']], flush=True)\n    finally:\n        if recorder and recorder.poll() is None:\n            recorder.send_signal(signal.SIGINT)\n            recorder.communicate(timeout=15)\n        stop(server)\n        stop(origin)\n        for event in reversed(events):\n            subprocess.run(['perf','probe','-d',event], check=True, stdout=subprocess.DEVNULL)\n        result['records'].append(item)\n        (base/'metric-lookups.json').write_text(json.dumps(result, indent=2)+'\\n')\n",
+    "rgnix-metrics-hyper": "#!/usr/bin/env python3\nimport os,sys\nbinary=\"/var/tmp/rgnix-forward-20261001/rgnix-metrics\"\nargs=sys.argv[1:]\nif args and args[0] in [\"serve\",\"ingress\",\"gateway\"] and \"--experimental-hyper\" not in args:args.append(\"--experimental-hyper\")\nos.execv(binary,[binary,*args])\n"
+  },
+  "allocator_probe_source": "#!/usr/bin/env python3\n\"\"\"Count libc copies and clocks for warmed HTTP/1 requests on Linux AArch64.\"\"\"\nimport argparse\nimport bisect\nimport collections\nimport ctypes\nimport hashlib\nimport http.client\nimport json\nimport os\nfrom pathlib import Path\nimport re\nimport signal\nimport subprocess\nimport time\n\nimport sys\nsys.path.insert(0, \"/Users/livesite/Documents/ChatGPT/rgnix/scripts\")\nfrom benchmark_compare import start, stop\nfrom integration import request, wait_for\n\n\ndef main():\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument(\"--profile\", type=Path, required=True, help=\"profile_http.py result with retained fixture paths\")\n    parser.add_argument(\"--matrix\", type=Path, required=True, help=\"benchmark JSON used by profile_http.py\")\n    parser.add_argument(\"--work-dir\", type=Path, required=True)\n    parser.add_argument(\"--engines\", nargs=\"+\", default=[\"hyper\", \"prototype\", \"pingora\"])\n    parser.add_argument(\"--binary\", type=Path, help=\"replace the product binary for a candidate run\")\n    args = parser.parse_args()\n    if os.uname().machine != \"aarch64\":\n        parser.error(\"probe return-address registers currently require Linux AArch64\")\n    profile = json.loads(args.profile.read_text())\n    matrix = json.loads(args.matrix.read_text())\n    selected = {r[\"engine\"]: r for r in profile[\"records\"] if r[\"engine\"] in args.engines}\n    if set(selected) != set(args.engines) or \"nginx\" in selected:\n        parser.error(\"engines must identify non-forking Rust processes in the profile\")\n    work = args.work_dir.resolve()\n    work.mkdir(parents=True, exist_ok=False)\n    fixture = args.profile.resolve().parent / \"fixture\"\n    ports = matrix[\"ports\"]\n    libc = str(args.binary.resolve())\n    group = f\"rgnix_http_{os.getpid()}\"\n    events = []\n    origin = server = recorder = None\n    result = {\"method\": \"Prefixed jemalloc allocation/reallocation entry uprobes for Rust GlobalAlloc. One connection, 10 warm and 500 status/body-validated requests. Background allocations included; internal jemalloc callers excluded to avoid nested API double counting. calloc assumes the verified Rust wrapper calloc(1,size). Requested bytes are cumulative, not live memory; not throughput evidence.\", \"records\": []}\n    try:\n        for kind in [\"malloc\", \"mallocx\", \"calloc\", \"realloc\", \"rallocx\"]:\n            register = \"x0\" if kind in [\"malloc\", \"mallocx\"] else \"x1\"\n            location = f\"_rjem_{kind} bytes=%{register}:u64 caller=%x30:x64\"\n            subprocess.run([\"perf\", \"probe\", \"-x\", libc, \"-a\", f\"{group}:{kind}={location}\"], check=True)\n            events.append(f\"{group}:{kind}\")\n        origin = start([\"taskset\", \"-c\", matrix[\"settings\"][\"origin_cpus\"], profile[\"binaries\"][\"origin\"][\"path\"], \"-p\", str(fixture / \"origin\"), \"-c\", str(fixture / \"origin/nginx.conf\"), \"-g\", \"daemon off;\"], work / \"origin.log\")\n        wait_for(lambda: request(ports[\"primary\"], \"/proxy-1k\")[0], 200)\n        for engine, previous in selected.items():\n            binary = profile[\"binaries\"][engine][\"path\"]\n            command = previous[\"server_command\"][:]\n            if args.binary and engine in [\"hyper\", \"pingora\"]:\n                replacement = str(args.binary.resolve())\n                command = [replacement if value == binary else value for value in command]\n                binary = replacement\n            server = start(command, work / f\"{engine}.log\")\n            wait_for(lambda: request(ports[\"http\"], \"/proxy-1k\")[0], 200)\n            connection = http.client.HTTPConnection(\"127.0.0.1\", ports[\"http\"], timeout=15)\n            def send():\n                connection.request(\"GET\", \"/proxy-1k\", headers={\"Host\": \"localhost\"})\n                response = connection.getresponse()\n                assert response.status == 200 and response.read() == b\"x\" * 1024\n            for _ in range(10):\n                send()\n            maps = Path(f\"/proc/{server.pid}/maps\").read_text()\n            offset = min(int(line.split(\"-\")[0], 16) - int(line.split()[2], 16)\n                         for line in maps.splitlines() if line.endswith(binary))\n            data = work / f\"{engine}.data\"\n            recorder = subprocess.Popen([\"perf\", \"record\", \"-e\", \",\".join(events), \"-p\", str(server.pid), \"-o\", str(data)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)\n            time.sleep(0.2)\n            if recorder.poll() is not None:\n                raise RuntimeError(recorder.communicate()[1])\n            for _ in range(500):\n                send()\n            recorder.send_signal(signal.SIGINT)\n            _, diagnostic = recorder.communicate(timeout=15)\n            assert recorder.returncode in [0, -signal.SIGINT], diagnostic\n            recorder = None\n            connection.close()\n            stop(server); server = None\n            symbols = []\n            for line in subprocess.check_output([\"nm\", \"-nC\", binary], text=True).splitlines():\n                match = re.match(r\"^([0-9a-f]+) [tTwW] (.+)$\", line)\n                if match:\n                    symbols.append((int(match[1], 16), match[2]))\n            addresses = [address for address, _ in symbols]\n            counts, sizes, copies, clocks = (collections.Counter() for _ in range(4))\n            decode = subprocess.run([\"perf\", \"script\", \"-i\", str(data), \"-F\", \"comm,pid,tid,time,event,trace\"], text=True, capture_output=True, check=True)\n            if \"lost\" in decode.stderr.lower():\n                raise RuntimeError(decode.stderr)\n            decoded = decode.stdout\n            for line in decoded.splitlines():\n                event = re.search(group + r\":(\\w+):\", line)\n                if not event:\n                    continue\n                kind = event[1]\n                values = dict(re.findall(r\"(bytes|caller)=(0x[0-9a-f]+|[0-9]+)\", line))\n                address = int(values[\"caller\"], 0) - offset\n                position = bisect.bisect_right(addresses, address) - 1\n                symbol = symbols[position][1] if position >= 0 and 0 <= address - symbols[position][0] < 1_000_000 else \"outside-main-binary\"\n                if symbol.startswith((\"_rjem_\", \"je_\")):\n                    continue\n                counts[kind] += 1\n                if kind == \"clock\":\n                    clocks[symbol] += 1\n                else:\n                    size = int(values[\"bytes\"], 0)\n                    sizes[size] += 1\n                    copies[symbol] += size\n            result[\"records\"].append({\"engine\": engine, \"binary\": binary, \"sha256\": hashlib.sha256(Path(binary).read_bytes()).hexdigest(), \"requests\": 500, \"events\": dict(counts), \"requested_bytes\": sum(size * count for size, count in sizes.items()), \"sizes\": dict(sizes), \"requested_bytes_by_caller\": dict(copies.most_common()), \"perf_script_diagnostics\": decode.stderr, \"record_output\": diagnostic, \"server_command\": command})\n            print(engine, dict(counts), \"requested bytes/request\", sum(size * count for size, count in sizes.items()) / 500, flush=True)\n    finally:\n        if recorder and recorder.poll() is None:\n            recorder.send_signal(signal.SIGINT)\n            recorder.communicate(timeout=15)\n        stop(server); stop(origin)\n        for event in reversed(events):\n            subprocess.run([\"perf\", \"probe\", \"-d\", event], check=True)\n        (work / \"result.json\").write_text(json.dumps(result, indent=2) + \"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "primitive_probe_source": "#!/usr/bin/env python3\n\"\"\"Count libc copies and clocks for warmed HTTP/1 requests on Linux AArch64.\"\"\"\nimport argparse\nimport bisect\nimport collections\nimport ctypes\nimport hashlib\nimport http.client\nimport json\nimport os\nfrom pathlib import Path\nimport re\nimport signal\nimport subprocess\nimport time\n\nfrom benchmark_compare import start, stop\nfrom integration import request, wait_for\n\n\ndef main():\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument(\"--profile\", type=Path, required=True, help=\"profile_http.py result with retained fixture paths\")\n    parser.add_argument(\"--matrix\", type=Path, required=True, help=\"benchmark JSON used by profile_http.py\")\n    parser.add_argument(\"--work-dir\", type=Path, required=True)\n    parser.add_argument(\"--engines\", nargs=\"+\", default=[\"hyper\", \"prototype\", \"pingora\"])\n    parser.add_argument(\"--binary\", type=Path, help=\"replace the product binary for a candidate run\")\n    args = parser.parse_args()\n    if os.uname().machine != \"aarch64\":\n        parser.error(\"probe return-address registers currently require Linux AArch64\")\n    profile = json.loads(args.profile.read_text())\n    matrix = json.loads(args.matrix.read_text())\n    selected = {r[\"engine\"]: r for r in profile[\"records\"] if r[\"engine\"] in args.engines}\n    if set(selected) != set(args.engines) or \"nginx\" in selected:\n        parser.error(\"engines must identify non-forking Rust processes in the profile\")\n    work = args.work_dir.resolve()\n    work.mkdir(parents=True, exist_ok=False)\n    fixture = args.profile.resolve().parent / \"fixture\"\n    ports = matrix[\"ports\"]\n    libc = \"/lib/aarch64-linux-gnu/libc.so.6\"\n    library = ctypes.CDLL(libc)\n    base = min(int(line.split(\"-\")[0], 16) - int(line.split()[2], 16)\n               for line in Path(\"/proc/self/maps\").read_text().splitlines() if line.endswith(\"/libc.so.6\"))\n    group = f\"rgnix_http_{os.getpid()}\"\n    events = []\n    origin = server = recorder = None\n    result = {\"method\": \"Resolved libc memcpy/memmove and clock_gettime uprobes. One connection, 10 warm and 500 measured requests. Counts include background operations and exclude inlined copies; not throughput or latency. AArch64 return addresses are mapped to ELF symbols.\", \"records\": []}\n    try:\n        for kind in [\"memcpy\", \"memmove\", \"clock\"]:\n            if kind == \"clock\":\n                location = \"clock_gettime caller=%x30:x64\"\n            else:\n                offset = ctypes.cast(getattr(library, kind), ctypes.c_void_p).value - base\n                location = f\"{offset:#x} bytes=%x2:u64 caller=%x30:x64\"\n            subprocess.run([\"perf\", \"probe\", \"-x\", libc, \"-a\", f\"{group}:{kind}={location}\"], check=True)\n            events.append(f\"{group}:{kind}\")\n        origin = start([\"taskset\", \"-c\", matrix[\"settings\"][\"origin_cpus\"], profile[\"binaries\"][\"origin\"][\"path\"], \"-p\", str(fixture / \"origin\"), \"-c\", str(fixture / \"origin/nginx.conf\"), \"-g\", \"daemon off;\"], work / \"origin.log\")\n        wait_for(lambda: request(ports[\"primary\"], \"/proxy-1k\")[0], 200)\n        for engine, previous in selected.items():\n            binary = profile[\"binaries\"][engine][\"path\"]\n            command = previous[\"server_command\"][:]\n            if args.binary and engine in [\"hyper\", \"pingora\"]:\n                replacement = str(args.binary.resolve())\n                command = [replacement if value == binary else value for value in command]\n                binary = replacement\n            server = start(command, work / f\"{engine}.log\")\n            wait_for(lambda: request(ports[\"http\"], \"/proxy-1k\")[0], 200)\n            connection = http.client.HTTPConnection(\"127.0.0.1\", ports[\"http\"], timeout=15)\n            def send():\n                connection.request(\"GET\", \"/proxy-1k\", headers={\"Host\": \"localhost\"})\n                response = connection.getresponse()\n                assert response.status == 200 and response.read() == b\"x\" * 1024\n            for _ in range(10):\n                send()\n            maps = Path(f\"/proc/{server.pid}/maps\").read_text()\n            offset = min(int(line.split(\"-\")[0], 16) - int(line.split()[2], 16)\n                         for line in maps.splitlines() if line.endswith(binary))\n            data = work / f\"{engine}.data\"\n            recorder = subprocess.Popen([\"perf\", \"record\", \"-e\", \",\".join(events), \"-p\", str(server.pid), \"-o\", str(data)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)\n            time.sleep(0.2)\n            if recorder.poll() is not None:\n                raise RuntimeError(recorder.communicate()[1])\n            for _ in range(500):\n                send()\n            recorder.send_signal(signal.SIGINT)\n            _, diagnostic = recorder.communicate(timeout=15)\n            assert recorder.returncode in [0, -signal.SIGINT], diagnostic\n            recorder = None\n            connection.close()\n            stop(server); server = None\n            symbols = []\n            for line in subprocess.check_output([\"nm\", \"-nC\", binary], text=True).splitlines():\n                match = re.match(r\"^([0-9a-f]+) [tTwW] (.+)$\", line)\n                if match:\n                    symbols.append((int(match[1], 16), match[2]))\n            addresses = [address for address, _ in symbols]\n            counts, sizes, copies, clocks = (collections.Counter() for _ in range(4))\n            decoded = subprocess.check_output([\"perf\", \"script\", \"-i\", str(data), \"-F\", \"comm,pid,tid,time,event,trace\"], text=True, stderr=subprocess.DEVNULL)\n            for line in decoded.splitlines():\n                event = re.search(group + r\":(\\w+):\", line)\n                if not event:\n                    continue\n                kind = event[1]\n                counts[kind] += 1\n                values = dict(re.findall(r\"(bytes|caller)=(0x[0-9a-f]+|[0-9]+)\", line))\n                address = int(values[\"caller\"], 0) - offset\n                position = bisect.bisect_right(addresses, address) - 1\n                symbol = symbols[position][1] if position >= 0 and 0 <= address - symbols[position][0] < 1_000_000 else \"outside-main-binary\"\n                if kind == \"clock\":\n                    clocks[symbol] += 1\n                else:\n                    size = int(values[\"bytes\"], 0)\n                    sizes[size] += 1\n                    copies[symbol] += size\n            result[\"records\"].append({\"engine\": engine, \"binary\": binary, \"sha256\": hashlib.sha256(Path(binary).read_bytes()).hexdigest(), \"requests\": 500, \"events\": dict(counts), \"copy_bytes\": sum(size * count for size, count in sizes.items()), \"sizes\": dict(sizes), \"copy_bytes_by_caller\": dict(copies.most_common()), \"clock_calls_by_caller\": dict(clocks.most_common()), \"record_output\": diagnostic, \"server_command\": command})\n            print(engine, dict(counts), \"copy bytes/request\", sum(size * count for size, count in sizes.items()) / 500, flush=True)\n    finally:\n        if recorder and recorder.poll() is None:\n            recorder.send_signal(signal.SIGINT)\n            recorder.communicate(timeout=15)\n        stop(server); stop(origin)\n        for event in reversed(events):\n            subprocess.run([\"perf\", \"probe\", \"-d\", event], check=True)\n        (work / \"result.json\").write_text(json.dumps(result, indent=2) + \"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "measurement_helper_sha256": {
+    "scripts/benchmark_compare.py": "187ae07575c78c938305cb1ba17ac495ebf95e7ca1ce2e9d0c605f7c34cbfc4e",
+    "scripts/profile_http.py": "b51083fef7561b23b8db012641a386cd16a6173386662df56025f53a69622024",
+    "docs/validation/analyze-hyper-performance-2026-09-30.py": "e12e119ca1fd583e14d578050db17c79c11a61fa8db18c2890d9132db2c75c2d"
+  },
+  "prototype_wrappers": {
+    "prototype-local": "#!/usr/bin/env python3\nimport os,sys\nbinary=\"/var/tmp/rgnix-dispatch-20261001/prototype\"\nos.execv(binary,[binary,*sys.argv[1:],*['--local-workers']])\n",
+    "prototype-local-owned": "#!/usr/bin/env python3\nimport os,sys\nbinary=\"/var/tmp/rgnix-dispatch-20261001/prototype\"\nos.execv(binary,[binary,*sys.argv[1:],*['--local-workers', '--owned-http1']])\n"
+  },
+  "prototype_scope": "Frozen independent prototype, two local workers in each mode. Driving ownership and pooling both differ; dispatch channels remain. This turn did not integrate it or rerun its full verifier. Common benchmark preflight and all 36 windows completed without errors, but every A/A group failed.",
+  "product_comparison": {
+    "windows": 36,
+    "requests": 34367831,
+    "errors": 0,
+    "settings": {
+      "rgnix": "/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe",
+      "nginx": "/usr/sbin/nginx",
+      "openresty": "/usr/sbin/nginx",
+      "candidate": "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+      "plain_proxy": true,
+      "rgnix_transport": "hyper",
+      "candidate_transport": "hyper",
+      "pingora": null,
+      "hyper": null,
+      "hyper_control": null,
+      "engines": [
+        "rgnix",
+        "rgnix",
+        "candidate",
+        "candidate",
+        "nginx",
+        "nginx"
+      ],
+      "wrk": "wrk",
+      "work_dir": "/var/tmp/rgnix-forward-20261001/metrics-1k",
+      "output": "/var/tmp/rgnix-forward-20261001/metrics-1k.json",
+      "rounds": 3,
+      "seconds": 12,
+      "warmup": 3,
+      "concurrency": [
+        64,
+        256
+      ],
+      "cases": [
+        "proxy-1k"
+      ],
+      "connection_close": false,
+      "interleave": true,
+      "workers": 1,
+      "origin_workers": 2,
+      "client_threads": 2,
+      "server_cpus": "10",
+      "client_cpus": "2,3",
+      "origin_cpus": "6,7"
+    },
+    "analysis": {
+      "criteria": {
+        "max_pair_symmetric_difference_pct": 10,
+        "max_group_cv_pct": 10,
+        "errors": 0
+      },
+      "groups": {
+        "rgnix/proxy-1k/c64": {
+          "windows": 6,
+          "requests": 6056120,
+          "errors": 0,
+          "rps_median": 82640.46144626991,
+          "cpu_us_median": 12.074403209177405,
+          "p99_ms_max": 16.35,
+          "peak_pss_mib": 28.689453125,
+          "aa_pair_difference_pct": [
+            5.732167657125447,
+            17.716318182280283,
+            1.5002997402948728
+          ],
+          "aa_group_cv_pct": [
+            10.638185843595389,
+            15.278991741780109
+          ],
+          "aa_passed": false
+        },
+        "candidate/proxy-1k/c64": {
+          "windows": 6,
+          "requests": 6049551,
+          "errors": 0,
+          "rps_median": 81012.19753870084,
+          "cpu_us_median": 12.311961851130281,
+          "p99_ms_max": 34.267,
+          "peak_pss_mib": 29.1181640625,
+          "aa_pair_difference_pct": [
+            6.816766843863123,
+            8.3949816273165,
+            17.076092589200154
+          ],
+          "aa_group_cv_pct": [
+            15.125470952153616,
+            27.46600249076348
+          ],
+          "aa_passed": false
+        },
+        "nginx/proxy-1k/c64": {
+          "windows": 6,
+          "requests": 7636326,
+          "errors": 0,
+          "rps_median": 103173.58644201327,
+          "cpu_us_median": 9.51334629872255,
+          "p99_ms_max": 6.97,
+          "peak_pss_mib": 12.5234375,
+          "aa_pair_difference_pct": [
+            20.12939609724712,
+            2.52606469911371,
+            23.332773298380705
+          ],
+          "aa_group_cv_pct": [
+            7.597821110289209,
+            24.515017456157864
+          ],
+          "aa_passed": false
+        },
+        "rgnix/proxy-1k/c256": {
+          "windows": 6,
+          "requests": 4398134,
+          "errors": 0,
+          "rps_median": 62483.66844064614,
+          "cpu_us_median": 16.007943484964937,
+          "p99_ms_max": 10.809,
+          "peak_pss_mib": 47.75,
+          "aa_pair_difference_pct": [
+            12.201284299982943,
+            12.136692082136607,
+            11.660786799114733
+          ],
+          "aa_group_cv_pct": [
+            20.705136787764893,
+            13.595685878343295
+          ],
+          "aa_passed": false
+        },
+        "candidate/proxy-1k/c256": {
+          "windows": 6,
+          "requests": 4375557,
+          "errors": 0,
+          "rps_median": 62399.938148756235,
+          "cpu_us_median": 16.274348204874077,
+          "p99_ms_max": 10.122,
+          "peak_pss_mib": 48.162109375,
+          "aa_pair_difference_pct": [
+            2.0055233152791807,
+            29.308894821234404,
+            26.40311440186487
+          ],
+          "aa_group_cv_pct": [
+            16.059511095316516,
+            27.535408151914666
+          ],
+          "aa_passed": false
+        },
+        "nginx/proxy-1k/c256": {
+          "windows": 6,
+          "requests": 5852143,
+          "errors": 0,
+          "rps_median": 79504.49601837,
+          "cpu_us_median": 12.595986726636534,
+          "p99_ms_max": 7.347,
+          "peak_pss_mib": 14.3310546875,
+          "aa_pair_difference_pct": [
+            17.5267305981263,
+            16.2240742221101,
+            14.213023486414645
+          ],
+          "aa_group_cv_pct": [
+            21.49150147269041,
+            9.132420020115442
+          ],
+          "aa_passed": false
+        }
+      },
+      "comparisons": {
+        "proxy-1k/c64": {
+          "candidate_vs_before_rps_pct": -1.9702986637214148,
+          "candidate_vs_before_cpu_pct": 1.9674565925735799,
+          "candidate_over_nginx_rps": 0.7852028831452146,
+          "before_and_candidate_calibrated": false,
+          "candidate_and_nginx_calibrated": false
+        },
+        "proxy-1k/c256": {
+          "candidate_vs_before_rps_pct": -0.13400348279717367,
+          "candidate_vs_before_cpu_pct": 1.6642032760757486,
+          "candidate_over_nginx_rps": 0.7848604956169818,
+          "before_and_candidate_calibrated": false,
+          "candidate_and_nginx_calibrated": false
+        }
+      }
+    }
+  },
+  "limits": [
+    "Shared OrbStack ARM64 and virtual CPU affinity, not physical CPU isolation.",
+    "Product comparison reduces load to one frontend worker, two client threads and two origin workers. Its absolute RPS must not be combined with the two-worker prototype or prior matrices.",
+    "No amd64, non-Linux, dedicated-host, TLS/H2/RGL/static throughput, long soak or multi-replica Kubernetes qualification.",
+    "No PGO or worker-local metric aggregation was implemented.",
+    "The prior intermittent mTLS CA rotation reset remains unexplained; a passing product suite does not establish its repair."
+  ]
+}

@@ -52,8 +52,6 @@ pub(crate) trait Http1Transaction {
     fn should_read_first() -> bool {
         Self::is_server()
     }
-
-    fn update_date() {}
 }
 
 /// Result newtype for `Http1Transaction::parse`.

@@ -1,6 +1,10 @@
 mod controller;
+#[cfg(feature = "hyper-experimental")]
+mod data_plane;
 mod request;
 mod runtime;
+#[cfg(feature = "hyper-experimental")]
+pub(crate) use request::BackendMetrics;
 pub(crate) use request::RouteMetrics;
 pub(crate) mod traffic;
 use anyhow::Result;
@@ -17,6 +21,8 @@ use std::{
 };
 
 pub struct Telemetry {
+    #[cfg(feature = "hyper-experimental")]
+    pub(crate) data_plane: Arc<data_plane::DataPlane>,
     pub traffic: traffic::Traffic,
     pub controller: controller::Controller,
     pub config_updated: prometheus::Gauge,
@@ -67,6 +73,8 @@ pub struct Telemetry {
 impl Telemetry {
     pub fn new(otlp: crate::otlp::Options) -> Result<Arc<Self>> {
         let registry = Registry::new();
+        #[cfg(feature = "hyper-experimental")]
+        let data_plane = data_plane::DataPlane::new(&registry)?;
         let draining = prometheus::register_int_gauge_with_registry!(
             "rgnix_draining",
             "Process has begun connection draining",
@@ -287,6 +295,8 @@ impl Telemetry {
             status_counts: (0..1000).map(|_| std::sync::OnceLock::new()).collect(),
             unmatched: Default::default(),
             labels: Default::default(),
+            #[cfg(feature = "hyper-experimental")]
+            data_plane,
             healthy: AtomicBool::new(true),
             draining,
             ready: AtomicBool::new(false),
@@ -371,6 +381,22 @@ impl Telemetry {
         failed: bool,
         grpc_status: Option<u16>,
     ) {
+        self.route_completed(route, status, seconds, grpc_status);
+        if let Some(backend) = backend {
+            let backend = self.label("backend", backend);
+            self.backend_requests
+                .with_label_values(&[backend, if failed { "error" } else { "ok" }])
+                .inc();
+        }
+    }
+
+    pub(crate) fn route_completed(
+        &self,
+        route: Option<&crate::model::Route>,
+        status: u16,
+        seconds: f64,
+        grpc_status: Option<u16>,
+    ) {
         let metrics = match route {
             Some(route) => route
                 .metrics
@@ -380,30 +406,36 @@ impl Telemetry {
                 .get_or_init(|| RouteMetrics::new(self, "_unmatched")),
         };
         metrics.completed(self, status, seconds, grpc_status);
-        if let Some(backend) = backend {
-            let backend = self.label("backend", backend);
-            self.backend_requests
-                .with_label_values(&[backend, if failed { "error" } else { "ok" }])
-                .inc();
+    }
+    pub(crate) fn runtime_healthy(&self) -> bool {
+        #[cfg(feature = "hyper-experimental")]
+        if !self.data_plane.healthy() {
+            return false;
         }
+        true
     }
     pub fn render(&self, path: &str) -> (u16, Vec<u8>, &'static str) {
         match path {
             "/healthz" => {
-                if self.healthy.load(Ordering::Acquire) {
+                if self.healthy.load(Ordering::Acquire) && self.runtime_healthy() {
                     (200, b"ok\n".to_vec(), "text/plain")
                 } else {
                     (503, b"controller failed\n".to_vec(), "text/plain")
                 }
             }
             "/readyz" => {
-                if self.ready.load(Ordering::Acquire) && self.draining.get() == 0 {
+                if self.ready.load(Ordering::Acquire)
+                    && self.draining.get() == 0
+                    && self.runtime_healthy()
+                {
                     (200, b"ready\n".to_vec(), "text/plain")
                 } else {
                     (503, b"not ready\n".to_vec(), "text/plain")
                 }
             }
             "/metrics" => {
+                #[cfg(feature = "hyper-experimental")]
+                self.data_plane.update_metrics();
                 let mut output = vec![];
                 match TextEncoder::new().encode(&self.registry.gather(), &mut output) {
                     Ok(()) => (200, output, "text/plain; version=0.0.4"),

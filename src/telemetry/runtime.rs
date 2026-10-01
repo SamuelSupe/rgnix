@@ -12,6 +12,7 @@ use std::{
 
 const LIMIT: usize = 2048;
 const GAUGES: &[(&str, &str, &[&str])] = &[
+    ("rgnix_engine_info", "Selected HTTP engine", &["engine"]),
     (
         "rgnix_build_info",
         "Binary and runtime identity",
@@ -155,6 +156,21 @@ impl Collector for RuntimeCollector {
             metrics[name].with_label_values(labels).set(value);
         };
         let snapshot = shared.snapshot.load_full();
+        let hyper = {
+            #[cfg(feature = "hyper-experimental")]
+            {
+                shared.experimental_hyper
+            }
+            #[cfg(not(feature = "hyper-experimental"))]
+            {
+                false
+            }
+        };
+        set(
+            "rgnix_engine_info",
+            &[if hyper { "hyper" } else { "pingora" }],
+            1.0,
+        );
         set(
             "rgnix_build_info",
             &[
@@ -172,12 +188,19 @@ impl Collector for RuntimeCollector {
         set(
             "rgnix_healthy",
             &[],
-            u8::from(shared.telemetry.healthy.load(Ordering::Acquire)) as f64,
+            u8::from(
+                shared.telemetry.healthy.load(Ordering::Acquire)
+                    && shared.telemetry.runtime_healthy(),
+            ) as f64,
         );
         set(
             "rgnix_ready",
             &[],
-            u8::from(shared.telemetry.ready.load(Ordering::Acquire)) as f64,
+            u8::from(
+                shared.telemetry.ready.load(Ordering::Acquire)
+                    && shared.telemetry.draining.get() == 0
+                    && shared.telemetry.runtime_healthy(),
+            ) as f64,
         );
         for (kind, count) in [
             ("listeners", snapshot.listeners.len()),

@@ -32,7 +32,88 @@ jobs:
           path: .local/xdp-validation.json
       - uses: azure/setup-helm@v4
       - run: helm lint charts/rgnix
+  hyper:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    env:
+      RGNIX_CARGO_FEATURES: http3,jemalloc
+      RGNIX_ENGINE: hyper
+      RGNIX_EXPERIMENTAL_HYPER: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install protocol and build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libssl-dev openssl curl python3 python3-grpcio python3-brotli python3-h2 python3-venv logrotate redis-server
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: hyper
+      - run: bash scripts/check.sh
+      - run: cargo clippy --locked --features http3,jemalloc --all-targets -j 2 -- -D warnings
+      - name: Extended protocol regression
+        run: |
+          python3 -m venv .local/protocol-venv
+          .local/protocol-venv/bin/pip install -r scripts/requirements-protocols.txt
+          .local/protocol-venv/bin/python scripts/hyper_protocols.py target/debug/rgnix --http3
+      - run: python3 scripts/hyper_integration.py target/debug/rgnix
+      - name: Upstream protocol regressions
+        run: cargo test --manifest-path vendor/hyper/Cargo.toml --lib --features client,server,http1,http2,rgnix-full-body,rgnix-reuse-buffer,rgnix-extensions -j 2
+      - name: Shared pool regressions
+        run: cargo test --manifest-path vendor/hyper-util/Cargo.toml --lib --features client-legacy,server-auto,http1,http2,tokio,rgnix-sendfile -j 2 client::legacy
+  artifact:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: rust:1.98-bookworm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: artifact-${{ matrix.arch }}
+      - name: Install artifact validation dependencies
+        run: |
+          apt-get update && apt-get install -y cmake pkg-config libssl-dev openssl curl python3 python3-grpcio python3-brotli python3-h2 python3-venv logrotate redis-server
+          useradd --create-home --uid 10001 rgnix-ci
+          chown -R rgnix-ci:rgnix-ci "$GITHUB_WORKSPACE" "$CARGO_HOME"
+      - name: Build and test the native release executable in Bookworm
+        run: |
+          runuser -u rgnix-ci -- env PATH="$PATH" CARGO_HOME="$CARGO_HOME" RUSTUP_HOME="$RUSTUP_HOME" bash -euo pipefail <<'CHECKS'
+          cargo build --release --locked --features http3,jemalloc -j 2
+          python3 -m venv --system-site-packages .local/protocol-venv
+          .local/protocol-venv/bin/pip install -r scripts/requirements-protocols.txt
+          RGNIX_PROTOCOL_PYTHON=.local/protocol-venv/bin/python bash scripts/validate_artifact.sh target/release/rgnix
+          CHECKS
+      - name: Collect the tested artifact
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "dist/linux-$ARCH"
+          cp target/release/rgnix "dist/linux-$ARCH/rgnix"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tested-linux-${{ matrix.arch }}
+          path: dist/linux-${{ matrix.arch }}/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: artifact-validation-${{ matrix.arch }}
+          include-hidden-files: true
+          path: .local/artifact-validation/
   image:
+    needs: artifact
     strategy:
       fail-fast: false
       matrix:
@@ -45,12 +126,27 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-linux-${{ matrix.arch }}
+          path: dist/linux-${{ matrix.arch }}/
       - uses: docker/setup-buildx-action@v3
+      - run: chmod +x dist/linux-${{ matrix.arch }}/rgnix
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile.release
           platforms: linux/${{ matrix.arch }}
           push: false
+          load: true
           tags: rgnix:ci
           cache-from: type=gha,scope=image-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=image-${{ matrix.arch }}
+      - name: Test the final image and verify its executable digest
+        run: python3 scripts/image_smoke.py rgnix:ci --binary dist/linux-${{ matrix.arch }}/rgnix --arch ${{ matrix.arch }} --output .local/image-validation.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: image-validation-${{ matrix.arch }}
+          include-hidden-files: true
+          path: .local/image-validation.json
