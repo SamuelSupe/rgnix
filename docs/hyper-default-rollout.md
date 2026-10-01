@@ -34,13 +34,13 @@ Chart 的 `engine: null` 使用当前 Chart 默认值；旧 `experimentalHyper.e
 ```sh
 python3 scripts/gateway_e2e.py --context YOUR_CONTEXT \
   --namespace rgnix-hyper-default-soak --image YOUR_TESTED_IMAGE \
-  --experimental-hyper --require-multiple-nodes \
+  --engine hyper --require-multiple-nodes \
   --soak-seconds 86400 --soak-event-seconds 600 --scale-routes 100 \
   --output .local/hyper-default-soak.json
 ```
 
 测试每 30 秒把各 Pod 的指标和实际 image ID 写入 `.samples.jsonl`；负载进程把请求数、错误和尾延迟写入 `.load.jsonl`。六个 worker 分别运行 HTTP、TLS 和 RGL 前缀 body 路由，合计最高 240 请求/秒；日志与 span 使用 OTLP 输出。每十分钟发布插件，首次及每六次发布同时轮换 TLS、替换一个就绪 Pod。重连不会重放失败的请求；任何请求错误导致该负载检查失败。
 
-延迟窗口最多保留每 worker 最近 3000 个成功请求，不能称为整个 24 小时的精确 p99。趋势须按 Pod 生命周期检查：RSS、描述符、连接或占用许可持续增长需要调查；Pod 更换不能掩盖旧进程增长。该负载不代表生产容量，也不包含 24 小时 HTTP/2、HTTP/3 或跨物理主机故障验证；短时协议检查单独记录。
+延迟窗口最多保留每 worker 最近 3000 个成功请求，不能称为整个 24 小时的精确 p99。一份副本持续运行整个测试，禁止消失或重启；仅替换另一副本，避免重启掩盖长期增长。趋势须按 Pod 生命周期检查：RSS、描述符、连接或占用许可持续增长需要调查。该负载不代表生产容量，也不包含 24 小时 HTTP/2、HTTP/3 或跨物理主机故障验证；短时协议检查单独记录。
 
 完成四项门槛后，才同时修改 Rust `DEFAULT_ENGINE` 和 Chart 默认值，重新验证默认启动、显式 Pingora 回退及发行产物。运行中的 24 小时测试不能记为通过。

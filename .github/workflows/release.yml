@@ -135,8 +135,9 @@ jobs:
           SCALE_ROUTES: ${{ inputs.scale_routes || 200 }}
         run: |
           python3 -c 'import os; assert 120 <= int(os.environ["SOAK_SECONDS"]) <= 3600'
-          python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-release-qa --image rgnix:gateway-ci --require-multiple-nodes --soak-seconds "$SOAK_SECONDS" --scale-routes "$SCALE_ROUTES" --output gateway-results.json
-          python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-hyper-release-qa --image rgnix:gateway-ci --experimental-hyper --require-multiple-nodes --soak-seconds "$SOAK_SECONDS" --scale-routes "$SCALE_ROUTES" --output gateway-hyper-results.json
+          python3 scripts/image_smoke.py rgnix:gateway-ci --binary dist/linux-amd64/rgnix --arch amd64 --output image-results.json
+          python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-release-qa --image rgnix:gateway-ci --engine pingora --require-multiple-nodes --soak-seconds "$SOAK_SECONDS" --scale-routes "$SCALE_ROUTES" --output gateway-results.json
+          python3 scripts/gateway_e2e.py --context kind-rgnix --namespace gateway-hyper-release-qa --image rgnix:gateway-ci --engine hyper --require-multiple-nodes --soak-seconds "$SOAK_SECONDS" --scale-routes "$SCALE_ROUTES" --output gateway-hyper-results.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -144,6 +145,8 @@ jobs:
           path: |
             gateway-results.json
             gateway-hyper-results.json
+            gateway*.jsonl
+            image-results.json
 
   distribution:
     needs: [native, gateway]

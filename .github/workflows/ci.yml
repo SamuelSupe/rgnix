@@ -43,6 +43,8 @@ jobs:
       RGNIX_CARGO_FEATURES: http3,jemalloc
       RGNIX_ENGINE: hyper
       RGNIX_EXPERIMENTAL_HYPER: "true"
+      # The large-resource recovery checks retain their deadline on optimized code.
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
     steps:
       - uses: actions/checkout@v4
       - name: Install protocol and build dependencies

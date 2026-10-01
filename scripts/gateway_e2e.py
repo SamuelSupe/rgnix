@@ -22,6 +22,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--context", default="orbstack")
 parser.add_argument("--namespace", required=True)
 parser.add_argument("--image", required=True)
+parser.add_argument("--engine", choices=["hyper", "pingora"])
 parser.add_argument("--experimental-hyper", action="store_true")
 parser.add_argument("--output", required=True)
 parser.add_argument("--soak-seconds", type=int, default=0)
@@ -160,6 +161,8 @@ with tempfile.TemporaryDirectory() as directory:
     values["shutdown"] = {"enabled": True}
     values["requireMultipleNodes"] = args.require_multiple_nodes
     values["experimentalHyper"] = {"enabled": args.experimental_hyper, "maxConnections": 16384}
+    if args.engine:
+        values["engine"] = args.engine
     values["upstreamMaxFails"] = 0
     cli_token = "gateway-qa-wait-" + ns
     apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"wait-token","namespace":ns},"stringData":{"token":cli_token}})
@@ -675,25 +678,46 @@ assert all(r["failed_requests"]==0 and r["requests"]>0 for r in workers)
                 load.stdin.write(load_script);load.stdin.close()
                 started=time.monotonic(); next_event=started+min(3,args.soak_seconds/4); events=0
                 try:
+                    initial=json.loads(command(*kubectl,"-n",ns,"get","pods","-l","app.kubernetes.io/instance=gateway","-o","json"))["items"]
+                    stable=next(p for p in initial if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[{}])))
+                    stable_uid=stable["metadata"]["uid"]
+                    stable_restarts=sum(c.get("restartCount",0) for c in stable["status"]["containerStatuses"])
                     with samples_file.open("w") as samples:
                         while load.poll() is None:
                             now=time.monotonic()
                             assert now-started < args.soak_seconds+120, "soak load exceeded its deadline"
                             pods=json.loads(command(*kubectl,"-n",ns,"get","pods","-l","app.kubernetes.io/instance=gateway","-o","json"))["items"]
                             active=[p for p in pods if p.get("status",{}).get("podIP") and not p["metadata"].get("deletionTimestamp")]
+                            steady=next((p for p in active if p["metadata"]["uid"]==stable_uid),None)
+                            assert steady is not None, "the continuous soak replica disappeared"
+                            assert sum(c.get("restartCount",0) for c in steady.get("status",{}).get("containerStatuses",[]))==stable_restarts, "the continuous soak replica restarted"
                             addresses={p["metadata"]["name"]:p["status"]["podIP"] for p in active}
-                            probe='import json,urllib.request\nresult={}\nfor name,address in '+repr(addresses)+'.items():\n try:\n  metrics=urllib.request.urlopen("http://"+address+":9090/metrics",timeout=3).read().decode()\n  result[name]={line.split()[0]:float(line.split()[1]) for line in metrics.splitlines() if line.startswith(("process_","rgnix_engine_info","rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready "))}\n except Exception as error: result[name]={"error":str(error)}\nprint(json.dumps(result))'
+                            probe=r'''import json, urllib.request
+result = {}
+for name, address in ADDRESSES.items():
+ try:
+  metrics = urllib.request.urlopen("http://"+address+":9090/metrics",timeout=3).read().decode()
+  result[name] = {line.rsplit(None,1)[0]:float(line.rsplit(None,1)[1])
+   for line in metrics.splitlines() if line.startswith(("process_","rgnix_engine_info",
+    "rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready "))}
+ except Exception as error:
+  result[name] = {"error":str(error)}
+print(json.dumps(result))
+'''.replace("ADDRESSES",repr(addresses))
                             observation=json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",probe))
-                            sample={"elapsed_seconds":now-started,"pods":observation,"images":{p["metadata"]["name"]:[c.get("imageID") for c in p.get("status",{}).get("containerStatuses",[])] for p in active}}
+                            stable_metrics=observation[steady["metadata"]["name"]]
+                            assert stable_metrics.get("rgnix_ready")==1, stable_metrics
+                            sample={"elapsed_seconds":now-started,"stable_pod_uid":stable_uid,"pods":observation,"images":{p["metadata"]["name"]:[c.get("imageID") for c in p.get("status",{}).get("containerStatuses",[])] for p in active}}
                             if now>=next_event and now-started<args.soak_seconds-5:
                                 events+=1
                                 publish_plugin(f"soak-{events}")
                                 sample["event"]="plugin publication"
                                 if events==1 or events%6==0:
                                     certificate(100+events)
-                                    ready=[p for p in active if any(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[]))]
+                                    ready=[p for p in active if all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[{}]))]
                                     if len(ready)==2:
-                                        command(*kubectl,"-n",ns,"delete","pod",ready[0]["metadata"]["name"],"--wait=false")
+                                        replacement=next(p for p in ready if p["metadata"]["uid"]!=stable_uid)
+                                        command(*kubectl,"-n",ns,"delete","pod",replacement["metadata"]["name"],"--wait=false")
                                         sample["event"]+="; TLS rotation; Pod replacement"
                                 next_event=now+args.soak_event_seconds
                             samples.write(json.dumps(sample)+"\n"); samples.flush()
@@ -707,7 +731,7 @@ assert all(r["failed_requests"]==0 and r["requests"]>0 for r in workers)
                 output.seek(0); data=output.read()
                 measurements=[json.loads(line) for line in data.splitlines() if line.startswith('{')]
                 soak=measurements[-1] if measurements else {"error":data[-4096:]}
-                checks.append({"name":"Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement","passed":status==0,"seconds":args.soak_seconds,"scale_routes":args.scale_routes,"events":events,"samples_file":str(samples_file),"load_file":str(output_file),"connection_mode":"HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker; latency samples retain at most 3000 successes per worker","measurement":soak})
+                checks.append({"name":"Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement","passed":status==0,"seconds":args.soak_seconds,"scale_routes":args.scale_routes,"events":events,"stable_pod_uid":stable_uid,"samples_file":str(samples_file),"load_file":str(output_file),"connection_mode":"HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker; latency samples retain at most 3000 successes per worker","measurement":soak})
                 assert status==0,data
             reconnect()
             wait("Replacement replica acknowledges the accepted configuration",lambda:admin("/v1/fleet",credential=operator)[1].get("converged"),seconds=180)
@@ -803,5 +827,5 @@ assert all(r["failed_requests"]==0 and r["requests"]>0 for r in workers)
         forward.terminate()
         forward.wait(timeout=5)
         forward_log.close()
-        pathlib.Path(args.output).write_text(json.dumps({"complete":failure is None,"failure":failure,"namespace":ns,"peer_namespace":peer,"image":args.image,"soak_seconds":args.soak_seconds,"scale_routes":args.scale_routes,"checks":checks,"scope":"Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"}, indent=2) + "\n")
+        pathlib.Path(args.output).write_text(json.dumps({"complete":failure is None,"failure":failure,"namespace":ns,"peer_namespace":peer,"image":args.image,"engine":args.engine or ("hyper" if args.experimental_hyper else "pingora"),"soak_seconds":args.soak_seconds,"scale_routes":args.scale_routes,"checks":checks,"scope":"Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"}, indent=2) + "\n")
 print(f"PASS {len(checks)} checks; namespace retained for inspection")

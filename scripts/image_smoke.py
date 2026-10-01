@@ -39,11 +39,14 @@ with tempfile.TemporaryDirectory(prefix="rgnix-image-") as temporary:
     directory.chmod(0o755)
     config.write_text("events {} http { server { listen 8080; return 200 image-ok; } }")
     config.chmod(0o644)
-    for engine in ("hyper", "pingora"):
+    default = docker("run", "--rm", "-v", f"{config}:/etc/rgnix/nginx.conf:ro", args.image,
+                     "check", "-c", "/etc/rgnix/nginx.conf").rsplit("engine=", 1)[1]
+    for selection, engine in ((None, default), ("hyper", "hyper"), ("pingora", "pingora")):
+        options = ["--engine", selection] if selection else []
         container = docker("run", "-d", "--read-only", "--cap-drop=ALL",
             "--tmpfs", "/tmp", "-p", "127.0.0.1::8080", "-p", "127.0.0.1::9090",
             "-v", f"{config}:/etc/rgnix/nginx.conf:ro", args.image, "serve",
-            "-c", "/etc/rgnix/nginx.conf", "--engine", engine, "--admin", "0.0.0.0:9090",
+            "-c", "/etc/rgnix/nginx.conf", *options, "--admin", "0.0.0.0:9090",
             "--shutdown-grace-seconds", "0")
         try:
             ports = json.loads(docker("inspect", container))[0]["NetworkSettings"]["Ports"]
@@ -53,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix="rgnix-image-") as temporary:
             assert request(port)[2] == b"image-ok"
             metrics = request(admin, "/metrics")[2].decode()
             assert f'rgnix_engine_info{{engine="{engine}"}} 1' in metrics
-            checks.append({"engine": engine, "http": "PASS", "ready": "PASS", "metrics": "PASS"})
+            checks.append({"selection": selection or "default", "engine": engine, "http": "PASS", "ready": "PASS", "metrics": "PASS"})
         except Exception:
             print(docker("logs", container), flush=True)
             raise
