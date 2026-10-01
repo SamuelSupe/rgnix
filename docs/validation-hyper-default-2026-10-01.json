@@ -1,0 +1,241 @@
+{
+  "recorded_at": "2026-10-01T10:33:42Z",
+  "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
+  "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
+  "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
+  "current_default": "pingora",
+  "unit": {
+    "passed": 25,
+    "ignored": 1
+  },
+  "cli_and_helm": {
+    "helm_checks": 12,
+    "pingora_only_runtime": "PASS"
+  },
+  "local_release": {
+    "sha256": "14bc92121ee7aa4552d0681b3fd2fd2867b24bb7ac72df6fea287543fc786abf",
+    "arch": "arm64",
+    "build": "Bookworm / Rust 1.98 / http3,jemalloc",
+    "behavior": {
+      "pingora": {
+        "acceptance": 104,
+        "ingress-recovery": 57,
+        "log-rotation": 20,
+        "product-features": 115,
+        "global-rate-results": 12
+      },
+      "hyper": {
+        "acceptance": 104,
+        "ingress-recovery": 57,
+        "log-rotation": 20,
+        "product-features": 115,
+        "global-rate-results": 12
+      }
+    },
+    "otlp_checks_per_engine": 32,
+    "migration_checks_per_engine": 10,
+    "hyper_checks": 68,
+    "protocol_checks": 71
+  },
+  "native_ci": {
+    "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36847012578",
+    "overall": "failure",
+    "jobs": {
+      "check": "success",
+      "hyper (ubuntu-24.04-arm)": "failure",
+      "hyper (ubuntu-24.04)": "failure",
+      "artifact (arm64, ubuntu-24.04-arm)": "success",
+      "artifact (amd64, ubuntu-24.04)": "success",
+      "image (amd64, ubuntu-24.04)": "success",
+      "image (arm64, ubuntu-24.04-arm)": "success"
+    },
+    "images": {
+      "amd64": {
+        "image": "rgnix:ci",
+        "image_id": "sha256:630d9c659e7482f477f3ffca1c695b8c8f288cae2cdb64674b0f644af073b58d",
+        "architecture": "amd64",
+        "host_architecture": "x86_64",
+        "binary_sha256": "1286ce12c41fc7b556784e4f6aba79ea998bd2d1b6a627d5e08a5462c34be8ce",
+        "checks": [
+          {
+            "engine": "hyper",
+            "http": "PASS",
+            "ready": "PASS",
+            "metrics": "PASS"
+          },
+          {
+            "engine": "pingora",
+            "http": "PASS",
+            "ready": "PASS",
+            "metrics": "PASS"
+          }
+        ]
+      },
+      "arm64": {
+        "image": "rgnix:ci",
+        "image_id": "sha256:694d908a4dfe5b96b2435a8d59e2e852a3da4d37bb832ba22d7013cad8d6f6df",
+        "architecture": "arm64",
+        "host_architecture": "aarch64",
+        "binary_sha256": "7adeb2f526213079d813637c624b22bf41e22f5d2c384d10a20bfcc44661ad4b",
+        "checks": [
+          {
+            "engine": "hyper",
+            "http": "PASS",
+            "ready": "PASS",
+            "metrics": "PASS"
+          },
+          {
+            "engine": "pingora",
+            "http": "PASS",
+            "ready": "PASS",
+            "metrics": "PASS"
+          }
+        ]
+      }
+    },
+    "second_run": "https://github.com/SamuelSupe/rgnix/actions/runs/36849418205",
+    "second_run_status": "PASS",
+    "second_run_jobs": {
+      "hyper (ubuntu-24.04)": "success",
+      "artifact (arm64, ubuntu-24.04-arm)": "success",
+      "check": "success",
+      "hyper (ubuntu-24.04-arm)": "success",
+      "artifact (amd64, ubuntu-24.04)": "success",
+      "image (arm64, ubuntu-24.04-arm)": "success",
+      "image (amd64, ubuntu-24.04)": "success"
+    }
+  },
+  "kubernetes": {
+    "logical_nodes": 3,
+    "physical_hosts": 1,
+    "ingress_checks": 46,
+    "gateway_soak": {
+      "status": "STOPPED / FAIL",
+      "seconds_required": 86400,
+      "latest": {
+        "final": false,
+        "elapsed_seconds": 330.1488986500044,
+        "workers": [
+          {
+            "requests": 7263,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 7284,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 12329,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 7262,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 7322,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 12317,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 53777,
+        "failed_requests": 4,
+        "retained_latency_samples": 18000,
+        "p99_ms": 84.10683399415575
+      },
+      "process_file": ".local/hyper-default-gates-20261001/soak-process.json",
+      "reason": "4 HTTP 503 errors; logs report shared namespace Redis rate quota unavailable during concurrent benchmark; cause requires serial reproduction"
+    },
+    "serial_verification": {
+      "status": "BENCHMARK_RUNNING",
+      "directory": ".local/hyper-default-serial-20261001",
+      "process_file": ".local/hyper-default-serial-20261001/process.json",
+      "new_soak_namespace": "rgnix-hyper-serial-soak-20261001",
+      "order": [
+        "benchmark and A/A analysis",
+        "24-hour mixed load"
+      ]
+    }
+  },
+  "performance": {
+    "first_run": "STOPPED / A-A not calibrated; overlapping functional checks",
+    "second_run": "STOPPED / overlapped with the failed soak",
+    "report": ".local/hyper-default-gates-20261001/benchmark-clean.json",
+    "serial_run": "RUNNING",
+    "serial_report": ".local/hyper-default-serial-20261001/benchmark.json"
+  },
+  "automation_id": "hyper",
+  "soak_fail_fast_regression": {
+    "status": "PASS",
+    "elapsed_seconds": 0.15981883400000002,
+    "measurement": {
+      "final": true,
+      "elapsed_seconds": 0.037893082999999994,
+      "workers": [
+        {
+          "requests": 0,
+          "failed_requests": 1,
+          "errors": [
+            "[Errno 61] Connection refused"
+          ]
+        },
+        {
+          "requests": 0,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 404: b'<html>\\r\\n<head><title>404 Not Found</title></head>\\r\\n<body>\\r\\n<center><h1>404 Not Found</h1></center>\\r\\n<hr><center>nginx/1.'"
+          ]
+        },
+        {
+          "requests": 0,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 404: b'<html>\\r\\n<head><title>404 Not Found</title></head>\\r\\n<body>\\r\\n<center><h1>404 Not Found</h1></center>\\r\\n<hr><center>nginx/1.'"
+          ]
+        },
+        {
+          "requests": 0,
+          "failed_requests": 1,
+          "errors": [
+            "[Errno 61] Connection refused"
+          ]
+        },
+        {
+          "requests": 0,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 404: b'<html>\\r\\n<head><title>404 Not Found</title></head>\\r\\n<body>\\r\\n<center><h1>404 Not Found</h1></center>\\r\\n<hr><center>nginx/1.'"
+          ]
+        },
+        {
+          "requests": 0,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 404: b'<html>\\r\\n<head><title>404 Not Found</title></head>\\r\\n<body>\\r\\n<center><h1>404 Not Found</h1></center>\\r\\n<hr><center>nginx/1.'"
+          ]
+        }
+      ],
+      "requests": 0,
+      "failed_requests": 6,
+      "retained_latency_samples": 0,
+      "p99_ms": null
+    }
+  }
+}

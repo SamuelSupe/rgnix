@@ -631,6 +631,7 @@ started_at = time.monotonic()
 stop = started_at+SECONDS
 payload = b"body-routing-soak"*256
 lock = threading.Lock()
+failed = threading.Event()
 workers = [{"requests":0,"failed_requests":0,"errors":[],"samples":deque(maxlen=3000)} for _ in range(6)]
 
 def report(final=False):
@@ -642,7 +643,7 @@ def report(final=False):
 def load(worker):
  state=workers[worker]
  client=http.client.HTTPConnection(host,80,timeout=3)
- while time.monotonic()<stop:
+ while time.monotonic()<stop and not failed.is_set():
   started=time.monotonic()
   try:
    if worker%3==0 and client.sock is None:
@@ -656,6 +657,7 @@ def load(worker):
    with lock:
     state["requests"]+=1; state["samples"].append(time.monotonic()-started)
   except Exception as error:
+   failed.set()
    with lock:
     state["failed_requests"]+=1
     if len(state["errors"])<20: state["errors"].append(str(error))
@@ -665,7 +667,7 @@ def load(worker):
 with concurrent.futures.ThreadPoolExecutor(6) as pool:
  futures=[pool.submit(load,worker) for worker in range(6)]
  while any(not future.done() for future in futures):
-  time.sleep(min(30,max(0.1,stop-time.monotonic())))
+  if failed.wait(timeout=min(30,max(0.1,stop-time.monotonic()))): break
   report()
  for future in futures: future.result()
 report(final=True)
@@ -699,7 +701,8 @@ for name, address in ADDRESSES.items():
   metrics = urllib.request.urlopen("http://"+address+":9090/metrics",timeout=3).read().decode()
   result[name] = {line.rsplit(None,1)[0]:float(line.rsplit(None,1)[1])
    for line in metrics.splitlines() if line.startswith(("process_","rgnix_engine_info",
-    "rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready "))}
+    "rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready ",
+    "rgnix_global_rate_limit_total","rgnix_global_rate_limit_seconds_sum","rgnix_global_rate_limit_seconds_count"))}
  except Exception as error:
   result[name] = {"error":str(error)}
 print(json.dumps(result))

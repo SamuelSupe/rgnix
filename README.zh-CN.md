@@ -87,6 +87,8 @@ cargo build --release --locked
 
 普通 Cargo 构建包含两种内核，继续使用系统分配器。使用 `--engine hyper` 启用 Hyper、`--engine pingora` 显式回退，`check` 按所选内核预检。当前开发分支的 Docker 构建与未来原生发行包默认启用 `http3,jemalloc`，镜像构建可用 `CARGO_FEATURES` 覆盖；[发行与稳定性门槛](docs/hyper-default-rollout.md)通过前，默认运行仍为 Pingora。这不改变已有 v0.5.0 发行产物。
 
+双架构 Bookworm 发行产物与镜像检查已通过，24 小时混合负载及性能资格仍在验证；当前状态见[默认内核准备记录](docs/validation-hyper-default-2026-10-01.md)。
+
 [镜像签名、校验和与产物证明](docs/releases.md) · [部署文档](docs/deployment.md)。
 
 ## 编程式路由

@@ -5,6 +5,9 @@
 {{- if not (has .Values.mode (list "ingress" "gateway")) }}
 {{- fail "mode must be ingress or gateway" }}
 {{- end }}
+{{- if and (ne .Values.engine nil) (not (kindIs "string" .Values.engine)) }}
+{{- fail "engine must be hyper or pingora, or null for the chart default" }}
+{{- end }}
 {{- $engine := default "pingora" .Values.engine }}
 {{- if and (not .Values.engine) (ne .Values.experimentalHyper.enabled nil) }}
 {{- $engine = ternary "hyper" "pingora" .Values.experimentalHyper.enabled }}

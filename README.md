@@ -87,6 +87,8 @@ Linux GNU builds can opt into jemalloc with `cargo build --release --locked --fe
 This links the Rust allocator into the binary; no `LD_PRELOAD` or runtime allocator package is needed.
 Plain Cargo builds include both engines and keep the system allocator. Select Hyper with `--engine hyper` and roll back with `--engine pingora`; `check` validates the selected engine before startup. On the current development branch, Docker builds and future native release packages enable `http3,jemalloc`; override `CARGO_FEATURES` when building a different feature set. Pingora remains the runtime default pending the [release and stability gates](docs/hyper-default-rollout.md). These development defaults do not change the existing v0.5.0 artifacts. See the [allocator comparison](docs/validation-allocator-2026-09-28.md) for measured CPU, memory and calibration limits.
 
+Both native Bookworm architectures and final images passed the artifact gates; the 24-hour mixed load and performance qualification remain in progress. See the [default-engine preparation record](docs/validation-hyper-default-2026-10-01.md) for current evidence and remaining gates.
+
 [Image signatures, checksums and attestations](docs/releases.md) · [Deployment instructions](docs/deployment.md).
 
 ## Programmable routing
