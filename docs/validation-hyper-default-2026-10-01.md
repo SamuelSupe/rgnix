@@ -68,4 +68,12 @@ Gateway 主流程进入了 24 小时混合负载，首次发布/轮换/替换后
 
 发现 `gateway_e2e.py` 未指定内核时仍向 Chart 写入旧的 `experimentalHyper.enabled=false`，导致该用法选择 Pingora。本次将未指定值保留为 `null`，沿用 Chart 默认值，并在入口流程核对两个副本的 `rgnix_engine_info`；报告同时记录所检查的内核。显式 `--engine pingora` 和旧 Hyper 参数继续支持。
 
-Python 语法检查及 Gateway 模式的默认 Hyper、显式 Pingora Helm 渲染通过；这些检查不算真实 Gateway 运行通过。默认 Gateway 复验因上述诊断失败而暂缓，旧收据另存为 `.local/hyper-default-switch-20261001/default-gateway-process-before-awake.json`。现已重新排队，等待新接电诊断成功结束后执行；仍使用真实产品镜像、独立命名空间 `rgnix-hyper-default-gateway-20261001`，不指定内核参数。收据为 `.local/hyper-default-switch-20261001/default-gateway-process.json`；新的诊断失败也会暂缓该复验。产品 Rust 源码与已测产物保持一致。
+Python 语法检查及 Gateway 模式的默认 Hyper、显式 Pingora Helm 渲染通过；这些检查不算真实 Gateway 运行通过。默认 Gateway 复验因上述诊断失败而暂缓，旧收据另存为 `.local/hyper-default-switch-20261001/default-gateway-process-before-awake.json`。现已重新排队，等待新接电诊断成功结束后执行；仍使用真实产品镜像、独立命名空间 `rgnix-hyper-default-gateway-20261001`，不指定内核参数。收据为 `.local/hyper-default-switch-20261001/default-gateway-process.json`；新的诊断失败也会暂缓该复验。该复验仍对应 d2c60 产品产物，以下连接管理修复需要另行取得产物证据。
+
+## 共享限流连接管理修复
+
+在 OrbStack 用已测产品二进制 `da8bac…f3db7` 和受控 Redis 协议端点复现了独立缺陷：配置 200 毫秒预算、并发上限 1，暂存第一个扣额响应，再发送一个超额请求。三个请求依次得到 200、503、200，端点收到两次 EVAL，但正常连接被超额请求清除，下一次请求额外建立了第二条连接。原始记录在 `.local/hyper-limiter-reconnect-20261001/baseline.json`；新增的完整共享限流回归在原二进制上准确失败于“保留正常连接”检查，其余已执行的检查通过。
+
+源码修正只清除本请求实际使用的连接，并比较连接身份，避免未访问 Redis 的并发拒绝清除正常连接，也避免旧连接的失败清除新连接。限流预算、失败关闭和禁止重放规则保持不变。Rust 格式、Python 语法及差异检查通过；修复后二进制、两种内核的回归、双架构发行产物及最终镜像仍待运行验证。正在运行的一小时诊断和已排队的默认 Gateway 使用此前产物，不能作为此修复的通过证据。
+
+这次复现确认了连接管理缺陷，没有证明它导致此前六次约 0.5 秒的共享限流 503；原始故障根因仍待确认。上述少量请求及一次共享限流回归与诊断窗口有重叠，仅用于局部回归，不算无干扰的长测资格。

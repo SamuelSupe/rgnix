@@ -4,12 +4,47 @@ import concurrent.futures
 import json
 import pathlib
 import signal
+import socket
+import socketserver
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 from integration import RESULTS, check, free_port, request, wait_for
+
+
+class HeldCoordinator(socketserver.StreamRequestHandler):
+    def handle(self):
+        self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        with self.server.lock:
+            self.server.connections += 1
+        while True:
+            line = self.rfile.readline()
+            if not line:
+                return
+            if not line.startswith(b"*"):
+                raise AssertionError("expected RESP array")
+            arguments = []
+            for _ in range(int(line[1:])):
+                size = int(self.rfile.readline()[1:])
+                arguments.append(self.rfile.read(size))
+                if self.rfile.read(2) != b"\r\n":
+                    raise AssertionError("invalid RESP terminator")
+            if arguments[0] == b"EVAL":
+                with self.server.lock:
+                    self.server.debits += 1
+                    first = self.server.debits == 1
+                if first:
+                    self.server.entered.set()
+                    if not self.server.release.wait(1):
+                        raise AssertionError("held debit was not released")
+                response = b":1\r\n"
+            else:
+                response = b"+OK\r\n"
+            self.wfile.write(response)
+            self.wfile.flush()
 
 
 def main():
@@ -29,11 +64,11 @@ def main():
             wait_for(lambda: subprocess.run(["redis-cli", "-p", str(redis_port), "ping"], capture_output=True).stdout.startswith(b"NOAUTH"), True)
             return process
 
-        def start(mode="closed", scope="qa", index=0):
+        def start(mode="closed", scope="qa", index=0, coordinator_port=None, max_inflight=256, timeout_ms=100):
             port, admin = free_port(), free_port()
             config = root / f"{mode}-{index}.json"
-            config.write_text(json.dumps({"url": f"redis://:{password}@127.0.0.1:{redis_port}", "scope": scope,
-                                          "failure_mode": mode, "timeout_ms": 100}))
+            config.write_text(json.dumps({"url": f"redis://:{password}@127.0.0.1:{coordinator_port or redis_port}", "scope": scope,
+                                          "failure_mode": mode, "timeout_ms": timeout_ms, "max_inflight": max_inflight}))
             conf = root / f"{mode}-{index}.conf"
             conf.write_text(f'''http {{ access_log off; server {{ listen 127.0.0.1:{port};
 location /health {{ return 200 "ready"; }}
@@ -75,6 +110,28 @@ location /parallel {{ rgnix_limit_rate 1 burst=16 key=route; return 200 "accepte
             for port in (first[0], second[0]):
                 wait_for(lambda: hit(port, "connection-probe"), 200)
             check("Coordinator recovery reconnects without a process restart", [hit(first[0], "reconnected"), hit(second[0], "reconnected"), hit(first[0], "reconnected")] == [200, 200, 429])
+            with socketserver.ThreadingTCPServer(("127.0.0.1", 0), HeldCoordinator) as held:
+                held.daemon_threads = True
+                held.lock = threading.Lock()
+                held.connections = held.debits = 0
+                held.entered, held.release = threading.Event(), threading.Event()
+                threading.Thread(target=held.serve_forever, daemon=True).start()
+                try:
+                    limited = start(index=6, coordinator_port=held.server_address[1], max_inflight=1, timeout_ms=200)
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        pending = pool.submit(hit, limited[0])
+                        if not held.entered.wait(2):
+                            raise AssertionError("debit did not reach coordinator")
+                        rejected = hit(limited[0])
+                        held.release.set()
+                        accepted = pending.result(timeout=2)
+                    next_status = hit(limited[0])
+                    check("Local concurrency overload fails closed without replaying a debit",
+                          (accepted, rejected, next_status) == (200, 503, 200) and held.debits == 2)
+                    check("Local concurrency overload preserves the healthy coordinator connection", held.connections == 1)
+                finally:
+                    held.release.set()
+                    held.shutdown()
             config = json.loads(first[2].read_text()); config["url"] = "rediss://:leak-test@127.0.0.1:1/#insecure"
             first[2].write_text(json.dumps(config))
             wait_for(lambda: b"rgnix_control_reload_errors_total 1" in request(first[1], "/metrics")[2], True)

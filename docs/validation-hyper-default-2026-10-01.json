@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-01T13:11:06.843874+00:00",
+  "recorded_at": "2026-10-01T13:30:08.126557+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -841,5 +841,71 @@
       "waits_for": ".local/hyper-limiter-awake-20261001/diagnostic-process.json",
       "previous_deferral_receipt": ".local/hyper-default-switch-20261001/default-gateway-process-before-awake.json"
     }
+  },
+  "shared_limiter_connection_fix": {
+    "status": "SOURCE FIX / RUNTIME VALIDATION PENDING",
+    "base_commit": "354c965c7e12d4497f2734f3ed9ae0c93970e935",
+    "previous_runtime_source_commit": "d2c60aba05477568b176fdbc5220645fcd5fbd94",
+    "baseline": {
+      "binary_sha256": "da8bac193c58e6c357ce5a83d3b495a70c99969929775f753eedeb45f0df3db7",
+      "engine": "hyper",
+      "timeout_ms": 200,
+      "max_inflight": 1,
+      "elapsed_seconds": 0.05297282699029893,
+      "statuses": {
+        "held": 200,
+        "overload": 503,
+        "next": 200
+      },
+      "connections": 2,
+      "commands": [
+        {
+          "connection": 1,
+          "command": "CLIENT"
+        },
+        {
+          "connection": 1,
+          "command": "CLIENT"
+        },
+        {
+          "connection": 1,
+          "command": "EVAL"
+        },
+        {
+          "connection": 2,
+          "command": "CLIENT"
+        },
+        {
+          "connection": 2,
+          "command": "CLIENT"
+        },
+        {
+          "connection": 2,
+          "command": "EVAL"
+        }
+      ],
+      "healthy_connection_evicted": true,
+      "metrics": [
+        "rgnix_global_rate_limit_total{result=\"allowed\"} 2",
+        "rgnix_global_rate_limit_total{result=\"unavailable_closed\"} 1"
+      ]
+    },
+    "baseline_regression": {
+      "status": "EXPECTED FAIL",
+      "failed_check": "Local concurrency overload preserves the healthy coordinator connection",
+      "log": ".local/hyper-limiter-reconnect-20261001/baseline-regression.log"
+    },
+    "changes": [
+      "invalidate only the coordinator connection used by the failed request",
+      "retain healthy connection on local concurrency rejection",
+      "protect replacement connection from stale failures"
+    ],
+    "policy": "configured deadline, failure-closed mode and no ambiguous debit replay unchanged",
+    "static_checks": "PASS / Rust format, Python syntax, diff check",
+    "runtime_checks": "NOT RUN / new production executable required",
+    "native_ci": "PENDING / new source requires fresh dual-architecture artifact and image proof",
+    "local_build_order": "after awake diagnosis and default Gateway; defer on failure",
+    "original_six_503_root_cause": "UNCONFIRMED / this controlled concurrency reproduction does not explain their measured latency",
+    "diagnostic_scope": "small regression probes overlap instrumented diagnosis; neither is final 24-hour qualification"
   }
 }
