@@ -3225,7 +3225,7 @@
     "evidence_sha256_file": ".local/hyper-runtime-scheduling-diagnosis-20261002/failure-evidence-sha256.json"
   },
   "native_thread_mapping_diagnosis": {
-    "status": "BOUNDED_DIAGNOSIS_RUNNING",
+    "status": "BOUNDED_REQUEST_WINDOW_PASS_POST_LOAD_VALIDATION_FACILITY_FAILED_REVIEWED",
     "qualification": false,
     "build": {
       "base_runtime_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
@@ -3378,7 +3378,7 @@
       "preflight_archive": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-thread-map-20261002/preflight-load-probe-path-regression"
     },
     "process_file": ".local/hyper-runtime-thread-map-20261002/process.json",
-    "mixed_load_started_observed": false,
+    "mixed_load_started_observed": true,
     "preflight_dependency_correction": {
       "status": "FROZEN_COMPANION_RESTORED",
       "load_probe_sha256": "367b036687bee83679d85cae59fd8a5e21c2684ac12b6549cfb81754e5bb059a",
@@ -3394,7 +3394,254 @@
       "product_failure": false,
       "owned_processes_exited": true,
       "archive": ".local/hyper-runtime-thread-map-20261002/preflight-load-probe-path-regression"
-    }
+    },
+    "published_startup_snapshot": {
+      "status": "BOUNDED_DIAGNOSIS_RUNNING",
+      "mixed_load_started_observed": false
+    },
+    "review_summary_file": ".local/hyper-runtime-thread-map-20261002/review-summary.json",
+    "review_evidence_sha256_file": ".local/hyper-runtime-thread-map-20261002/review-evidence-sha256.json",
+    "load": {
+      "final": true,
+      "wall_time": 1790941946.8084896,
+      "elapsed_seconds": 900.114088190021,
+      "workers": [
+        {
+          "requests": 20046,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 20193,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 34077,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 20062,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 20151,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 34039,
+          "failed_requests": 0,
+          "errors": []
+        }
+      ],
+      "requests": 148568,
+      "failed_requests": 0,
+      "retained_latency_samples": 18000,
+      "p99_ms": 56.5163969877176
+    },
+    "product_request_failure": false,
+    "entire_diagnostic_pass": false,
+    "checks_passed": 108,
+    "otlp_gate": {
+      "name": "Continuous replica delivers OTLP logs and spans without dropping records during soak",
+      "passed": true,
+      "delivered": {
+        "logs": 145822.0,
+        "traces": 291644.0
+      }
+    },
+    "post_load_failure": {
+      "type": "certificate_fixture_common_name_length",
+      "full_service_dns_name": "gateway-admission.rgnix-hyper-runtime-diagnostic-20261002-r4b.svc",
+      "cn_length": 65,
+      "openssl_max_cn_size": 64,
+      "raw_report_failure": {
+        "type": "RuntimeError",
+        "message": ".....+......+.+..+......+.+..............+.+.........+.................+....+.........+.....+.........+.+......+...+.....+.+.....+.........+............+.+..+...+.......+......+..+...+.......+.....+...............+.......+...+........+......+.+++++++++++++++++++++++++++++++++++++++*....+...+....+...+..+...+....+.....+.........+.+.........+.....+.+.....+++++++++++++++++++++++++++++++++++++++*.......+..........+.....+.+.....+.+..............+....+..+.......+......+..+....+........+.+......+......+........+....+..+...+.......+......+...+.........+.....+...+...+....+......+.........+..++++++\n................+...+...+........+.........+++++++++++++++++++++++++++++++++++++++*...+.........+......+.....+...+.+...........+.............+..+.+.................+.......+...........+.......+...+...+..+...+....+......+++++++++++++++++++++++++++++++++++++++*..+....+.....+...............+......+.+...+.........+..+.+............+..+...+.+..+...+.........+......+....+...........+.+.....................+.....+...+....+..+....+............+..+.+...........+....+.....+.+......+..+...+...+.......+...+......+......+..+.......+...........+...........................+...+....+...+.....+...+.......+........+.......+......+..............++++++\n-----\n80BFA6F401000000:error:06800097:asn1 encoding routines:ASN1_mbstring_ncopy:string too long:crypto/asn1/a_mbstr.c:115:maxsize=64\nreq: Error adding subject name attribute \"/CN=gateway-admission.rgnix-hyper-runtime-diagnostic-20261002-r4b.svc\"\n"
+      },
+      "admission_checks_completed": false,
+      "thread_target_loss_scope": "After successful load/OTLP gates, frozen harness reconnect() explicitly starts planned Gateway rolling restart before admission checks; old continuous PID disappears after request window."
+    },
+    "observer_errors": [
+      {
+        "probe": "thread-error",
+        "error": "[Errno 2] No such file or directory: '/proc/160894/stat'",
+        "facility_error": true,
+        "wall_time": 1790941971.2973566,
+        "observer_pid": 161146
+      }
+    ],
+    "owned_processes_exited": true,
+    "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW"
   },
-  "last_diagnostic_review_at": "2026-10-02T11:33:56.658952+00:00"
+  "last_diagnostic_review_at": "2026-10-02T12:19:00.148255+00:00",
+  "gateway_admission_certificate_fixture_fix": {
+    "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_FULL_GATEWAY_REVALIDATION_RUNNING",
+    "qa_file": "scripts/gateway_e2e.py",
+    "runtime_source_changed": false,
+    "change": "Use bounded Common Name; initial and rotated certificate SAN retains the full service DNS hostname",
+    "regression": {
+      "status": "PASS",
+      "verified_at": "2026-10-02T12:13:31.282634+00:00",
+      "environment": "OrbStack existing Kind node OpenSSL; exact certificate commands evaluated from QA source",
+      "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r4b",
+      "hostname": "gateway-admission.rgnix-hyper-runtime-diagnostic-20261002-r4b.svc",
+      "hostname_length": 65,
+      "baseline_return_code": 1,
+      "baseline_stderr": "...........+.......+...+..+...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*....+...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*...................+...+...+...+............+.....+....+...+...+..+.......+...+........+...+.......+.....+....+...+...........+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n...+.+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*......+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*..+.....+.......+..+...+.......+...+...+..+.......+..............+.+.........+..+..........+.....+.......+..+................+.....+.........+...+.+..+....+.........+.....+.+...+.....+............+...+.+.........+.....+...+...+..........+..+...+....+...............+............+......+.....+............+.+...........+.+..+......+.+......+..+...+.......+....................+.......+.........+..+.......+.....+......+....+...+..............+.+...+...........+.........+....+..+....+............+....................+.............+..+.........+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n-----\n200011BCFFFF0000:error:06800097:asn1 encoding routines:ASN1_mbstring_ncopy:string too long:../crypto/asn1/a_mbstr.c:106:maxsize=64\nreq: Error adding subject name attribute \"/CN=gateway-admission.rgnix-hyper-runtime-diagnostic-20261002-r4b.svc\"\n",
+      "checks": [
+        {
+          "script": "scripts/gateway_e2e.py",
+          "certificate": "initial",
+          "generation": "PASS",
+          "full_service_dns_verification": "PASS",
+          "wrong_hostname_rejected": true
+        },
+        {
+          "script": "scripts/gateway_e2e.py",
+          "certificate": "rotated",
+          "generation": "PASS",
+          "full_service_dns_verification": "PASS",
+          "wrong_hostname_rejected": true
+        },
+        {
+          "script": ".local/hyper-runtime-thread-map-r5-20261002/source/scripts/gateway_diagnostic.py",
+          "certificate": "initial",
+          "generation": "PASS",
+          "full_service_dns_verification": "PASS",
+          "wrong_hostname_rejected": true
+        },
+        {
+          "script": ".local/hyper-runtime-thread-map-r5-20261002/source/scripts/gateway_diagnostic.py",
+          "certificate": "rotated",
+          "generation": "PASS",
+          "full_service_dns_verification": "PASS",
+          "wrong_hostname_rejected": true
+        }
+      ],
+      "scope": "Certificate fixture regression, not Gateway or product soak qualification"
+    },
+    "qa_ci_status": "NOT_YET_OBSERVED_FOR_NEW_PUBLICATION",
+    "scope": "Validation fixture fix only; no explanation for earlier shared-limiter HTTP 503"
+  },
+  "native_thread_mapping_followup": {
+    "status": "BOUNDED_DIAGNOSIS_RUNNING",
+    "qualification": false,
+    "start": {
+      "pid": 92304,
+      "started_at": "2026-10-02T12:17:00.955319+00:00",
+      "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r5a",
+      "soak_seconds": 900,
+      "qualification": false,
+      "image": "rgnix:hyper-runtime-thread-map-20261002",
+      "binary_sha256": "c75ac98223975e33d45a476c4ce7a0d3b403244adef258d1324085f7e03c692c",
+      "runner_sha256": "53a84fb8192571b6066a29eafaa9fcc2f1b8e33d42729d31f6a719c283dbcfb9",
+      "harness_sha256": "3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0",
+      "scope": "Separate full Gateway preflight and bounded mixed load after QA certificate and observer lifecycle corrections; no product budget or runtime change"
+    },
+    "source_provenance": {
+      "prepared_at": "2026-10-02T12:13:15.588933+00:00",
+      "qualification": false,
+      "status": "PREPARED_REUSE_SAME_DIAGNOSTIC_IMAGE",
+      "prior_review": ".local/hyper-runtime-thread-map-20261002/review-summary.json",
+      "copied_files": 1042,
+      "changed_source_files": [
+        "scripts/gateway_e2e.py",
+        "scripts/gateway_diagnostic.py"
+      ],
+      "runtime_source_changed": false,
+      "diagnostic_binary_changed": false,
+      "image": "rgnix:hyper-runtime-thread-map-20261002",
+      "binary_sha256": "c75ac98223975e33d45a476c4ce7a0d3b403244adef258d1324085f7e03c692c",
+      "harness_changes": [
+        "Bounded certificate CN; unchanged full service DNS SAN in initial and rotated certificate",
+        "Stop and acknowledge owned thread observers after successful request/OTLP gates before planned post-load restart"
+      ],
+      "sha256": {
+        "run-diagnostic.py": "53a84fb8192571b6066a29eafaa9fcc2f1b8e33d42729d31f6a719c283dbcfb9",
+        "thread-probe.py": "269751e25f3e6df87b3c92fa70c7edbc57238cce9e241fc4c6aa71d10bfb9db6",
+        "clock-probe.py": "e95b4b92f5f6f51c82106fb436f3d89d8666c021b07018f6969fc3148ff45560",
+        "load-probes.py": "367b036687bee83679d85cae59fd8a5e21c2684ac12b6549cfb81754e5bb059a",
+        "source/scripts/gateway_diagnostic.py": "3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0"
+      }
+    },
+    "image_reuse": {
+      "status": "PASS_SAME_DIAGNOSTIC_IMAGE_REUSE",
+      "image": "rgnix:hyper-runtime-thread-map-20261002",
+      "image_id": "sha256:f8690afbdf5bcdc748bf01c91e28ca9b239b14875e1fc64907f79bf55baf901e",
+      "actual_binary_sha256": "c75ac98223975e33d45a476c4ce7a0d3b403244adef258d1324085f7e03c692c",
+      "product_qualification": false,
+      "original_build_receipt": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-thread-map-20261002/build-process.json",
+      "verified_at": "2026-10-02T12:17:00.954284+00:00"
+    },
+    "handoff_regression": {
+      "status": "PASS",
+      "verified_at": "2026-10-02T12:14:56.543254+00:00",
+      "environment": "OrbStack exact current owned Gateway and Redis processes",
+      "targets": [
+        {
+          "pod": "gateway-84ffc766ff-b6hgm",
+          "uid": "1916b32c-5549-43d5-82cb-08c77f959d8a",
+          "node": "rgnix-hyper-20260928-worker2",
+          "container_id": "3c7455c2aa961c6d5df894bfdc792aeffc14b64738e023cec46e6263be363a4b",
+          "pid": 161604,
+          "start_ticks": 21333600,
+          "argv0": "/usr/local/bin/rgnix"
+        },
+        {
+          "pod": "redis-79fc774b7b-lkdm8",
+          "uid": "2e59251c-da81-49a2-80b7-de4b35080461",
+          "node": "rgnix-hyper-20260928-worker",
+          "container_id": "dfd2019b1153d2dd9061c787829f40383ca588116bcc163da32aa50c4c8210fb",
+          "pid": 149306,
+          "start_ticks": 21210438,
+          "argv0": "redis-server *:6379"
+        }
+      ],
+      "no_early_stop_without_request": true,
+      "ack_after_thread_end_and_exit_zero": true,
+      "targets_still_alive_with_same_identity": true,
+      "thread_ends": {
+        "rgnix-hyper-20260928-worker": {
+          "probe": "thread-end",
+          "stopped": true,
+          "deadline_reached": false,
+          "facility_error": false,
+          "wall_time": 1790943296.1167586,
+          "observer_pid": 154839
+        },
+        "rgnix-hyper-20260928-worker2": {
+          "probe": "thread-end",
+          "stopped": true,
+          "deadline_reached": false,
+          "facility_error": false,
+          "wall_time": 1790943296.3214812,
+          "observer_pid": 162152
+        }
+      },
+      "stop_receipts": {
+        "owned_thread_observers": {
+          "rgnix-hyper-20260928-worker": {
+            "status": "STOPPED",
+            "exit_code": 0,
+            "stopped_at": "2026-10-02T12:14:56.166469+00:00"
+          },
+          "rgnix-hyper-20260928-worker2": {
+            "status": "STOPPED",
+            "exit_code": 0,
+            "stopped_at": "2026-10-02T12:14:56.369453+00:00"
+          }
+        },
+        "threads_stopped_after_load": "2026-10-02T12:14:56.373407+00:00"
+      },
+      "runner_sha256": "ea90a8a85c0fd45803ffc19007681a83636821ea9d1d5f8e3ab70c80446d8436",
+      "scope": "Actual runner handoff functions executed against live owned observers; no product restart or business requests"
+    },
+    "process_file": ".local/hyper-runtime-thread-map-r5-20261002/process.json",
+    "mixed_load_started_observed": false,
+    "scope": "Startup preflight snapshot. Stop owned thread observers only after successful request and OTLP gates, before planned post-load Gateway restart; original load/budgets unchanged."
+  }
 }

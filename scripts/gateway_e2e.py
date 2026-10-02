@@ -766,7 +766,7 @@ print(json.dumps(result))
             wait("Replacement replica acknowledges the accepted configuration",lambda:admin("/v1/fleet",credential=operator)[1].get("converged"),seconds=180)
 
         admission_key,admission_cert=directory/"admission.key",directory/"admission.crt"
-        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(admission_key),"-out",str(admission_cert),"-days","2","-subj",f"/CN=gateway-admission.{ns}.svc","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
+        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(admission_key),"-out",str(admission_cert),"-days","2","-subj","/CN=gateway-admission","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
         apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"admission-tls","namespace":ns},"type":"kubernetes.io/tls","stringData":{"tls.crt":admission_cert.read_text(),"tls.key":admission_key.read_text()}})
         admission_values=directory/"admission-values.json"
         admission_values.write_text(json.dumps({"admission":{"enabled":True,"register":False,"tlsSecret":"admission-tls","caBundle":base64.b64encode(admission_cert.read_bytes()).decode()}}))
@@ -822,7 +822,7 @@ print(json.dumps(result))
         controller_uids={pod["metadata"]["uid"] for pod in controllers}
         addresses=[pod["status"]["podIP"] for pod in controllers]
         rotated_key,rotated_cert=directory/"rotated.key",directory/"rotated.crt"
-        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(rotated_key),"-out",str(rotated_cert),"-days","2","-subj",f"/CN=gateway-admission.{ns}.svc","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
+        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(rotated_key),"-out",str(rotated_cert),"-days","2","-subj","/CN=gateway-admission","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
         old_pem,new_pem=admission_cert.read_text(),rotated_cert.read_text()
         def trust(pem):
             command(*kubectl,"patch","validatingwebhookconfiguration",webhook_name,"--type=json","-p",json.dumps([
