@@ -2501,7 +2501,7 @@
     }
   },
   "independent_clock_diagnosis": {
-    "status": "Gateway preflight running; mixed load not yet observed",
+    "status": "FAILED",
     "start": {
       "pid": 35123,
       "started_at": "2026-10-02T09:15:23.471876+00:00",
@@ -2581,6 +2581,339 @@
       ]
     },
     "scope": "Independent host and Linux interpreters, same diagnostic binary; no admission or worker rule change",
-    "prior_failure_summary_file": ".local/hyper-runtime-diagnosis-20261002/failure-summary.json"
+    "prior_failure_summary_file": ".local/hyper-runtime-diagnosis-20261002/failure-summary.json",
+    "start_snapshot_status": "Gateway preflight running; mixed load not yet observed",
+    "failure_summary_file": ".local/hyper-runtime-clock-diagnosis-20261002/failure-summary.json",
+    "failure_summary": {
+      "status": "FAILED",
+      "qualification": false,
+      "observed_at": "2026-10-02T09:44:09.186441+00:00",
+      "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r2",
+      "started_at": "2026-10-02T09:15:23.520472+00:00",
+      "ended_at": "2026-10-02T09:25:30.014862+00:00",
+      "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9",
+      "actual_load": {
+        "final": true,
+        "wall_time": 1790933103.0364265,
+        "elapsed_seconds": 235.25682424599654,
+        "workers": [
+          {
+            "requests": 4743,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 4830,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 8214,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 4720,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 4848,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 8209,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 35564,
+        "failed_requests": 4,
+        "retained_latency_samples": 18000,
+        "p99_ms": 109.40869199112058
+      },
+      "gateway_preflight_passed_checks": 105,
+      "events": 1,
+      "limiter": {
+        "result": "unavailable_closed",
+        "count": 4,
+        "seconds_sum": 1.134077212,
+        "reasons": [
+          "redis_timeout",
+          "redis_timeout",
+          "redis_timeout",
+          "redis_timeout"
+        ],
+        "phases": [
+          "query",
+          "query",
+          "query",
+          "query"
+        ],
+        "elapsed_us": [
+          203997,
+          310740,
+          309331,
+          309940
+        ],
+        "cache_wait_us": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "query_started_us": [
+          6,
+          3,
+          7,
+          2
+        ],
+        "connection_reused": true,
+        "connection_identity": "0xffff8e438100",
+        "connection_driver_thread": "BG hyper-0.0.0.0:8080-1",
+        "request_threads": [
+          "BG hyper-0.0.0.0:8443-1",
+          "BG hyper-0.0.0.0:8443-0",
+          "BG hyper-0.0.0.0:8080-1"
+        ],
+        "failure_access_logs": [
+          "2026-10-02T09:25:02.932679440Z 10.244.1.250 - - [02/Oct/2026:09:25:02 +0000] \"GET / HTTP/1.1\" 503 0 \"-\" \"-\" route=\"rgnix-hyper-runtime-diagnostic-20261002-r2/tls:gateway:HTTPRoute:1:0:0\" backend=\"-\" upstream=\"-\" config=\"9e22fea3d43c09a4a60457753058316be7829aefdd12e5076690c5d14885a7bc\" trace_id=\"46f3be7927c6a46cdb30156ccbc10285\" span_id=\"6887d6c2ba79b29d\" parent_span_id=\"-\" upstream_span_id=\"-\" trace_sampled=true",
+          "2026-10-02T09:25:03.021228355Z 10.244.1.250 - - [02/Oct/2026:09:25:03 +0000] \"GET / HTTP/1.1\" 503 0 \"-\" \"-\" route=\"rgnix-hyper-runtime-diagnostic-20261002-r2/tls:gateway:HTTPRoute:1:0:0\" backend=\"-\" upstream=\"-\" config=\"9e22fea3d43c09a4a60457753058316be7829aefdd12e5076690c5d14885a7bc\" trace_id=\"5498d4396038c0663e2ed099fc1e7326\" span_id=\"c76720bffe02a56c\" parent_span_id=\"-\" upstream_span_id=\"-\" trace_sampled=true",
+          "2026-10-02T09:25:03.021232105Z 10.244.1.250 - - [02/Oct/2026:09:25:03 +0000] \"GET /plugin HTTP/1.1\" 503 0 \"-\" \"-\" route=\"rgnix-hyper-runtime-diagnostic-20261002-r2/production-plugin:gateway:HTTPRoute:0:0:0\" backend=\"-\" upstream=\"-\" config=\"9e22fea3d43c09a4a60457753058316be7829aefdd12e5076690c5d14885a7bc\" trace_id=\"751ec4fa1ee083763a139b30306904b5\" span_id=\"66aebd2678c33770\" parent_span_id=\"-\" upstream_span_id=\"-\" trace_sampled=true",
+          "2026-10-02T09:25:03.021236314Z 10.244.1.250 - - [02/Oct/2026:09:25:03 +0000] \"POST /plugin HTTP/1.1\" 503 0 \"-\" \"-\" route=\"rgnix-hyper-runtime-diagnostic-20261002-r2/production-plugin:gateway:HTTPRoute:0:0:0\" backend=\"-\" upstream=\"-\" config=\"9e22fea3d43c09a4a60457753058316be7829aefdd12e5076690c5d14885a7bc\" trace_id=\"889df7a3e4d467d4fab3dbbb4765fcca\" span_id=\"879c6bbd797e9f2e\" parent_span_id=\"-\" upstream_span_id=\"-\" trace_sampled=true"
+        ],
+        "upstream_selected": false,
+        "timeout_ms": 200,
+        "request_replay": false
+      },
+      "clocks": {
+        "host": {
+          "start": {
+            "probe": "clock-start",
+            "parent_pid": 35123,
+            "platform": "macOS-27.0.1-arm64-arm-64bit",
+            "monotonic_clock": {
+              "implementation": "mach_absolute_time()",
+              "monotonic": true,
+              "adjustable": false,
+              "resolution": 4.166666666666667e-08
+            },
+            "cpu_count": 18,
+            "stop_file": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-clock-diagnosis-20261002/host-clock.stop",
+            "max_seconds": 90000.0,
+            "wall_time": 1790932523.62781,
+            "mode": "host",
+            "pid": 35129
+          },
+          "latest": {
+            "probe": "clock-end",
+            "stopped": true,
+            "deadline_reached": false,
+            "wall_time": 1790933113.322591,
+            "mode": "host",
+            "pid": 35129
+          },
+          "rows": 588,
+          "non_json_rows": 0,
+          "ended": true,
+          "max_gap_ms": 29.5005420000507
+        },
+        "linux": {
+          "start": {
+            "probe": "clock-start",
+            "parent_pid": 0,
+            "platform": "Linux-7.0.14-orbstack-00380-ga7e0a2dc9535-aarch64-with",
+            "monotonic_clock": {
+              "implementation": "clock_gettime(CLOCK_MONOTONIC)",
+              "monotonic": true,
+              "adjustable": false,
+              "resolution": 1e-09
+            },
+            "cpu_count": 18,
+            "stop_file": "/tmp/rgnix-clock-diagnosis-20261002-r2.stop",
+            "max_seconds": 90000.0,
+            "wall_time": 1790932922.9834604,
+            "mode": "linux",
+            "pid": 114
+          },
+          "latest": {
+            "probe": "clock-end",
+            "stopped": true,
+            "deadline_reached": false,
+            "wall_time": 1790933114.4359396,
+            "mode": "linux",
+            "pid": 114
+          },
+          "rows": 387,
+          "non_json_rows": 0,
+          "ended": true,
+          "max_gap_ms": 315.4811169952154
+        }
+      },
+      "failure_window": {
+        "start": "2026-10-02T09:24:59Z",
+        "end": "2026-10-02T09:25:05Z",
+        "host_max_wait_gap_ms": 12.833583999963594,
+        "linux_max_wait_gap_ms": 72.3652369924821,
+        "redis_ping_rtt_ms": 310.3069740172941,
+        "max_heartbeat_age_seconds": 0.452,
+        "linux_max_315ms_at": "2026-10-02T09:24:17.592188Z",
+        "linux_max_is_not_at_failure": true
+      },
+      "continuous_pod": {
+        "name": "gateway-7dfc6b97f6-6tx27",
+        "uid": "8ef905d6-b13e-4d59-8ae0-f9e7f32517e8",
+        "samples": 9,
+        "all_samples_same_uid": true,
+        "restart_count": 0,
+        "engine": "hyper",
+        "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9",
+        "rss_min_bytes": 42725376.0,
+        "rss_max_bytes": 50315264.0,
+        "rss_final_bytes": 44019712.0,
+        "fd_max": 105.0,
+        "fd_final": 97.0
+      },
+      "redis": {
+        "rejected_connections": 0,
+        "total_error_replies": 0,
+        "restarted": false,
+        "slowlog_max_eval_us": 62230,
+        "scope": "SLOWLOG does not establish network/driver end-to-end timing"
+      },
+      "resources": {
+        "gateway_redis_origin_throttled": 0,
+        "gateway_redis_origin_oom": 0,
+        "pressure": "unavailable",
+        "clock_window_linux_load_average_at_failure": [
+          67.00830078125,
+          57.18701171875,
+          51.70263671875
+        ],
+        "clock_window_host_load_average_at_failure": [
+          56.37744140625,
+          22.5634765625,
+          15.2763671875
+        ],
+        "after_failure_resources": "failure-orbstack-resources-after.txt",
+        "after_failure_resources_scope": "collected after failure; cannot establish historical causation"
+      },
+      "otlp": {
+        "logs_received": 34326,
+        "spans_received": 68648,
+        "export_errors": 0,
+        "successful_end_delivery_drain_gate_completed": false
+      },
+      "power": {
+        "observed_at": "2026-10-02T09:34:29.458678+00:00",
+        "window_start": "2026-10-02T09:15:23.520472+00:00",
+        "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+        "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+        "events": [],
+        "scope": "partial current runtime window; not final 24-hour qualification"
+      },
+      "host_power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true\n",
+      "owned_processes": {
+        "35123": {
+          "alive": false,
+          "command_first_line": ""
+        },
+        "35171": {
+          "alive": false,
+          "command_first_line": ""
+        },
+        "35128": {
+          "alive": false,
+          "command_first_line": ""
+        },
+        "35129": {
+          "alive": false,
+          "command_first_line": ""
+        },
+        "38216": {
+          "alive": false,
+          "command_first_line": ""
+        }
+      },
+      "clock_observers": {
+        "host": {
+          "local_pid": 35129,
+          "pod": null,
+          "namespace": null,
+          "stop_file": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-clock-diagnosis-20261002/host-clock.stop",
+          "script_sha256": "8da7877576b539874e6bc3d98819806470db65abcb93d632661a1a3e619b01ca",
+          "started_at": "2026-10-02T09:15:23.557884+00:00",
+          "status": "STOPPED",
+          "exit_code": 0
+        },
+        "linux": {
+          "local_pid": 38216,
+          "pod": "a-78cfd866cb-4dm2t",
+          "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r2",
+          "stop_file": "/tmp/rgnix-clock-diagnosis-20261002-r2.stop",
+          "script_sha256": "8da7877576b539874e6bc3d98819806470db65abcb93d632661a1a3e619b01ca",
+          "started_at": "2026-10-02T09:22:02.665265+00:00",
+          "status": "STOPPED",
+          "exit_code": 0
+        }
+      },
+      "root_cause": "Unconfirmed. This run confirms query timeouts and independent Linux wait gaps. The maximum Linux gap occurred earlier, and one process clock does not measure the Redis or connection-driver thread. VM/host pressure, network and runtime scheduling remain unseparated. No explanation is asserted for earlier product or original failures.",
+      "evidence": [
+        "gateway-7dfc6b97f6-6tx27-failure-window.log",
+        "failure-limiter-diagnostics.log",
+        "failure-probes-window.json",
+        "failure-metrics-after.txt",
+        "failure-binary-after.txt",
+        "failure-pods-after.json",
+        "failure-cgroup-gateway-after.txt",
+        "failure-cgroup-redis-after.txt",
+        "failure-cgroup-origin-after.txt",
+        "final-redis-info.txt",
+        "final-redis-slowlog.json",
+        "soak.load.jsonl",
+        "soak.samples.jsonl",
+        "host-clock.jsonl",
+        "linux-clock.jsonl",
+        "process.json",
+        "power-window-current.json"
+      ]
+    },
+    "reviewed_at": "2026-10-02T09:49:00.350464+00:00"
+  },
+  "resource_control": {
+    "status": "RESOURCE_CONTROL_RUNNING",
+    "qualification": false,
+    "business_workers": 0,
+    "seconds": 900,
+    "start": {
+      "pid": 47444,
+      "started_at": "2026-10-02T09:46:36.958569+00:00",
+      "runner_sha256": "125736f90be45bc3bc960e7ac884abf5096767a15428fac78ab0af73b212baa2",
+      "seconds": 900,
+      "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r2",
+      "qualification": false,
+      "scope": "No business HTTP/TLS/RGL/body workers; PING/admin probes and independent clocks only"
+    },
+    "process_file": ".local/hyper-runtime-resource-control-20261002/process.json",
+    "source_provenance": {
+      "qualification": false,
+      "scope": "Idle business-load resource control; same preserved r2 Gateway/Redis/origin pods and diagnostic binary; no runtime source change",
+      "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9",
+      "runner_sha256": "125736f90be45bc3bc960e7ac884abf5096767a15428fac78ab0af73b212baa2",
+      "clock_sha256": "e95b4b92f5f6f51c82106fb436f3d89d8666c021b07018f6969fc3148ff45560",
+      "prior_clock_sha256": "8da7877576b539874e6bc3d98819806470db65abcb93d632661a1a3e619b01ca",
+      "clock_change": "Read /proc/meminfo and selected /proc/vmstat counters; original wait loop unchanged"
+    },
+    "scope": "No business load; Redis PING/admin metrics and independent clocks only. This is a diagnostic resource control, not product qualification.",
+    "historical_failure_retained": ".local/hyper-runtime-clock-diagnosis-20261002/failure-summary.json"
   }
 }
