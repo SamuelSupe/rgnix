@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-02T03:49:47.795282+00:00",
+  "recorded_at": "2026-10-02T04:37:08.012002+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -2121,7 +2121,7 @@
     }
   },
   "gateway_otlp_receiver_fix": {
-    "status": "PASS / same tested arm64 product reproduces old fixture rejection and accepts corrected receiver; full new Gateway/diagnostic run in progress",
+    "status": "PASS / same tested product receiver contrast and complete seven-job QA CI; independent diagnostic in progress, product 24-hour qualification remains FAILED",
     "scope": "Gateway QA fixture and soak delivery checks; no production runtime change",
     "harness_sha256": "b150c25fd42028f6cb0d571f8f58b7670fc0ba3c1638200ebac040d536c55eea",
     "original_live_receiver": {
@@ -2161,13 +2161,194 @@
       ]
     },
     "diagnosis": {
+      "pid": 59863,
+      "started_at": "2026-10-02T03:54:08.837691+00:00",
+      "runner_sha256": "23420eb39b8dab996240e4f8908ff2fad18f1af165d17ad875c70b7a9b0e5480",
+      "harness_sha256": "954e47d050d9877872dfb3e8ae5770452f60800d5ac7a47cd2295e68edced971",
+      "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r1",
+      "purpose": "Bounded diagnostic; not final-product qualification; max 86400 seconds actual load after Gateway preflight",
+      "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9",
+      "prior_preflight": "preflight-report-parser-regression",
+      "status": "BOUNDED_DIAGNOSIS_RUNNING / not final-product qualification",
+      "process_file": ".local/hyper-runtime-diagnosis-20261002/process.json"
+    },
+    "qualification": false,
+    "evidence_directory": ".local/hyper-runtime-diagnosis-20261002",
+    "ci": {
+      "status": "PASS",
+      "recorded_at": "2026-10-02T04:37:08.012002+00:00",
+      "run_id": 36961961578,
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/36961961578",
+      "qa_source_commit": "241951f26667dd95fe3ee121b286bb1d5a1aea25",
+      "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+      "jobs": [
+        {
+          "name": "hyper (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110697381441
+        },
+        {
+          "name": "artifact (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110697381630
+        },
+        {
+          "name": "hyper (ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110697381646
+        },
+        {
+          "name": "check",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110697381710
+        },
+        {
+          "name": "artifact (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110697381727
+        },
+        {
+          "name": "image (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110700193678
+        },
+        {
+          "name": "image (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110700193709
+        }
+      ],
+      "architectures": {
+        "arm64": {
+          "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+          "matches_previously_tested_binary": true,
+          "downloaded_binary": ".local/hyper-runtime-diagnosis-20261002/qa-ci-artifacts/tested-linux-arm64/rgnix",
+          "native_checks": {
+            "hyper": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            },
+            "pingora": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            }
+          },
+          "image": {
+            "image": "rgnix:ci",
+            "image_id": "sha256:9107c4b36697979c1d30180bff5dc59c97ffd41c76b3eeb0a762cc2ce8525d4b",
+            "architecture": "arm64",
+            "host_architecture": "aarch64",
+            "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+            "checks": [
+              {
+                "selection": "default",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "hyper",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "pingora",
+                "engine": "pingora",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              }
+            ]
+          },
+          "receipt_sha256": {
+            "qa-ci-artifacts/artifact-validation-arm64/SHA256SUMS": "e1a04b30d472645da9578d45174387992cd32a22b049137c39a94da92410bccd",
+            "qa-ci-artifacts/artifact-validation-arm64/ELF-INFO.txt": "65aafd59ca37930bfd37bcf215ee9c76c782f583c2fad55d8f4d7fb052303354",
+            "qa-ci-artifacts/image-validation-arm64/image-validation.json": "52695f23bfaf4b8f42904f83123cd96ce302ae56eb7ed0a001e0b02b7389ec38"
+          }
+        },
+        "amd64": {
+          "binary_sha256": "dbf04693180c7a9a57eebd35afd45b9ae7863407bd6b50845cd75fbc6238bd51",
+          "matches_previously_tested_binary": true,
+          "downloaded_binary": ".local/hyper-runtime-diagnosis-20261002/qa-ci-artifacts/tested-linux-amd64/rgnix",
+          "native_checks": {
+            "hyper": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            },
+            "pingora": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            }
+          },
+          "image": {
+            "image": "rgnix:ci",
+            "image_id": "sha256:982a322afdc45626d5c1a67ba2e696afc006cf348ff67aa62a25dc56e41135e1",
+            "architecture": "amd64",
+            "host_architecture": "x86_64",
+            "binary_sha256": "dbf04693180c7a9a57eebd35afd45b9ae7863407bd6b50845cd75fbc6238bd51",
+            "checks": [
+              {
+                "selection": "default",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "hyper",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "pingora",
+                "engine": "pingora",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              }
+            ]
+          },
+          "receipt_sha256": {
+            "qa-ci-artifacts/artifact-validation-amd64/SHA256SUMS": "7436372c40f6935c02f034804713960c659a0016f57f166468f6601eeb980165",
+            "qa-ci-artifacts/artifact-validation-amd64/ELF-INFO.txt": "ece000bcf02b1846565769711816e5fafee705f8449c4a0f2e99d51c7e23f051",
+            "qa-ci-artifacts/image-validation-amd64/image-validation.json": "54f8e2d20e6c9c7d957d74891a4281f203c54ea0ceea282bc4eb6a338a43af08"
+          }
+        }
+      },
+      "gateway_e2e_run_by_ci": false,
+      "soak_qualification": "FAILED / unchanged; CI cannot replace 44334.815-second product soak failure",
+      "scope": "Native artifact and image receipts plus locally downloaded executable digest verification; Kubernetes Gateway OTLP receiver contrast is separately recorded"
+    },
+    "initial_diagnostic_preflight": {
       "pid": 57898,
       "started_at": "2026-10-02T03:48:49.627884+00:00",
       "runner_sha256": "d3b7d02c6690a5d9b3523eddde60daa6c1f92fbb5be429af5f0da7381c24564e",
       "purpose": "Bounded diagnostic; not final-product qualification; max 86400 seconds actual load after Gateway preflight",
       "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9"
-    },
-    "qualification": false,
-    "evidence_directory": ".local/hyper-runtime-diagnosis-20261002"
+    }
   }
 }
