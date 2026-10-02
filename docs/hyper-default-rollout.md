@@ -113,3 +113,17 @@ Redis 在不同 Kind 节点 worker，Gateway 在 worker2，同属 OrbStack。Red
 根因仍未确认。直接执行线程、无 wake/poll 的尾部及 Redis CPU 不增长/等待记账是更具体的本轮关联证据，尚未分离 Redis/VM调度、网络和客户端运行时就绪，不能解释旧正式两次或最初六次503。没有改产品、默认 Hyper、200ms预算、并发限制、失败关闭或重放策略。此前 r6/r7 有限健康窗口仍有效，但不构成修复或正式资格。
 
 下一步仅准备精确 owned 调度和 socket 就绪事件观测，目录 .local/hyper-runtime-scheduler-events-20261002/probe-plan.json 为只读可行性审核，尚未实现、启用 trace 或运行新诊断。当前内核有 sched_switch/wakeup/TCP状态与重传 tracefs 格式及 BTF，节点未发现 perf/bpftrace/bpftool。全局 tracing_on=1/current_tracer=nop 是既有共享状态，不能清空或改动。先以唯一隔离 trace instance 和自有 marker 校准 kernel event PID 到 node/container TID、时钟对齐、丢失计数、开销及停止清理，再安排有限因果观测；不直接按 node NSpid 猜内核全局PID，不改永久参数或其他任务。尚无逐请求网络/EVAL因果证据，不凭当前时间线迁移driver或修改产品，也不继续单纯扩大健康时长。正式12.3小时及所有旧业务失败保留，正式24小时资格和随后串行性能/A/A仍待完成。
+
+## 隔离调度事件设施与有限 r9a 诊断启动 — 2026-10-02
+
+上述只读可行性是 UTC17:00 的阶段快照。现已在全新 scratch 实现唯一 trace instance 观察器，并完成自有睡眠/CPU/pipe读写 marker 的真实回归和独立原始证据复核。首次精确过滤未收到 marker 事件，已归档 trace-observer-attempt-1：Docker 主机 /proc 的 NSpid 首项仍不是 trace 事件 PID，不能将该映射称为内核事件身份。后续自有 marker 的旧 syscall 文本格式断言失败也归档 trace-observer-attempt-2，业务请求均为零。该轮发现内核默认 syscall 显示会复制用户缓冲内容；仅对自有 marker 的原始记录保留，当前独立实例必须将 syscall_user_buf_size 设为0，并实查写入 marker 内容不出现在采集结果后，才可用于业务观察。没有改共享全局设置。
+
+最终 marker 回归通过，独立核对102次sched_switch、7次sched_wakeup、六次各自pipe read/write的真实调用与返回、51个按自有线程打开的sched_switch原始样本，停止与清理均通过。唯一 marker 的 node PID206241、Docker 主机 PID2554483和trace事件PID1959022不同；先按准确node TID打开短时per-task事件句柄，再比较sample的node PID/TID与raw common_pid/prev_pid，获得trace过滤身份。唯一comm只用于该自有marker的交叉校准，不按业务线程截短comm或创建顺序推断。此前marker的trace mono时间与Python单调时间标记相差43–95微秒，属于本机校准范围。另在仍保留的r8精确UID/container/node PID/start_ticks上做两秒只读身份复核，四个Hyper线程和Redis主线程均核对到实际trace TID；该映射只属于r8，不能拼接进新的负载或重建此前失败。
+
+最终marker观察器用户/系统CPU累计0.014379/0.016298秒、输出计时647420ns；这些不包括内核hook/filter、目标线程、全部缓冲和调度开销，不是完整观测开销标定。实例使用mono时钟、每CPU256KiB、100ms批读，保存sequence、逐CPUoverrun/commit overrun/dropped及观察器CPU/输出耗时；丢失记录或身份变更单独记为设施失败，并保存计数。当前只记录准确owned TID的调度切换/wake和标量syscall参数/返回、FD/socket端点元数据，不读取命令、URL、凭据或body。syscall成功及长度并不等于某个Redis EVAL的网络或执行成功，epoll等待返回也没有逐FD就绪结果。所有自有marker进程/短时事件句柄/instance已停止清理，共享tracing_on、tracer、clock、event enable/filter和用户缓冲设置前后保持，没有安装perf/bpftrace/bpftool，没有改sysctl、永久调度/电源参数或其他任务。
+
+新独立r9a在UTC17:47:23.780487启动，目录.local/hyper-runtime-scheduler-diagnosis-20261002/、namespace rgnix-hyper-runtime-diagnostic-20261002-r9a，启动核对仍处于Gateway预检，没有workers混合负载行，实际trace尚未启用。复用同一668952诊断binary、原镜像DockerID10e3240fdd0d94071fdeed82a6f99e6cb87cd8d255c6c4eacecdcffface4a6d3、1169文件逐SHA相同的冻结源码及3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0 harness，不新构建、不改正式69bc/dbf046/ca46或公开QA。启动前只读容量核对两个worker各13空位，没有缩零或重启任何失败现场，没有停止其他任务。完整预检后最多900秒原六HTTP/TLS/RGL/body混合workers、600秒事件/100路由；200ms、permit、clone/taskhandle生命周期、连接身份清理、失败关闭、不重放和持续Pod不重启保持。
+
+本轮线程、Linux时钟及trace实际覆盖须按真实启动时间分别记录。先核对新精确UID/containerID/node PID/start_ticks/NSpid、完整服务名到native TID，再由per-task事件独立核对五个trace TID后才启动唯一instance，不能沿用r8映射。成功请求/OTLP交付排空后先停止并验证trace、再停止线程、最后ack允许原计划滚动重启与Admission；失败也保留全部raw driver chunks/trace loss/线程累计值/probes/clocks/电源和停止收据。线程/trace最多1200秒、clocks/runner最多2400秒。证据在.local/hyper-runtime-scheduler-events-20261002/review-summary.json、trace-observer-independent-verification.json、review-evidence-sha256.json及新目录start/process/source/harness/image/capacity中。
+
+这是观测设施修正与新的有限诊断预检，不是产品稳定性修复。r8四次503、正式12.3小时失败及所有旧业务失败仍有效，根因未确认；默认Hyper保持，正式24小时、趋势/电源审核及随后同binary完整性能/A/A仍待完成。不得把启动RUNNING、marker回归或此后有限健康窗口记为完整验收。
