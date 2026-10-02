@@ -358,3 +358,28 @@ PING报告最大119.147ms、admin40.742ms、heartbeat0.296秒、client scheduler
 已离线应用真实marker验证过的调度状态判读器，处理3,918,908项目标调度记录，保留475,551个同微秒时间戳排序边界、首尾不完整状态和异常计数。它区分S/D阻塞与wake后或R/R+切出后的可运行区间，健康窗口没有可关联的失败query，不从长阻塞区间、创建者、单syscall/epoll返回或累计记账推故障根因。本轮没有driver失败bulk，不能宣布整轮driver ring无丢失、完整开销标定或具体失败因果链。
 
 下一步已做只读源码可行性审核，计划与摘要在.local/hyper-runtime-query-stage-probe-20261002/probe-plan.json，状态NOT_IMPLEMENTED_OR_RUNNING，没有新builder/runner/tracer。当前query_begin在query_async入队前，现有driver Pending和标量syscall不能确定哪个失败查询已进入codec或收到解析响应。下一独立scratch诊断拟只传播driver/query标量ID，记录入队、dequeue、codec接受/flush、解析响应分配与receiver交付/取消；不记录命令、凭据或payload，codec/flush也不冒称Redis执行或数据包交付证据。先用自有真实TCP marker核对正常回复、延迟回复超时、并发clone/取消、连接生命周期及清理，与668952基线行为比较，再独立核对新诊断产物并准备同900秒预算。保留原200ms、permit、spawn/taskhandle、身份清理、失败关闭、不重放。观测改变只在全新scratch，旧冻结证据与正式产品/公开QA保持；不因健康窗口扩大时长、不迁移产品driver、不跳到正式资格或性能。默认Hyper保持，最终正式24小时与随后同正式binary完整性能/A/A仍待完成。
+
+## r11a 新逐查询阶段有限诊断与受控调度关联 — 2026-10-02
+
+r11a 于 UTC21:25:04 正常结束并独立审核。实际六 workers 最终窗口900.119143秒、152,131次成功、零请求错误、两次插件发布；完整118项检查和其中10项Admission通过。持续副本实际交付日志148,359/span296,718，成功结束交付、排空、无丢弃增量门槛通过，导出错误/部分成功无增量、最终pending零。dropped_total系列缺省为null，不能写成测得绝对零。unavailable_closed=0。本轮使用新4a300a逐查询诊断产物，不能拼接668952窗口或覆盖正式12.3小时、r8和全部旧真实503，正式24小时仍未通过。
+
+持续gateway-6987654b54-bb8p7/UID872cfa73-3051-4eba-8afb-31f2f297e834实际Hyper/4a300a、镜像和进程启动时间在59个资源样本中一致，RSS44.2–56.5MB、最后45.9MB，FD最高105/最后98。新增31次精确UID/container/nodePID/start/argv0守卫资源读取覆盖Gateway、Redis及自有origin，实际restartCount均零，cpu.stat节流及memory.events OOM计数均零；pressure文件不可用，不能记零。初始资源覆盖缺口18.817秒，单次controller约567–843ms、累计20.734秒属于顺序API读取观察器成本，不是目标暂停或完整扰动开销。负载及OTLP后、计划替换前保存了持续UID的最终资源快照。
+
+1,200,730,064字节完整raw trace独立审核，共9,298,143事件、149,765连续批次，SHA256为66af771d24870995215def89205e8bd4befc2c7541b79dc9be8440670c6300a7；全部统计窗口与最终per-CPU丢失计数零，无JSON截断、sequence缺口或实际缓冲内容。实例userbufsize0强制readback保持。1,580个per-task原始perf样本独立解码：native14/15/16/17→node237319/237320/237321/237322→trace2430743/2430744/2430745/2430746，Redis node204849→trace2415099。它们仅是r11历史身份。trace/线程/Linuxclock初始缺口8.103/2.838/2.359秒。traceCPU user4.709415/system7.750530秒、输出计时10.740136082秒、批次输出间隙159.137ms是部分观测成本，不包含全部hook/filter/目标成本。
+
+实际最终请求UTC21:21:37，OTLP后stop request21:21:47、持续资源快照与trace-end21:21:53、thread-end21:21:58、ack21:21:59后才允许原计划滚动及Admission。trace/thread/两clock均stopped=true/exit0、无设施错误，独立实例移除、global前后及复查保持。按各自所属节点实查observer进程退出，精确origin UID的load75/start24657493与Linux104的/proc不存在；正常负载stop signal=null，自有本地命令、followers/exec及guard都已退出。最终计划滚动的两个Pod另行直接核对H/ready/4a300a/零重启，不能替代持续负载UID。启动至UTC21:36复查确切第四电源事件列无Sleep/Wake/DarkWake，AC100%。完整审核和SHA在.local/hyper-runtime-query-stage-diagnosis-20261002/review-summary.json、review-independent-verification.json、review-resources.json、review-followers-stop-verification.json、review-evidence-sha256.json。
+
+本轮PING最大46.006ms、admin40.445ms、heartbeat0.282秒、client scheduler68.860ms，混合Mac/Linux等待间隙20.316/74.301ms；最终EVAL SLOWLOG最大14.498ms，Redis拒绝和错误响应零。没有真实失败query或bulk snapshot，不能据此声明整轮driver ring无丢失、完整开销标定或故障因果链。
+
+随后完成自有真实TCP查询阶段与内核调度关联marker。只修改独立marker示例，4a300a的运行/vendor源码保持；原200ms延迟回复超时、30ms并发clone取消、取消后FIFO占位、survivor正确回复、untagged pipeline、最后clone Drop/socket EOF及replacement均通过，6个真实ECHO、2连接结束，无重放。实际poll node/native246095经97个per-task raw样本对应trace2536259，不由创建者或comm推断。用CLOCK_MONOTONIC前后边界夹住相对Instant读数，锚点交集宽1,833ns；已知held区间内的保守完整线程片段blocked_S200.834ms、runnable70us、running16us，没有把整个超时算成可运行调度等待。该current-thread同时运行marker客户端/服务端，因此线程状态不能等同某个future状态或证明Redis EVAL/数据包因果。
+
+该marker72次sched_switch、36次wake及392标量syscall完整保留，userbufsize0、无实际内容或记录丢失；独立实例移除、global保持、所有自有进程和远端文件实际清理。CPU与输出计时仍是部分成本。准备阶段输入字段、Docker cp、既有/tmp noexec及远端身份字符串设施错误分别归档；一次未启动trace的marker因本地身份读取器错误被仅自有握手放行后正常结束，不算Gateway请求或产品503。审核器poll名称断言修正保留，没有重跑业务。证据在.local/hyper-runtime-query-stage-correlation-20261002/review-summary.json、cleanup-independent-verification.json、review-evidence-sha256.json。
+
+发现真实Gateway的4a300a snapshot只导出SystemTime锚点及相对Instant，marker精确CLOCK_MONOTONIC对齐尚未进入运行二进制，因此本次没有直接重复健康Gateway窗口。全新scratch .local/hyper-runtime-query-clock-anchor-probe-20261002仅在snapshot用两次Linux CLOCK_MONOTONIC夹住一次elapsed读取，导出monotonic_anchor_low_ns/high_ns；缺失为null、停顿扩大区间，不猜点时间。事件/队列/FIFO/200ms/permit/clone/canonicalspawn/taskhandle/身份清理/失败关闭/不重放保持。另复用带有限握手和外部时钟夹取的marker示例，合计相对4a300a仅两个scratch意图路径改变，没有每事件新增时钟读取。新产物真实TCP内部/外部锚点、限流生命周期、默认H/显式H/P镜像门槛在下文单独记录，不能借用旧4a窗口作为新产物验证；正式binary、公开QA、旧冻结source/raw和失败现场保持。本次没有新容量处理、混合业务或性能运行。
+
+
+新快照时钟边界已完成真实行为与产物核对。内部锚点字段在同一全新自有TCP marker中与独立外部CLOCK_MONOTONIC上下界核对，四个snapshot观测边界交集宽0ns、各内部夹取宽0–125ns；相同整数读数不代表物理精度或零误差，内核事件仍有1微秒格式化边界；200ms延迟回复、取消、FIFO、survivor与最后clone清理均通过，并重新用实际per-task样本对应新node/native与trace线程，未沿用旧身份。所有raw、首尾边界和标量loss/停止/清理收据在.local/hyper-runtime-query-clock-anchor-probe-20261002/，这仍不是Gateway失败查询或Redis执行证据。
+
+新诊断binary SHA256为8435435edff97fd7afcbb2fb2acdd20ab1819dff524f23fb31f2790214d1dc59，image rgnix:hyper-query-clock-anchor-probe-20261002，实际镜像binary/ELF64 AArch64、默认Hyper/显式H/P真实HTTP/ready/metrics、新H/P各14共享限流边界以及实际Redis canonical BLPOP200ms/最后cloneDrop/replacement核对通过。原4a300a、668952与正式69bc/dbf046产物保持，shared registry/git未修改。新源码仅上述两个scratch意图路径，原生命周期/200ms/失败关闭/不重放保持；时钟夹取/事件/格式化/trace有观测成本，局部计时不能算完整开销。builder、marker/tracer/guard、私有Redis/monitor容器/远端文件及实例均已实查停止和清理，共享trace状态保持。
+
+新镜像已载入三个Kind节点并逐一核对实际binary为8435435edff97fd7afcbb2fb2acdd20ab1819dff524f23fb31f2790214d1dc59，imageID47e950b857ff016ea086c17f8a76867a1fae81ddb137565e299b59815428d342，原4a300a/668952/正式镜像ID在每节点前后保持。新900秒Gateway诊断尚未准备或启动，未做容量处理或吞吐测试。下一步按实时容量、新namespace/持续Pod UID/container/nodePID/start/NSpid/native/per-task trace身份准备同900秒预算；必要时仅允许归档已完成并独立审核通过r11a及peer后释放其副本，所有失败现场和其他任务保持。snapshot null/宽区间/跨快照交集、微秒排序边界和首尾unknown须明确保留，无逐请求因果证据不改产品、不迁移driver或放宽限流。默认Hyper保持，正式24小时和随后同正式binary完整性能/A/A仍待完成。
