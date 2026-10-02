@@ -160,3 +160,20 @@ PING窗口最大69.015ms、admin窗口51.087ms、heartbeat0.285秒、client sche
 仅归档已正常结束并审核通过的r9b及peer两namespace资源、Secret、当前日志、UID、原Deployment副本数和SHA，独立核对后缩零，原namespace/恢复收据和全部raw保留。其他212个Pod UID前后相同，所有正式与失败现场及其他任务保持。新目录.local/hyper-runtime-scheduler-diagnosis-r10-20261002/completed-fixture-capacity-archive/保存收据；两worker活动101/102、空位9/8。容量和环境变化不是稳定性修复。
 
 独立r10a于UTC19:08:50启动，namespace rgnix-hyper-runtime-diagnostic-20261002-r10a，仍最多900秒六HTTP/TLS/RGL/body workers、600秒事件/100路由、原200ms/permit/clone/taskhandle生命周期、身份清理、失败关闭、不重放。1169文件冻结源码、668952镜像及原harness/trace设施保持，只换独立输出/namespace/stop路径；归一化AST与r9b一致。目标是在真实失败时使用已校准判读区分阻塞与可运行等待，没有扩大健康窗口或改正式69bc/dbf046/ca46/公开QA。UTC19:09:27实查runner3222/child3227/guard3225/host3226仍在完整Gateway预检，尚无workers、trace未启动，AC100%和自有两防睡眠断言通过。这是阶段快照，必须按最新process、真实workers/final、新精确UID/TID及停止收据审核；不得沿用r9b身份。正式24小时、人工趋势/电源审核及之后同正式binary完整性能/A/A仍待完成，默认Hyper保持。
+
+
+## r10a 有限窗口完成审核与下一处证据缺口 — 2026-10-02
+
+前述 r10a UTC19:09 预检记录是历史快照。本轮于 UTC19:32:21 正常结束，真实六 workers 最终窗口 900.108328 秒、152,337 次成功、零请求错误、两次插件发布。complete=true、failure=null，全部118项检查及其中10项Admission通过。持续副本实际交付logs151,629/spans303,258，成功结束交付、队列排空、无丢弃增量门槛通过；初始/最终导出0/151629与0/303258，错误/部分成功保持零、最终pending均零。零值dropped_total系列未出现，不能把null写成测得绝对零；实际集成门槛已执行。unavailable_closed=0。这是668952诊断产物的有限窗口，正式12.3小时失败、r8及全部旧真实503保持，正式24小时资格仍未通过。
+
+63个资源样本包括结束OTLP阶段，持续gateway-747df6959f-b2s4v/UIDd8f7c955-a681-40f3-ad74-729cdb6663ea、实际Hyper、诊断镜像和进程启动时间均保持。初始精确UID/native映射零重启；样本没有逐次restartCount，不能声称逐样本测得零重启。RSS44.8–57.4MB、最后46.2MB，FD最高104/最后98。负载期间Gateway cgroup/pressure/OOM未另存收据，最终计划滚动副本不能补作旧持续Pod证据。两个最终副本已独立核对实际H/ready/668952/零重启，UIDd0c06890...与249910c7...属于计划替换后的副本。
+
+完整raw追踪流独立审核：10,399,961事件、167,539连续批次，SHA256为0b85b28d3fb81cf983b29f27120a9a6db4d03d94f204b2bd7a9ba15ed8b12f06。所有统计窗口及最终per-CPU overrun/commit overrun/dropped均零，无JSON截断、sequence缺口或实际缓冲内容显示；实例userbufsize0强制readback保持。2,873个原始per-task perf样本独立解码，将四服务native16/17/18/19、node225170/225171/225172/225173对应实际trace2175798/2175799/2175800/2175801，Redis node222695对应trace2161043。这些是本轮历史身份，不能给新的Pod沿用。trace/线程/Linuxclock初始覆盖缺口12.026/6.715/6.322秒。
+
+请求与OTLP门槛后依次停止trace、线程，再ack允许原计划滚动和Admission。所有trace/thread/两clock stopped=true、exit0、无设施错误；instance已移除，共享global前后及复查状态保持。独立核对七个本地自有进程、node observers225611/225545、精确origin UID8336b680...的load77/start23979776与Linuxclock106的/proc均不存在；正常负载停止signal=null，guard已释放。启动至结束后UTC19:48复查确切第四事件列无Sleep/Wake/DarkWake，AC100%。原始报告、追踪、映射、停止及电源证据和审核SHA保存在.local/hyper-runtime-scheduler-diagnosis-r10-20261002/。
+
+PING报告最大119.147ms、admin40.742ms、heartbeat0.296秒、client scheduler71.977ms，混合报告Mac/Linux等待间隙18.133/64.695ms，最终SLOWLOG最大EVAL24.446ms、Redis拒绝/错误响应零。trace observer CPU user4.956989/system8.662641秒、输出计时11.018844394秒、批次输出间隙151.066ms是局部观测值，不包含全部内核hook/filter/分配/目标成本，也不等同目标暂停。
+
+已离线应用真实marker验证过的调度状态判读器，处理3,918,908项目标调度记录，保留475,551个同微秒时间戳排序边界、首尾不完整状态和异常计数。它区分S/D阻塞与wake后或R/R+切出后的可运行区间，健康窗口没有可关联的失败query，不从长阻塞区间、创建者、单syscall/epoll返回或累计记账推故障根因。本轮没有driver失败bulk，不能宣布整轮driver ring无丢失、完整开销标定或具体失败因果链。
+
+下一步已做只读源码可行性审核，计划与摘要在.local/hyper-runtime-query-stage-probe-20261002/probe-plan.json，状态NOT_IMPLEMENTED_OR_RUNNING，没有新builder/runner/tracer。当前query_begin在query_async入队前，现有driver Pending和标量syscall不能确定哪个失败查询已进入codec或收到解析响应。下一独立scratch诊断拟只传播driver/query标量ID，记录入队、dequeue、codec接受/flush、解析响应分配与receiver交付/取消；不记录命令、凭据或payload，codec/flush也不冒称Redis执行或数据包交付证据。先用自有真实TCP marker核对正常回复、延迟回复超时、并发clone/取消、连接生命周期及清理，与668952基线行为比较，再独立核对新诊断产物并准备同900秒预算。保留原200ms、permit、spawn/taskhandle、身份清理、失败关闭、不重放。观测改变只在全新scratch，旧冻结证据与正式产品/公开QA保持；不因健康窗口扩大时长、不迁移产品driver、不跳到正式资格或性能。默认Hyper保持，最终正式24小时与随后同正式binary完整性能/A/A仍待完成。
