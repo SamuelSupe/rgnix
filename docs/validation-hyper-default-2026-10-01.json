@@ -3477,7 +3477,7 @@
     "owned_processes_exited": true,
     "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW"
   },
-  "last_diagnostic_review_at": "2026-10-02T18:07:28.266563+00:00",
+  "last_diagnostic_review_at": "2026-10-02T19:11:01.301268+00:00",
   "gateway_admission_certificate_fixture_fix": {
     "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_PUBLIC_GATEWAY_REVALIDATION_RUNNING",
     "qa_file": "scripts/gateway_e2e.py",
@@ -5568,7 +5568,7 @@
       "qualification": false
     },
     "isolated_scheduler_diagnosis": {
-      "status": "FACILITY_INTERRUPTED_REVIEWED_NOT_NEW_PRODUCT_FAILURE_NOT_QUALIFICATION",
+      "status": "R9B_BOUNDED_PASS_REVIEWED_NOT_PRODUCT_QUALIFICATION_ROOT_CAUSE_UNCONFIRMED",
       "directory": ".local/hyper-runtime-scheduler-diagnosis-20261002",
       "start": {
         "pid": 82433,
@@ -5897,7 +5897,7 @@
       },
       "r9a_review_evidence_receipt": ".local/hyper-runtime-scheduler-diagnosis-20261002/review-evidence-sha256.json",
       "followup_r9b": {
-        "status": "PREFLIGHT_STARTUP_SNAPSHOT_NOT_ACTUAL_MIXED_LOAD",
+        "status": "PASS_REVIEWED_BOUNDED_SCHEDULER_DIAGNOSIS_NOT_PRODUCT_QUALIFICATION",
         "directory": ".local/hyper-runtime-scheduler-diagnosis-r9b-20261002",
         "product_modified": false,
         "qualification": false,
@@ -6032,7 +6032,422 @@
             }
           ],
           "scope": "Read-only new r9b capacity check; interrupted r9a and all failed namespaces retained, no scale or task stop"
-        }
+        },
+        "historical_startup_status": "PREFLIGHT_STARTUP_SNAPSHOT_NOT_ACTUAL_MIXED_LOAD",
+        "review": {
+          "status": "PASS_REVIEWED_BOUNDED_SCHEDULER_DIAGNOSIS_NOT_PRODUCT_QUALIFICATION",
+          "reviewed_at": "2026-10-02T18:54:10.159848+00:00",
+          "runner_ended_at": "2026-10-02T18:32:32.861173+00:00",
+          "qualification": false,
+          "root_cause_confirmed": false,
+          "business_final": {
+            "final": true,
+            "wall_time": 1790965732.5420306,
+            "elapsed_seconds": 900.1082154100004,
+            "workers": [
+              {
+                "requests": 20692,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 20746,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 34574,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 20701,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 20744,
+                "failed_requests": 0,
+                "errors": []
+              },
+              {
+                "requests": 34574,
+                "failed_requests": 0,
+                "errors": []
+              }
+            ],
+            "requests": 152031,
+            "failed_requests": 0,
+            "retained_latency_samples": 18000,
+            "p99_ms": 47.400522977113724
+          },
+          "business_reports": 32,
+          "report_complete": true,
+          "checks_passed": 118,
+          "admission_checks_passed": 10,
+          "continuous_pod": {
+            "pod": "gateway-57cb75d9c6-sntkz",
+            "uid": "1ebeea96-a1e5-4a40-a751-2cc8077ecf8b",
+            "node": "rgnix-hyper-20260928-worker",
+            "container_id": "03604b6fed48ff4d3cadf66da796e31927002d3d478107f148a30735ac912347",
+            "pid": 195950,
+            "start_ticks": 23618540,
+            "argv0": "/usr/local/bin/rgnix"
+          },
+          "resource_samples": 60,
+          "process_start_time_seconds": 1790964807.0,
+          "rss_mb": {
+            "min": 42.610688,
+            "max": 49.3568,
+            "final": 43.855872
+          },
+          "fd": {
+            "max": 104.0,
+            "final": 98.0
+          },
+          "unavailable_closed": 0,
+          "otlp": {
+            "name": "Continuous replica delivers OTLP logs and spans without dropping records during soak",
+            "passed": true,
+            "delivered": {
+              "logs": 151322.0,
+              "traces": 302644.0
+            }
+          },
+          "otlp_initial_final_metrics": {
+            "rgnix_otlp_logs_exported_total": {
+              "initial": 3.0,
+              "final": 151325.0
+            },
+            "rgnix_otlp_logs_export_errors_total": {
+              "initial": 0.0,
+              "final": 0.0
+            },
+            "rgnix_otlp_logs_partial_success_total": {
+              "initial": 0.0,
+              "final": 0.0
+            },
+            "rgnix_otlp_logs_pending": {
+              "initial": 1.0,
+              "final": 0.0
+            },
+            "rgnix_otlp_traces_exported_total": {
+              "initial": 6.0,
+              "final": 302650.0
+            },
+            "rgnix_otlp_traces_export_errors_total": {
+              "initial": 0.0,
+              "final": 0.0
+            },
+            "rgnix_otlp_traces_partial_success_total": {
+              "initial": 0.0,
+              "final": 0.0
+            },
+            "rgnix_otlp_traces_pending": {
+              "initial": 2.0,
+              "final": 0.0
+            }
+          },
+          "trace": {
+            "status": "PASS_COMPLETE_SCALAR_TRACE_AND_LOSS_REVIEW",
+            "reviewed_at": "2026-10-02T18:54:10.159848+00:00",
+            "raw_file_sha256": "7ed17be0cbeb2b84251e7727bcadd2fb99539871e96134a6434bf1f628e00903",
+            "raw_bytes": 1230484404,
+            "event_count": 9475899,
+            "event_types": {
+              "sched_wakeup": 813143,
+              "sched_switch": 2306268,
+              "sys_epoll_pwait_exit": 969758,
+              "sys_recvfrom_enter": 719748,
+              "sys_recvfrom_exit": 719748,
+              "sys_writev_enter": 537916,
+              "sys_writev_exit": 537916,
+              "sys_epoll_pwait_enter": 969758,
+              "sys_read_enter": 193543,
+              "sys_read_exit": 193543,
+              "sys_write_enter": 676336,
+              "sys_write_exit": 676336,
+              "sys_sendto_enter": 80942,
+              "sys_sendto_exit": 80942,
+              "sys_connect_enter": 1,
+              "sys_connect_exit": 1
+            },
+            "batches": 153326,
+            "sequences_contiguous": true,
+            "invalid_json_or_nondict_rows": 0,
+            "buffer_display_shapes_sha256_counts": {
+              "42ffa560273e28ed257d450a8faa561065e7663eab1ade1017552924d394b052": 676336
+            },
+            "nonempty_buffer_displays": 0,
+            "syscall_user_buf_size": "0",
+            "loss_stats_windows_checked": 440,
+            "all_per_cpu_overrun_commit_overrun_dropped": 0,
+            "observer_max_batch_emit_gap_ms": 129.551526,
+            "initial_coverage_gap_seconds": 9.40878701210022,
+            "limitations": [
+              "Batch emission gaps are observer output times, not target scheduling delays.",
+              "No failed query in this run; no actual failure driver bulk snapshot or causal failure timeline.",
+              "Scalar socket/syscall data do not identify per-query EVAL execution or epoll returned FDs.",
+              "Observer CPU/capture_emit_ns exclude kernel hook/filter and target instrumentation overhead."
+            ]
+          },
+          "stop_order_wall": {
+            "load_final": 1790965732.5420306,
+            "otlp_completed_stop_request": 1790965742.7444608,
+            "trace_end": 1790965749.8315213,
+            "thread_end": 1790965754.01705,
+            "planned_rollout_admission_ack": 1790965755.0814517
+          },
+          "observer_ends": {
+            "owned-threads-rgnix-hyper-20260928-worker.jsonl": {
+              "probe": "thread-end",
+              "stopped": true,
+              "deadline_reached": false,
+              "facility_error": false,
+              "wall_time": 1790965754.01705,
+              "observer_pid": 196316
+            },
+            "host-clock.jsonl": {
+              "probe": "clock-end",
+              "stopped": true,
+              "deadline_reached": false,
+              "wall_time": 1790965939.7664242,
+              "mode": "host",
+              "pid": 88561
+            },
+            "linux-clock.jsonl": {
+              "probe": "clock-end",
+              "stopped": true,
+              "deadline_reached": false,
+              "wall_time": 1790965940.8519976,
+              "mode": "linux",
+              "pid": 101
+            }
+          },
+          "coverage_gap_seconds": {
+            "trace": 9.40878701210022,
+            "threads": 4.004890203475952,
+            "linux_clock": 3.4604361057281494
+          },
+          "probe_max_by_reported_field": {
+            "redis-window.max_ms": 69.01510499301367,
+            "redis-anomaly.rtt_ms": 69.01510499301367,
+            "client-scheduler.gap_ms": 73.83212700369768,
+            "runtime-window.max_rtt_ms": 51.087077998090535,
+            "runtime-window.max_heartbeat_age_seconds": 0.285
+          },
+          "clocks_mixed_window": {
+            "host-clock.jsonl": {
+              "mixed_report_windows": 895,
+              "max_wait_gap_ms": 20.923958000025777
+            },
+            "linux-clock.jsonl": {
+              "mixed_report_windows": 891,
+              "max_wait_gap_ms": 76.98589598294348
+            }
+          },
+          "redis_final": {
+            "rejected_connections": "0",
+            "total_error_replies": "0",
+            "uptime_in_seconds": "1428"
+          },
+          "redis_slowlog_max_eval_us": 14291,
+          "power": {
+            "observed_at": "2026-10-02T18:51:31.479809+00:00",
+            "window_start": "2026-10-02T18:08:30.266639+00:00",
+            "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+            "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+            "events": [],
+            "scope": "partial current runtime window; not final 24-hour qualification"
+          },
+          "scope": "Original 900s six-worker mixed window, OTLP and full Gateway/Admission completed. Formal 12.3h failure and all prior real 503 remain valid; default Hyper retained; formal24h and same-binary performance/A/A still pending.",
+          "independent_verification": {
+            "status": "PASS_INDEPENDENT_COMPLETION_IDENTITY_STOP_BINARY_POWER_VERIFICATION",
+            "verified_at": "2026-10-02T18:56:15.664784+00:00",
+            "local_owned_pids_absent": [
+              88550,
+              88562,
+              88560,
+              88561,
+              90184,
+              90191,
+              90223
+            ],
+            "node_owned_pids_absent": [
+              196377,
+              196316
+            ],
+            "origin_uid": "fbbd9acc-b25f-4590-afda-de18c42ca652",
+            "remote_load_and_linux_clock_proc_exists": {
+              "75": false,
+              "101": false
+            },
+            "load_stop_signal": null,
+            "trace_instance_removed": true,
+            "global_trace_files_equal_at_review": true,
+            "final_planned_rollout_pods": [
+              {
+                "pod": "gateway-67dbfc9677-jcckh",
+                "uid": "16957423-61d3-42ad-8a68-c8278dd6eeff",
+                "node": "rgnix-hyper-20260928-worker2",
+                "binary_sha256": "66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c",
+                "engine": "hyper",
+                "ready": true,
+                "restart_count": 0
+              },
+              {
+                "pod": "gateway-67dbfc9677-pcbng",
+                "uid": "d9225e05-ba01-4d1c-9aca-c9fb9e9d91a3",
+                "node": "rgnix-hyper-20260928-worker",
+                "binary_sha256": "66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c",
+                "engine": "hyper",
+                "ready": true,
+                "restart_count": 0
+              }
+            ],
+            "per_task_samples_independently_decoded": 2491,
+            "actual_trace_identity_mappings": [
+              {
+                "node_pid": 195950,
+                "node_tid": 195976,
+                "trace_tid": 2032635,
+                "start_ticks": 23618540,
+                "pid_namespace": "pid:[4026578841]",
+                "sample_count": 15
+              },
+              {
+                "node_pid": 195950,
+                "node_tid": 195973,
+                "trace_tid": 2032632,
+                "start_ticks": 23618540,
+                "pid_namespace": "pid:[4026578841]",
+                "sample_count": 276
+              },
+              {
+                "node_pid": 195950,
+                "node_tid": 195975,
+                "trace_tid": 2032634,
+                "start_ticks": 23618540,
+                "pid_namespace": "pid:[4026578841]",
+                "sample_count": 273
+              },
+              {
+                "node_pid": 195950,
+                "node_tid": 195974,
+                "trace_tid": 2032633,
+                "start_ticks": 23618540,
+                "pid_namespace": "pid:[4026578841]",
+                "sample_count": 1201
+              },
+              {
+                "node_pid": 193590,
+                "node_tid": 193590,
+                "trace_tid": 2017571,
+                "start_ticks": 23589111,
+                "pid_namespace": "pid:[4026577406]",
+                "sample_count": 726
+              }
+            ],
+            "frozen_source_files_verified": 1169,
+            "frozen_scripts_verified": 10,
+            "power_now": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true\n",
+            "scope": "Final planned rollout Pods are distinct from the continuous load UID. No old PID signals sent; only read-only checks."
+          },
+          "plugin_events": 2,
+          "stable_restart_evidence": "Exact initial continuous UID/container/native mapping showed restart0; all60 stable UID/image/resource samples maintained one process_start_time_seconds. The sampler does not store a per-sample restartCount.",
+          "otlp_no_drop_increment_gate": "PASS original Gateway integration check; counters absent for no drop labels, logs151322/spans302644 actual delivery, pending0/errors unchanged.",
+          "limitations_extra": [
+            "No per-load Gateway cgroup CPU pressure/OOM receipt was captured before planned Pod replacement. Do not substitute final Pod counters for the continuous Pod.",
+            "Manual review-attempt1 used nonexistent pod_status field; retained corrected reviewer reads actual UID/image/process-start samples. No additional business run."
+          ],
+          "scheduler_state_marker_regression": {
+            "path": ".local/hyper-runtime-scheduler-state-analysis-20261002/marker-state-classification-regression.json",
+            "status": "PASS_REAL_MARKER_BLOCKED_VS_RUNNABLE_CLASSIFICATION",
+            "business_requests": 0,
+            "scope": "Preserved actual six sleep/CPU/I/O cycles independently classified; not a product fault reproduction"
+          }
+        },
+        "review_summary_receipt": ".local/hyper-runtime-scheduler-diagnosis-r9b-20261002/review-summary.json",
+        "review_evidence_receipt": ".local/hyper-runtime-scheduler-diagnosis-r9b-20261002/review-evidence-sha256.json"
+      },
+      "historical_r9a_status": "FACILITY_INTERRUPTED_REVIEWED_NOT_NEW_PRODUCT_FAILURE_NOT_QUALIFICATION",
+      "followup_r10a": {
+        "status": "PREFLIGHT_STARTUP_SNAPSHOT_NOT_ACTUAL_MIXED_LOAD",
+        "directory": ".local/hyper-runtime-scheduler-diagnosis-r10-20261002",
+        "product_modified": false,
+        "qualification": false,
+        "root_cause_confirmed": false,
+        "start": {
+          "pid": 3222,
+          "started_at": "2026-10-02T19:08:50.824183+00:00",
+          "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r10a",
+          "soak_seconds": 900,
+          "qualification": false,
+          "image": "rgnix:hyper-runtime-driver-probe-20261002",
+          "binary_sha256": "66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c",
+          "runner_sha256": "40e33d5adb3440e0712ba445904bf6ba7ba60bde8709a724c0cb3f5ddb69a0d0",
+          "harness_sha256": "3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0",
+          "command": [
+            "python3",
+            "-u",
+            "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-scheduler-diagnosis-r10-20261002/run-diagnostic.py"
+          ],
+          "scope": "Fresh same900s bounded failure-capture attempt with calibrated blocked/runnable interpretation; no product changes or healthy-duration expansion."
+        },
+        "startup_observation": {
+          "observed_at": "2026-10-02T19:09:27.281353+00:00",
+          "status": "BOUNDED_DIAGNOSIS_RUNNING",
+          "phase": "GATEWAY_PREFLIGHT",
+          "real_workers_reports": 0,
+          "latest_real_workers_report": null,
+          "own_local_actual_processes_verified": [
+            3222,
+            3227,
+            3225,
+            3226
+          ],
+          "own_guard_assertions": [
+            "   pid 3225(caffeinate): [0x0003a7fe000195bc] 00:00:36 PreventUserIdleSystemSleep named: \"caffeinate command-line tool\"  ",
+            "   pid 3225(caffeinate): [0x0003a7fe000795bd] 00:00:36 PreventSystemSleep named: \"caffeinate command-line tool\"  "
+          ],
+          "AC_power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true\n",
+          "trace_status": "NOT_STARTED",
+          "snapshot_not_full_acceptance": true
+        },
+        "harness": {
+          "prepared_at": "2026-10-02T19:07:45.863613+00:00",
+          "runner_sha256": "40e33d5adb3440e0712ba445904bf6ba7ba60bde8709a724c0cb3f5ddb69a0d0",
+          "harness_sha256": "3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0",
+          "scripts_sha256": {
+            "run-diagnostic.py": "40e33d5adb3440e0712ba445904bf6ba7ba60bde8709a724c0cb3f5ddb69a0d0",
+            "trace-probe.py": "c97af33b97213698c29f7c42728595c2f831e8eec5b73478064d27634739ab77",
+            "discover-trace-tids.py": "69f729fcdb77368571d07c492aafe4b07cc2308ec4dddd510aa24bd9b9292cef",
+            "thread-probe.py": "269751e25f3e6df87b3c92fa70c7edbc57238cce9e241fc4c6aa71d10bfb9db6",
+            "clock-probe.py": "e95b4b92f5f6f51c82106fb436f3d89d8666c021b07018f6969fc3148ff45560",
+            "load-probes.py": "c44afc8df0417d6550618ab6a70af2f3f82b3ffc4bab833b59423ac3de4dff39",
+            "check-native-mapping.py": "11c4d36584507d8b60c50b45e9430855d12271c7269728c7780de66b9d72f704",
+            "stop-owned-load.py": "5593311bc06e55c04260470716510458d13b752b4aa42bcf2c4119340208c1fa",
+            "review-trace-content.py": "6932672bf774c98017ed36a2ddb3286b4fd7e4c2b2e070573df529635e2e3d69",
+            "verify-facilities.py": "717da18066a4e714eaea2579e62fad63a73bcb7e89b484b6b23d7c5decfbfa7f"
+          },
+          "scope": "Same900s/sixworkers/200ms; only new output/namespace/stop paths. Frozen source and trace facilities unchanged. Offline scheduler state interpretation passed six real preserved marker cycles; intended to capture a real failure with observed scheduling, not extend health qualification."
+        },
+        "image_receipt": ".local/hyper-runtime-scheduler-diagnosis-r10-20261002/reused-image-provenance.json",
+        "probe_plan": {
+          "status": "PREPARED_SAME_BUDGET_INDEPENDENT_FAILURE_CAPTURE_NOT_RUNNING",
+          "prepared_at": "2026-10-02T19:07:45.863613+00:00",
+          "prior_review": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-scheduler-diagnosis-r9b-20261002/review-summary.json",
+          "marker_state_regression": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-scheduler-state-analysis-20261002/marker-state-classification-regression.json",
+          "max_business_seconds": 900,
+          "qualification": false,
+          "new_product_or_trace_source_changes": false,
+          "analysis_goal": "At a real failure, compare actual direct poll/wake/query markers to exact-TID switch-out states, wake and switch-in; preserve blocking and runnable intervals separately. Scalars still do not identify individual EVAL execution; no product repair inference without causal evidence.",
+          "capacity_change": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-scheduler-diagnosis-r10-20261002/completed-fixture-capacity-archive/receipt.json",
+          "frozen_source_files": 1169,
+          "runner_paths_only_ast_match": true,
+          "runner_sha256": "40e33d5adb3440e0712ba445904bf6ba7ba60bde8709a724c0cb3f5ddb69a0d0"
+        },
+        "capacity_archive_receipt": ".local/hyper-runtime-scheduler-diagnosis-r10-20261002/completed-fixture-capacity-archive/receipt.json"
       }
     }
   }

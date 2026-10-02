@@ -322,3 +322,22 @@ Redis 在不同 Kind 节点 worker，Gateway 在 worker2，同属 OrbStack。Red
 r9b于UTC18:08:30启动，全新namespace rgnix-hyper-runtime-diagnostic-20261002-r9b，runner88550/child88562/guard88560/hostclock88561。UTC18:09:50实查自有命令仍在Gateway预检，尚无workers行、tracer未启动，AC100%及自有两条防睡眠断言通过。这是启动快照，不能把RUNNING当负载开始或资格。1169个scratch源码文件和冻结Gateway harness SHA3ee551保持，只改外围runner、load probe身份元数据与审核/停止设施；镜像Docker10e3240、实际binary668952及三个Kind imageID0183e61再次核对。正式69bc/dbf046、ca46及公开QA未改。启动前两worker空位9/8，仅只读检查，r9a及全部正式/失败现场保留，没有缩零或停止其他任务。
 
 沿用900秒上限、六HTTP/TLS/RGL/body workers、200ms、原permit/clone/taskhandle生命周期、身份清理、失败关闭及不重放；之后仍须OTLP交付排空、先停止trace与线程握手再计划滚动及Admission。新UID/TID/per-task trace身份必须实查，不能复用r9a映射。正式12.3小时与r8等旧业务失败仍有效，根因未确认，默认Hyper保持，正式24小时及随后同binary完整性能/A/A待完成。
+
+
+## r9b 完整有限诊断审核与调度状态判读 — 2026-10-02
+
+前述 UTC18:08 的 r9b 记录是启动快照。该轮已于 UTC18:32:32 正常结束并独立审核，实际六 workers 混合窗口 900.108215 秒、152,031 次成功、零请求错误、两次插件发布。完整报告 complete=true、failure=null，全部 118 项检查及其中 10 项 Admission 通过。持续副本实际交付 logs151,322/spans302,644，成功结束交付、队列排空、无丢弃增量门槛通过；初始/最终日志导出3/151325、span导出6/302650，导出错误与部分成功计数保持零、最终 pending均零。unavailable_closed=0。这仅属于668952诊断产物有限窗口，不能覆盖正式12.3小时失败、r8或其他旧真实503。
+
+60个资源样本包括结束OTLP交付阶段，持续gateway-57cb75d9c6-sntkz/UID1ebeea96-a1e5-4a40-a751-2cc8077ecf8b一致、实际Hyper/同一诊断镜像与进程启动时间保持。初始精确UID/container/native映射零重启，样本不存每次restartCount，不能将它写成逐样本重启计数。RSS42.6–49.4MB、最后43.9MB，FD最高104/最后98。最终两个计划滚动后的副本再次直接核对H/ready/668952/零重启，它们不是持续负载UID。负载期间Gateway cgroup/pressure/OOM未另存快照，计划替换后的新Pod计数不能补作旧持续Pod证明。
+
+完整1,230,484,404字节raw trace已流式独立核对，9,475,899事件、153,326连续批次，无JSON截断或sequence缺口。每个统计窗口及最终所有CPU overrun/commit overrun/dropped events均零；实例userbufsize0，缓冲显示只有允许的空形式，没有匹配到实际内容。2,491个per-task原始perf样本独立解码，核对node PID/TID、raw common_pid/prev_pid到五个实际trace TID及完整服务映射，不从Docker-host PID或comm猜测。trace初始未覆盖9.409秒，线程/Linuxclock缺口4.005/3.460秒。没有失败query/bulk snapshot，因此没有实际失败的driver与调度因果时间线，也没有整轮driver ring未丢失或完整开销标定。
+
+成功请求/OTLP门槛后先停止trace，再停止线程、最后ack允许原计划滚动和Admission；实际顺序UTC18:28:52最终请求、18:29:02交付后stop request、18:29:09 trace-end、18:29:14 thread-end、18:29:15 ack。trace/thread及两clock均stopped=true/exit0、无设施错误，instance移除且global前后与复查状态保持。精确origin UID/container的load PID75和Linuxclock101、node observers196377/196316以及全部七个自有本地命令实际退出；正常负载已结束，stop receipt signal=null，没有仅凭本地exec结束假设远端停止。guard已释放，确切第四事件列启动至结束后无Sleep/Wake/DarkWake，宿主AC100%。原始证据和审核收据在.local/hyper-runtime-scheduler-diagnosis-r9b-20261002/review-summary.json、review-independent-verification.json、review-trace-content-and-loss.json、review-evidence-sha256.json；初次review误用不存在pod_status字段的副本保留，属于审核器错误，没有额外业务运行。
+
+PING窗口最大69.015ms、admin窗口51.087ms、heartbeat0.285秒、client scheduler73.832ms；混合报告窗口独立Mac/Linux等待间隙20.924/76.986ms，最终SLOWLOG最大EVAL14.291ms、Redis拒绝/错误响应零。这些健康读数及顺序累计CPU/runqueue/fault不是旧故障原因。observer user/system CPU4.903983/8.308908秒、输出计时10.638475307秒、批次输出间隙最高129.552ms均是局部观测值，不含全部内核hook/filter、分配和目标扰动，也不等同目标暂停。
+
+新离线判读器用保留的真实自有CPU/sleep/I/O marker六个周期核对：约15–18ms睡眠中blocked_S实际14.980–17.912ms，wake到switch-in可运行等待3–60us，未将整个睡眠算为runqueue等待。来源raw、精确trace身份、摘要及初次JSONL摘要/事件文本摘要范围断言修正均保留于.local/hyper-runtime-scheduler-state-analysis-20261002/。这没有新业务请求、没有重建r8失败。判读只接受完整switch/wake区间，记录首尾不完整与微秒时间戳同值的排序边界；R/R+抢占区间和S/D阻塞区间分开，标量syscall仍不能证明具体Redis EVAL的发送/接收/执行或epoll逐FD就绪。没有因果证据前不改产品、不迁移driver。
+
+仅归档已正常结束并审核通过的r9b及peer两namespace资源、Secret、当前日志、UID、原Deployment副本数和SHA，独立核对后缩零，原namespace/恢复收据和全部raw保留。其他212个Pod UID前后相同，所有正式与失败现场及其他任务保持。新目录.local/hyper-runtime-scheduler-diagnosis-r10-20261002/completed-fixture-capacity-archive/保存收据；两worker活动101/102、空位9/8。容量和环境变化不是稳定性修复。
+
+独立r10a于UTC19:08:50启动，namespace rgnix-hyper-runtime-diagnostic-20261002-r10a，仍最多900秒六HTTP/TLS/RGL/body workers、600秒事件/100路由、原200ms/permit/clone/taskhandle生命周期、身份清理、失败关闭、不重放。1169文件冻结源码、668952镜像及原harness/trace设施保持，只换独立输出/namespace/stop路径；归一化AST与r9b一致。目标是在真实失败时使用已校准判读区分阻塞与可运行等待，没有扩大健康窗口或改正式69bc/dbf046/ca46/公开QA。UTC19:09:27实查runner3222/child3227/guard3225/host3226仍在完整Gateway预检，尚无workers、trace未启动，AC100%和自有两防睡眠断言通过。这是阶段快照，必须按最新process、真实workers/final、新精确UID/TID及停止收据审核；不得沿用r9b身份。正式24小时、人工趋势/电源审核及之后同正式binary完整性能/A/A仍待完成，默认Hyper保持。
