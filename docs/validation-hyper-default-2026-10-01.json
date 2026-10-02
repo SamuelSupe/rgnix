@@ -3477,7 +3477,7 @@
     "owned_processes_exited": true,
     "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW"
   },
-  "last_diagnostic_review_at": "2026-10-02T13:18:45.390354+00:00",
+  "last_diagnostic_review_at": "2026-10-02T15:01:47.639179+00:00",
   "gateway_admission_certificate_fixture_fix": {
     "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_PUBLIC_GATEWAY_REVALIDATION_RUNNING",
     "qa_file": "scripts/gateway_e2e.py",
@@ -4327,7 +4327,7 @@
     "review_evidence_sha256": ".local/hyper-admission-fixture-r4-20261002/review-evidence-sha256.json"
   },
   "redis_driver_poll_wake_diagnosis": {
-    "status": "DIAGNOSTIC_ARTIFACT_VERIFIED_GATEWAY_PREFLIGHT_RUNNING_NOT_PRODUCT_QUALIFICATION",
+    "status": "BOUNDED_R6_PASS_REVIEWED_R7_PREFLIGHT_RUNNING_NOT_PRODUCT_QUALIFICATION",
     "recorded_at": "2026-10-02T14:06:49.381165+00:00",
     "directory": ".local/hyper-runtime-driver-probe-20261002",
     "qualification": false,
@@ -4436,6 +4436,359 @@
       "Driver final chunks are recorded at wrapped future Drop entry; inner future fields are destroyed after the Drop hook",
       "Snapshots/log chunks are scalar ASCII, no command/URL/credentials/body content; final dump only after a marked failed query"
     ],
-    "acceptance": "Local diagnostic regression only. Requires actual mixed load and manual review; cannot cover formal prior failures, establish root cause or replace final product24h/performance."
+    "acceptance": "Local diagnostic regression only. Requires actual mixed load and manual review; cannot cover formal prior failures, establish root cause or replace final product24h/performance.",
+    "r6_review": {
+      "status": "PASS_REVIEWED_BOUNDED_DRIVER_DIAGNOSIS_NOT_PRODUCT_QUALIFICATION",
+      "reviewed_at": "2026-10-02T14:51:56.897996+00:00",
+      "directory": ".local/hyper-runtime-driver-probe-20261002",
+      "qualification": false,
+      "product_changed": false,
+      "binary_sha256": "66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c",
+      "load": {
+        "final": true,
+        "wall_time": 1790951035.4770064,
+        "elapsed_seconds": 900.1235536489985,
+        "workers": [
+          {
+            "requests": 19986,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 20199,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 33994,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 19980,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 20187,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 33976,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 148322,
+        "failed_requests": 0,
+        "retained_latency_samples": 18000,
+        "p99_ms": 77.01189801446162
+      },
+      "mixed_start_wall": 1790950135.384733,
+      "report_complete": true,
+      "checks": 118,
+      "admission_checks": 10,
+      "events": 2,
+      "continuous_pod": {
+        "pod": "gateway-77d7698896-b6282",
+        "uid": "3755232f-9357-433e-9a42-e02ddbae2771",
+        "node": "rgnix-hyper-20260928-worker",
+        "container_id": "76a26160efceea0d0dda9b59a837b7123ace8ae3b076a4af35c20a7ee5b72c29",
+        "pid": 170962,
+        "start_ticks": 22149478,
+        "argv0": "/usr/local/bin/rgnix"
+      },
+      "resource_samples": 52,
+      "resource": {
+        "rss_min_bytes": 43507712.0,
+        "rss_max_bytes": 56934400.0,
+        "rss_final_bytes": 46280704.0,
+        "fd_max": 105.0,
+        "fd_final": 98.0,
+        "unavailable_closed": 0,
+        "observed_process_start_unchanged": true
+      },
+      "otlp": {
+        "name": "Continuous replica delivers OTLP logs and spans without dropping records during soak",
+        "passed": true,
+        "delivered": {
+          "logs": 145273.0,
+          "traces": 290546.0
+        }
+      },
+      "probe_stats": {
+        "redis-window": {
+          "reports": 899,
+          "errors": 0,
+          "max_ms": 130.08796802023426
+        },
+        "runtime-window": {
+          "reports": 30,
+          "errors": 0,
+          "max_ms": 119.72148501081392
+        },
+        "client-scheduler": {
+          "reports": 304,
+          "errors": 0,
+          "max_ms": 148.70136900572106
+        }
+      },
+      "runtime_anomaly_heartbeat_maxima": {
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG access-policy-watch\"}": 0.137,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG connection-drain\"}": 0.151,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG control\"}": 0.132,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG hyper-0.0.0.0:8080-0\"}": 0.138,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG hyper-0.0.0.0:8080-1\"}": 0.135,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG hyper-0.0.0.0:8443-0\"}": 0.134,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG hyper-0.0.0.0:8443-1\"}": 0.137,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG rollout-metrics\"}": 0.512,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"BG upstream-maintenance\"}": 0.387,
+        "rgnix_runtime_service_heartbeat_age_seconds{service=\"admin\"}": 0.018
+      },
+      "independent_clock_peak_wait_gap_ms_in_mixed_window": {
+        "host": 41.54158300002564,
+        "linux": 139.44552300381474
+      },
+      "initial_observer_coverage_gap_seconds": {
+        "host": 0,
+        "linux": 5.393319129943848,
+        "rgnix-hyper-20260928-worker": 5.9078803062438965
+      },
+      "thread_review": {
+        "rgnix-hyper-20260928-worker": {
+          "max_observer_sample_interval_ms": 276.5312194824219,
+          "top_cumulative_runqueue_deltas": [
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 170995,
+              "namespace_tids": [
+                170995,
+                27
+              ],
+              "comm": "tokio-rt-worker",
+              "runqueue_accounting_delta_ms": 9986.248962,
+              "interval_ms": 100.10766983032227,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950282.0135744
+            },
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 170990,
+              "namespace_tids": [
+                170990,
+                23
+              ],
+              "comm": "BG rollout-metr",
+              "runqueue_accounting_delta_ms": 323.632874,
+              "interval_ms": 101.88627243041992,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950503.0886068
+            },
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 170988,
+              "namespace_tids": [
+                170988,
+                21
+              ],
+              "comm": "BG upstream-mai",
+              "runqueue_accounting_delta_ms": 229.403957,
+              "interval_ms": 101.2730598449707,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950788.273195
+            },
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 171089,
+              "namespace_tids": [
+                171089,
+                28
+              ],
+              "comm": "Timer thread",
+              "runqueue_accounting_delta_ms": 203.12275,
+              "interval_ms": 101.06062889099121,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950426.9844713
+            },
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 170984,
+              "namespace_tids": [
+                170984,
+                17
+              ],
+              "comm": "BG hyper-0.0.0.",
+              "runqueue_accounting_delta_ms": 192.350333,
+              "interval_ms": 282.3047637939453,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950987.711095
+            },
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 170986,
+              "namespace_tids": [
+                170986,
+                19
+              ],
+              "comm": "BG hyper-0.0.0.",
+              "runqueue_accounting_delta_ms": 190.555665,
+              "interval_ms": 282.3224067687988,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950987.7111797
+            },
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 170987,
+              "namespace_tids": [
+                170987,
+                20
+              ],
+              "comm": "admin",
+              "runqueue_accounting_delta_ms": 190.332749,
+              "interval_ms": 100.94976425170898,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950496.1468582
+            },
+            {
+              "pod": "gateway-77d7698896-b6282",
+              "node_tid": 170983,
+              "namespace_tids": [
+                170983,
+                16
+              ],
+              "comm": "BG hyper-0.0.0.",
+              "runqueue_accounting_delta_ms": 187.911325,
+              "interval_ms": 282.17124938964844,
+              "major_faults_delta": 0,
+              "sampled_at": 1790950987.7109284
+            }
+          ]
+        }
+      },
+      "observer_end_records": {
+        "host": {
+          "probe": "clock-end",
+          "stopped": true,
+          "deadline_reached": false,
+          "wall_time": 1790951244.7555468,
+          "mode": "host",
+          "pid": 25742
+        },
+        "linux": {
+          "probe": "clock-end",
+          "stopped": true,
+          "deadline_reached": false,
+          "wall_time": 1790951245.184702,
+          "mode": "linux",
+          "pid": 107
+        },
+        "rgnix-hyper-20260928-worker": {
+          "probe": "thread-end",
+          "stopped": true,
+          "deadline_reached": false,
+          "facility_error": false,
+          "wall_time": 1790951049.75416,
+          "observer_pid": 171409
+        }
+      },
+      "threads_stopped_after_load": "2026-10-02T14:24:11.018608+00:00",
+      "owned_processes_and_guard_stopped": true,
+      "final_gateway_proof": [
+        {
+          "pod": "gateway-54cbf77dcf-75mrb",
+          "uid": "f2a407e6-eceb-415c-b7d5-c084a0a20f20",
+          "node": "rgnix-hyper-20260928-worker2",
+          "binary_sha256": "66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c",
+          "engine": "hyper",
+          "ready": true,
+          "restart_count": 0
+        },
+        {
+          "pod": "gateway-54cbf77dcf-lkpdp",
+          "uid": "ec6cacc2-838e-4828-9041-27b1b571bb5b",
+          "node": "rgnix-hyper-20260928-worker",
+          "binary_sha256": "66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c",
+          "engine": "hyper",
+          "ready": true,
+          "restart_count": 0
+        }
+      ],
+      "redis_final": {
+        "rejected_connections": "0",
+        "total_error_replies": "0",
+        "unexpected_error_replies": "0",
+        "uptime_in_seconds": "1408"
+      },
+      "redis_slowlog_max_eval_us": 65166,
+      "power_window": {
+        "observed_at": "2026-10-02T14:47:09.341521+00:00",
+        "window_start": "2026-10-02T14:03:54.695999+00:00",
+        "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+        "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+        "events": [],
+        "scope": "partial current runtime window; not final 24-hour qualification"
+      },
+      "ac_power_at_review": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true",
+      "driver_failure_snapshot_chunks": 0,
+      "driver_final_chunks": 0,
+      "limits": [
+        "No failed business query occurred; this run does not provide a failed query driver timeline or establish cause of prior 503.",
+        "No bulk dump on successful queries; no successful-load record_ns/missed_records or full overhead calibration is retained.",
+        "Clock wait gaps and sequential thread counter deltas are observations, not continuous pauses or direct cause; accounting may be delayed.",
+        "Resource samples include post-load delivery/drain observations; final Gateway pods are planned restart replacements, not the continuous load UID.",
+        "Formal 12.3h failure and previous diagnostic failures remain valid. This instrumented 900-second result cannot replace product24h or performance."
+      ]
+    },
+    "followup": {
+      "directory": ".local/hyper-runtime-driver-probe-long-20261002",
+      "start": {
+        "pid": 42041,
+        "started_at": "2026-10-02T14:58:16.061776+00:00",
+        "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r7b",
+        "soak_seconds": 3600,
+        "qualification": false,
+        "image": "rgnix:hyper-runtime-driver-probe-20261002",
+        "binary_sha256": "66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c",
+        "runner_sha256": "6efa5d45e36ae5e61f24cd26050de53dfc804a70d62343b9fb380d9c0f864893",
+        "harness_sha256": "3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0",
+        "command": [
+          "python3",
+          "-u",
+          "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-driver-probe-long-20261002/run-diagnostic.py"
+        ],
+        "scope": "Independent full precheck then3600s mixed; prior r7a had0 mixed workers and is archived"
+      },
+      "startup_observation": {
+        "status": "CURRENT_OWNED_GATEWAY_PREFLIGHT_RUNNING",
+        "recorded_at": "2026-10-02T14:58:54.278453+00:00",
+        "runner_pid": 42041,
+        "child_pid": 42046,
+        "guard_pid": 42044,
+        "host_clock_pid": 42045,
+        "process_commands": "42041     1 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python -u /Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-driver-probe-long-20261002/run-diagnostic.py\n42044 42041 caffeinate -i -s -w 42041\n42045 42041 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python -u /Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-driver-probe-long-20261002/clock-probe.py host /Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-driver-probe-long-20261002/host-clock.stop 5400\n42046 42041 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python -u /Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-driver-probe-long-20261002/source/scripts/gateway_diagnostic.py --context kind-rgnix-hyper-20260928 --image rgnix:hyper-runtime-driver-probe-20261002 --require-multiple-nodes --namespace rgnix-hyper-runtime-diagnostic-20261002-r7b --soak-seconds 3600 --soak-event-seconds 600 --scale-routes 100 --output /Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-driver-probe-long-20261002/soak.json\n",
+        "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true\n",
+        "guard_assertions": [
+          "   pid 42044(caffeinate): [0x00036d4400018f7b] 00:00:38 PreventUserIdleSystemSleep named: \"caffeinate command-line tool\"  ",
+          "   pid 42044(caffeinate): [0x00036d4400078f7c] 00:00:38 PreventSystemSleep named: \"caffeinate command-line tool\"  "
+        ],
+        "actual_workers_rows": 0,
+        "latest_workers": null,
+        "qualification": false
+      },
+      "power_window": {
+        "observed_at": "2026-10-02T14:59:03.119293+00:00",
+        "window_start": "2026-10-02T14:58:16.096283+00:00",
+        "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+        "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+        "events": [],
+        "scope": "partial current runtime window; not final 24-hour qualification"
+      },
+      "qualification": false,
+      "source_manifest": ".local/hyper-runtime-driver-probe-long-20261002/source-provenance.json",
+      "reused_image_receipt": ".local/hyper-runtime-driver-probe-long-20261002/reused-image-provenance.json",
+      "passing_fixture_archive": ".local/hyper-runtime-driver-probe-long-20261002/completed-fixture-capacity-archive/receipt.json",
+      "preflight_image_correction": ".local/hyper-runtime-driver-probe-long-20261002/preflight-image-name-regression/facility-review.json"
+    }
   }
 }

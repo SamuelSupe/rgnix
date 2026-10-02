@@ -240,3 +240,19 @@ UTC 2026-10-02 14:00 的独立诊断产物已完成构建与局部回归，目�
 独立 r6a 于 UTC `2026-10-02T14:03:54.664141+00:00` 启动，namespace `rgnix-hyper-runtime-diagnostic-20261002-r6a`。先完整 Gateway 预检，再最多 900 秒原六 HTTP/TLS/RGL/body worker、600 秒事件/100 路由的混合负载，200ms 和原限流行为不变；保留独立时钟及精确 owned Gateway/Redis 线程采样。使用同一 r5 冻结 harness `3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0`，包括短 CN、完整 DNS SAN、成功负载与 OTLP 门槛后先停止线程观察器的握手。启动前两 worker 分别有 14/12 个 Pod 空位，未停止其他任务。14:05 快照仍在预检，尚无含 workers 的混合负载行；AC100%、自有临时防睡眠断言和确切事件列已核对。最新以实际 process/workers/final 和停止收据为准。
 
 上述只完成诊断产物与设施回归，不是新的正式发行产物、完整混合诊断或 24 小时资格。正式 69bc/dbf046 二进制及此前 12.3 小时和 r1/r2/r3a/r5a 的真实业务失败持续有效；根因仍未确认。默认 Hyper 保持，不放宽预算、不失败开放、不重放，不跳到性能。
+
+## 直接 Redis driver 有限诊断完成与一小时复验 — 2026-10-02
+
+独立 r6a 于 UTC 14:27:36 结束并完成人工审核。实际混合负载 900.123554 秒、148,322 次成功、零请求错误、两次插件发布；完整报告 complete=true、failure=null，118 项检查包含全部 10 项 Admission 均通过。持续副本实际交付日志 145,273 条、span 290,546 条，结束队列排空且没有丢弃增量。成功门槛后，线程观察器先按停止握手正常退出，再执行原定 Gateway 滚动重启及 Admission。线程和两个独立时钟均 stopped=true、exit 0，runner/child/guard 均已实际退出。
+
+52 个资源样本的持续 UID 3755232f-9357-433e-9a42-e02ddbae2771 一致，实际 Hyper/668952 诊断产物，进程启动时间保持；RSS 43.5–56.9 MB、最后 46.3 MB，FD 最高 105、最后 98，共享限流 unavailable_closed 为零。样本包括负载结束后的交付和排空观察。计划滚动后的两个最终副本再次核对实际 Hyper/ready/同一 668952 摘要/零重启，不能用它们替代混合负载的持续 UID。启动至结束后确切第四事件列无 Sleep/Wake/DarkWake，宿主交流电 100%。原始报告、线程/时钟/负载/资源记录、最终副本、电源及审核 SHA 收据在 .local/hyper-runtime-driver-probe-20261002/。
+
+本轮 Redis PING 窗口最大 RTT 130.088ms，管理窗口最大 RTT 119.721ms，客户端调度间隙最大 148.701ms；混合窗口独立 Mac/Linux 等待间隙最大 41.542/139.446ms，最终 SLOWLOG 最大 EVAL 65.166ms，Redis 拒绝连接和错误响应为零。成功查询不输出 bulk snapshot，因此本轮没有实际失败 query 的 driver 时间线、完整 missed-record/record_ns 汇总或观测开销标定。没有复现业务超时，仍不能解释以前的 503。顺序线程累计值、时钟间隙和时间相关不等于一次持续暂停或根因证明。
+
+为继续定位，准备一小时同一诊断产物的独立 r7。先归档并核对已完成且审核通过的公开 Admission r4、r6a 及其 peer 的资源、Secret 配置、当前日志、Pod UID、原副本数及 SHA，再只将这四个 namespace 的 Deployment 缩至零，保留 namespace 和恢复收据。其余 194 个 Pod UID 前后完全保持，正式和所有失败诊断现场未改；两 worker 恢复至 93/92 个活动 Pod、各 17/18 个空位。这是容量整理及环境变化，不能解释以前 503 或作为稳定性修复。收据在新目录 completed-fixture-capacity-archive/。
+
+r7a 首次预检将新输出目录名误写为镜像名，尚无含 workers 的负载行，已对精确自有 child 发出 SIGINT。完整预检、日志、Pod/Redis、clock-end、停止及资源归档保留于 preflight-image-name-regression/；零混合业务请求，不是新的产品请求失败。旧 runner/child/host/guard 及自有 Helm 均已退出，精确两个预检 namespace 归档后缩零，其他 194 个 Pod UID 保持。新 runner 明确使用原已核对镜像名，并在启动 child 前要求其与独立镜像收据和实际二进制摘要一致。
+
+独立 r7b 于 UTC 2026-10-02T14:58:16.061776+00:00 启动，目录 .local/hyper-runtime-driver-probe-long-20261002/，namespace rgnix-hyper-runtime-diagnostic-20261002-r7b。同一 668952 镜像和 r5 冻结 harness 不变，1169 个 scratch 源码文件与 r6 逐文件相同，不新构建、不改产品或公开 QA。完整 Gateway 预检后最多 3600 秒原六混合 workers、600 秒事件/100 路由，200ms/并发限制/失败关闭/不重放保持。100ms 线程观察最多 4200 秒，两个独立时钟和 runner 最多 5400 秒，自有 stop marker 和成功结束停止握手保持。UTC 14:58:54 启动核对仍在 Gateway 预检、零 workers 行，自有 runner/child/guard/host 与交流电、防睡眠断言已核对。这只是阶段快照，实际开始和结束必须按最新 process、含 workers/final 行及停止收据判定。
+
+r6 的完成只属于诊断产物有限窗口，不是正式发行资格。此前正式 12.3 小时和 r1/r2/r3a/r5a 业务失败仍有效，根因未确认。默认 Hyper 保持，24 小时资格及当前正式产物性能复核仍未通过；一小时诊断也不能代替它们，不跳到性能。
