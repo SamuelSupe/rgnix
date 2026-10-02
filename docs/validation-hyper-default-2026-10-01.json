@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-02T09:17:13.673065+00:00",
+  "recorded_at": "2026-10-02T10:20:02.198117+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -2890,7 +2890,7 @@
     "reviewed_at": "2026-10-02T09:49:00.350464+00:00"
   },
   "resource_control": {
-    "status": "RESOURCE_CONTROL_RUNNING",
+    "status": "RESOURCE_CONTROL_REVIEWED",
     "qualification": false,
     "business_workers": 0,
     "seconds": 900,
@@ -2914,6 +2914,157 @@
       "clock_change": "Read /proc/meminfo and selected /proc/vmstat counters; original wait loop unchanged"
     },
     "scope": "No business load; Redis PING/admin metrics and independent clocks only. This is a diagnostic resource control, not product qualification.",
-    "historical_failure_retained": ".local/hyper-runtime-clock-diagnosis-20261002/failure-summary.json"
+    "historical_failure_retained": ".local/hyper-runtime-clock-diagnosis-20261002/failure-summary.json",
+    "start_snapshot_status": "RESOURCE_CONTROL_RUNNING",
+    "review": {
+      "status": "RESOURCE_CONTROL_REVIEWED",
+      "business_workers": 0,
+      "qualification": false,
+      "actual_elapsed_seconds": 900.0665428638458,
+      "actual_start_epoch": 1790934397.805283,
+      "actual_end_epoch": 1790935297.871826,
+      "redis_ping_max_ms": 45.33103699213825,
+      "redis_probe_errors": 0,
+      "admin_max_rtt_ms": 86.43946101074107,
+      "max_reported_heartbeat_seconds": 0.815,
+      "host_wait_max_ms": 21.76533400000835,
+      "linux_wait_max_ms": 463.3803789911326,
+      "linux_peak_epoch": 1790934793.0264163,
+      "counters_unchanged": {
+        "rgnix_global_rate_limit_seconds_sum{result=\"allowed\"}": 43.15595850699993,
+        "rgnix_global_rate_limit_seconds_sum{result=\"unavailable_closed\"}": 1.134077212,
+        "rgnix_global_rate_limit_total{result=\"allowed\"}": 34322.0,
+        "rgnix_global_rate_limit_total{result=\"unavailable_closed\"}": 4.0,
+        "rgnix_otlp_logs_export_errors_total": 0.0,
+        "rgnix_otlp_logs_exported_total": 34326.0,
+        "rgnix_otlp_logs_partial_success_total": 0.0,
+        "rgnix_otlp_logs_pending": 0.0,
+        "rgnix_otlp_logs_retries_total": 0.0,
+        "rgnix_otlp_traces_export_errors_total": 0.0,
+        "rgnix_otlp_traces_exported_total": 68648.0,
+        "rgnix_otlp_traces_partial_success_total": 0.0,
+        "rgnix_otlp_traces_pending": 0.0,
+        "rgnix_otlp_traces_retries_total": 0.0
+      },
+      "gateway_uid": "8ef905d6-b13e-4d59-8ae0-f9e7f32517e8",
+      "gateway_restart_count": 0,
+      "observers_and_guard_stopped": true,
+      "owned_local_ps_after": "",
+      "power": {
+        "observed_at": "2026-10-02T10:03:46.473549+00:00",
+        "window_start": "2026-10-02T09:46:36.991731+00:00",
+        "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+        "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+        "events": [],
+        "scope": "partial current runtime window; not final 24-hour qualification"
+      },
+      "power_now": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true\n",
+      "peak_window_file": ".local/hyper-runtime-resource-control-20261002/peak-clock-window.json",
+      "interpretation": "An independent Linux wait gap occurred with no business workers, while nearby PING/admin and HTTP/TLS heartbeats stayed much shorter. This does not establish a whole-VM pause or the cause of prior business 503s. The 0.815s heartbeat is rollout-metrics, not an HTTP/TLS worker. Clock gaps cover the 10ms wait only; reporting/proc reads can delay between wait samples.",
+      "global_vm_delta_near_peak": {
+        "pswpin": 21737,
+        "pswpout": 0,
+        "pgmajfault": 22049,
+        "scope": "Global VM counters between adjacent one-second reports; not Gateway/Redis faults or a causal proof"
+      },
+      "reviewed_at": "2026-10-02T10:14:18.193182+00:00"
+    },
+    "review_file": ".local/hyper-runtime-resource-control-20261002/review-summary.json"
+  },
+  "owned_thread_diagnosis": {
+    "status": "PREFLIGHT_RUNNING",
+    "qualification": false,
+    "start": {
+      "pid": 56134,
+      "started_at": "2026-10-02T10:18:08.951095+00:00",
+      "runner_sha256": "57868990dfcdffb677aa5d9db5ff149bc8636df0d0005facb323f49398dca200",
+      "harness_sha256": "954e47d050d9877872dfb3e8ae5770452f60800d5ac7a47cd2295e68edced971",
+      "thread_probe_sha256": "e16287f7eb22b23813f972a94911ace9bbc7c84f3e7de74bbdee8822ef54fc8f",
+      "clock_sha256": "e95b4b92f5f6f51c82106fb436f3d89d8666c021b07018f6969fc3148ff45560",
+      "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r3a",
+      "soak_seconds": 900,
+      "qualification": false,
+      "scope": "Full Gateway preflight then bounded mixed load with exact owned Gateway/Redis thread counters. Reused unchanged diagnostic binary and frozen harness.",
+      "previous_preflight_archive": ".local/hyper-runtime-scheduling-diagnosis-20261002/preflight-replica-observation-regression"
+    },
+    "startup_observation_file": ".local/hyper-runtime-scheduling-diagnosis-20261002/startup-observation.json",
+    "source_provenance": {
+      "qualification": false,
+      "image": "rgnix:hyper-runtime-diagnostic-20261002",
+      "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9",
+      "source_runtime_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+      "source_directory": ".local/hyper-runtime-diagnosis-20261002/source",
+      "source_changed": false,
+      "harness_changed": false,
+      "harness_sha256": "954e47d050d9877872dfb3e8ae5770452f60800d5ac7a47cd2295e68edced971",
+      "runner_sha256": "57868990dfcdffb677aa5d9db5ff149bc8636df0d0005facb323f49398dca200",
+      "clock_sha256": "e95b4b92f5f6f51c82106fb436f3d89d8666c021b07018f6969fc3148ff45560",
+      "thread_probe_sha256": "e16287f7eb22b23813f972a94911ace9bbc7c84f3e7de74bbdee8822ef54fc8f",
+      "diagnostic_budget_seconds": 900,
+      "runqueue_field_reference": "https://docs.kernel.org/scheduler/sched-stats.html",
+      "fault_field_reference": "https://docs.kernel.org/filesystems/proc.html",
+      "interpretation": "schedstat CPU/wait nanoseconds and timeslices, stat faults cumulative per identity; interval deltas are totals, not individual continuous stalls. Thread names can be truncated by kernel. Observer resource cost and sampling gaps retained. No scheduler/sysctl changes.",
+      "clock_validation": "Same script as completed 900s resource control with actual clock-end and marker exit0; inherited 2-second regression refers to earlier version",
+      "recorded_at": "2026-10-02T10:18:08.948974+00:00",
+      "preflight_observer_correction": "Wait for exactly two active and Ready pods before strict two-pod verification; keep all binary, engine and restart checks."
+    },
+    "reused_image_provenance": {
+      "image": "rgnix:hyper-runtime-diagnostic-20261002",
+      "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9",
+      "scope": "Reuses diagnostic image already loaded on all nodes. Verify actual deployed binary and engine for this independent namespace. No new runtime build.",
+      "original_build_receipt": ".local/hyper-runtime-diagnosis-20261002/build-process.json",
+      "qualification": false
+    },
+    "thread_probe_regression": {
+      "status": "PASS",
+      "actual_environment": "Existing OrbStack Kind worker Python3; exact preserved owned Gateway and Redis PIDs",
+      "targets": [
+        {
+          "pod": "gateway-7dfc6b97f6-6tx27",
+          "uid": "8ef905d6-b13e-4d59-8ae0-f9e7f32517e8",
+          "node": "rgnix-hyper-20260928-worker",
+          "container_id": "1b0189c43e735f3b325c44d4fcd3b6be4c9df59ab859d4a70d118163b7bb9e3e",
+          "pid": 139228,
+          "start_ticks": 20422557,
+          "argv0": "/usr/local/bin/rgnix"
+        },
+        {
+          "pod": "redis-79fc774b7b-lkg5q",
+          "uid": "425ec10d-4257-40fe-9bb3-7dd99a2368b7",
+          "node": "rgnix-hyper-20260928-worker",
+          "container_id": "7773407b70a3de59f87725a49ead31462eb5a5e7e143d587c6b9ec34b701c2ce",
+          "pid": 136542,
+          "start_ticks": 20391024,
+          "argv0": "redis-server *:6379"
+        }
+      ],
+      "samples": 21,
+      "stop_marker_exit_code": 0,
+      "clock_end": {
+        "probe": "thread-end",
+        "stopped": true,
+        "deadline_reached": false,
+        "facility_error": false,
+        "wall_time": 1790935960.2914588,
+        "observer_pid": 140803
+      },
+      "probe_sha256": "e16287f7eb22b23813f972a94911ace9bbc7c84f3e7de74bbdee8822ef54fc8f",
+      "verified_at": "2026-10-02T10:12:40.334216+00:00",
+      "max_read_ms": 3.9937719993758947,
+      "observer_cpu_seconds": 0.051884999999999994,
+      "qualification": false
+    },
+    "process_file": ".local/hyper-runtime-scheduling-diagnosis-20261002/process.json",
+    "mixed_load_started_observed": false,
+    "scope": "Diagnostic only; exact owned Gateway/Redis PID and thread counters at 100ms, independent clocks, same frozen diagnostic binary/harness, maximum 900s mixed load after full preflight. Not final product qualification.",
+    "preflight_observer_interruption": {
+      "classification": "VALIDATION_OBSERVER_PREFLIGHT_INTERRUPTED",
+      "business_load_started": false,
+      "business_requests": 0,
+      "product_failure": false,
+      "cause": "Observer counted two Ready pods during rolling deployment but strict verification saw three active pods. Self child SIGINT used before load.",
+      "owned_processes_exited": true,
+      "historical_runner_sha256": "0ea1cf26363d78d90150257161f445ad46db4a7becb60ebe7877f1f229d55920"
+    }
   }
 }
