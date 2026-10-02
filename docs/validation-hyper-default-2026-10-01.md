@@ -228,3 +228,15 @@ r5a 于 UTC 12:29:21 出现真实业务失败，runner 于 12:29:49 退出：实
 最终两个 Pod `gateway-8855bfb88-scmjw` / `gateway-8855bfb88-v9tlm` 的 UID 分别为 `1dcf2f20-3317-4b3b-8098-409c3421e00f` / `312e8046-864e-4f06-933a-b66029626cfe`，位于不同工作节点，实际 Hyper、ready、零容器重启，进程二进制 SHA 均为原正式 69bc 产物。它们是常规 QA 计划滚动部署后的最终副本，零重启不代表整个 24 小时混合负载持续副本通过。runner/child/guard 均已实际退出；启动至结束后确切电源事件列无 Sleep/Wake/DarkWake，宿主交流电 100%。完整报告、实际副本、管理指标、电源、人工审核和 SHA 收据在 `.local/hyper-admission-fixture-r4-20261002/`。
 
 这补齐了证书设施修正的完整公开 Gateway/Admission 行为，未修改产品运行源码或正式二进制。`soak_seconds=0`，没有本轮混合长负载或性能对照；不得覆盖正式 12.3 小时及 r1/r2/r3a/r5a 的限流查询超时失败。直接观察 Redis driver 的诊断仍仅处于准备计划阶段，尚未构建或启动。默认 Hyper 保持，限流根因、正式产品 24 小时和当前产物性能资格仍未确认。
+
+## Redis driver 直接观测的诊断产物
+
+UTC 2026-10-02 14:00 的独立诊断产物已完成构建与局部回归，目录 `.local/hyper-runtime-driver-probe-20261002/`，二进制 SHA `66895251b21d0a47c40c45e10b72d7138ab52a7c4a2ddc825418b41635cd017c`。它基于 r5/c75 冻结源码，只在 scratch 中复制并修改 Redis 1.7.1 和限流诊断记录；原 registry archive SHA 与全部 124 个缓存文件核对，共享 Cargo registry/git 只读挂载，旧冻结树和正式产品运行源码未改。原连接 driver 的 `T::spawn`、共享任务 handle 生命周期、timeout/response 配置、permit、连接身份清理、失败关闭和不重放保持。初始化完成后才开始直接记录 driver poll/wake、实际 native TID、连接与 query 标识；bootstrap 未覆盖，创建者身份不能替代实际 poll 观测。
+
+14 项共享限流回归、最终诊断镜像默认 Hyper/显式 Hyper/Pingora 的真实 HTTP、ready、metrics 与实际二进制摘要通过。独立真实 Redis TCP 回归验证了原连接释放后 clone 仍可 PING、200ms blocking query 在 202.331ms 超时、Redis MONITOR 仅记录一次该 BLPOP、最后 clone 释放后独立观察 handle 仍看到 driver 结束，以及替换连接 PING 成功、driver ID 不同。首次 INFO 扣额次数收据断言和第二次既有镜像目录碰撞属于验证设施失败，原始日志与产物保留；后一轮沿用已重新编译并通过 14 项检查的精确产物完成镜像及真实 MONITOR 验证，未把旧缓存二进制作为替身。所有构建进程、临时 guard、回归监视器及其临时容器已退出。
+
+观测新增每个 driver 的初始分配、每次 poll 的转发 waker 分配和 2048 条标量 ring；try-lock 争用、sequence、record/snapshot 时间都有记录，不能据局部计时宣称开销可忽略。原 poll 返回值和 wake 转发保留；idle gap 或 wake 入口至下次 poll 的间隔不是 OS runqueue 延迟。失败后的分块日志可影响之后并发，admission 完成时间和 bulk dump 时间分开记录；最终快照在 driver Drop 入口，随后才销毁 inner future。不会记录命令、URL、凭据或请求 body。
+
+独立 r6a 于 UTC `2026-10-02T14:03:54.664141+00:00` 启动，namespace `rgnix-hyper-runtime-diagnostic-20261002-r6a`。先完整 Gateway 预检，再最多 900 秒原六 HTTP/TLS/RGL/body worker、600 秒事件/100 路由的混合负载，200ms 和原限流行为不变；保留独立时钟及精确 owned Gateway/Redis 线程采样。使用同一 r5 冻结 harness `3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0`，包括短 CN、完整 DNS SAN、成功负载与 OTLP 门槛后先停止线程观察器的握手。启动前两 worker 分别有 14/12 个 Pod 空位，未停止其他任务。14:05 快照仍在预检，尚无含 workers 的混合负载行；AC100%、自有临时防睡眠断言和确切事件列已核对。最新以实际 process/workers/final 和停止收据为准。
+
+上述只完成诊断产物与设施回归，不是新的正式发行产物、完整混合诊断或 24 小时资格。正式 69bc/dbf046 二进制及此前 12.3 小时和 r1/r2/r3a/r5a 的真实业务失败持续有效；根因仍未确认。默认 Hyper 保持，不放宽预算、不失败开放、不重放，不跳到性能。
