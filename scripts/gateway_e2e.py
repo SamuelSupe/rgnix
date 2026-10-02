@@ -102,7 +102,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
   if self.headers.get('x-rgnix-mirror') == 'true':
    Handler.mirrors += 1; Handler.last_mirror={'path':self.path,'host':self.headers.get('Host'),'body':body.decode(errors='replace')}
   if self.path in ('/v1/logs','/v1/traces'):
-   self.send_response(200);self.send_header('Content-Length','0');self.end_headers();return
+   self.send_response(200);self.send_header('Content-Type','application/x-protobuf');self.send_header('Content-Length','0');self.end_headers();return
   if self.headers.get('x-delay'): time.sleep(min(5,float(self.headers['x-delay'])))
   if self.path.startswith('/slow'): time.sleep(0.4)
   if self.path.startswith('/trickle'):
@@ -691,6 +691,7 @@ assert all(r["failed_requests"]==0 and r["requests"]>0 for r in workers)
                     stable=next(p for p in initial if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[{}])))
                     stable_uid=stable["metadata"]["uid"]
                     stable_restarts=sum(c.get("restartCount",0) for c in stable["status"]["containerStatuses"])
+                    initial_signal_metrics=None
                     with samples_file.open("w") as samples:
                         while load.poll() is None:
                             now=time.monotonic()
@@ -709,7 +710,7 @@ for name, address in ADDRESSES.items():
   result[name] = {line.rsplit(None,1)[0]:float(line.rsplit(None,1)[1])
    for line in metrics.splitlines() if line.startswith(("process_","rgnix_engine_info",
     "rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready ",
-    "rgnix_global_rate_limit_total","rgnix_global_rate_limit_seconds_sum","rgnix_global_rate_limit_seconds_count"))}
+    "rgnix_global_rate_limit_total","rgnix_global_rate_limit_seconds_sum","rgnix_global_rate_limit_seconds_count","rgnix_otlp_"))}
  except Exception as error:
   result[name] = {"error":str(error)}
 print(json.dumps(result))
@@ -717,6 +718,8 @@ print(json.dumps(result))
                             observation=json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",probe))
                             stable_metrics=observation[steady["metadata"]["name"]]
                             assert stable_metrics.get("rgnix_ready")==1, stable_metrics
+                            if initial_signal_metrics is None:
+                                initial_signal_metrics=stable_metrics.copy()
                             sample={"elapsed_seconds":now-started,"stable_pod_uid":stable_uid,"pods":observation,"images":{p["metadata"]["name"]:[c.get("imageID") for c in p.get("status",{}).get("containerStatuses",[])] for p in active}}
                             if now>=next_event and now-started<args.soak_seconds-5:
                                 events+=1
@@ -743,6 +746,22 @@ print(json.dumps(result))
                 soak=measurements[-1] if measurements else {"error":data[-4096:]}
                 checks.append({"name":"Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement","passed":status==0,"seconds":args.soak_seconds,"scale_routes":args.scale_routes,"events":events,"stable_pod_uid":stable_uid,"samples_file":str(samples_file),"load_file":str(output_file),"connection_mode":"HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker; latency samples retain at most 3000 successes per worker","measurement":soak})
                 assert status==0,data
+                for _ in range(30):
+                    final_observation=json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",probe))
+                    stable_metrics=final_observation[stable["metadata"]["name"]]
+                    if all(stable_metrics.get(f"rgnix_otlp_{signal}_pending",0)==0 for signal in ("logs","traces")):
+                        break
+                    time.sleep(0.5)
+                assert all(stable_metrics.get(f"rgnix_otlp_{signal}_pending",0)==0 for signal in ("logs","traces")), "OTLP records did not flush after soak"
+                delivered={}
+                for signal in ("logs","traces"):
+                    metric=f"rgnix_otlp_{signal}_exported_total"
+                    delivered[signal]=stable_metrics.get(metric,0)-initial_signal_metrics.get(metric,0)
+                    assert delivered[signal]>0, f"OTLP {signal} receiver accepted no records during soak"
+                    dropped=f"rgnix_otlp_{signal}_dropped_total"
+                    lost=sum(v for k,v in stable_metrics.items() if k.startswith(dropped))-sum(v for k,v in initial_signal_metrics.items() if k.startswith(dropped))
+                    assert lost==0, f"OTLP {signal} lost {lost} records during soak"
+                checks.append({"name":"Continuous replica delivers OTLP logs and spans without dropping records during soak","passed":True,"delivered":delivered})
             reconnect()
             wait("Replacement replica acknowledges the accepted configuration",lambda:admin("/v1/fleet",credential=operator)[1].get("converged"),seconds=180)
 

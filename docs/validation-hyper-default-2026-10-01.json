@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-01T14:45:08.361847+00:00",
+  "recorded_at": "2026-10-02T03:49:47.795282+00:00",
   "runtime_source_commit": "100916e24ef2ffa895ce45bd27e305ceba215a24",
   "qa_commit": "4ebadcdab498ffa6053e9042aca33376a86cc2f3",
   "runtime_source_sha256": "09108a73bb78608e1094930e7ce7f21dca344ff876fa054d119c431d99a49f70",
@@ -1061,7 +1061,7 @@
     }
   },
   "shared_limiter_connection_fix": {
-    "status": "PASS / current native artifact and final image; 24-hour qualification remains pending",
+    "status": "PASS / focused regression, native artifacts and final image; subsequent current-product 24-hour soak FAILED",
     "base_commit": "354c965c7e12d4497f2734f3ed9ae0c93970e935",
     "previous_runtime_source_commit": "d2c60aba05477568b176fdbc5220645fcd5fbd94",
     "baseline": {
@@ -1251,7 +1251,7 @@
     }
   },
   "pingora_listener_readiness_fix": {
-    "status": "PASS / current native artifact and final image; 24-hour qualification remains pending",
+    "status": "PASS / focused regression, native artifacts and final image; subsequent current-product 24-hour soak FAILED",
     "previous_source_commit": "07355b3e60d7059df5c9855f897ae7910560be8b",
     "failure": "readyz 200 immediately followed by refused business connection in existing repeated-start test",
     "change": "gate readiness on every data listener binding and scheduling accept tasks; share predicate for readyz and readiness metric",
@@ -1529,10 +1529,10 @@
     "local_regression_policy": "200 ms deadline; max_inflight=1; requests 200/503/200; one TCP connection; two EVAL; no ambiguous debit replay",
     "original_six_503_root_cause": "UNCONFIRMED",
     "current_performance": "NOT RUN / historical 14bc benchmark is not a measurement of ca46 runtime",
-    "soak_qualification": "RUNNING / final-product load started; not a qualification pass",
+    "soak_qualification": "FAILED / final-product 24-hour run ended after 44334.815 seconds with two HTTP 503; root cause unconfirmed",
     "process_file": ".local/hyper-runtime-fix-20261001/process.json",
     "local_kubernetes": {
-      "status": "SOAK_RUNNING",
+      "status": "FAILED",
       "namespace": "rgnix-hyper-runtime-fix-soak-20261001",
       "image": "rgnix:hyper-limiter-fix-20261001",
       "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
@@ -1548,9 +1548,10 @@
           "-w",
           "70573"
         ],
-        "status": "ACTIVE",
+        "status": "STOPPED",
         "power_at_start": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t63%; charging; 1:56 remaining present: true\n",
-        "scope": "temporary sleep assertions while AC powered; released at runner exit"
+        "scope": "temporary sleep assertions while AC powered; released at runner exit",
+        "stopped_at": "2026-10-02T03:01:29.724410+00:00"
       },
       "ingress": {
         "status": "PASS",
@@ -1882,48 +1883,56 @@
           }
         ]
       },
-      "latest_observed_at": "2026-10-01T14:44:49.393779+00:00",
+      "latest_observed_at": "2026-10-02T03:28:15.287599+00:00",
       "latest_soak": {
-        "final": false,
-        "elapsed_seconds": 120.02762626798358,
+        "final": true,
+        "elapsed_seconds": 44334.815152732976,
         "workers": [
           {
-            "requests": 2766,
+            "requests": 1022973,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 1023731,
             "failed_requests": 0,
             "errors": []
           },
           {
-            "requests": 2766,
+            "requests": 1692300,
             "failed_requests": 0,
             "errors": []
           },
           {
-            "requests": 4604,
+            "requests": 1022976,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 1023728,
             "failed_requests": 0,
             "errors": []
           },
           {
-            "requests": 2759,
-            "failed_requests": 0,
-            "errors": []
-          },
-          {
-            "requests": 2765,
-            "failed_requests": 0,
-            "errors": []
-          },
-          {
-            "requests": 4603,
+            "requests": 1692414,
             "failed_requests": 0,
             "errors": []
           }
         ],
-        "requests": 20263,
-        "failed_requests": 0,
-        "retained_latency_samples": 17056,
-        "p99_ms": 47.739926987560466
+        "requests": 7478122,
+        "failed_requests": 2,
+        "retained_latency_samples": 18000,
+        "p99_ms": 83.58106299419887
       },
-      "load_first_observed_at": "2026-10-01T14:43:19.222503+00:00"
+      "load_first_observed_at": "2026-10-01T14:43:19.222503+00:00",
+      "ended_at": "2026-10-02T03:01:47.668526+00:00",
+      "failure_summary": ".local/hyper-runtime-fix-soak-20261001/failure-summary.json",
+      "final_load_source": ".local/hyper-runtime-fix-soak-20261001/soak.load.jsonl",
+      "receipt_polling_limit": "process.json.latest_soak is the last pre-failure poll; actual final request/error counts come from the final load JSON row"
     },
     "downloaded_native_artifacts": {
       "ci_run": 36873436732,
@@ -1942,6 +1951,223 @@
           "final_image_receipt_matches": true
         }
       }
+    },
+    "latest_soak_failure": {
+      "status": "FAILED / not 24-hour qualification",
+      "recorded_at": "2026-10-02T03:28:15.287599+00:00",
+      "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+      "qa_source_commit": "70f46f492bc0b7d81d76c40e6e500a9970c21f17",
+      "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+      "image": "rgnix:hyper-limiter-fix-20261001",
+      "runner_pid": 70573,
+      "test_pid": 74098,
+      "runner_ended_at": "2026-10-02T03:01:47.668526+00:00",
+      "final_load": {
+        "final": true,
+        "elapsed_seconds": 44334.815152732976,
+        "workers": [
+          {
+            "requests": 1022973,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 1023731,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 1692300,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 1022976,
+            "failed_requests": 1,
+            "errors": [
+              "HTTP 503: b''"
+            ]
+          },
+          {
+            "requests": 1023728,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 1692414,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 7478122,
+        "failed_requests": 2,
+        "retained_latency_samples": 18000,
+        "p99_ms": 83.58106299419887
+      },
+      "load_timeline": "elapsed_seconds from soak.load.jsonl; separate from control/resource timeline",
+      "publication_events": 74,
+      "stable_pod": {
+        "name": "gateway-555f6f5c65-22kgg",
+        "uid": "c391fc0e-e6f5-40b0-8514-8147b5be768a",
+        "all_samples_same_uid": true,
+        "restart_count": 0,
+        "sample_count": 1468,
+        "rss_min_bytes": 39649280.0,
+        "rss_max_bytes": 50958336.0,
+        "rss_last_bytes": 44699648.0,
+        "fd_max": 105.0,
+        "fd_last": 104.0,
+        "max_observed_service_heartbeat_age_seconds": 0.263,
+        "sampling_limit": "30-second samples cannot exclude subsecond stalls"
+      },
+      "failure_metrics": {
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"0.005\"}": 0.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"0.01\"}": 0.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"0.025\"}": 0.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"0.05\"}": 0.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"0.1\"}": 0.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"0.25\"}": 2.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"0.5\"}": 2.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"1\"}": 2.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"2.5\"}": 2.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"5\"}": 2.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"10\"}": 2.0,
+        "rgnix_global_rate_limit_seconds_bucket{result=\"unavailable_closed\",le=\"+Inf\"}": 2.0,
+        "rgnix_global_rate_limit_seconds_sum{result=\"unavailable_closed\"}": 0.417989608,
+        "rgnix_global_rate_limit_seconds_count{result=\"unavailable_closed\"}": 2.0,
+        "rgnix_global_rate_limit_total{result=\"unavailable_closed\"}": 2.0,
+        "rgnix_plugin_errors_total": 0.0,
+        "rgnix_upstream_errors_total": 0.0
+      },
+      "redis_final": {
+        "slowlog_entries": 90,
+        "eval_entries": 75,
+        "max_eval_microseconds": 42483,
+        "limitation": "Redis SLOWLOG measures command execution, not client RTT or executor delay"
+      },
+      "power_window": {
+        "observed_at": "2026-10-02T03:19:09.322690+00:00",
+        "window_start": "2026-10-01T14:26:56.514514+00:00",
+        "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+        "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+        "events": [],
+        "scope": "partial current runtime window; not final 24-hour qualification"
+      },
+      "sleep_protection": {
+        "pid": 70575,
+        "arguments": [
+          "-i",
+          "-s",
+          "-w",
+          "70573"
+        ],
+        "status": "STOPPED",
+        "power_at_start": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t63%; charging; 1:56 remaining present: true\n",
+        "scope": "temporary sleep assertions while AC powered; released at runner exit",
+        "stopped_at": "2026-10-02T03:01:29.724410+00:00"
+      },
+      "processes": "Owned runner, test and caffeinate absent at current ps observation; raw snapshot preserved",
+      "root_cause": "UNCONFIRMED; dependency unavailable failures confirmed, cache-identity regression does not explain these two errors",
+      "policy": "200 ms; failure closed; no debit replay; no timeout relaxation",
+      "log_collection": {
+        "follower_last_observed_log_at": "2026-10-01T18:42:19Z",
+        "gap": "Original follower stopped before failure; recovered retained Pod logs with exact failure window",
+        "recovered": "gateway-555f6f5c65-22kgg-failure-window.log"
+      },
+      "evidence": [
+        "soak.load.jsonl",
+        "soak.samples.jsonl",
+        "soak.log",
+        "final-pods.json",
+        "final-redis-info.txt",
+        "final-redis-slowlog.json",
+        "failure-metrics-after.txt",
+        "gateway-555f6f5c65-22kgg-failure-window.log",
+        "failure-cgroup-gateway-after.txt",
+        "failure-cgroup-redis-after.txt",
+        "failure-pod-binary-after.txt",
+        "failure-processes-after.txt",
+        "failure-host-power-after.txt",
+        "failure-container-resources-after.jsonl",
+        "failure-otlp-receiver-response.json"
+      ],
+      "otlp_receiver_validation": {
+        "status": "FAILED fixture response contract; accepted logs/spans both zero",
+        "receiver_response": {
+          "status": 200,
+          "content_type": null,
+          "content_length": "0",
+          "body_bytes": 0,
+          "observed_at": "2026-10-02T03:40:25.297462+00:00"
+        },
+        "metrics": {
+          "rgnix_otlp_logs_dropped_total{reason=\"export_failed\"}": 7474357.0,
+          "rgnix_otlp_logs_export_errors_total": 44009.0,
+          "rgnix_otlp_logs_exported_total": 0.0,
+          "rgnix_otlp_logs_partial_success_total": 0.0,
+          "rgnix_otlp_logs_pending": 0.0,
+          "rgnix_otlp_logs_retries_total": 0.0,
+          "rgnix_otlp_traces_dropped_total{reason=\"export_failed\"}": 14948712.0,
+          "rgnix_otlp_traces_export_errors_total": 58415.0,
+          "rgnix_otlp_traces_exported_total": 0.0,
+          "rgnix_otlp_traces_partial_success_total": 0.0,
+          "rgnix_otlp_traces_pending": 0.0,
+          "rgnix_otlp_traces_retries_total": 0.0
+        },
+        "root_cause_scope": "Confirms OTLP receiver fixture defect only; does not explain shared-limiter HTTP 503"
+      }
     }
+  },
+  "gateway_otlp_receiver_fix": {
+    "status": "PASS / same tested arm64 product reproduces old fixture rejection and accepts corrected receiver; full new Gateway/diagnostic run in progress",
+    "scope": "Gateway QA fixture and soak delivery checks; no production runtime change",
+    "harness_sha256": "b150c25fd42028f6cb0d571f8f58b7670fc0ba3c1638200ebac040d536c55eea",
+    "original_live_receiver": {
+      "status": 200,
+      "content_type": null,
+      "content_length": "0",
+      "body_bytes": 0,
+      "observed_at": "2026-10-02T03:40:25.297462+00:00"
+    },
+    "regression": {
+      "status": "PASS",
+      "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+      "scope": "Same tested production binary against actual original and corrected Gateway receiver classes",
+      "checks": [
+        {
+          "fixture": "original",
+          "metrics": {
+            "logs_exported_total": 0.0,
+            "logs_export_errors_total": 1.0,
+            "logs_dropped_total": 1.0,
+            "traces_exported_total": 0.0,
+            "traces_export_errors_total": 1.0,
+            "traces_dropped_total": 1.0
+          }
+        },
+        {
+          "fixture": "fixed",
+          "metrics": {
+            "logs_exported_total": 1.0,
+            "logs_export_errors_total": 0.0,
+            "logs_dropped_total": 0,
+            "traces_exported_total": 1.0,
+            "traces_export_errors_total": 0.0,
+            "traces_dropped_total": 0
+          }
+        }
+      ]
+    },
+    "diagnosis": {
+      "pid": 57898,
+      "started_at": "2026-10-02T03:48:49.627884+00:00",
+      "runner_sha256": "d3b7d02c6690a5d9b3523eddde60daa6c1f92fbb5be429af5f0da7381c24564e",
+      "purpose": "Bounded diagnostic; not final-product qualification; max 86400 seconds actual load after Gateway preflight",
+      "binary_sha256": "369c81321ab6f7e14810bf3d6568f13dc17416cdec4abb528980538410b597b9"
+    },
+    "qualification": false,
+    "evidence_directory": ".local/hyper-runtime-diagnosis-20261002"
   }
 }
