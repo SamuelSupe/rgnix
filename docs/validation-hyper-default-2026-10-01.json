@@ -3477,9 +3477,9 @@
     "owned_processes_exited": true,
     "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW"
   },
-  "last_diagnostic_review_at": "2026-10-02T12:19:00.148255+00:00",
+  "last_diagnostic_review_at": "2026-10-02T12:52:16.618971+00:00",
   "gateway_admission_certificate_fixture_fix": {
-    "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_FULL_GATEWAY_REVALIDATION_RUNNING",
+    "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_PUBLIC_GATEWAY_REVALIDATION_RUNNING",
     "qa_file": "scripts/gateway_e2e.py",
     "runtime_source_changed": false,
     "change": "Use bounded Common Name; initial and rotated certificate SAN retains the full service DNS hostname",
@@ -3524,11 +3524,189 @@
       ],
       "scope": "Certificate fixture regression, not Gateway or product soak qualification"
     },
-    "qa_ci_status": "NOT_YET_OBSERVED_FOR_NEW_PUBLICATION",
-    "scope": "Validation fixture fix only; no explanation for earlier shared-limiter HTTP 503"
+    "qa_ci_status": "PASS",
+    "scope": "Certificate fixture and native CI passed; full public Kubernetes Gateway/Admission is a separate run; previous product 24h failure remains valid.",
+    "qa_ci": {
+      "status": "PASS",
+      "recorded_at": "2026-10-02T12:45:13.674486+00:00",
+      "run_id": 37006103377,
+      "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377",
+      "qa_source_commit": "0a56bff50393882360f6ddca21051c8f0533eca4",
+      "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+      "jobs": [
+        {
+          "name": "check",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110834641411,
+          "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377/job/110834641411"
+        },
+        {
+          "name": "hyper (ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110834641588,
+          "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377/job/110834641588"
+        },
+        {
+          "name": "hyper (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110834641612,
+          "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377/job/110834641612"
+        },
+        {
+          "name": "artifact (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110834641688,
+          "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377/job/110834641688"
+        },
+        {
+          "name": "artifact (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110834641755,
+          "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377/job/110834641755"
+        },
+        {
+          "name": "image (amd64, ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110838754698,
+          "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377/job/110838754698"
+        },
+        {
+          "name": "image (arm64, ubuntu-24.04-arm)",
+          "status": "completed",
+          "conclusion": "success",
+          "databaseId": 110838754749,
+          "url": "https://github.com/SamuelSupe/rgnix/actions/runs/37006103377/job/110838754749"
+        }
+      ],
+      "architectures": {
+        "amd64": {
+          "downloaded_binary": "qa-ci-artifacts/tested-linux-amd64/rgnix",
+          "binary_sha256": "dbf04693180c7a9a57eebd35afd45b9ae7863407bd6b50845cd75fbc6238bd51",
+          "matches_previously_tested_formal_binary": true,
+          "elf_machine": 62,
+          "native_checks": {
+            "hyper": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            },
+            "pingora": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            }
+          },
+          "image": {
+            "image": "rgnix:ci",
+            "image_id": "sha256:982a322afdc45626d5c1a67ba2e696afc006cf348ff67aa62a25dc56e41135e1",
+            "architecture": "amd64",
+            "host_architecture": "x86_64",
+            "binary_sha256": "dbf04693180c7a9a57eebd35afd45b9ae7863407bd6b50845cd75fbc6238bd51",
+            "checks": [
+              {
+                "selection": "default",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "hyper",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "pingora",
+                "engine": "pingora",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              }
+            ]
+          },
+          "receipts_sha256": {
+            "qa-ci-artifacts/artifact-validation-amd64/SHA256SUMS": "7436372c40f6935c02f034804713960c659a0016f57f166468f6601eeb980165",
+            "qa-ci-artifacts/artifact-validation-amd64/ELF-INFO.txt": "ece000bcf02b1846565769711816e5fafee705f8449c4a0f2e99d51c7e23f051",
+            "qa-ci-artifacts/image-validation-amd64/image-validation.json": "54f8e2d20e6c9c7d957d74891a4281f203c54ea0ceea282bc4eb6a338a43af08"
+          }
+        },
+        "arm64": {
+          "downloaded_binary": "qa-ci-artifacts/tested-linux-arm64/rgnix",
+          "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+          "matches_previously_tested_formal_binary": true,
+          "elf_machine": 183,
+          "native_checks": {
+            "hyper": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            },
+            "pingora": {
+              "acceptance": 104,
+              "global-rate-results": 14,
+              "ingress-recovery": 57,
+              "log-rotation": 20,
+              "product-features": 115
+            }
+          },
+          "image": {
+            "image": "rgnix:ci",
+            "image_id": "sha256:9107c4b36697979c1d30180bff5dc59c97ffd41c76b3eeb0a762cc2ce8525d4b",
+            "architecture": "arm64",
+            "host_architecture": "aarch64",
+            "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+            "checks": [
+              {
+                "selection": "default",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "hyper",
+                "engine": "hyper",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              },
+              {
+                "selection": "pingora",
+                "engine": "pingora",
+                "http": "PASS",
+                "ready": "PASS",
+                "metrics": "PASS"
+              }
+            ]
+          },
+          "receipts_sha256": {
+            "qa-ci-artifacts/artifact-validation-arm64/SHA256SUMS": "e1a04b30d472645da9578d45174387992cd32a22b049137c39a94da92410bccd",
+            "qa-ci-artifacts/artifact-validation-arm64/ELF-INFO.txt": "65aafd59ca37930bfd37bcf215ee9c76c782f583c2fad55d8f4d7fb052303354",
+            "qa-ci-artifacts/image-validation-arm64/image-validation.json": "52695f23bfaf4b8f42904f83123cd96ce302ae56eb7ed0a001e0b02b7389ec38"
+          }
+        }
+      },
+      "gateway_e2e_run_by_ci": false,
+      "soak_qualification": "FAILED / prior formal product 44334.815-second failure unchanged",
+      "scope": "Seven CI jobs and independently downloaded native binary/image receipts. Does not replace Kubernetes Admission or product 24h qualification."
+    }
   },
   "native_thread_mapping_followup": {
-    "status": "BOUNDED_DIAGNOSIS_RUNNING",
+    "status": "FAILED_REVIEWED_NOT_PRODUCT_QUALIFICATION",
     "qualification": false,
     "start": {
       "pid": 92304,
@@ -3641,7 +3819,218 @@
       "scope": "Actual runner handoff functions executed against live owned observers; no product restart or business requests"
     },
     "process_file": ".local/hyper-runtime-thread-map-r5-20261002/process.json",
-    "mixed_load_started_observed": false,
-    "scope": "Startup preflight snapshot. Stop owned thread observers only after successful request and OTLP gates, before planned post-load Gateway restart; original load/budgets unchanged."
+    "mixed_load_started_observed": true,
+    "scope": "Failed bounded diagnostic request window. Native thread mapping proves identity, not Redis driver polling or product qualification.",
+    "published_startup_snapshot": {
+      "status": "BOUNDED_DIAGNOSIS_RUNNING",
+      "mixed_load_started_observed": false
+    },
+    "ended_at": "2026-10-02T12:29:49.219739+00:00",
+    "final_business_load": {
+      "final": true,
+      "wall_time": 1790944161.3919408,
+      "elapsed_seconds": 354.0079519789724,
+      "workers": [
+        {
+          "requests": 7663,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 7750,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 13161,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 7673,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 7729,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 503: b''"
+          ]
+        },
+        {
+          "requests": 13146,
+          "failed_requests": 0,
+          "errors": []
+        }
+      ],
+      "requests": 57122,
+      "failed_requests": 1,
+      "retained_latency_samples": 18000,
+      "p99_ms": 75.96033799927682
+    },
+    "review_summary_file": ".local/hyper-runtime-thread-map-r5-20261002/failure-summary.json",
+    "review_evidence_sha256_file": ".local/hyper-runtime-thread-map-r5-20261002/failure-evidence-sha256.json",
+    "failure_reason": "redis_timeout",
+    "failure_phase": "query",
+    "query_elapsed_us": 203856,
+    "connection_creator_mapping": {
+      "service": "BG hyper-0.0.0.0:8080-0",
+      "native_tid": 15,
+      "runtime_threads": 1,
+      "node_tid": 165302,
+      "namespace_tids": [
+        165302,
+        15
+      ]
+    },
+    "request_mapping": {
+      "service": "BG hyper-0.0.0.0:8080-1",
+      "native_tid": 16,
+      "runtime_threads": 1,
+      "node_tid": 165303,
+      "namespace_tids": [
+        165303,
+        16
+      ]
+    },
+    "thread_observation": {
+      "bracket_file": "failure-thread-bracket.json",
+      "max_observer_interval_near_failure_ms": 103.73449325561523,
+      "creator_bracket": {
+        "pod": "gateway-7548c7cb54-pf7gs",
+        "uid": "6402a68c-bf0b-42b6-aece-71b348efd0ca",
+        "pid": 165280,
+        "tid": 165302,
+        "namespace_tids": [
+          165302,
+          15
+        ],
+        "thread_start_ticks": 21516042,
+        "service": "BG hyper-0.0.0.0:8080-0",
+        "comm": "BG hyper-0.0.0.",
+        "from": 1790944161.2783728,
+        "to": 1790944161.3786724,
+        "state_before": "R",
+        "state_after": "S",
+        "sample_interval_ms": 100.29959678649902,
+        "observer_read_seconds": 0.004614531004335731,
+        "observer_major_faults_delta": 0,
+        "cpu_ns_delta": 764584,
+        "runqueue_wait_ns_delta": 190342458,
+        "timeslices_delta": 12,
+        "major_faults_delta": 0,
+        "minor_faults_delta": 2
+      },
+      "request_bracket": {
+        "pod": "gateway-7548c7cb54-pf7gs",
+        "uid": "6402a68c-bf0b-42b6-aece-71b348efd0ca",
+        "pid": 165280,
+        "tid": 165303,
+        "namespace_tids": [
+          165303,
+          16
+        ],
+        "thread_start_ticks": 21516042,
+        "service": "BG hyper-0.0.0.0:8080-1",
+        "comm": "BG hyper-0.0.0.",
+        "from": 1790944161.2784185,
+        "to": 1790944161.3787117,
+        "state_before": "S",
+        "state_after": "S",
+        "sample_interval_ms": 100.29315948486328,
+        "observer_read_seconds": 0.004614531004335731,
+        "observer_major_faults_delta": 0,
+        "cpu_ns_delta": 8993957,
+        "runqueue_wait_ns_delta": 5510376,
+        "timeslices_delta": 14,
+        "major_faults_delta": 13,
+        "minor_faults_delta": 29
+      },
+      "limitations": "Exact native identity proven. Connection creator is not actual driver poll evidence. Cumulative waiting and faults cannot establish a single stall or root cause."
+    },
+    "probe_window": {
+      "redis_ping_max_ms": 34.49989500222728,
+      "admin_reported_window_max_ms": 73.01197398919612,
+      "runtime_anomaly_rtt_max_ms": 4.727574996650219,
+      "heartbeat_max_seconds": 0.371,
+      "client_scheduler_gap_max_ms": 261.8038109794725,
+      "independent_clock_max_gap_ms": {
+        "host": 12.876957999992555,
+        "linux": 26.174397993599996
+      },
+      "scope": "Reported +/-4s observations; admin report may aggregate broader report interval. Not simultaneous RTT or full VM pause evidence."
+    },
+    "continuous_pod": {
+      "name": "gateway-7548c7cb54-pf7gs",
+      "uid": "6402a68c-bf0b-42b6-aece-71b348efd0ca",
+      "resource_samples": 12,
+      "rss_min_bytes": 42668032.0,
+      "rss_max_bytes": 53092352.0,
+      "rss_last_sample_bytes": 45002752.0,
+      "fd_max": 104.0,
+      "fd_last_sample": 104.0,
+      "restart_count_after": 0,
+      "actual_engine": "hyper",
+      "actual_binary_sha256": "c75ac98223975e33d45a476c4ce7a0d3b403244adef258d1324085f7e03c692c"
+    },
+    "redis": {
+      "slowlog_eval_max_us": 74695,
+      "same_failure_second_eval_us": [],
+      "command_errors": 0,
+      "rejected_connections": 0,
+      "limitation": "SLOWLOG lacks per-request correlation; query may be delayed outside Redis command execution."
+    },
+    "otlp_postfailure": {
+      "logs_exported": 55087.0,
+      "spans_exported": 110173.0,
+      "export_errors": 0.0,
+      "pending": 0.0,
+      "successful_end_delivery_drain_gate_executed": false
+    },
+    "observers_and_guard_stopped": true,
+    "admission_and_postload_handoff": "NOT_EXECUTED_AFTER_FAILED_REQUEST_GATE",
+    "root_cause": "Unconfirmed. Query timeout correlates with mapped creator scheduling wait and request-thread major faults. Does not establish driver polling or explain previous formal two or original six HTTP503."
+  },
+  "gateway_admission_fixture_validation": {
+    "status": "GATEWAY_RUNNING",
+    "qualification": false,
+    "start": {
+      "pid": 3959,
+      "started_at": "2026-10-02T12:51:14.150780+00:00",
+      "runner_sha256": "ad3a0e61f700ad4b51a6f4e44b86870a64a4410a8ed838325d861e39179abf96",
+      "qualification": false,
+      "soak_seconds": 0
+    },
+    "namespace": "rgnix-hyper-runtime-admission-fixture-20261002-r3",
+    "image": "rgnix:hyper-limiter-fix-20261001",
+    "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+    "harness_provenance": {
+      "qa_commit": "0a56bff50393882360f6ddca21051c8f0533eca4",
+      "harness": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-admission-fixture-20261002/source/scripts/gateway_e2e.py",
+      "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+      "sha256": {
+        "scripts/gateway_e2e.py": "8d489eb92e13e585e2517afe3daa0cdce7cd5b588026097bfc95c35d42c1c29f",
+        "scripts/product_features.py": "8053579ee2c6f2266d595b121ff8342e8799cfb052ac974ea0722919b1dfaac6",
+        "charts/rgnix/templates/controller.yaml": "f4248444ff25ed2255800b6d18b5c662e4cd3bb79a014d3a605552757fbef6b6",
+        "charts/rgnix/values.yaml": "d16e0456ba80f13aeb4655cf8d816e4756754a7e0ef2e397e588645606d0b6bd"
+      },
+      "full_service_dns": "gateway-admission.rgnix-hyper-runtime-admission-fixture-20261002-r3.svc",
+      "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+      "no_kernel_selection_argument": true,
+      "soak_seconds": 0
+    },
+    "process_file": ".local/hyper-admission-fixture-20261002/process.json",
+    "soak_seconds": 0,
+    "preflight_facility_regressions": {
+      "status": "TWO_ATTEMPTS_ARCHIVED_BEFORE_CHILD_STARTED",
+      "business_requests": 0,
+      "product_failure": false,
+      "paths": [
+        ".local/hyper-admission-fixture-20261002/preflight-source-provenance-regression",
+        ".local/hyper-admission-fixture-20261002/preflight-chart-receipt-path-regression"
+      ]
+    },
+    "scope": "Full public QA commit 0a56bff against the unchanged tested 69bc production image; no kernel argument; startup snapshot, not full Gateway or long-load pass."
   }
 }

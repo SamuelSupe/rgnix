@@ -192,3 +192,23 @@ QA 接收端已将初次及轮换证书的 Common Name 改为固定短名称，S
 新轮于 `2026-10-02T12:17:00.955319+00:00` 启动，命名空间 `rgnix-hyper-runtime-diagnostic-20261002-r5a`，最多 900 秒混合负载，先完整预检。本次记录是预检阶段快照，尚未观察到该轮含 `workers` 的真实负载报告；后续以 `process.json`、实际请求和观察器结束收据为准。诊断负载脚本 SHA 为 `3ee551dff9a813c3f79f1353b553727796ede5ed858788b52197cba6d49266c0`，runner SHA 为 `53a84fb8192571b6066a29eafaa9fcc2f1b8e33d42729d31f6a719c283dbcfb9`，与旧冻结脚本区分。
 
 正式产品 12.3 小时失败、r1/r2/r3a 查询超时失败均持续有效；r4b 健康请求窗口及设施修正不能覆盖它们，也不能替代正式产物 24 小时或当前产物性能资格。默认 Hyper 保持用户选择，根因仍未确认。
+
+## 原生线程映射复验的真实查询超时 — 2026-10-02
+
+r5a 于 UTC 12:29:21 出现真实业务失败，runner 于 12:29:49 退出：实际混合负载 354.008 秒、57,122 次成功、worker 4 一次 `GET /plugin` HTTP 503，未重放。105 项 Gateway 预检通过，混合负载门槛失败，完成一次插件发布、TLS 轮换和另一副本替换。后续成功结束的 OTLP 交付/排空、线程停止握手、滚动重启和 Admission 门槛未执行，不能将上一轮设施修正或局部证书回归写成完整 Gateway 通过。它仍是同一 c75 诊断镜像，正式产品 12.3 小时失败及旧诊断失败持续有效。
+
+实际限流日志为 `redis_timeout/query`，耗时 203,856 微秒，cache 等待 0，query 于第 8 微秒开始，复用连接 `0xffff85e3f100`；`unavailable_closed=1`、耗时计数和 0.205299162 秒，503 未选择上游。完整服务日志、精确 Pod UID、容器 ID、node PID/start_ticks 与 NSpid 将连接创建线程映射为 HTTP8080-0：容器 TID 15/节点 TID 165302；失败请求线程为 HTTP8080-1：容器 TID 16/节点 TID 165303。两服务实际为单线程 runtime，但连接创建者身份并不是 Redis driver 每次实际 poll 的观测证据。
+
+包含失败日志时刻的相邻约 100.3 毫秒读数中，创建线程累计 runqueue 等待记账增加 190.342 毫秒，失败请求线程重大缺页增加 13。等待可能在发生后记账，顺序累计读取可能跨越不同执行时段；不能将增量当作一次连续暂停、相加到请求耗时，或证明缺页/调度就是原因。原始线程窗口、逐线程身份、读数和状态保存于 `failure-thread-window-raw.json`、`failure-thread-deltas.json` 和 `failure-thread-bracket.json`。
+
+正负四秒报告窗口内 Redis PING 最高 34.500 毫秒，同进程客户端调度间隙 261.804 毫秒，独立 Mac/Linux 等待间隙最高 12.877/26.174 毫秒。管理异常读数 RTT 4.728 毫秒、服务心跳最高 0.371 秒；附近管理汇总报告的最高 RTT 73.012 毫秒属于其报告区间，不能当作精确同时读数。Redis 最终 SLOWLOG EVAL 最高 74.695 毫秒，实际失败秒没有超过该 SLOWLOG 阈值的 EVAL；这不能证明命令没有执行，也不能排除网络、连接 driver 或运行时排队。Redis 无重启、拒绝连接或命令错误，Gateway/Redis/origin 的 CPU 节流及 OOM 为零；压力文件不可用，不记为零。
+
+持续 Pod `gateway-7548c7cb54-pf7gs`、UID `6402a68c-bf0b-42b6-aece-71b348efd0ca` 的 12 个资源样本一致，实际 Hyper/c75、零重启；RSS 42.7–53.1 MB，最后 45.0 MB，FD 最高及最后 104。失败后日志/span 接收计数为 55,087/110,173，导出错误为零、随后队列为零；因业务失败未执行成功结束门槛，不能算完整 OTLP 长测通过。线程和两个独立时钟均正常停止、exit0，无观察器设施错误，自有 runner/child/guard 已实际退出。启动至失败后按确切第四事件列没有 Sleep/Wake/DarkWake，交流电 100%。完整证据及 SHA 收据在 `.local/hyper-runtime-thread-map-r5-20261002/`。
+
+证书 QA 提交 `0a56bff` 的 [CI](https://github.com/SamuelSupe/rgnix/actions/runs/37006103377)已全部 7 作业成功。已独立下载两架构完整发行二进制，实际 SHA 与原 69bc/dbf046 产物一致；原生 Hyper/Pingora 各 104 基础行为、14 共享限流、57 恢复、20 日志轮转、115 产品检查和最终镜像默认 Hyper/显式 Hyper/Pingora 的真实 HTTP、ready、metrics 及摘要收据核对通过。CI 不执行 Kubernetes Gateway 或 24 小时负载，不能覆盖同一正式产物之前的失败。
+
+为完成证书修正的完整 Admission 验证，另在 `.local/hyper-admission-fixture-20261002/` 冻结公开 QA 提交 0a56bff，使用原已测 69bc 正式镜像单独运行完整 Gateway，`soak_seconds=0`、未传内核选择。首次准备误选 scratch 通用 QA 文件，其摘要不等于公开 QA，被启动前严格检查拒绝；第二次收据选择了不存在的 Chart 文件路径，也在启动子测试前退出。两次均零业务请求，没有子测试或命名空间，设施证据已分别归档。从公开提交冻结源码、按实际 Chart 文件生成收据后独立启动，不能将这些设施中断当产品请求失败。
+
+当前完整 Gateway 复核于 `2026-10-02T12:51:14.150780+00:00` 启动，命名空间 `rgnix-hyper-runtime-admission-fixture-20261002-r3`。本次记录为 `GATEWAY_RUNNING` 阶段快照，后续以实际 `process.json`、全部 Admission 行为和最终两 Pod 的 Hyper/69bc/零重启收据判定。
+
+限流根因仍未确认。下一步应直接观察该 Redis 连接 driver 的实际运行，再决定产品修复；不凭线程创建映射或相关性修改限流策略，不放宽 200 毫秒、不失败开放、不重放，不跳到性能资格。默认 Hyper 保持用户选择。
