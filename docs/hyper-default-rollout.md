@@ -91,3 +91,25 @@ PING 报告窗口最大 RTT 76.776ms、管理报告窗口最大 RTT 46.910ms、�
 启动前仅归档已完成且审核通过的 r7b 和 peer 两个 namespace 的资源、Secret 配置、当前日志、Pod UID、原副本数和 SHA，独立核对后 Deployment 缩零，保留 namespace 和恢复收据。其他 194 个 Pod UID 前后完全保持，所有正式/失败诊断及其他任务未改。两 worker 活动 Pod 93/92、空位 17/18；这是容量及环境变化，不是旧 503 根因或稳定性修复。收据保存在新目录 completed-fixture-capacity-archive/。
 
 直接 driver 包装每次 poll 的转发 waker 分配、ring 争用/覆盖、日志 dump 都可能增加观测开销；record_ns/snapshot_ns 不是全部开销。idle gap、wake 至 poll 间隔不是 OS runqueue 延迟，连接创建者不是每次 driver 执行证据，失败 dump 可能影响随后并发。新六小时观测旨在保留真实失败 query 的直接时间线，不能代替正式 24 小时资格；若没有失败，仍不能据此确认根因。此前正式 12.3 小时及 r1/r2/r3a/r5a 业务失败持续有效。默认 Hyper 保持，不跳性能、不放宽预算或重放。
+
+## 直接 Redis driver 六小时诊断 r8a 实际失败审核 — 2026-10-02
+
+前述 UTC16:21 记录是启动阶段快照。r8a 已于 UTC16:34:19 退出，未完成六小时。真实 workers 最终负载 459.797460 秒、77,207 次成功、四次 HTTP503：一次 TLS GET /、一次 GET /plugin、两次 POST /plugin；未重放。105 项预检通过，混合负载门槛失败，完成一次插件发布/TLS 轮换/另一副本替换。unavailable_closed=4，失败耗时总和 0.870575462 秒，四条实际访问日志均未选择上游。成功结束 OTLP 交付/排空、线程停止握手后计划重启与 Admission 门槛没有执行；这与成功请求阶段后的计划停止不同。独立解析原始 JSON dict/workers 和日志/指标核对，不把 probe 计为请求。
+
+三条实际错误是 redis_timeout/query，elapsed_us=203768/233577/212231，cache_wait_us=0、query_started_us=8、reused=true，共用 connection_id=0xffff576060d0；第四条是 redis_timeout/connect，elapsed_us=201796、query_started_us=None、reused=false、connection_id=0x0，没有本轮旧 driver 的 query_begin。后者属于重建连接阶段，不能把四次都写成旧连接查询超时。
+
+首次保留到真实失败 driver 时间线：三份 query 快照和一份最终 Drop 入口快照的所有原始 chunks 完整、无重复或冲突，独立重组再次核对。各快照最多 2048 条，合并尾部 2058 条，sequence 579995–582052 连续；每份均累计 missed_records=118，早期 ring 覆盖及这些争用丢记录仍存在，不能声称整个运行无丢失。driver_id=1 的尾部 481 次实际 poll 均在持续 Pod 的 native TID15 上，已由完整服务名映射到 HTTP8080-0/node TID204103/runtime_threads=1，属于实际 poll 执行证据，不再仅凭连接创建者推断。
+
+失败 query ID76005/76006/76007 分别在 UTC16:33:51.559618/.571341/.604804 开始；query_failed 分别在 .793187/.775101/.817027。最后一个 Pending 在 .607094，下一 wake 在 .903171，下一 poll 在 .906725，即 Pending 至后续 poll 299.630ms、至 wake 296.076ms，而这次 wake 入口至 poll 3.554ms。连续尾部在该间隙内没有 wake/poll 记录；Pending 仍可能等待 socket/channel，没有长时间未处理 wake 的记录，不等于已证明 driver 在 OS runqueue 上等待了 300ms。包装器不记录逐请求网络发送/接收或 Redis 执行时间，query_begin 位于 query_async 入队前，wake 时间位于转发前；wall 时间由单次墙钟锚点和单调时间偏移推导。
+
+Redis 在不同 Kind 节点 worker，Gateway 在 worker2，同属 OrbStack。Redis 主线程在 UTC16:33:51.702 和 .785 的顺序读数是 R 且 CPU 累计不增长；随后 .785–.886 约101ms 读数区间的 runqueue 等待记账增加306.213ms。driver 实际执行线程在覆盖三次查询失败的约111ms 读数区间 CPU/等待增加4.921/56.732ms、major faults+1；HTTP8080-1 major faults+5，TLS8443-1 在 .837 被采到 D，随后区间 major faults+3。这些累计记账可能滞后、顺序读取不是原子快照，不能相加成一次暂停、把某次缺页当根因或对应某条 EVAL。完整 raw/bracket/deltas 保留。
+
+失败正负4秒报告窗口 PING 最大335.140ms、管理异常 RTT最大139.784ms、heartbeat最高0.325秒、客户端 scheduler gap最大175.340ms、独立 Mac/Linux wait最大24.858/168.099ms。管理汇总窗口最大10.843ms属于另一报告粒度，不覆盖异常 RTT 的逐条读数。Redis 最终 EVAL SLOWLOG最大43.334ms，实际失败秒没有达到阈值的 EVAL，不能据此说未执行或排除客户端/网络/运行时/Redis 调度等待。Redis 拒绝连接/错误响应/重启为零；Gateway/Redis/origin cgroup CPU节流及OOM为零，pressure不可用不能记零。
+
+同一持续 Pod gateway-6d8794547c-f68bm/UID96aba5c8-ce65-4a6d-bdd8-58c329469b05，16个资源样本身份、进程启动时间保持，实际 Hyper/668952/零重启；RSS44.2–53.7MB、最后45.6MB，FD最高105、最后104。失败后晚采样 RSS43.9MB/FD89分开保留；两个现存 Gateway 的实际 binary 摘要也再次独立核对。失败后 logs76011/spans152018、export错误0、queue0，未执行成功结束交付门槛，不能算完整 OTLP 长测通过。两节点 thread-end 和两个 clock-end 均 stopped=true/exit0/无设施错误，所有自有本地和远端观察进程及guard已退出。线程/Linux初始覆盖缺口7.135/6.533秒。确切第四事件列从启动到结束后无 Sleep/Wake/DarkWake、AC100%。
+
+实际 bulk dump_us=47530/5251/2755，admission_completed_us及原latency指标在dump前，HTTP响应在诊断日志后；第一份失败输出可能扰动后续并发及重建连接超时。record_ns约68ms是461秒内标量record函数累计，不包含全部包装/分配/forward wake/日志开销，不能当完整观测开销。最终快照只标记driver Drop入口，inner future随后销毁。证据在 .local/hyper-runtime-driver-probe-six-hour-20261002/failure-summary.json、failure-driver-review.json、failure-driver-chunks.log、driver-snapshots.json、failure-independent-verification.json、failure-evidence-sha256.json 及原始 load/sample/thread/clock/follower/final Redis/Pod 中保留。审核脚本首次误按日志字段顺序筛选的断言失败已归档 review-parser-attempt-1，随后修正 selector；没有新增业务运行，不是新的产品故障。
+
+根因仍未确认。直接执行线程、无 wake/poll 的尾部及 Redis CPU 不增长/等待记账是更具体的本轮关联证据，尚未分离 Redis/VM调度、网络和客户端运行时就绪，不能解释旧正式两次或最初六次503。没有改产品、默认 Hyper、200ms预算、并发限制、失败关闭或重放策略。此前 r6/r7 有限健康窗口仍有效，但不构成修复或正式资格。
+
+下一步仅准备精确 owned 调度和 socket 就绪事件观测，目录 .local/hyper-runtime-scheduler-events-20261002/probe-plan.json 为只读可行性审核，尚未实现、启用 trace 或运行新诊断。当前内核有 sched_switch/wakeup/TCP状态与重传 tracefs 格式及 BTF，节点未发现 perf/bpftrace/bpftool。全局 tracing_on=1/current_tracer=nop 是既有共享状态，不能清空或改动。先以唯一隔离 trace instance 和自有 marker 校准 kernel event PID 到 node/container TID、时钟对齐、丢失计数、开销及停止清理，再安排有限因果观测；不直接按 node NSpid 猜内核全局PID，不改永久参数或其他任务。尚无逐请求网络/EVAL因果证据，不凭当前时间线迁移driver或修改产品，也不继续单纯扩大健康时长。正式12.3小时及所有旧业务失败保留，正式24小时资格和随后串行性能/A/A仍待完成。
