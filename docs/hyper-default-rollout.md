@@ -127,3 +127,17 @@ Redis 在不同 Kind 节点 worker，Gateway 在 worker2，同属 OrbStack。Red
 本轮线程、Linux时钟及trace实际覆盖须按真实启动时间分别记录。先核对新精确UID/containerID/node PID/start_ticks/NSpid、完整服务名到native TID，再由per-task事件独立核对五个trace TID后才启动唯一instance，不能沿用r8映射。成功请求/OTLP交付排空后先停止并验证trace、再停止线程、最后ack允许原计划滚动重启与Admission；失败也保留全部raw driver chunks/trace loss/线程累计值/probes/clocks/电源和停止收据。线程/trace最多1200秒、clocks/runner最多2400秒。证据在.local/hyper-runtime-scheduler-events-20261002/review-summary.json、trace-observer-independent-verification.json、review-evidence-sha256.json及新目录start/process/source/harness/image/capacity中。
 
 这是观测设施修正与新的有限诊断预检，不是产品稳定性修复。r8四次503、正式12.3小时失败及所有旧业务失败仍有效，根因未确认；默认Hyper保持，正式24小时、趋势/电源审核及随后同binary完整性能/A/A仍待完成。不得把启动RUNNING、marker回归或此后有限健康窗口记为完整验收。
+
+## r9a 设施中断审核与 r9b 独立复验 — 2026-10-02
+
+前述 r9a 启动记录是阶段快照。runner于UTC17:56:32退出：一次人工采集内容审核的正则将内核空截断占位符 `(, ...)` 误判为缓冲内容，触发显式停止自有tracer，随后runner按设施失联中断。原误报和停止记录保留，独立扫描全部2,228,888条事件，170,276处匹配均为固定空占位符，实例syscall_user_buf_size实查为0，没有匹配到实际缓冲字节。这是审核条件误报，不是新的产品503，也不算完整诊断通过。
+
+105项Gateway预检通过。最后实际workers报告只覆盖180.094秒、30,483成功、0失败，final=false，没有最终请求汇总。中断时原harness终止本地kubectl exec，没有停止远端python负载。核对自有origin Pod UID和PID76/start_ticks23494965后，SIGINT未完全停止，随后仅对该精确身份SIGTERM，于UTC18:02:31确认/proc消失。未接收尾部的实际请求成功/失败数未知，不能把180秒或30,483当作整轮，也不能假设尾部零错误。原始报告、trace、workers、样本、晚取日志/指标、停止与独立核对证据在.local/hyper-runtime-scheduler-diagnosis-20261002/review-summary.json及review-evidence-sha256.json保留，原FAILED字段不改成功。
+
+7个部分资源样本的持续UID74cae39e-7469-483f-8581-562bda5bc70c和进程启动时间保持，后补两个Gateway实际H/668952/零重启核对。trace每CPU overrun/commit overrun/dropped events均0，停止、实例移除和全局状态保持通过；这不补齐停止后的业务窗口。线程与两个clock stopped=true/exit0，guard释放；确切第四事件列启动至结束后无Sleep/Wake/DarkWake，AC100%。成功结束OTLP交付/排空、成功线程握手后的计划重启及Admission未执行。observer CPU仅为user1.040667/system1.833701秒，不含内核hooks/filter及目标扰动，不能当完整观测开销。
+
+新独立r9b目录.local/hyper-runtime-scheduler-diagnosis-r9b-20261002仅修审核和停止设施：空占位符允许、真实自有marker字节拒绝；负载probe:start增加PID/start_ticks/PID namespace/命令身份，中断时核对精确Pod UID/container及该身份再停止远端自有负载。真实OrbStack双marker回归验证过期身份拒绝不发信号、正确身份停止、另一个marker保持运行、重复停止安全；r9a全部原始事件重审通过，模拟真实缓冲字节被拒绝。facility-regressions.json为准，该回归业务请求为0。
+
+r9b于UTC18:08:30启动，全新namespace rgnix-hyper-runtime-diagnostic-20261002-r9b，runner88550/child88562/guard88560/hostclock88561。UTC18:09:50实查自有命令仍在Gateway预检，尚无workers行、tracer未启动，AC100%及自有两条防睡眠断言通过。这是启动快照，不能把RUNNING当负载开始或资格。1169个scratch源码文件和冻结Gateway harness SHA3ee551保持，只改外围runner、load probe身份元数据与审核/停止设施；镜像Docker10e3240、实际binary668952及三个Kind imageID0183e61再次核对。正式69bc/dbf046、ca46及公开QA未改。启动前两worker空位9/8，仅只读检查，r9a及全部正式/失败现场保留，没有缩零或停止其他任务。
+
+沿用900秒上限、六HTTP/TLS/RGL/body workers、200ms、原permit/clone/taskhandle生命周期、身份清理、失败关闭及不重放；之后仍须OTLP交付排空、先停止trace与线程握手再计划滚动及Admission。新UID/TID/per-task trace身份必须实查，不能复用r9a映射。正式12.3小时与r8等旧业务失败仍有效，根因未确认，默认Hyper保持，正式24小时及随后同binary完整性能/A/A待完成。
