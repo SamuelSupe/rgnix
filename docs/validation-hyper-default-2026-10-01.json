@@ -3477,7 +3477,7 @@
     "owned_processes_exited": true,
     "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW"
   },
-  "last_diagnostic_review_at": "2026-10-02T22:18:05.634027+00:00",
+  "last_diagnostic_review_at": "2026-10-02T23:12:08.163424+00:00",
   "gateway_admission_certificate_fixture_fix": {
     "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_PUBLIC_GATEWAY_REVALIDATION_RUNNING",
     "qa_file": "scripts/gateway_e2e.py",
@@ -7980,5 +7980,309 @@
       "qualification": false,
       "tooling_fallback": "Host kind CLI unavailable; reused existing docker save + per-node ctr k8s.io import workflow, no installation."
     }
+  },
+  "query_clock_anchor_diagnosis": {
+    "status": "FAILED_REVIEWED_QUERY_STAGE_CLOCK_ANCHOR_DIAGNOSIS_NOT_PRODUCT_QUALIFICATION",
+    "reviewed_at": "2026-10-02T23:12:08.163424+00:00",
+    "qualification": false,
+    "root_cause_confirmed": false,
+    "namespace": "rgnix-hyper-runtime-diagnostic-20261002-r12a",
+    "started_at": "2026-10-02T22:32:06.289453+00:00",
+    "ended_at": "2026-10-02T22:43:23.056540+00:00",
+    "binary_sha256": "8435435edff97fd7afcbb2fb2acdd20ab1819dff524f23fb31f2790214d1dc59",
+    "final_business_load": {
+      "final": true,
+      "wall_time": 1790980977.827712,
+      "elapsed_seconds": 347.63798460000544,
+      "workers": [
+        {
+          "requests": 7953,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 7968,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 503: b''"
+          ]
+        },
+        {
+          "requests": 13281,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 503: b''"
+          ]
+        },
+        {
+          "requests": 7949,
+          "failed_requests": 0,
+          "errors": []
+        },
+        {
+          "requests": 7974,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 503: b''"
+          ]
+        },
+        {
+          "requests": 13266,
+          "failed_requests": 1,
+          "errors": [
+            "HTTP 503: b''"
+          ]
+        }
+      ],
+      "requests": 58391,
+      "failed_requests": 4,
+      "retained_latency_samples": 18000,
+      "p99_ms": 48.23729599593207
+    },
+    "business_tail_known": true,
+    "checks_passed": 105,
+    "failed_check": "Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement",
+    "plugin_events": 1,
+    "failures": [
+      {
+        "raw": "2026-10-02T22:42:57.746509014Z [2026-10-02T22:42:57Z WARN  rgnix::traffic::global] shared limiter diagnostic scope=rgnix-hyper-runtime-diagnostic-20261002-r12a reason=redis_timeout phase=query elapsed_us=599397 cache_wait_us=0 query_started_us=Some(24) reused=true connection_id=0xffff46c490f0 request_thread=BG hyper-0.0.0.0:8080-1 request_tid=16",
+        "wall_time": 1790980977.746509,
+        "phase": "query",
+        "reason": "redis_timeout",
+        "elapsed_us": 599397,
+        "cache_wait_us": 0,
+        "query_started_us": "Some(24)",
+        "reused": true,
+        "connection_id": "0xffff46c490f0",
+        "request_mapping": {
+          "service": "BG hyper-0.0.0.0:8080-1",
+          "native_tid": 16,
+          "runtime_threads": 1,
+          "node_tid": 250813,
+          "namespace_tids": [
+            250813,
+            16
+          ],
+          "trace_tid": 2649132
+        }
+      },
+      {
+        "raw": "2026-10-02T22:42:57.750600953Z [2026-10-02T22:42:57Z WARN  rgnix::traffic::global] shared limiter diagnostic scope=rgnix-hyper-runtime-diagnostic-20261002-r12a reason=redis_timeout phase=query elapsed_us=603756 cache_wait_us=0 query_started_us=Some(9) reused=true connection_id=0xffff46c490f0 request_thread=BG hyper-0.0.0.0:8080-0 request_tid=15",
+        "wall_time": 1790980977.7506,
+        "phase": "query",
+        "reason": "redis_timeout",
+        "elapsed_us": 603756,
+        "cache_wait_us": 0,
+        "query_started_us": "Some(9)",
+        "reused": true,
+        "connection_id": "0xffff46c490f0",
+        "request_mapping": {
+          "service": "BG hyper-0.0.0.0:8080-0",
+          "native_tid": 15,
+          "runtime_threads": 1,
+          "node_tid": 250812,
+          "namespace_tids": [
+            250812,
+            15
+          ],
+          "trace_tid": 2649131
+        }
+      },
+      {
+        "raw": "2026-10-02T22:42:57.783129541Z [2026-10-02T22:42:57Z WARN  rgnix::traffic::global] shared limiter diagnostic scope=rgnix-hyper-runtime-diagnostic-20261002-r12a reason=redis_timeout phase=query elapsed_us=636317 cache_wait_us=0 query_started_us=Some(2) reused=true connection_id=0xffff46c490f0 request_thread=BG hyper-0.0.0.0:8080-0 request_tid=15",
+        "wall_time": 1790980977.783129,
+        "phase": "query",
+        "reason": "redis_timeout",
+        "elapsed_us": 636317,
+        "cache_wait_us": 0,
+        "query_started_us": "Some(2)",
+        "reused": true,
+        "connection_id": "0xffff46c490f0",
+        "request_mapping": {
+          "service": "BG hyper-0.0.0.0:8080-0",
+          "native_tid": 15,
+          "runtime_threads": 1,
+          "node_tid": 250812,
+          "namespace_tids": [
+            250812,
+            15
+          ],
+          "trace_tid": 2649131
+        }
+      },
+      {
+        "raw": "2026-10-02T22:42:57.790843123Z [2026-10-02T22:42:57Z WARN  rgnix::traffic::global] shared limiter diagnostic scope=rgnix-hyper-runtime-diagnostic-20261002-r12a reason=redis_timeout phase=query elapsed_us=644251 cache_wait_us=0 query_started_us=Some(3) reused=true connection_id=0xffff46c490f0 request_thread=BG hyper-0.0.0.0:8080-1 request_tid=16",
+        "wall_time": 1790980977.790843,
+        "phase": "query",
+        "reason": "redis_timeout",
+        "elapsed_us": 644251,
+        "cache_wait_us": 0,
+        "query_started_us": "Some(3)",
+        "reused": true,
+        "connection_id": "0xffff46c490f0",
+        "request_mapping": {
+          "service": "BG hyper-0.0.0.0:8080-1",
+          "native_tid": 16,
+          "runtime_threads": 1,
+          "node_tid": 250813,
+          "namespace_tids": [
+            250813,
+            16
+          ],
+          "trace_tid": 2649132
+        }
+      }
+    ],
+    "connection_created_log": "2026-10-02T22:37:07.807077378Z [2026-10-02T22:37:07Z INFO  rgnix::traffic::global] shared limiter diagnostic connection_created scope=rgnix-hyper-runtime-diagnostic-20261002-r12a connection_id=0xffff46c490f0 creator_thread=BG hyper-0.0.0.0:8080-0 creator_tid=15",
+    "upstream_selected": false,
+    "unavailable_closed": 4,
+    "unavailable_seconds_sum": 2.484171661,
+    "continuous_pod": {
+      "pod": "gateway-55c9884c85-r6txd",
+      "uid": "5cfd04cd-8e12-4dcc-8ff2-f784c376a06b",
+      "node": "rgnix-hyper-20260928-worker2",
+      "container_id": "889511133e6d804f89692ba413313f7035de134b5e0258d178e53b969077b1f1",
+      "pid": 250790,
+      "start_ticks": 25198442,
+      "argv0": "/usr/local/bin/rgnix",
+      "resource_samples": 12,
+      "actual_engine": "hyper",
+      "actual_binary_sha256": "8435435edff97fd7afcbb2fb2acdd20ab1819dff524f23fb31f2790214d1dc59",
+      "process_start_time_preserved": true,
+      "rss_bytes": {
+        "min": 43548672.0,
+        "max": 54591488.0,
+        "last": 44109824.0
+      },
+      "fd": {
+        "max": 104.0,
+        "last": 104.0
+      }
+    },
+    "driver_review": "failure-driver-review.json",
+    "trace_review": "review-trace-content-and-loss.json",
+    "resource_review": "failure-resources-review.json",
+    "probe_window": {
+      "redis_ping_max_ms": 541.3989840017166,
+      "runtime_anomaly_rtt_max_ms": 1907.8896589926444,
+      "heartbeat_max_seconds": 0.576,
+      "client_gap_max_ms": 1208.3304240077268,
+      "clock_max_gap_ms": {
+        "host": 47.410332999902494,
+        "linux": 1762.416141020367
+      },
+      "scope": "+/-4s reports, not simultaneous per-query readings"
+    },
+    "redis": {
+      "rejected_connections": "0",
+      "command_errors": "0",
+      "slowlog_max_eval_us": null,
+      "failure_second_evals_us": [],
+      "limitation": "Final SLOWLOG contains no entries; no per-query execution mapping or latency bound can be inferred.",
+      "slowlog_entries": 0
+    },
+    "otlp_postfailure": {
+      "rgnix_otlp_logs_exported_total": 54604.0,
+      "rgnix_otlp_traces_exported_total": 109204.0,
+      "rgnix_otlp_logs_export_errors_total": 0.0,
+      "rgnix_otlp_traces_export_errors_total": 0.0,
+      "rgnix_otlp_logs_pending": 0.0,
+      "rgnix_otlp_traces_pending": 0.0
+    },
+    "success_otlp_delivery_drain_gate_executed": false,
+    "postload_handoff_rollout_admission_executed": false,
+    "observer_ends": {
+      "host-clock.jsonl": {
+        "probe": "clock-end",
+        "stopped": true,
+        "deadline_reached": false,
+        "wall_time": 1790980989.9010382,
+        "mode": "host",
+        "pid": 45679
+      },
+      "linux-clock.jsonl": {
+        "probe": "clock-end",
+        "stopped": true,
+        "deadline_reached": false,
+        "wall_time": 1790980990.6317382,
+        "mode": "linux",
+        "pid": 102
+      },
+      "owned-threads-rgnix-hyper-20260928-worker2.jsonl": {
+        "probe": "thread-end",
+        "stopped": true,
+        "deadline_reached": false,
+        "facility_error": false,
+        "wall_time": 1790980989.428836,
+        "observer_pid": 251158
+      }
+    },
+    "stop_independent_receipt": "review-independent-verification.json",
+    "power": {
+      "observed_at": "2026-10-02T23:08:16.820096+00:00",
+      "window_start": "2026-10-02T22:32:06.289453+00:00",
+      "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+      "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+      "events": [],
+      "scope": "Exact recorded event column from runner start through after-failure review; not24h qualification."
+    },
+    "scope": "Four actual query-timeout503 with known final totals; actual local stages and complete OS thread scheduling chains reviewed. No per-query wire/EVAL execution mapping, full observer cost or confirmed root cause. Formal12.3h and all prior failures remain valid.",
+    "coverage_gaps_seconds": {
+      "owned-threads-rgnix-hyper-20260928-worker2.jsonl": 2.394498825073242,
+      "host-clock.jsonl": 0,
+      "linux-clock.jsonl": 1.9533255100250244,
+      "trace": 7.641944169998169,
+      "owned_resources": 18.389465808868408
+    },
+    "scheduler_review": "failure-scheduler-state-review.json",
+    "stage_independent_verification": "failure-stage-correlation-independent-verification.json",
+    "actual_failure_endpoints": {
+      "GET /plugin": 2,
+      "POST /plugin": 2,
+      "TLS_GET": 0
+    },
+    "power_now": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true\n",
+    "evidence_receipt": "failure-evidence-sha256.json",
+    "evidence_independent_verification": "failure-evidence-independent-verification.json",
+    "followers_stop_verification": "review-followers-stop-verification.json",
+    "scheduler_complete_chain_observations": {
+      "redis_runnable_ms": 433.677,
+      "http8080_0_blocked_D_ms": 362.955,
+      "http8080_0_wake_to_in_ms": 1.53,
+      "http8080_1_blocked_D_ms": 345.628,
+      "http8080_1_wake_to_in_ms": 17.452,
+      "scope": "Complete raw OS transitions. Thread state runs multiple futures; these do not identify EVAL execution or why scheduling/blocking occurred."
+    },
+    "local_query_observations": {
+      "query_ids": [
+        54599,
+        54600,
+        54601,
+        54602
+      ],
+      "local_flush_ready_ms_after_begin": [
+        0.398419,
+        0.278085,
+        0.122376,
+        0.066542
+      ],
+      "receiver_cancelled_ms_after_begin": [
+        206.304714,
+        644.244944,
+        206.160797,
+        636.311153
+      ],
+      "query_failed_after_cancel_ms": [
+        393.068535,
+        0.003417,
+        397.586475,
+        0.003583
+      ],
+      "parsed_reply_after_cancel": true,
+      "actual_receiver_delivered": false,
+      "scope": "Retained local FIFO assignment and receiver-closed stages; not per-command TCP or Redis execution latency."
+    },
+    "evidence_directory": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-runtime-query-clock-anchor-diagnosis-20261002",
+    "all_qualification_and_performance_gates_complete": false
   }
 }
