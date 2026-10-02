@@ -220,3 +220,11 @@ r5a 于 UTC 12:29:21 出现真实业务失败，runner 于 12:29:49 退出：实
 已核对本线程三次结束且没有混合负载的预检，以及上述 r3 的精确 namespace 和退出记录。先保存这些 namespace 及 peer 的资源、现存日志、Pod UID、原副本数和 SHA，再仅将其中 Deployment 缩到零，保留 namespace 和恢复副本数收据。共八个 namespace 的 Pod 已退出；缩容前后，其余 194 个 Pod UID 保持，包含此前正式及诊断失败现场。本次未修改其他任务或系统调度参数。归档和复核收据在 `completed-fixture-capacity-archive/`。两工作节点由 Pod 上限附近恢复至 93/92 个活动 Pod；它只解释本次 Pending 调度中断，不能解释此前限流 503 或证明较轻环境下的稳定性。
 
 独立 r4 于 UTC `2026-10-02T13:08:19.068220+00:00` 启动，目录 `.local/hyper-admission-fixture-r4-20261002/`，namespace `rgnix-hyper-runtime-admission-fixture-20261002-r4`。沿用公开 QA 0a56bff 的同一冻结脚本和正式 69bc 镜像，全部 Gateway/Admission 检查、原超时、资源要求和拓扑要求不变；启动前核对两节点各有 17/18 个 Pod 名额。没有混合长负载或性能对照，未传内核选择，交流电及临时防睡眠断言已核对。当前记录仍是运行阶段快照，完整报告和最终 Hyper/69bc/零重启副本收据须在结束后审核。限流 driver 的直接运行观测尚未构建或启动，须等本轮结束后串行进行。此前正式 12.3 小时及 r1/r2/r3a/r5a 的业务失败持续有效，默认 Hyper 保持，24 小时资格尚未通过。
+
+## 正式产物的完整 Gateway / Admission 复核通过 — 2026-10-02
+
+独立 r4 于 UTC `2026-10-02T13:16:20.701891+00:00` 正常结束，公开 QA 的完整报告 `complete=true`、`failure=null`，112 项检查全部通过。包含全部 10 项 Admission 行为：合法资源 dry-run、持久化前拒绝不支持策略、保护控制器自有状态、改变 parentRefs 不能导入伪造状态、服务不可用时对 owned 资源失败关闭但不阻止其他 Gateway、服务恢复、所有副本证书无重启轮换、移除旧 CA 后成功，以及无效证书更新保留已接受证书。71 字符的完整服务 DNS 仍保留于 SAN，初次及轮换证书使用固定短 CN，未关闭 TLS 验证。
+
+最终两个 Pod `gateway-8855bfb88-scmjw` / `gateway-8855bfb88-v9tlm` 的 UID 分别为 `1dcf2f20-3317-4b3b-8098-409c3421e00f` / `312e8046-864e-4f06-933a-b66029626cfe`，位于不同工作节点，实际 Hyper、ready、零容器重启，进程二进制 SHA 均为原正式 69bc 产物。它们是常规 QA 计划滚动部署后的最终副本，零重启不代表整个 24 小时混合负载持续副本通过。runner/child/guard 均已实际退出；启动至结束后确切电源事件列无 Sleep/Wake/DarkWake，宿主交流电 100%。完整报告、实际副本、管理指标、电源、人工审核和 SHA 收据在 `.local/hyper-admission-fixture-r4-20261002/`。
+
+这补齐了证书设施修正的完整公开 Gateway/Admission 行为，未修改产品运行源码或正式二进制。`soak_seconds=0`，没有本轮混合长负载或性能对照；不得覆盖正式 12.3 小时及 r1/r2/r3a/r5a 的限流查询超时失败。直接观察 Redis driver 的诊断仍仅处于准备计划阶段，尚未构建或启动。默认 Hyper 保持，限流根因、正式产品 24 小时和当前产物性能资格仍未确认。

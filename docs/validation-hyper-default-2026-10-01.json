@@ -3477,7 +3477,7 @@
     "owned_processes_exited": true,
     "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW"
   },
-  "last_diagnostic_review_at": "2026-10-02T13:10:19.023763+00:00",
+  "last_diagnostic_review_at": "2026-10-02T13:18:45.390354+00:00",
   "gateway_admission_certificate_fixture_fix": {
     "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_PUBLIC_GATEWAY_REVALIDATION_RUNNING",
     "qa_file": "scripts/gateway_e2e.py",
@@ -3993,7 +3993,7 @@
     "root_cause": "Unconfirmed. Query timeout correlates with mapped creator scheduling wait and request-thread major faults. Does not establish driver polling or explain previous formal two or original six HTTP503."
   },
   "gateway_admission_fixture_validation": {
-    "status": "GATEWAY_RUNNING",
+    "status": "PASS_REVIEWED_PUBLIC_GATEWAY_ADMISSION_NOT_LONG_QUALIFICATION",
     "qualification": false,
     "start": {
       "pid": 9253,
@@ -4094,6 +4094,236 @@
       "completed_owned_fixture_archive": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-admission-fixture-20261002/completed-fixture-capacity-archive/receipt.json",
       "qualification": false
     },
-    "scope": "Same public QA 0a56bff and tested 69bc production image, same full checks/timeouts/resources/topology. Separate r4 run after archiving completed owned fixtures; no mixed soak. Current startup snapshot does not confirm complete Gateway/Admission or qualification."
+    "scope": "Full public Gateway/HTTPRoute/GRPCRoute and Admission against the same tested formal product binary. No mixed soak, 24-hour qualification or performance claim. Final replica zero restarts does not certify continuous mixed-load replica lifetime.",
+    "review_summary": {
+      "status": "PASS_REVIEWED_PUBLIC_GATEWAY_ADMISSION_NOT_LONG_QUALIFICATION",
+      "qualification": false,
+      "namespace": "rgnix-hyper-runtime-admission-fixture-20261002-r4",
+      "qa_commit": "0a56bff50393882360f6ddca21051c8f0533eca4",
+      "runtime_source_commit": "ca46d76b52e2059cac4d20f1e5936f68de49d946",
+      "complete": true,
+      "failure": null,
+      "checks_passed": 112,
+      "admission_checks_passed": 10,
+      "admission_check_names": [
+        "Admission TLS rotates on every replica without restart",
+        "Admission outage does not block another Gateway or its HTTPRoute/GRPCRoute",
+        "Admission recovers after its Service endpoints return",
+        "Admission succeeds after removing the old CA",
+        "Changing parentRefs cannot import forged controller rollout state",
+        "Gateway admission accepts server-side dry-run",
+        "Gateway admission protects controller-owned rollout state",
+        "Gateway admission rejects unsupported policy before persistence",
+        "Invalid admission certificate update retains the accepted certificate",
+        "Owned resources fail closed while admission is unavailable"
+      ],
+      "soak_seconds": 0,
+      "formal_binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+      "final_deployed_pods": [
+        {
+          "pod": "gateway-8855bfb88-scmjw",
+          "uid": "1dcf2f20-3317-4b3b-8098-409c3421e00f",
+          "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+          "engine": "hyper",
+          "containers": [
+            {
+              "allocatedResources": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "containerID": "containerd://15cd5a01497a08c467c8a69628b7d7275a792b7a00fe0eb32aa504fb95ae8802",
+              "image": "docker.io/library/rgnix:hyper-limiter-fix-20261001",
+              "imageID": "sha256:5c4647c45468944475b64eaca84b9d43d51dd742db43565df1aee9dded3aee58",
+              "lastState": {},
+              "name": "rgnix",
+              "ready": true,
+              "resources": {
+                "limits": {
+                  "cpu": "2",
+                  "memory": "512Mi"
+                },
+                "requests": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                }
+              },
+              "restartCount": 0,
+              "started": true,
+              "state": {
+                "running": {
+                  "startedAt": "2026-10-02T13:13:30Z"
+                }
+              },
+              "user": {
+                "linux": {
+                  "gid": 10101,
+                  "supplementalGroups": [
+                    10101
+                  ],
+                  "uid": 10101
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/rgnix",
+                  "name": "drain"
+                },
+                {
+                  "mountPath": "/etc/rgnix/global-rate-limit",
+                  "name": "global-rate-limit",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/admission",
+                  "name": "admission-tls",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/release-metrics",
+                  "name": "release-metrics",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/admin-users",
+                  "name": "admin-users",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/tenancy",
+                  "name": "tenancy",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/admin",
+                  "name": "admin-token",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-fh9zj",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "pod": "gateway-8855bfb88-v9tlm",
+          "uid": "312e8046-864e-4f06-933a-b66029626cfe",
+          "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
+          "engine": "hyper",
+          "containers": [
+            {
+              "allocatedResources": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "containerID": "containerd://cf88df4942212b2b0e19a1cafb0ad34d5d0a6ad37caa75dbabdf4b3b0f5d4b76",
+              "image": "docker.io/library/rgnix:hyper-limiter-fix-20261001",
+              "imageID": "sha256:5c4647c45468944475b64eaca84b9d43d51dd742db43565df1aee9dded3aee58",
+              "lastState": {},
+              "name": "rgnix",
+              "ready": true,
+              "resources": {
+                "limits": {
+                  "cpu": "2",
+                  "memory": "512Mi"
+                },
+                "requests": {
+                  "cpu": "100m",
+                  "memory": "128Mi"
+                }
+              },
+              "restartCount": 0,
+              "started": true,
+              "state": {
+                "running": {
+                  "startedAt": "2026-10-02T13:13:26Z"
+                }
+              },
+              "user": {
+                "linux": {
+                  "gid": 10101,
+                  "supplementalGroups": [
+                    10101
+                  ],
+                  "uid": 10101
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/rgnix",
+                  "name": "drain"
+                },
+                {
+                  "mountPath": "/etc/rgnix/global-rate-limit",
+                  "name": "global-rate-limit",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/admission",
+                  "name": "admission-tls",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/release-metrics",
+                  "name": "release-metrics",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/admin-users",
+                  "name": "admin-users",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/tenancy",
+                  "name": "tenancy",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/etc/rgnix/admin",
+                  "name": "admin-token",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                },
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-mtz4j",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runner_child_guard_stopped": true,
+      "ended_at": "2026-10-02T13:16:20.701891+00:00",
+      "power": {
+        "observed_at": "2026-10-02T13:17:35.623738+00:00",
+        "window_start": "2026-10-02T13:08:19.095000+00:00",
+        "status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+        "event_type_field": "fourth whitespace-delimited column after date, time and UTC offset",
+        "events": [],
+        "scope": "partial current runtime window; not final 24-hour qualification"
+      },
+      "power_after": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=35979363)\t100%; charged; 0:00 remaining present: true\n",
+      "scope": "Full public Gateway/HTTPRoute/GRPCRoute and Admission against the same tested formal product binary. No mixed soak, 24-hour qualification or performance claim. Final replica zero restarts does not certify continuous mixed-load replica lifetime.",
+      "reviewed_at": "2026-10-02T13:18:45.390354+00:00"
+    },
+    "review_file": ".local/hyper-admission-fixture-r4-20261002/review-summary.json",
+    "review_evidence_sha256": ".local/hyper-admission-fixture-r4-20261002/review-evidence-sha256.json"
   }
 }
