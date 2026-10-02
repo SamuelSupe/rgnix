@@ -212,3 +212,11 @@ r5a 于 UTC 12:29:21 出现真实业务失败，runner 于 12:29:49 退出：实
 当前完整 Gateway 复核于 `2026-10-02T12:51:14.150780+00:00` 启动，命名空间 `rgnix-hyper-runtime-admission-fixture-20261002-r3`。本次记录为 `GATEWAY_RUNNING` 阶段快照，后续以实际 `process.json`、全部 Admission 行为和最终两 Pod 的 Hyper/69bc/零重启收据判定。
 
 限流根因仍未确认。下一步应直接观察该 Redis 连接 driver 的实际运行，再决定产品修复；不凭线程创建映射或相关性修改限流策略，不放宽 200 毫秒、不失败开放、不重放，不跳到性能资格。默认 Hyper 保持用户选择。
+
+## 公开 Gateway 复核的调度容量中断 — 2026-10-02
+
+正式 69bc 镜像的公开 QA 复核 r3 于 UTC 12:58:34 结束，99 项检查通过后，在命名空间配额检查后的两副本滚动部署阶段等待超时；完整 Gateway、后续 Admission 尚未通过。新 Pod `gateway-b796559b4-whg29` 始终 Pending、没有节点，调度事件明确报告两工作节点达到 Pod 数上限，随后同时受拓扑分布约束阻止。已运行的两个 Gateway Pod 仍就绪、零重启，实际二进制均为 69bc。该失败发生在调度新副本之前，不是新的混合负载限流 503。原始报告、Pending Pod UID、事件、部署和节点状态、现存日志、二进制及 SHA 收据保留于 `.local/hyper-admission-fixture-20261002/`。runner/child/guard 已退出；确切电源事件列没有 Sleep/Wake/DarkWake，交流电 100%。
+
+已核对本线程三次结束且没有混合负载的预检，以及上述 r3 的精确 namespace 和退出记录。先保存这些 namespace 及 peer 的资源、现存日志、Pod UID、原副本数和 SHA，再仅将其中 Deployment 缩到零，保留 namespace 和恢复副本数收据。共八个 namespace 的 Pod 已退出；缩容前后，其余 194 个 Pod UID 保持，包含此前正式及诊断失败现场。本次未修改其他任务或系统调度参数。归档和复核收据在 `completed-fixture-capacity-archive/`。两工作节点由 Pod 上限附近恢复至 93/92 个活动 Pod；它只解释本次 Pending 调度中断，不能解释此前限流 503 或证明较轻环境下的稳定性。
+
+独立 r4 于 UTC `2026-10-02T13:08:19.068220+00:00` 启动，目录 `.local/hyper-admission-fixture-r4-20261002/`，namespace `rgnix-hyper-runtime-admission-fixture-20261002-r4`。沿用公开 QA 0a56bff 的同一冻结脚本和正式 69bc 镜像，全部 Gateway/Admission 检查、原超时、资源要求和拓扑要求不变；启动前核对两节点各有 17/18 个 Pod 名额。没有混合长负载或性能对照，未传内核选择，交流电及临时防睡眠断言已核对。当前记录仍是运行阶段快照，完整报告和最终 Hyper/69bc/零重启副本收据须在结束后审核。限流 driver 的直接运行观测尚未构建或启动，须等本轮结束后串行进行。此前正式 12.3 小时及 r1/r2/r3a/r5a 的业务失败持续有效，默认 Hyper 保持，24 小时资格尚未通过。

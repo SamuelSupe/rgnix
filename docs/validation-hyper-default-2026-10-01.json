@@ -3477,7 +3477,7 @@
     "owned_processes_exited": true,
     "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW"
   },
-  "last_diagnostic_review_at": "2026-10-02T12:52:16.618971+00:00",
+  "last_diagnostic_review_at": "2026-10-02T13:10:19.023763+00:00",
   "gateway_admission_certificate_fixture_fix": {
     "status": "SCOPED_CERTIFICATE_REGRESSION_PASS_PUBLIC_GATEWAY_REVALIDATION_RUNNING",
     "qa_file": "scripts/gateway_e2e.py",
@@ -3996,13 +3996,15 @@
     "status": "GATEWAY_RUNNING",
     "qualification": false,
     "start": {
-      "pid": 3959,
-      "started_at": "2026-10-02T12:51:14.150780+00:00",
-      "runner_sha256": "ad3a0e61f700ad4b51a6f4e44b86870a64a4410a8ed838325d861e39179abf96",
+      "pid": 9253,
+      "started_at": "2026-10-02T13:08:19.068220+00:00",
+      "runner_sha256": "9c224c66ea05d8449653eafaddbbe7fe18b9a4542fc8d5dd6f74694ca979c9af",
       "qualification": false,
-      "soak_seconds": 0
+      "soak_seconds": 0,
+      "source_harness": "../hyper-admission-fixture-20261002/source/scripts/gateway_e2e.py",
+      "old_failed_process": "../hyper-admission-fixture-20261002/review-summary.json"
     },
-    "namespace": "rgnix-hyper-runtime-admission-fixture-20261002-r3",
+    "namespace": "rgnix-hyper-runtime-admission-fixture-20261002-r4",
     "image": "rgnix:hyper-limiter-fix-20261001",
     "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
     "harness_provenance": {
@@ -4015,12 +4017,12 @@
         "charts/rgnix/templates/controller.yaml": "f4248444ff25ed2255800b6d18b5c662e4cd3bb79a014d3a605552757fbef6b6",
         "charts/rgnix/values.yaml": "d16e0456ba80f13aeb4655cf8d816e4756754a7e0ef2e397e588645606d0b6bd"
       },
-      "full_service_dns": "gateway-admission.rgnix-hyper-runtime-admission-fixture-20261002-r3.svc",
+      "full_service_dns": "gateway-admission.rgnix-hyper-runtime-admission-fixture-20261002-r4.svc",
       "binary_sha256": "69bc0043db1adb669e4e7ebdeeca2c2dbc25524aaff39eb2259ad47f8c2231c3",
       "no_kernel_selection_argument": true,
       "soak_seconds": 0
     },
-    "process_file": ".local/hyper-admission-fixture-20261002/process.json",
+    "process_file": ".local/hyper-admission-fixture-r4-20261002/process.json",
     "soak_seconds": 0,
     "preflight_facility_regressions": {
       "status": "TWO_ATTEMPTS_ARCHIVED_BEFORE_CHILD_STARTED",
@@ -4031,6 +4033,67 @@
         ".local/hyper-admission-fixture-20261002/preflight-chart-receipt-path-regression"
       ]
     },
-    "scope": "Full public QA commit 0a56bff against the unchanged tested 69bc production image; no kernel argument; startup snapshot, not full Gateway or long-load pass."
+    "prior_public_gateway_attempt": {
+      "status": "FAILED_REVIEWED_SCHEDULING_CAPACITY_NOT_COMPLETED_GATEWAY",
+      "start": {
+        "pid": 3959,
+        "started_at": "2026-10-02T12:51:14.150780+00:00",
+        "runner_sha256": "ad3a0e61f700ad4b51a6f4e44b86870a64a4410a8ed838325d861e39179abf96",
+        "qualification": false,
+        "soak_seconds": 0
+      },
+      "namespace": "rgnix-hyper-runtime-admission-fixture-20261002-r3",
+      "checks_passed": 99,
+      "complete": false,
+      "failure": {
+        "type": "RuntimeError",
+        "message": "error: timed out waiting for the condition\n"
+      },
+      "review_file": ".local/hyper-admission-fixture-20261002/review-summary.json",
+      "evidence_sha256_file": ".local/hyper-admission-fixture-20261002/review-evidence-sha256.json",
+      "pending_pod": {
+        "name": "gateway-b796559b4-whg29",
+        "uid": "2d9ad515-4260-4b0e-8d78-74b2c2a7810e",
+        "node": null,
+        "phase": "Pending",
+        "reason": "FailedScheduling / Too many pods with topology spread constraint"
+      },
+      "runner_child_guard_stopped": true,
+      "power_status": "NO_RECORDED_SLEEP_WAKE_IN_CURRENT_WINDOW",
+      "admission_executed": false,
+      "mixed_load_executed": false
+    },
+    "completed_owned_fixture_capacity_release": {
+      "status": "ARCHIVED_OWNED_FIXTURES_SCALED_ZERO_VERIFIED",
+      "receipt": ".local/hyper-admission-fixture-20261002/completed-fixture-capacity-archive/receipt.json",
+      "archive_sha256": ".local/hyper-admission-fixture-20261002/completed-fixture-capacity-archive/archive-sha256.json",
+      "namespaces": [
+        "rgnix-hyper-runtime-diagnostic-20261002",
+        "rgnix-hyper-runtime-diagnostic-20261002-peer",
+        "rgnix-hyper-runtime-diagnostic-20261002-r3",
+        "rgnix-hyper-runtime-diagnostic-20261002-r3-peer",
+        "rgnix-hyper-runtime-diagnostic-20261002-r4a",
+        "rgnix-hyper-runtime-diagnostic-20261002-r4a-peer",
+        "rgnix-hyper-runtime-admission-fixture-20261002-r3",
+        "rgnix-hyper-runtime-admission-fixture-20261002-r3-peer"
+      ],
+      "node_active_pods_after": {
+        "rgnix-hyper-20260928-control-plane": 9,
+        "rgnix-hyper-20260928-worker": 93,
+        "rgnix-hyper-20260928-worker2": 92
+      },
+      "protected_pod_uids_preserved": 194,
+      "action": "Scale only exact archived, completed owned preflight and just-failed public fixture Deployments to zero. Prior mixed-load failure environments and all unrelated Pod identities remain."
+    },
+    "capacity_preflight": {
+      "observed_at": "2026-10-02T13:08:19.311283+00:00",
+      "free_pod_slots": {
+        "rgnix-hyper-20260928-worker": 17,
+        "rgnix-hyper-20260928-worker2": 18
+      },
+      "completed_owned_fixture_archive": "/Users/livesite/Documents/ChatGPT/rgnix/.local/hyper-admission-fixture-20261002/completed-fixture-capacity-archive/receipt.json",
+      "qualification": false
+    },
+    "scope": "Same public QA 0a56bff and tested 69bc production image, same full checks/timeouts/resources/topology. Separate r4 run after archiving completed owned fixtures; no mixed soak. Current startup snapshot does not confirm complete Gateway/Admission or qualification."
   }
 }
