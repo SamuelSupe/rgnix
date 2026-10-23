@@ -170,13 +170,8 @@ with tempfile.TemporaryDirectory() as directory:
     values["admin"] = {"usersSecret": {"name": "admin-users", "key": "users.json"}, "tokenSecret":{"name":"wait-token","key":"token"}}
     apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"release-metrics","namespace":ns},"stringData":{"metrics.json":json.dumps({"gates":{"orders":{"url":f"http://a.{ns}.svc/metric","pointer":"/value","max":-1}}})}})
     values["rolloutMetrics"]={"secret":{"name":"release-metrics","key":"metrics.json"}}
-    apply({"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"redis","namespace":ns},"spec":{"replicas":1,"selector":{"matchLabels":{"qa-origin":"redis"}},"template":{"metadata":{"labels":{"qa-origin":"redis"}},"spec":{"containers":[{"name":"redis","image":"redis:8.0.2-alpine","args":["--save","","--appendonly","no"],"ports":[{"containerPort":6379}]}]}}}},
-          {"apiVersion":"v1","kind":"Service","metadata":{"name":"redis","namespace":ns},"spec":{"selector":{"qa-origin":"redis"},"ports":[{"port":6379}]}})
-    command(*kubectl,"-n",ns,"rollout","status","deployment/redis","--timeout=90s")
-    apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"shared-rate","namespace":ns},"stringData":{"config.json":json.dumps({"url":f"redis://redis.{ns}.svc:6379","scope":ns,"timeout_ms":200})}})
     namespace_policy={"default":{"allow_mirroring":True,"requests_per_second":10000,"burst":10000}}
     apply({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"namespace-policy","namespace":ns},"data":{"policy.json":json.dumps(namespace_policy)}})
-    values["globalRateLimit"]={"secret":{"name":"shared-rate","key":"config.json"}}
     values["tenancy"]={"policyConfigMap":{"name":"namespace-policy","key":"policy.json"}}
     (directory / "values.json").write_text(json.dumps(values))
     # Previous runs intentionally mutate listener ownership; reset only this fixture's Gateway.
@@ -452,10 +447,10 @@ finally: connection.close()
         apply(route("rate",[rule()],hosts=["rate.example.test"],annotations={"rgnix.io/limit-rate":"1 burst=1 key=header:x-client"}))
         wait("Gateway rate policy accepted",lambda:condition("httproute","rate","Accepted","True"))
         with replicas() as pairs:
-            for pair in pairs: wait("Replica serves shared-rate policy",lambda:admin("/v1/config",target_port=pair[1])[0]==200)
-            statuses=[request(host="rate.example.test",headers={"x-client":"across-pods"},target_port=p[0])[0] for p in pairs]
-            assert statuses==[200,429],statuses
-            checks.append({"name":"Gateway rate budget is shared across replicas","passed":True})
+            for pair in pairs: wait("Replica serves local rate policy",lambda:admin("/v1/config",target_port=pair[1])[0]==200)
+            statuses=[[request(host="rate.example.test",headers={"x-client":"across-pods"},target_port=p[0])[0] for _ in range(2)] for p in pairs]
+            assert statuses==[[200,429] for _ in pairs],statuses
+            checks.append({"name":"Gateway enforces an independent rate budget per replica","passed":True})
         apply(route("mirror-count",[rule("/mirror-count","b")]))
         traffic={"revision":"gateway-staged","backends":[{"service":"a:80","weight":90},{"service":"b:80","weight":10}],
                  "mirror":{"service":"b:80","percent":100,"max_body_bytes":1024,"timeout_ms":500},
@@ -710,7 +705,7 @@ for name, address in ADDRESSES.items():
   result[name] = {line.rsplit(None,1)[0]:float(line.rsplit(None,1)[1])
    for line in metrics.splitlines() if line.startswith(("process_","rgnix_engine_info",
     "rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready ",
-    "rgnix_global_rate_limit_total","rgnix_global_rate_limit_seconds_sum","rgnix_global_rate_limit_seconds_count","rgnix_otlp_"))}
+    "rgnix_otlp_"))}
  except Exception as error:
   result[name] = {"error":str(error)}
 print(json.dumps(result))

@@ -388,3 +388,43 @@ fn empty_selection_recovers_after_cooldown_without_maintenance() {
         assert_eq!(backend.observation().active, 0);
     }
 }
+
+#[test]
+fn single_endpoint_preserves_health_cooldown_and_capacity() {
+    let address = "127.0.0.1:80".parse().unwrap();
+    for active_health in [false, true] {
+        let mut backend = Backend::new(
+            vec![Endpoint { address, weight: 1 }],
+            false,
+            "test".into(),
+            "test".into(),
+        );
+        backend.options.max_inflight = 1;
+        if active_health {
+            backend.options.health = Some(HealthCheck {
+                path: "/health".into(),
+                interval: Duration::from_secs(1),
+                timeout: Duration::from_millis(100),
+                status: 200,
+            });
+        }
+        let backend = Arc::new(backend);
+        let state = backend.pool.lock().unwrap().endpoints[0].1.clone();
+        if active_health {
+            assert!(backend.select("").is_none());
+            state.set_active_health(true, &backend.health_revision);
+        }
+        let lease = backend.select("").unwrap();
+        assert!(backend.select("").is_none());
+        assert!(lease.record_result(true, 1, Duration::from_millis(20)));
+        drop(lease);
+        assert!(backend.select("").is_none());
+        std::thread::sleep(Duration::from_millis(30));
+        assert_eq!(backend.select("").unwrap().address, address);
+        if active_health {
+            state.set_active_health(false, &backend.health_revision);
+            assert!(backend.select("").is_none());
+        }
+        assert_eq!(backend.observation().active, 0);
+    }
+}

@@ -1,6 +1,6 @@
 # Hyper 默认内核与验收状态
 
-当前开发版本包含 Hyper 和 Pingora，按用户要求默认运行 Hyper，Chart 的默认选择也为 Hyper。显式选择 Pingora 可回退；`--no-default-features` 构建只包含 Pingora，默认使用 Pingora。此次默认切换不等于全部发行资格通过：24 小时长测尚未通过，串行负载复现共享 Redis 限流路径的 503，根因仍需定位。下表继续作为验收要求，历史 debug 测试及短时间 benchmark 不能代替这些证据。
+当前开发版本包含 Hyper 和 Pingora，按用户要求默认运行 Hyper，Chart 的默认选择也为 Hyper。显式选择 Pingora 可回退；`--no-default-features` 构建只包含 Pingora，默认使用 Pingora。当前开发分支已移除 Redis 协调器，速率限制按进程执行；下方 Redis 诊断属于历史版本，原失败证据继续保留。此次变更不等于全部发行资格通过，新版本仍需重新完成 24 小时长测与性能资格。下表继续作为验收要求，历史 debug 测试及短时间 benchmark 不能代替这些证据。
 
 | 门槛 | 必须取得的证据 |
 |---|---|

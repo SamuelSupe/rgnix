@@ -9,11 +9,11 @@ readelf -h -d --version-info "$binary" > "$results/ELF-INFO.txt"
 for engine in pingora hyper; do
   export RGNIX_ENGINE="$engine"
   export RGNIX_EXPERIMENTAL_HYPER=$([ "$engine" = hyper ] && echo true || echo false)
-  for suite in integration ingress_recovery otlp_integration log_rotation product_features migration_integration global_rate_limit; do
+  for suite in integration ingress_recovery otlp_integration log_rotation product_features migration_integration; do
     python3 "scripts/$suite.py" "$binary"
   done
   mkdir -p "$results/$engine"
-  for report in acceptance ingress-recovery log-rotation product-features global-rate-results; do
+  for report in acceptance ingress-recovery log-rotation product-features; do
     cp ".local/$report.json" "$results/$engine/"
   done
 done

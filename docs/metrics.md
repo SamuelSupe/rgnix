@@ -81,7 +81,6 @@ Counter 在进程重启时清零，使用 `rate()` 或 `increase()`；Gauge 是�
 | 进程预算 | `rgnix_budget_in_use{budget}`、`rgnix_budget_limit{budget}` | 当前占用和容量，`budget=inflight/plugin/mirror/simulation`；请求槽不等于 TCP 连接数 |
 | 拒绝 | `rgnix_rejected_requests_total{budget}` | 请求、插件、路由速率/并发限制导致的拒绝 |
 | 租户预算 | `rgnix_namespace_budget_in_use{tenant_namespace,resource}`、`rgnix_namespace_budget_limit{tenant_namespace,resource}` | 命名空间 request/plugin/auth/mirror 占用及配额，按进程计数，包含仍被运行快照保留的租户状态 |
-| 共享限流 | `rgnix_global_rate_limit_total{result}`、`rgnix_global_rate_limit_seconds{result}` | 共享准入、429、容量 503 及三种故障降级结果；固定标签，详见[跨副本限流](shared-rate-limits.md) |
 | 租户拒绝 | `rgnix_namespace_rejections_total{namespace,resource}` | 命名空间 request/rate/plugin/auth/mirror 配额拒绝；保持原有 namespace 标签，遇抓取目标同名标签时由 Prometheus 改为 exported_namespace |
 | 限流器 | `rgnix_limiter_entries{tenant_namespace}`、`rgnix_limiter_capacity{tenant_namespace}` | 已分配的速率/并发限流键数与容量；独立模式为 `_standalone` |
 | 插件 | `rgnix_plugin_calls_total`、`rgnix_plugin_errors_total`、`rgnix_plugin_seconds` | 钩子执行次数、trap/非法决策数、执行耗时；请求阶段含实例化 |

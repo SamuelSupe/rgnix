@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Remove the Redis coordinator, shared rate-limit CLI/Helm configuration, coordinator metrics and dependency. Route and namespace rates now use per-process token buckets; replicas have independent quotas. See [migration requirements](docs/shared-rate-limits.md).
+- Cache fixed single-endpoint selection state while preserving health checks, passive cooldowns and backend concurrency admission.
+- Record [matched-build performance comparisons](docs/validation-hyper-fixed-costs-2026-10-23.md). CPU and throughput calibration failed; no stable end-to-end gain is claimed.
+
 ## 0.5.0 — 2026-09-28 · Preview
 
 HTTP data-plane changes and reproducible performance diagnostics. See [release notes](docs/releases/v0.5.0.md) for Wasm compatibility, upgrade requirements and the unresolved performance qualification.

@@ -26,7 +26,7 @@
 
 **Safer Gateway changes:** standard HTTPRoute mirroring and transaction deadlines, isolated preflight/admission, replica publication status and `rgnix wait`. Admission calls are scoped to the selected controller; certificates reload without restarting Pods. Rollout progression aggregates samples across replicas, compilation has namespace budgets, and draining protects active streams within a configured deadline. See [Gateway contracts](docs/gateway-api.md), [publication status](docs/publication.md) and the [executed record](docs/validation-gateway-hardening-2026-09-26.md).
 
-**One deployable binary:** [Gateway API](docs/gateway-api.md), [shared rate limits](docs/shared-rate-limits.md), [migration tools](docs/migration.md), and native Linux amd64/arm64 distribution. Gateway uses a pre-provisioned data plane; upstream conformance certification is not claimed.
+**One deployable binary:** [Gateway API](docs/gateway-api.md), [per-process rate limits](docs/shared-rate-limits.md), [migration tools](docs/migration.md), and native Linux amd64/arm64 distribution. Gateway uses a pre-provisioned data plane; upstream conformance certification is not claimed.
 
 | Area | Capabilities |
 | :--- | :--- |
@@ -85,9 +85,9 @@ cargo build --release --locked
 
 Linux GNU builds can opt into jemalloc with `cargo build --release --locked --features jemalloc`.
 This links the Rust allocator into the binary; no `LD_PRELOAD` or runtime allocator package is needed.
-Plain Cargo builds include both engines and keep the system allocator. Hyper is the default; roll back with `--engine pingora`; `check` validates the selected engine before startup. On the current development branch, Docker builds and future native release packages enable `http3,jemalloc`; override `CARGO_FEATURES` when building a different feature set. The [rollout record](docs/hyper-default-rollout.md) tracks remaining qualification: the 24-hour test has not passed and shared Redis rate limiting produced 503 errors. These development defaults do not change the existing v0.5.0 artifacts. See the [allocator comparison](docs/validation-allocator-2026-09-28.md) for measured CPU, memory and calibration limits.
+Plain Cargo builds include both engines and keep the system allocator. Hyper is the default; roll back with `--engine pingora`; `check` validates the selected engine before startup. On the current development branch, Docker builds and future native release packages enable `http3,jemalloc`; override `CARGO_FEATURES` when building a different feature set. The [rollout record](docs/hyper-default-rollout.md) tracks remaining qualification: the 24-hour test has not passed. Historical shared Redis rate limiting produced 503 errors; the current development version uses local rate limits. These development defaults do not change the existing v0.5.0 artifacts. See the [allocator comparison](docs/validation-allocator-2026-09-28.md) for measured CPU, memory and calibration limits.
 
-The Hyper-default build passed native Bookworm artifact and image checks on both architectures. The 24-hour mixed load failed on shared rate limiting; the [validation record](docs/validation-hyper-default-2026-10-01.md) retains the failure and current diagnosis.
+The Hyper-default build passed native Bookworm artifact and image checks on both architectures. The historical 24-hour mixed load failed on shared rate limiting; the [validation record](docs/validation-hyper-default-2026-10-01.md) retains that failure. Redis coordination has since been removed; the current version still requires a new soak run.
 
 [Image signatures, checksums and attestations](docs/releases.md) · [Deployment instructions](docs/deployment.md).
 
@@ -179,7 +179,7 @@ metadata:
 
 The [complete rollout example](examples/ingress-rollout.yaml) adds stable cohorts, mirrors, stages, approvals and error/p95 rollback. External JSON metric gates block promotion when unhealthy or unavailable; `metric_rollback` can also trigger a durable fallback after sustained failures, alongside local error/latency rollback. Progress persists across controller restarts. File diff, candidate preflight and an optional TLS admission webhook validate changes before publication.
 
-**Request rates can be shared across replicas** with the optional [Redis coordinator](docs/shared-rate-limits.md); concurrency and resource budgets remain per process. For hard CPU/memory isolation, use separate controller Deployments/IngressClasses, scoped watches and Kubernetes resource limits.
+**Request-rate, concurrency and resource budgets apply per process.** Replicas have independent token buckets; size each replica's allowance for the deployment total. See [rate limits and migration](docs/shared-rate-limits.md). For hard CPU/memory isolation, use separate controller Deployments/IngressClasses, scoped watches and Kubernetes resource limits.
 
 ## Logs and observability
 
@@ -283,7 +283,7 @@ After kernel expansion, the [September 30 Hyper optimization](docs/validation-hy
 
 The [original NGINX/OpenResty comparison](docs/validation-nginx-openresty-2026-09-27.md) tested released v0.4.0. Later NGINX reruns used OpenResty only as the common origin; they are not updated OpenResty frontend results. All raw windows, rejected experiments and limitations remain in the linked reports.
 
-**Outside acceptance scope:** stable production capacity, full upstream Gateway conformance, 24-hour soak, physical-node/network failures, cloud load balancers, production CNI interoperability and Redis Sentinel/Cluster failover. Earlier [Gateway](docs/validation-gateway-hardening-2026-09-26.md), [tracing](docs/validation-tracing-2026-09-25.md) and [metrics](docs/validation-metrics-2026-09-25.md) records retain their original version and scope.
+**Outside acceptance scope:** stable production capacity, full upstream Gateway conformance, 24-hour soak, physical-node/network failures, cloud load balancers, production CNI interoperability. Earlier [Gateway](docs/validation-gateway-hardening-2026-09-26.md), [tracing](docs/validation-tracing-2026-09-25.md) and [metrics](docs/validation-metrics-2026-09-25.md) records retain their original version and scope.
 
 ## Scope and documentation
 

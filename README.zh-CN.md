@@ -28,7 +28,7 @@
 
 **更可靠的 Gateway 变更：**标准 HTTPRoute 镜像与总超时、隔离预检和准入、副本配置状态及 `rgnix wait`。准入仅作用于指定控制器，证书无须重启即可更新；灰度推进汇总各副本样本，编译受命名空间预算限制，排空在配置期限内保护活跃流。见[Gateway 契约](docs/gateway-api.md)、[发布状态](docs/publication.md)及[实测记录](docs/validation-gateway-hardening-2026-09-26.md)。
 
-**单个二进制交付：**[Gateway API](docs/gateway-api.md)、[共享限流](docs/shared-rate-limits.md)、[迁移工具](docs/migration.md)及 Linux amd64/arm64 原生产物。Gateway 采用预置数据面，尚未取得上游 conformance 认证。
+**单个二进制交付：**[Gateway API](docs/gateway-api.md)、[本地限流](docs/shared-rate-limits.md)、[迁移工具](docs/migration.md)及 Linux amd64/arm64 原生产物。Gateway 采用预置数据面，尚未取得上游 conformance 认证。
 
 | 领域 | 已实现能力 |
 | :--- | :--- |
@@ -85,7 +85,7 @@ cargo build --release --locked
 ./target/release/rgnix serve -c examples/nginx.conf
 ```
 
-普通 Cargo 构建包含两种内核，继续使用系统分配器。默认使用 Hyper，使用 `--engine pingora` 显式回退，`check` 按所选内核预检。当前开发分支的 Docker 构建与未来原生发行包默认启用 `http3,jemalloc`，镜像构建可用 `CARGO_FEATURES` 覆盖；[切换与验收记录](docs/hyper-default-rollout.md)仍保留未完成项：24 小时长测未通过，共享 Redis 限流路径出现过 503。这不改变已有 v0.5.0 发行产物。
+普通 Cargo 构建包含两种内核，继续使用系统分配器。默认使用 Hyper，使用 `--engine pingora` 显式回退，`check` 按所选内核预检。当前开发分支的 Docker 构建与未来原生发行包默认启用 `http3,jemalloc`，镜像构建可用 `CARGO_FEATURES` 覆盖；[切换与验收记录](docs/hyper-default-rollout.md)仍保留未完成项：24 小时长测未通过，历史版本的共享 Redis 限流路径出现过 503；当前开发版本已改为本地限流，仍需重新长测。这不改变已有 v0.5.0 发行产物。
 
 Hyper 默认构建通过了双架构 Bookworm 发行产物与镜像检查。24 小时混合负载因共享限流失败；[验证记录](docs/validation-hyper-default-2026-10-01.md)保留失败证据及当前定位状态。
 
@@ -179,7 +179,7 @@ metadata:
 
 [完整灰度示例](examples/ingress-rollout.yaml)包含稳定分组、流量镜像、阶段权重、审批及错误率/p95 回退。外部 JSON 指标门禁在指标异常或不可用时阻止推进；`metric_rollback` 还可在持续失败后触发持久化回退，与本地错误率/时延回退配合使用。发布进度跨控制器重启保留。文件 diff、候选预检和可选 TLS 准入 Webhook 在发布前校验变更。
 
-**请求速率可跨副本计数**，通过可选 [Redis 协调器](docs/shared-rate-limits.md) 实现；并发与资源预算继续按进程执行。硬 CPU/内存隔离应使用独立控制器 Deployment/IngressClass、限定 watch 与 Kubernetes 资源限制。
+**请求速率、并发与资源预算均按进程执行。** 每个副本独立持有令牌桶，应按部署总额度分配每副本限额。配置与升级说明见[本地限流](docs/shared-rate-limits.md)。硬 CPU/内存隔离应使用独立控制器 Deployment/IngressClass、限定 watch 与 Kubernetes 资源限制。
 
 ## 日志与可观测性
 
@@ -279,7 +279,7 @@ v0.5.0 候选版在两种架构上分别通过 **22 项 Rust 测试、340 项原
 
 [最初的 NGINX/OpenResty 对照](docs/validation-nginx-openresty-2026-09-27.md)针对已发布的 v0.4.0。后续 NGINX 重测中 OpenResty 仅作为共同上游，不是更新后的 OpenResty 前端成绩。报告保留所有原始窗口、被否决的实验与适用限制。
 
-**仍未完成的验收：**稳定生产容量、完整 Gateway conformance、24 小时压力、物理节点/网络故障、云负载均衡、生产 CNI 兼容及 Redis Sentinel/Cluster 故障切换。此前 [Gateway](docs/validation-gateway-hardening-2026-09-26.md)、[tracing](docs/validation-tracing-2026-09-25.md)及[metrics](docs/validation-metrics-2026-09-25.md)记录保持其原版本与范围。
+**仍未完成的验收：**稳定生产容量、完整 Gateway conformance、24 小时压力、物理节点/网络故障、云负载均衡、生产 CNI 兼容。此前 [Gateway](docs/validation-gateway-hardening-2026-09-26.md)、[tracing](docs/validation-tracing-2026-09-25.md)及[metrics](docs/validation-metrics-2026-09-25.md)记录保持其原版本与范围。
 
 ## 范围与文档
 

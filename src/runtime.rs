@@ -100,9 +100,6 @@ pub struct Limits {
     /// Administrator-owned HTTP metric providers for release gates (JSON).
     #[arg(long)]
     pub rollout_metrics_file: Option<PathBuf>,
-    /// Optional administrator Redis coordinator for shared route and namespace request rates.
-    #[arg(long)]
-    pub global_rate_limit_file: Option<PathBuf>,
     #[arg(long, default_value_t = 2)]
     pub threads: usize,
     /// Idle upstream pool budget per worker; each listener/protocol pool shares threads times this size.

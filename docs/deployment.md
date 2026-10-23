@@ -215,9 +215,9 @@ helm uninstall rgnix-qa -n rgnix-qa-example --kube-context orbstack
 kubectl --context orbstack delete namespace rgnix-qa-example
 ```
 
-## 共享请求速率配额
+## 请求速率配额与副本数
 
-当前源码可通过 `globalRateLimit.secret.name/key` 挂载 Redis 协调器配置；同一部署的副本共享 route 与 namespace 请求速率，故障模式默认 503，支持显式放行或本地降级。配置、Redis 权限及持久性边界见[跨副本速率限制](shared-rate-limits.md)。并发、CPU/内存保护仍按进程执行。
+route 与 namespace 的速率、并发以及 CPU/内存保护均按进程执行，各副本独立计数。根据副本数量分配每副本速率与 burst；扩缩容会改变部署总额度。旧 Redis 配置的迁移要求见[限流范围与升级](shared-rate-limits.md)。
 
 ## 静态文件 I/O
 

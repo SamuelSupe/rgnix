@@ -69,15 +69,6 @@ impl Proxy {
                 "client certificate required or no longer trusted",
             ));
         }
-        let global_rate = self.shared.controls.active.load().global_rate.clone();
-        let rate_group = route
-            .tenant
-            .as_ref()
-            .map_or("standalone", |t| t.name.as_str());
-        let rate_capacity = route
-            .tenant
-            .as_ref()
-            .map_or(16384, |t| t.quota.load().max_limiter_keys);
         if let Some(tenant) = &route.tenant {
             ctx.tenant_request = Some(tenant.acquire(crate::tenancy::Resource::Request).map_err(
                 |s| {
@@ -87,66 +78,24 @@ impl Proxy {
                     error(s, "namespace request quota exhausted")
                 },
             )?);
-            let quota = tenant.quota.load_full();
-            let policy = crate::traffic::global::policy(
-                global_rate.as_ref(),
-                rate_group,
-                "_namespace",
-                crate::traffic::Policy {
-                    rate: Some(crate::traffic::Rate {
-                        per_second: quota.requests_per_second,
-                        burst: quota.burst,
-                        key: crate::traffic::Key::Route,
-                    }),
-                    concurrency: None,
-                },
-                &ctx.request,
-                rate_capacity,
-                &self.shared.telemetry,
-            )
-            .await
-            .map_err(|s| {
+            tenant.rate(&ctx.request).map_err(|s| {
                 self.shared
                     .telemetry
                     .namespace_rejected(&tenant.name, "rate");
-                error(s, "shared namespace rate quota unavailable or exhausted")
+                error(s, "namespace rate quota exhausted")
             })?;
-            if policy.rate.is_some() {
-                tenant.rate(&ctx.request).map_err(|s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&tenant.name, "rate");
-                    error(s, "namespace rate quota exhausted")
-                })?;
-            }
         }
         let traffic = route
             .tenant
             .as_ref()
             .map_or(&self.shared.traffic, |t| &t.traffic);
-        let pre_auth_policy = crate::traffic::global::policy(
-            global_rate.as_ref(),
-            rate_group,
-            &route.id,
-            route.settings.traffic.phase(true),
-            &ctx.request,
-            rate_capacity,
-            &self.shared.telemetry,
-        )
-        .await
-        .map_err(|s| {
-            self.shared
-                .telemetry
-                .rejected
-                .with_label_values(&["rate"])
-                .inc();
-            error(
-                s,
-                "shared pre-authentication rate quota unavailable or exhausted",
-            )
-        })?;
         ctx.pre_auth_permit = traffic
-            .acquire(&route.id, &pre_auth_policy, &ctx.request, &ctx.claims)
+            .acquire(
+                &route.id,
+                &route.settings.traffic.phase(true),
+                &ctx.request,
+                &ctx.claims,
+            )
             .map_err(|status| {
                 self.shared
                     .telemetry
@@ -203,26 +152,13 @@ impl Proxy {
                 ctx.edits.headers.insert(name, Some(value));
             }
         }
-        let post_auth_policy = crate::traffic::global::policy(
-            global_rate.as_ref(),
-            rate_group,
-            &route.id,
-            route.settings.traffic.phase(false),
-            &ctx.request,
-            rate_capacity,
-            &self.shared.telemetry,
-        )
-        .await
-        .map_err(|s| {
-            self.shared
-                .telemetry
-                .rejected
-                .with_label_values(&["rate"])
-                .inc();
-            error(s, "shared rate quota unavailable or exhausted")
-        })?;
         ctx.traffic_permit = traffic
-            .acquire(&route.id, &post_auth_policy, &ctx.request, &ctx.claims)
+            .acquire(
+                &route.id,
+                &route.settings.traffic.phase(false),
+                &ctx.request,
+                &ctx.claims,
+            )
             .map_err(|status| {
                 self.shared
                     .telemetry

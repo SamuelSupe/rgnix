@@ -4,6 +4,10 @@ v0.5.0 includes the implementation from optimization rounds one through nine. Hi
 
 ## Current evidence
 
+The current development engine defaults to Hyper. The [2026-10-23 fixed-cost comparison](validation-hyper-fixed-costs-2026-10-23.md) compares main `a110737` with a fixed single-IP backend selection optimization and Redis removal, using matching compiler/features and fresh calibration. Redis removal changes quotas to per-process limits; see the [migration requirements](shared-rate-limits.md). Qualification limits and all measurements are recorded in that report.
+
+## Earlier measurements
+
 The [round-nine comparison](validation-performance-round9-2026-09-27.md) measured plain HTTP/1, two workers, 64 connections, three alternating 8-second windows after warmup, on shared OrbStack Linux ARM64. Access logging/OTLP output was disabled; product policies and metrics remained active.
 
 | Workload | rgnix median req/s | NGINX 1.30.5 median req/s |
@@ -17,7 +21,7 @@ These are observations, not guaranteed rates. The 64-connection identical-binary
 
 A [later one-worker diagnostic](validation-pingora-audit-2026-09-28.md) retained the gap in all three rounds; the modest difference between rgnix and its minimal vendor-based proxy was below a reliable attribution threshold. A successful scoped one-worker A/A check does not resolve the earlier multi-worker or tail-latency qualification.
 
-The experimental branch also includes a [standalone Hyper transport feasibility study](validation-hyper-prototype-2026-09-28.md). It preserves streaming and connection reuse but omits product features. Its exploratory results and failed calibration are not a performance claim for rgnix, and the production engine remains Pingora.
+The experimental branch also includes a [standalone Hyper transport feasibility study](validation-hyper-prototype-2026-09-28.md). It preserves streaming and connection reuse but omits product features. Its exploratory results and failed calibration are not a performance claim for rgnix. Pingora was the production engine at the time of that study.
 
 The next [product integration experiment](hyper-experimental.md) enables Hyper inside the real binary for a bounded plain HTTP/1 subset, preserving routing, budgets, telemetry and configuration snapshots. `benchmark_compare.py --plain-proxy` can compare the same binary with `--rgnix-transport pingora --candidate-transport hyper`; calibrate each mode against itself first. [Actual checks and calibration](validation-hyper-product-2026-09-28.md) remain separate from the minimal-proxy results.
 

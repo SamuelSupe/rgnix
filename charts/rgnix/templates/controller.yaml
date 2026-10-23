@@ -1,4 +1,7 @@
 {{- $shutdown := mergeOverwrite (dict "enabled" false "preStopSeconds" 10 "graceSeconds" 5 "timeoutSeconds" 25 "terminationGracePeriodSeconds" 60) (default dict .Values.shutdown) }}
+{{- if dig "secret" "name" "" (default dict .Values.globalRateLimit) }}
+{{- fail "globalRateLimit was removed; remove the Redis configuration and size rate limits per replica" }}
+{{- end }}
 {{- if le (int $shutdown.terminationGracePeriodSeconds) (int (add $shutdown.preStopSeconds $shutdown.graceSeconds $shutdown.timeoutSeconds)) }}
 {{- fail "terminationGracePeriodSeconds must exceed preStopSeconds + graceSeconds + timeoutSeconds" }}
 {{- end }}
@@ -273,9 +276,6 @@ spec:
             - --watch-namespace={{ . }}
             {{- end }}
             - --publish-service={{ .Release.Namespace }}/{{ .Release.Name }}
-            {{- if .Values.globalRateLimit.secret.name }}
-            - --global-rate-limit-file=/etc/rgnix/global-rate-limit/config.json
-            {{- end }}
             {{- if .Values.rolloutMetrics.secret.name }}
             - --rollout-metrics-file=/etc/rgnix/release-metrics/metrics.json
             {{- end }}
@@ -435,11 +435,6 @@ spec:
           volumeMounts:
             - name: drain
               mountPath: /var/run/rgnix
-            {{- if .Values.globalRateLimit.secret.name }}
-            - name: global-rate-limit
-              mountPath: /etc/rgnix/global-rate-limit
-              readOnly: true
-            {{- end }}
             {{- if .Values.admission.enabled }}
             - name: admission-tls
               mountPath: /etc/rgnix/admission
@@ -483,14 +478,6 @@ spec:
       volumes:
         - name: drain
           emptyDir: {}
-        {{- if .Values.globalRateLimit.secret.name }}
-        - name: global-rate-limit
-          secret:
-            secretName: {{ .Values.globalRateLimit.secret.name | quote }}
-            items:
-              - key: {{ .Values.globalRateLimit.secret.key | quote }}
-                path: config.json
-        {{- end }}
         {{- if .Values.admission.enabled }}
         - name: admission-tls
           secret:

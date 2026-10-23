@@ -12,7 +12,7 @@ cargo clippy --locked --all-targets -j 2 -- -D warnings
 cargo build --release --locked -j 2
 ```
 
-`check.sh` 集中覆盖 HTTP/HTTPS、HTTP/2、WebSocket/SSE、流式 body、客户端取消、断连与无重放、配置恢复、日志/OTLP、访问策略、迁移和 Redis 共享限流。其结果不能替代真实 Kubernetes watch、RBAC、准入及多副本验证。
+`check.sh` 集中覆盖 HTTP/HTTPS、HTTP/2、WebSocket/SSE、流式 body、客户端取消、断连与无重放、配置恢复、日志/OTLP、访问策略、迁移和本地限流。其结果不能替代真实 Kubernetes watch、RBAC、准入及多副本验证。
 
 固定 Gateway API v1.6.1 标准 CRD，并构建当前源码镜像与 `scripts/fixtures/gateway-grpc.Dockerfile` 后运行：
 
@@ -47,7 +47,7 @@ kind 的多个节点仍可能共享一台宿主机。该门禁验证跨节点路
 - 24 小时混合业务负载，以及单租户超过预算时其他租户的延迟。
 - 两个或更多故障域中的节点故障、API Server 断连、Pod 滚动、EndpointSlice 和证书轮换。
 - 最大预期路由/证书/脚本规模下的更新时间和内存增长。
-- 实际 Redis 拓扑与观测平台故障；声明的失败模式与恢复时间。
+- 观测平台故障及恢复时间；多副本扩缩容后的本地速率额度分配与过载保护。
 - 升级前后与回退时的配置兼容，及物理 NIC 上 XDP/CNI 共存与性能。
 
 使用[副本发布门禁](publication.md)确认目标摘要被足量副本采用，同时保留业务健康门禁；配置一致不等于业务成功。上述未执行项目不会因为实现了工具或工作流而标记完成。

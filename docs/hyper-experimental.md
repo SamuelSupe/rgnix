@@ -33,7 +33,7 @@ Linux GNU 上可同时启用 `--features hyper-experimental,jemalloc`。jemalloc
 
 ## 支持边界与差异
 
-可用于独立文件配置、Ingress 和 Gateway 模式。已接入 HTTPS/SNI 热更新、客户端 HTTP/2、h2c、HTTP/HTTPS 上游、gRPC 双向流及 trailers、WebSocket、PROXY protocol、RGL 请求/响应钩子与 body 检查、JWT/外部认证/mTLS、静态文件、gzip/Brotli、sticky cookie、租户配额、共享限流和发布策略。启用实验构建和运行参数后，三种模式复用同一数据面。
+可用于独立文件配置、Ingress 和 Gateway 模式。已接入 HTTPS/SNI 热更新、客户端 HTTP/2、h2c、HTTP/HTTPS 上游、gRPC 双向流及 trailers、WebSocket、PROXY protocol、RGL 请求/响应钩子与 body 检查、JWT/外部认证/mTLS、静态文件、gzip/Brotli、sticky cookie、本地租户配额与限流和发布策略。三种模式复用同一数据面；当前默认内核和启动方式见[切换记录](hyper-default-rollout.md)。
 
 ```sh
 rgnix ingress --engine hyper --ingress-class rgnix --publish-service namespace/service

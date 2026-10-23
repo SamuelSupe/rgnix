@@ -1,41 +1,16 @@
-# 跨副本速率限制
+# 本地限流与旧 Redis 配置迁移
 
-v0.3.0 预览版支持可选 Redis 协调器。启用后，独立服务、Ingress 和 Gateway 的路由速率限制，以及管理员命名空间 `requests_per_second` / `burst`，在同一 `scope` 内共享令牌桶。未启用时保持本地计数。
+当前开发版本的路由速率限制和命名空间总速率限制均按进程执行，不需要 Redis。每个副本独立持有令牌桶；速率不足返回 429，并发和资源保护继续执行。
 
-```json
-{
-  "url": "rediss://USER:PASSWORD@redis.example.com:6379/0",
-  "scope": "production-edge",
-  "failure_mode": "closed",
-  "timeout_ms": 100,
-  "max_inflight": 256
-}
-```
+路由继续使用 `rgnix_limit_rate` / `rgnix_limit_conn`，Ingress 和 Gateway 继续使用相应 policy annotation。命名空间总速率继续由管理员 tenant policy 的 `requests_per_second` / `burst` 配置。详见[产品能力](product-features.md)和[平台策略](platform-policies.zh-CN.md)。
 
-把实际凭证写入受限文件或 Kubernetes Secret，不要提交到仓库：
+有 N 个副本时，部署总速率可能达到 N 倍的每副本限额，burst 也分别计算。扩缩容会改变总额度，进程重启会重新初始化本地桶。要求跨副本严格共享额度时，应在部署入口统一执行该策略；本版本不提供分布式额度协调。
 
-```sh
-rgnix serve -c nginx.conf --global-rate-limit-file /etc/rgnix/shared-rate.json
-kubectl -n edge create secret generic shared-rate --from-file=config.json=/etc/rgnix/shared-rate.json
-helm upgrade --install edge charts/rgnix -n edge --set globalRateLimit.secret.name=shared-rate
-```
+从使用 Redis 协调器的版本升级时：
 
-Ingress / Gateway 命令也接受 `--global-rate-limit-file`。Helm Secret 默认 key 为 `config.json`，通过完整目录投影实现热更新。文件作为管理控制配置的一部分校验、原子替换；无效更新保留上一版本。`/v1/config.shared_rate_limit` 显示是否启用、scope、超时和故障模式，不返回 Redis URL 或凭证。
+1. 移除 `--global-rate-limit-file`。新二进制会拒绝这个旧参数。
+2. 移除 Helm 的 `globalRateLimit` 配置及其专用 Secret。Chart 会拒绝仍指定协调器 Secret 的旧 values，避免静默改变限流范围。
+3. 按副本数重新分配路由和命名空间限额；旧 scope、dependency failure mode、Redis timeout 和共享键容量不再参与请求处理。
+4. 更新监控：共享协调器的 `rgnix_global_rate_limit_*` 指标不再提供；使用现有请求拒绝、命名空间拒绝和限流器容量指标。`/v1/config.rate_limit_scope` 为 `process`。
 
-| 故障模式 | 协调器超时、断连或本地查询并发已满 |
-| --- | --- |
-| `closed`（默认） | 返回 503 |
-| `open` | 本次跳过共享速率检查，其他认证、并发和资源限制继续执行 |
-| `local` | 使用该进程的本地令牌桶；故障期间不再保证跨副本总速率 |
-
-令牌不足返回 429；共享键容量耗尽始终返回 503。默认查询超时 100ms、最多 256 个并行查询，可分别配置 1..2000ms、1..4096。只在配置了速率限制的请求阶段访问 Redis。命名空间总限流先于认证，路由 IP/route 限流在认证前，header/cookie/JWT claim 限流在认证后。
-
-共享状态按 `scope + namespace + route + rate policy + identity` 隔离，命名空间总预算不包含 route。多个副本必须使用相同 scope 和一致路由配置；不同部署应使用不同 scope。修改速率参数或 scope 会创建新桶。独立模式以配置的服务器序号与 location 标识路由，各副本应保持一致。正常共享准入不再扣减本地速率桶。
-
-Redis 在一次 Lua 操作内使用服务端时间检查、扣减和维护过期；请求标识只以摘要存储。新建桶受每 namespace 的 `max_limiter_keys` 限制，独立模式上限 16384；空闲键至少保留 60 秒，之后可回收。降低容量不会强制驱逐现有活跃桶，恢复到新容量前拒绝创建新桶。键使用同一 hash tag，但当前客户端连接单一 Redis 端点，不提供 Sentinel/Cluster 拓扑发现。需要 `TIME`、`EVAL`、HASH、ZSET、`PEXPIRE` 权限；不要使用会主动淘汰限流状态的 Redis eviction 策略。Redis 数据丢失或被清空会重置桶，计费级持久额度应使用专门账本。
-
-`rediss` 使用系统 CA 和主机名验证，不支持 `#insecure`。不提供自动业务请求重试；不重试结果不明的 Redis 扣减，避免重复计数。失效连接会丢弃，后续请求重新连接，恢复过程中仍可能收到一次 503。Redis 本身的 HA、备份和容量由部署者管理。
-
-CPU/内存、并发请求、插件、鉴权和镜像并发继续按进程隔离。模拟器使用独立本地桶，返回 `rate_limit_scope: isolated_simulation` 和 `shared_quota_checked: false`，不访问或消耗生产共享额度。
-
-指标：`rgnix_global_rate_limit_total{result}` 和 `rgnix_global_rate_limit_seconds{result}`。固定 result 为 `allowed`、`limited`、`capacity`、`unavailable_closed`、`unavailable_open`、`unavailable_local`，不使用任意用户标识作标签。
+请求模拟继续使用独立的本地桶，不消耗实际请求额度。历史发行和验证记录描述各自当时的 Redis 行为，不代表当前开发版本仍依赖 Redis，也不代表新版本已完成长测。

@@ -295,14 +295,7 @@ impl Admin {
             "/v1/config" => {
                 let mut value = describe(&snapshot);
                 value["controls_sha256"] = json!(self.shared.controls.active.load().digest);
-                value["shared_rate_limit"] = self
-                    .shared
-                    .controls
-                    .active
-                    .load()
-                    .global_rate
-                    .as_ref()
-                    .map_or_else(|| json!({"enabled":false}), |limiter| limiter.diagnostic());
+                value["rate_limit_scope"] = json!("process");
                 value["principal"] = json!({"name":principal.name,"role":principal.role,"namespaces":principal.namespaces});
                 let gates: std::collections::BTreeSet<_> = snapshot
                     .hosts

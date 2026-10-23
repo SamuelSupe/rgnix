@@ -22,8 +22,6 @@ pub struct Traffic {
     pub upstream_duration: HistogramVec,
     pub inspection: HistogramVec,
     pub inspection_bytes: IntCounterVec,
-    pub shared_limit: IntCounterVec,
-    pub shared_limit_seconds: HistogramVec,
 }
 
 impl Traffic {
@@ -66,18 +64,6 @@ impl Traffic {
             hyper_handshake_errors: register_int_counter_with_registry!(
                 "rgnix_hyper_tls_handshake_errors_total",
                 "Failed downstream TLS handshakes",
-                registry
-            )?,
-            shared_limit: register_int_counter_vec_with_registry!(
-                "rgnix_global_rate_limit_total",
-                "Shared admission decisions and dependency fallbacks",
-                &["result"],
-                registry
-            )?,
-            shared_limit_seconds: register_histogram_vec_with_registry!(
-                "rgnix_global_rate_limit_seconds",
-                "Shared admission time including coordinator access",
-                &["result"],
                 registry
             )?,
             request_bytes: register_int_counter_with_registry!(

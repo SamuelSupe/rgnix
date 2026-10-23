@@ -1,6 +1,6 @@
 # 域名授权、发布流程与管理治理
 
-基础治理能力从 v0.2.0 提供，跨副本速率配额、Gateway 策略及业务指标回退包含在 v0.3.0 预览版中；实现阶段的实际运行范围见[治理验证记录](validation-governance.md)。
+基础治理能力从 v0.2.0 提供，Gateway 策略及业务指标回退包含在 v0.3.0 预览版中。当前开发版本已移除 Redis 协调器，速率配额按进程执行；旧配置升级见[限流迁移说明](shared-rate-limits.md)。实现阶段的历史运行范围见[治理验证记录](validation-governance.md)。
 
 ## 命名空间与域名边界
 
@@ -25,7 +25,7 @@
 
 Helm `watchNamespaces: [payments, shop]` 同时生成限定范围的 Role/RoleBinding 并设置重复的 `--watch-namespace` 参数。列表为空时保持集群范围。发布 Service 和检查点所在 namespace 额外需要 Service/ConfigMap watch；IngressClass 是集群资源。namespace 必须先存在，变更 watch 范围需要滚动更新。
 
-可选 [Redis 协调器](shared-rate-limits.md) 将请求速率与命名空间总速率按 scope 跨副本计数；并发等资源配额仍按控制器进程计数。CPU、内存和全局预算属于进程共享资源；需要硬隔离时，使用独立 Deployment、IngressClass、namespace watch 列表与 Kubernetes requests/limits。
+请求速率、命名空间总速率与并发等资源配额均按控制器进程计数，各副本独立维护限额。CPU、内存和全局预算属于进程共享资源；需要硬隔离时，使用独立 Deployment、IngressClass、namespace watch 列表与 Kubernetes requests/limits。
 
 ## 具名管理身份与热更新
 
