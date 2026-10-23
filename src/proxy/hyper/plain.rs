@@ -98,6 +98,7 @@ impl Action {
 pub(super) struct Selected {
     snapshot: Arc<RuntimeSnapshot>,
     route: Arc<Route>,
+    prepared_route: usize,
     started: Instant,
 }
 
@@ -126,7 +127,8 @@ pub(super) fn select(listener: &Listener, request: &Request<Payload>) -> Option<
             .ok()?;
     let path = crate::proxy::normalized_path_view(request.uri().path()).ok()?;
     let route = snapshot.route(listener.address, &host, &path)?;
-    prepared.route(listener.address, &route).plain.as_ref()?;
+    let prepared_route = prepared.route_index(listener.address, &route);
+    prepared.routes[prepared_route].plain.as_ref()?;
     if prepared.slash_redirects
         && !path.ends_with('/')
         && !matches!(route.matcher, PathMatch::Exact(_))
@@ -145,6 +147,7 @@ pub(super) fn select(listener: &Listener, request: &Request<Payload>) -> Option<
     Some(Selected {
         snapshot,
         route,
+        prepared_route,
         started,
     })
 }
@@ -154,6 +157,7 @@ pub(super) struct Guard {
     pub counts: Arc<Counters>,
     pub snapshot: Arc<RuntimeSnapshot>,
     pub route: Arc<Route>,
+    prepared_route: usize,
     pub started: Instant,
     pub _permit: tokio::sync::OwnedSemaphorePermit,
     backend_attempted: bool,
@@ -187,11 +191,7 @@ impl Guard {
         };
         let telemetry = &self.proxy.shared.telemetry;
         let metrics = backend.and_then(|name| {
-            let Action::Proxy(target) = self
-                .snapshot
-                .hyper
-                .as_ref()?
-                .route(self.proxy.listener, &self.route)
+            let Action::Proxy(target) = self.snapshot.hyper.as_ref()?.routes[self.prepared_route]
                 .plain
                 .as_ref()?
             else {
@@ -280,6 +280,7 @@ pub(super) async fn serve(
         counts: Arc::new(Counters::default()),
         snapshot: selected.snapshot,
         route: selected.route,
+        prepared_route: selected.prepared_route,
         started: selected.started,
         _permit: permit,
         backend_attempted: false,
@@ -318,12 +319,7 @@ pub(super) async fn serve(
         }
     };
     guard.status = response.status().as_u16();
-    let prepared = guard
-        .snapshot
-        .hyper
-        .as_ref()
-        .unwrap()
-        .route(listener.address, &guard.route);
+    let prepared = &guard.snapshot.hyper.as_ref().unwrap().routes[guard.prepared_route];
     for (name, value, always) in &prepared.response_headers {
         if (*always || [200, 201, 204, 206, 301, 302, 303, 304, 307, 308].contains(&guard.status))
             && let Value::Constant(value) = value
@@ -363,12 +359,7 @@ async fn forward(
     {
         return Err(error(413, "request body too large"));
     }
-    let prepared = guard
-        .snapshot
-        .hyper
-        .as_ref()
-        .unwrap()
-        .route(listener.address, &guard.route);
+    let prepared = &guard.snapshot.hyper.as_ref().unwrap().routes[guard.prepared_route];
     let selected = match prepared.plain.as_ref().unwrap() {
         Action::Reply {
             status,

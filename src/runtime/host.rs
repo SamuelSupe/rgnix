@@ -106,9 +106,10 @@ fn run(
             let (finish, finished) = tokio::sync::watch::channel(false);
             let stopped = Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let mut workers = Vec::new();
-            shared.telemetry.data_plane.enable(Duration::from_secs(
-                limits.hyper_worker_stall_timeout_seconds,
-            ));
+            let _wakeup_probe = shared.telemetry.data_plane.enable(
+                Duration::from_secs(limits.hyper_worker_stall_timeout_seconds),
+                limits.hyper_wakeup_probe,
+            )?;
             let heartbeats: Vec<_> = services
                 .iter()
                 .map(|s| shared.telemetry.data_plane.register(s.name().to_owned()))

@@ -191,6 +191,12 @@ v0.5.0 提供可调的上游空闲池预算，默认保持每 worker 128。每�
 
 当前源码还提供上游分阶段耗时、body 字节/预读、后端健康、进程及命名空间预算、watch/Lease、发布门禁和 Linux CPU/RSS/FD 指标。Helm 提供独立 metrics Service 与可选 ServiceMonitor；完整目录、计量边界、基数限制、PromQL 和告警见[运维指标](metrics.md)。`otlpTraces.*` 可独立启用 W3C 上下文传播、server/client spans 和访问日志关联，详见[可观测性](product-features.md#可观测性)。
 
+### Hyper 唤醒延迟诊断
+
+需要定位 10–50 ms 尾延迟时，可临时为 Hyper 启动命令增加 `--hyper-wakeup-probe`。它将各原生服务的心跳采样周期从 250 ms 缩短为 1 ms，并启动一个独立参考线程；`rgnix_runtime_wakeup_lag_seconds{service}` 记录计划唤醒时间之后的延迟，`service="reference"` 是参考线程，其余名称与原有 reactor 心跳一致。退出时参考线程随服务停止。
+
+默认关闭，未启用时不启动参考线程，保留原有 250 ms 心跳周期。高频采样会增加计时、调度和指标开销，不要在正式性能 A/B 中启用。应比较同一时间范围内的 reactor 与 reference 分布；业务 reactor 单独升高可支持局部阻塞的排查，两者一起升高也可能来自操作系统或宿主调度。两种定时机制和粒度不同，不能直接相减，也不能仅凭它们认定虚拟机暂停或证明具体阻塞来源。
+
 ## OrbStack 验收
 
 Linux 构建/验证在 OrbStack 中执行，避免用 macOS 编译结果代表 Linux 服务：

@@ -166,5 +166,6 @@ Admission TLS exposes `rgnix_admission_certificate_expiry_timestamp_seconds`, `r
 | `rgnix_hyper_tls_handshake_errors_total` | 下游 TLS 握手失败次数 |
 | `rgnix_runtime_service_healthy{service}` | 原生服务 reactor 心跳是否在配置期限内更新；所有已注册服务正常才能通过健康/就绪检查 |
 | `rgnix_runtime_service_heartbeat_age_seconds{service}` | 各原生服务最后心跳的年龄，服务名称由启动配置限定 |
+| `rgnix_runtime_wakeup_lag_seconds{service}` | 仅在 Hyper 启用 `--hyper-wakeup-probe` 后采样的唤醒延迟直方图；`reference` 为独立线程，其余为已注册原生服务。1 ms 诊断采样会增加开销，不代表请求耗时或宿主暂停的直接证据 |
 
 上游连接获取仍使用 `rgnix_upstream_connect_seconds{backend,reused}`，包含真实池复用标记。详见 [Hyper 数据面](hyper-experimental.md)。

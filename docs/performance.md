@@ -6,6 +6,8 @@ v0.5.0 includes the implementation from optimization rounds one through nine. Hi
 
 The current development engine defaults to Hyper. The [2026-10-23 fixed-cost comparison](validation-hyper-fixed-costs-2026-10-23.md) compares main `a110737` with a fixed single-IP backend selection optimization and Redis removal, using matching compiler/features and fresh calibration. Redis removal changes quotas to per-process limits; see the [migration requirements](shared-rate-limits.md). Qualification limits and all measurements are recorded in that report.
 
+The subsequent [instruction-count optimization](validation-hyper-instructions-2026-10-23.md) compares main `7f20b00` with request-local reuse of a prepared-route index. Matched Cachegrind controls pass the 1% A/A gate: single-worker user-space instructions fall 1.90% for ordinary 1 KiB proxy requests and 0.89% with 64 extra fields. These are instruction results, not throughput or P99 gains. An optional reactor/reference wakeup probe supports separate tail-latency diagnosis.
+
 ## Earlier measurements
 
 The [round-nine comparison](validation-performance-round9-2026-09-27.md) measured plain HTTP/1, two workers, 64 connections, three alternating 8-second windows after warmup, on shared OrbStack Linux ARM64. Access logging/OTLP output was disabled; product policies and metrics remained active.
@@ -44,6 +46,8 @@ Not implemented: uninitialized parser scratch arrays, upstream body ownership tr
 Fewer allocations are not equivalent to lower CPU or RSS. Round nine reduced proxy allocation calls about 11.4% against round eight but increased captured libc copy bytes about 6.7%; its proxy throughput observation changed only 0.9%. Samples from allocation, profiler and uninstrumented runs are not interchangeable cost budgets.
 
 ## Reproduce and qualify
+
+For single-worker user-space fixed costs, use `scripts/profile_http_instructions.py --binary /absolute/path/rgnix --work-dir /native/linux/new-directory` with Valgrind, OpenSSL and `/usr/sbin/nginx` installed on Linux. Add `--candidate /absolute/path/candidate` for a comparison, and `--extra-headers 64` for header-width sensitivity. Each sample subtracts a matching startup/warmup/shutdown run from a run with 2,000 extra validated 1 KiB responses, using Cachegrind's flat instruction counts. Three rounds retain six samples per binary; require every A/A pair and the group CV to stay within 1%. Signed function deltas and failed controls are preserved. This measures neither kernel work nor shared-cache contention, and cannot establish throughput, P99 or multi-worker capacity. Keep the optional wakeup probe disabled during these runs.
 
 Use [scripts/benchmark_compare.py](../scripts/benchmark_compare.py) and its `--help` on an isolated Linux test machine. Build with locked dependencies, record compiler and binary hashes, pin client/proxy/origin CPU sets, verify response correctness and keep equivalent feature settings. The JSON records include the actual invocation, configuration, warmup, durations and all windows.
 

@@ -80,6 +80,10 @@ pub struct Limits {
     #[cfg(feature = "hyper-experimental")]
     #[arg(long, default_value_t = 5)]
     pub hyper_worker_stall_timeout_seconds: u64,
+    /// Sample native reactor and independent-thread wakeup delay every 1 ms for diagnostics.
+    #[cfg(feature = "hyper-experimental")]
+    #[arg(long, default_value_t = false)]
+    pub hyper_wakeup_probe: bool,
     /// Enable HTTP/3 on the UDP port of each TLS listener (requires the http3 feature).
     #[cfg(feature = "http3")]
     #[arg(long, env = "RGNIX_HYPER_HTTP3")]

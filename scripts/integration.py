@@ -260,12 +260,13 @@ location / {{ proxy_pass http://app; }}
                           held_metrics["rgnix_backend_requests_total"] == before["rgnix_backend_requests_total"]
                           and held_metrics["rgnix_upstream_request_seconds_count"] == before["rgnix_upstream_request_seconds_count"])
                     version = metric_value(request(admin, "/metrics")[2].decode(), "rgnix_config_version")
-                    conf.write_text(conf.read_text().replace("X-Revision old", "X-Revision new").replace("return 200 old;", "rgnix_limit_rate 1 burst=1 key=route; return 200 new;"))
+                    conf.write_text(conf.read_text().replace("X-Revision old", "X-Revision new").replace("add_header X-Revision new always;", "add_header X-Revision new always;\nlocation = /new-prepared-route-before-existing-plans { return 200 inserted; }").replace("return 200 old;", "rgnix_limit_rate 1 burst=1 key=route; return 200 new;"))
                     process.send_signal(signal.SIGHUP)
                     wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_config_version") > version)
                     switched = request(port, "/switch")
                     wait_for(lambda: metric_value(request(admin, "/metrics")[2].decode(), "rgnix_budget_in_use", budget="inflight"), 1)
                     check("reload adds a traffic policy to a previously plain return", switched[2] == b"new" and request(port, "/switch")[0] == 429)
+                    check("reload adds a prepared route while the old response is still in flight", request(port, "/new-prepared-route-before-existing-plans")[2] == b"inserted")
                 finally:
                     HELD_RELEASE.set()
                 check("plain in-flight proxy keeps its snapshot during policy reload", pending.result()[1].get("x-revision") == "old")

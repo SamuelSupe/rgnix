@@ -29,7 +29,9 @@ pub(crate) struct Prepared {
     pub idle_budget: hyper_util::client::legacy::IdlePoolBudget,
     // Route IDs need not be unique (exact and prefix locations can share a path).
     // These identities remain valid while the owning snapshot retains its routes.
-    routes: HashMap<(SocketAddr, usize), PreparedRoute>,
+    route_ids: HashMap<(SocketAddr, usize), usize>,
+    // Indices belong to this immutable snapshot; requests retain its owner across reloads.
+    pub(super) routes: Vec<PreparedRoute>,
     clients: HashMap<ClientKey, Arc<Clients>>,
     tls_keys: HashMap<SocketAddr, [u8; 32]>,
 }
@@ -173,11 +175,12 @@ impl Prepared {
                 ))
             })
             .collect::<Result<_>>()?;
-        let mut routes = HashMap::new();
+        let mut routes = Vec::new();
+        let mut route_ids = HashMap::new();
         for host in &snapshot.hosts {
             for route in &host.routes {
                 let settings = &route.settings;
-                if routes.contains_key(&(host.listener, Arc::as_ptr(route) as usize)) {
+                if route_ids.contains_key(&(host.listener, Arc::as_ptr(route) as usize)) {
                     continue;
                 }
                 let mut names = std::collections::BTreeSet::new();
@@ -325,16 +328,14 @@ impl Prepared {
                         _ => None,
                     },
                 )?;
-                routes.insert(
-                    (host.listener, Arc::as_ptr(route) as usize),
-                    PreparedRoute {
-                        plain,
-                        targets,
-                        request_headers,
-                        response_headers,
-                        original_headers,
-                    },
-                );
+                route_ids.insert((host.listener, Arc::as_ptr(route) as usize), routes.len());
+                routes.push(PreparedRoute {
+                    plain,
+                    targets,
+                    request_headers,
+                    response_headers,
+                    original_headers,
+                });
             }
         }
         let mut acceptors = HashMap::new();
@@ -372,7 +373,7 @@ impl Prepared {
             quic,
             #[cfg(feature = "http3")]
             http3_all,
-            has_plain: routes.values().any(|r| r.plain.is_some()),
+            has_plain: routes.iter().any(|r| r.plain.is_some()),
             slash_redirects: snapshot.hosts.iter().flat_map(|h| &h.routes).any(|r| {
                 matches!(&r.matcher, crate::model::PathMatch::NginxPrefix(p) if p.len() > 1 && p.ends_with('/'))
                     && matches!(r.action, Action::Proxy { .. })
@@ -380,6 +381,7 @@ impl Prepared {
             pool_size,
             workers,
             routes,
+            route_ids,
             idle_budget,
             clients,
             tls_keys,
@@ -387,7 +389,11 @@ impl Prepared {
     }
 
     pub(super) fn route(&self, listener: SocketAddr, route: &Arc<Route>) -> &PreparedRoute {
-        &self.routes[&(listener, Arc::as_ptr(route) as usize)]
+        &self.routes[self.route_index(listener, route)]
+    }
+
+    pub(super) fn route_index(&self, listener: SocketAddr, route: &Arc<Route>) -> usize {
+        self.route_ids[&(listener, Arc::as_ptr(route) as usize)]
     }
 }
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a single-worker Cachegrind instruction harness with matched startup controls, per-function deltas and repeated A/A calibration.
+- Reuse the selected immutable prepared-route index through plain HTTP/1 forwarding and completion, removing three repeated map lookups without extra request-time Arc clones.
+- Add opt-in `--hyper-wakeup-probe` reactor/reference-thread wakeup histograms; the default heartbeat period remains 250 ms.
 - Remove the Redis coordinator, shared rate-limit CLI/Helm configuration, coordinator metrics and dependency. Route and namespace rates now use per-process token buckets; replicas have independent quotas. See [migration requirements](docs/shared-rate-limits.md).
 - Cache fixed single-endpoint selection state while preserving health checks, passive cooldowns and backend concurrency admission.
 - Record [matched-build performance comparisons](docs/validation-hyper-fixed-costs-2026-10-23.md). CPU and throughput calibration failed; no stable end-to-end gain is claimed.
