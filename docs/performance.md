@@ -12,6 +12,8 @@ A fresh [Hyper/Pingora comparison of main `971afcd`](validation-hyper-pingora-ma
 
 The [focused 1 KiB / 64-connection tail-latency study](validation-hyper-tail-2026-10-24.md) distinguishes wrk's corrected histogram from raw response latency and evaluates more frequent native-reactor I/O checks. The before/after P99 observation is 2.404 to 2.105 ms with passing P99 repeatability; throughput observes -6.4% and fails calibration. The separate Hyper/Pingora comparison also fails calibration. The report preserves the throughput tradeoff, complete histograms, diagnostic controls and functional validation rather than claiming a stable production gain.
 
+A fresh [Hyper candidate `6343436` / NGINX 1.28.0 comparison](validation-hyper-nginx-2026-10-24.md) measures the same two-worker plain HTTP/1, 1 KiB path at 64/256 connections. All 24 windows complete 105,442,084 requests without wrk errors. Observed median throughput is 104,665 / 149,903 req/s at 64 connections and 134,177 / 186,198 req/s at 256 (Hyper / NGINX). Median window P99 is 1.959 / 2.083 ms and 4.094 / 2.944 ms, respectively. Both programs fail throughput and P99 repeatability in both settings; these are observations, not certified ratios or evidence of better Hyper tails at 64 connections. The local candidate is separate from published main, and historical NGINX 1.30.5 results are not mixed into this comparison.
+
 ## Earlier measurements
 
 The [round-nine comparison](validation-performance-round9-2026-09-27.md) measured plain HTTP/1, two workers, 64 connections, three alternating 8-second windows after warmup, on shared OrbStack Linux ARM64. Access logging/OTLP output was disabled; product policies and metrics remained active.
