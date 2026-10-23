@@ -2,6 +2,50 @@ use super::Telemetry;
 use prometheus::{Histogram, IntCounter};
 use std::sync::OnceLock;
 
+#[cfg(feature = "hyper-experimental")]
+pub(crate) struct BackendMetrics {
+    pub connect: [Histogram; 2],
+    pub headers: Histogram,
+    pub duration: Histogram,
+    results: [IntCounter; 2],
+}
+
+#[cfg(feature = "hyper-experimental")]
+impl BackendMetrics {
+    pub(crate) fn new(telemetry: &Telemetry, backend: &str) -> Option<Self> {
+        // Overflow observations keep the original path so every observation
+        // still increments the label overflow counter.
+        if telemetry.resolve_label("backend", backend) != backend {
+            return None;
+        }
+        Some(Self {
+            connect: ["false", "true"].map(|reused| {
+                telemetry
+                    .traffic
+                    .upstream_connect
+                    .with_label_values(&[backend, reused])
+            }),
+            headers: telemetry
+                .traffic
+                .upstream_headers
+                .with_label_values(&[backend]),
+            duration: telemetry
+                .traffic
+                .upstream_duration
+                .with_label_values(&[backend]),
+            results: ["ok", "error"].map(|result| {
+                telemetry
+                    .backend_requests
+                    .with_label_values(&[backend, result])
+            }),
+        })
+    }
+
+    pub(crate) fn completed(&self, failed: bool) {
+        self.results[usize::from(failed)].inc();
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct RouteMetrics {
     label: String,

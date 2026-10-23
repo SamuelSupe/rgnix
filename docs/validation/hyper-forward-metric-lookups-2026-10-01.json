@@ -1,0 +1,136 @@
+{
+  "method": "All emitted MetricVec::with_label_values monomorphs traced by ELF-symbol uprobes. One persistent connection, 10 warm and 500 GET requests, each validating status and the complete 1 KiB body. A separate one-request W3C control forces the general request path and verifies probes record nonzero lookups. Background calls included; counts exclude inlined lookups and are not throughput evidence.",
+  "records": [
+    {
+      "phase": "before",
+      "binary": "/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe",
+      "sha256": "0046f8339f0fdeb9c4134f5f3a06c79480d0907026aae09d9f621f5834331dbb",
+      "symbols": [
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h1aaf0cea1f5b241dE",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h3b0287587228eee3E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h555ef320e69d86b3E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h56f0a97c01c63e95E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h9a1b2e131c351e43E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17hdc42b13863214fd9E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17hdf98aa68c26aa63aE"
+      ],
+      "file_offsets": [
+        11091792,
+        11092980,
+        11094488,
+        11095992,
+        11097552,
+        11098740,
+        11100244
+      ],
+      "windows": [
+        {
+          "name": "plain",
+          "requests": 500,
+          "calls": 2000,
+          "calls_by_event": {
+            "lookup_6": 1500,
+            "lookup_4": 500
+          },
+          "instrument_output": "[ perf record: Woken up 1 times to write data ]\n[ perf record: Captured and wrote 0.321 MB /var/tmp/rgnix-forward-20261001/lookups-fixed-before/plain.data (2000 samples) ]\n"
+        },
+        {
+          "name": "control",
+          "requests": 1,
+          "calls": 4,
+          "calls_by_event": {
+            "lookup_6": 3,
+            "lookup_4": 1
+          },
+          "instrument_output": "[ perf record: Woken up 1 times to write data ]\n[ perf record: Captured and wrote 0.168 MB /var/tmp/rgnix-forward-20261001/lookups-fixed-before/control.data (4 samples) ]\n"
+        }
+      ],
+      "server_command": [
+        "taskset",
+        "-c",
+        "10,11",
+        "/var/tmp/rgnix-dispatch-20261001/rgnix-idle-probe",
+        "serve",
+        "-c",
+        "/var/tmp/rgnix-worker-20261001/profile-local/fixture/rgnix/nginx.conf",
+        "--admin",
+        "127.0.0.1:55875",
+        "--threads",
+        "2",
+        "--max-inflight",
+        "4096",
+        "--max-plugin-instances",
+        "512",
+        "--shutdown-grace-seconds",
+        "0",
+        "--shutdown-timeout-seconds",
+        "5",
+        "--experimental-hyper"
+      ]
+    },
+    {
+      "phase": "metrics",
+      "binary": "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+      "sha256": "e42e8c3ffb3ab7e4c00378014b011ee5b74c6ec42415fb8ee36efd9d8e90a972",
+      "symbols": [
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h1aaf0cea1f5b241dE",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h3b0287587228eee3E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h555ef320e69d86b3E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h56f0a97c01c63e95E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17h9a1b2e131c351e43E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17hdc42b13863214fd9E",
+        "_ZN10prometheus3vec18MetricVec$LT$T$GT$17with_label_values17hdf98aa68c26aa63aE"
+      ],
+      "file_offsets": [
+        11079748,
+        11080936,
+        11082444,
+        11083948,
+        11085508,
+        11086696,
+        11088200
+      ],
+      "windows": [
+        {
+          "name": "plain",
+          "requests": 500,
+          "calls": 0,
+          "calls_by_event": {},
+          "instrument_output": "[ perf record: Woken up 1 times to write data ]\n[ perf record: Captured and wrote 0.168 MB /var/tmp/rgnix-forward-20261001/lookups-fixed-metrics/plain.data ]\n"
+        },
+        {
+          "name": "control",
+          "requests": 1,
+          "calls": 3,
+          "calls_by_event": {
+            "lookup_6": 2,
+            "lookup_4": 1
+          },
+          "instrument_output": "[ perf record: Woken up 1 times to write data ]\n[ perf record: Captured and wrote 0.168 MB /var/tmp/rgnix-forward-20261001/lookups-fixed-metrics/control.data (3 samples) ]\n"
+        }
+      ],
+      "server_command": [
+        "taskset",
+        "-c",
+        "10,11",
+        "/var/tmp/rgnix-forward-20261001/rgnix-metrics",
+        "serve",
+        "-c",
+        "/var/tmp/rgnix-worker-20261001/profile-local/fixture/rgnix/nginx.conf",
+        "--admin",
+        "127.0.0.1:55875",
+        "--threads",
+        "2",
+        "--max-inflight",
+        "4096",
+        "--max-plugin-instances",
+        "512",
+        "--shutdown-grace-seconds",
+        "0",
+        "--shutdown-timeout-seconds",
+        "5",
+        "--experimental-hyper"
+      ]
+    }
+  ]
+}

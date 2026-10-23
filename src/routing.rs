@@ -1,5 +1,5 @@
 use crate::model::{PathMatch, Route, VirtualHost};
-use std::{collections::BTreeMap, net::SocketAddr, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, net::SocketAddr, sync::Arc};
 
 #[derive(Clone, Default)]
 pub(crate) struct Index {
@@ -87,10 +87,15 @@ impl Index {
         path: &str,
     ) -> Option<Arc<Route>> {
         let names = self.listeners.get(&listener)?;
-        let host = host.trim_end_matches('.').to_ascii_lowercase();
+        let host = host.trim_end_matches('.');
+        let host = if host.bytes().any(|b| b.is_ascii_uppercase()) {
+            Cow::Owned(host.to_ascii_lowercase())
+        } else {
+            Cow::Borrowed(host)
+        };
         let selected = names
             .exact
-            .get(&host)
+            .get(host.as_ref())
             .copied()
             .or_else(|| {
                 host.match_indices('.').find_map(|(dot, _)| {

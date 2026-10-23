@@ -63,6 +63,7 @@ Counter 在进程重启时清零，使用 `rate()` 或 `increase()`；Gauge 是�
 | 副本发布（v0.4.0） | `rgnix_fleet_reporting_active`、`rgnix_fleet_converged`、`rgnix_fleet_observation_healthy`、`rgnix_fleet_observed_timestamp_seconds`、`rgnix_fleet_errors_total` | 启用 reportReplicas 或存在分阶段发布时自动上报；结合 reporting_active 与时间判断观测故障和陈旧数据 |
 | 副本分布（v0.4.0） | `rgnix_fleet_replicas{state}` | converged/drifted/rejected/reconciling/unready/stale/missing，固定七种状态，不含 Pod 名、原始路径或配置摘要标签 |
 | 实例 | `rgnix_build_info{version,mode,arch,os}` | 恒为 1；`mode` 为 standalone/ingress/gateway |
+| 运行内核 | `rgnix_engine_info{engine}` | 实际运行内核 hyper/pingora，恒为 1；用于核对切换与回退 |
 | 可用性 | `rgnix_healthy`、`rgnix_ready` | 与 `/healthz`、`/readyz` 对应，1 正常/就绪；目标无法抓取请使用 Prometheus 的 `up` |
 | 流量 | `rgnix_requests_total{status}`、`rgnix_request_seconds` | 完成请求数、完整请求耗时 |
 | 路由 | `rgnix_route_requests_total{route,status_class}`、`rgnix_route_request_seconds{route}` | 按配置路由统计；不使用客户端原始路径 |
@@ -151,3 +152,20 @@ curl -fsS http://127.0.0.1:9090/metrics | promtool check metrics
 # Admission and drain lifecycle metrics
 
 Admission TLS exposes `rgnix_admission_certificate_expiry_timestamp_seconds`, `rgnix_admission_certificate_valid`, and `rgnix_admission_certificate_reload_errors_total`. Use these for certificate expiry and rejected-update alerts. `rgnix_draining` becomes 1 when irreversible connection draining begins. `rgnix_fleet_reporting_active` is 1 when reporting is requested or required by staged rollouts; use it to gate replica-observation alerts when reporting is disabled.
+
+### 实验性 Hyper 连接预算
+
+启用 `hyper-experimental` 构建后注册以下指标。仅 Hyper 业务监听器产生连接观测，管理端口不计入其预算；原生宿主服务心跳仅在启用 Hyper 运行模式后产生。
+
+| 指标 | 含义 |
+|---|---|
+| `rgnix_hyper_connections` | 当前连接数，包括握手、空闲持久连接和 WebSocket |
+| `rgnix_hyper_connection_rejections_total` | 任意连接准入限额导致关闭的新连接总数 |
+| `rgnix_hyper_pending_connections` | 正在握手或等待第一份 TCP 请求首部的连接数 |
+| `rgnix_hyper_admission_rejections_total{reason}` | 固定原因 `process/ip/listener/handshake/handshake_ip` 的准入拒绝数 |
+| `rgnix_hyper_accept_errors_total{reason}` | TCP accept 错误；`resources/transient` 退避重试，`fatal` 触发宿主退出 |
+| `rgnix_hyper_tls_handshake_errors_total` | 下游 TLS 握手失败次数 |
+| `rgnix_runtime_service_healthy{service}` | 原生服务 reactor 心跳是否在配置期限内更新；所有已注册服务正常才能通过健康/就绪检查 |
+| `rgnix_runtime_service_heartbeat_age_seconds{service}` | 各原生服务最后心跳的年龄，服务名称由启动配置限定 |
+
+上游连接获取仍使用 `rgnix_upstream_connect_seconds{backend,reused}`，包含真实池复用标记。详见 [Hyper 数据面](hyper-experimental.md)。

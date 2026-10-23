@@ -16,7 +16,7 @@
   <a href="#quick-start">Quick start</a> 路 <a href="#programmable-routing">Routing</a> 路 <a href="#kubernetes-ingress">Kubernetes</a> 路 <a href="#logs-and-observability">Observability</a> 路 <a href="#validation">Validation</a>
 </p>
 
-**rgnix** is a Rust HTTP server, reverse proxy, and Kubernetes Ingress/Gateway API controller in one binary. [Pingora](https://github.com/cloudflare/pingora) and OpenSSL handle transport. **RGL**, a small Lua-style language, compiles to WebAssembly and then to native code through Wasmtime/Cranelift when configuration is loaded.
+**rgnix** is a Rust HTTP server, reverse proxy, and Kubernetes Ingress/Gateway API controller in one binary. The current development version uses Hyper and OpenSSL by default, with [Pingora](https://github.com/cloudflare/pingora) available for explicit rollback. **RGL**, a small Lua-style language, compiles to WebAssembly and then to native code through Wasmtime/Cranelift when configuration is loaded.
 
 > **v0.5.0 Preview** updates HTTP/1 execution, backend selection, Gateway route indexing, RGL request state and Linux static-file delivery. It publishes the measured NGINX/OpenResty gap and unresolved performance limits; it does not claim performance parity. [Download](https://github.com/SamuelSupe/rgnix/releases/tag/v0.5.0) 路 [Release notes](docs/releases/v0.5.0.md) 路 [Changelog](CHANGELOG.md). Review the [validation scope](#validation) and [NGINX compatibility matrix](docs/compatibility.md) before deployment.
 
@@ -82,6 +82,12 @@ sudo apt-get install -y build-essential cmake pkg-config libssl-dev
 cargo build --release --locked
 ./target/release/rgnix serve -c examples/nginx.conf
 ```
+
+Linux GNU builds can opt into jemalloc with `cargo build --release --locked --features jemalloc`.
+This links the Rust allocator into the binary; no `LD_PRELOAD` or runtime allocator package is needed.
+Plain Cargo builds include both engines and keep the system allocator. Hyper is the default; roll back with `--engine pingora`; `check` validates the selected engine before startup. On the current development branch, Docker builds and future native release packages enable `http3,jemalloc`; override `CARGO_FEATURES` when building a different feature set. The [rollout record](docs/hyper-default-rollout.md) tracks remaining qualification: the 24-hour test has not passed and shared Redis rate limiting produced 503 errors. These development defaults do not change the existing v0.5.0 artifacts. See the [allocator comparison](docs/validation-allocator-2026-09-28.md) for measured CPU, memory and calibration limits.
+
+The Hyper-default build passed native Bookworm artifact and image checks on both architectures. The 24-hour mixed load failed on shared rate limiting; the [validation record](docs/validation-hyper-default-2026-10-01.md) retains the failure and current diagnosis.
 
 [Image signatures, checksums and attestations](docs/releases.md) 路 [Deployment instructions](docs/deployment.md).
 
@@ -247,7 +253,7 @@ flowchart LR
     Request[HTTP request] --> Router[Host and path matching]
     Snapshot --> Router
     Router --> Policy[Auth, budgets and request hook]
-    Policy --> Proxy[Pingora proxy]
+    Policy --> Proxy[Hyper proxy / Pingora rollback]
     Policy --> Local[Static file or direct response]
     Proxy --> Response[Response hook and telemetry]
     Local --> Response
@@ -269,13 +275,19 @@ The [performance guide](docs/performance.md) separates implemented changes, hist
 
 A later [one-worker diagnosis](docs/validation-pingora-audit-2026-09-28.md) found that the minimal proxy using our **modified vendor dependencies** also remained behind NGINX. It is not an unmodified upstream Pingora benchmark. The newly identified header-array, body-ownership and vectored-write ideas are **not implemented in v0.5.0**.
 
+On `experiment/replace-pingora`, the default [Hyper transport](docs/hyper-experimental.md) now shares TLS/SNI, HTTP/2/h2c/gRPC, WebSocket, compiled plugins, body inspection, authentication, static files/compression and Ingress/Gateway policy with the product runtime. It adds a process-wide connection cap and an idle pool budget shared across clients and snapshot generations. Pingora remains available through `--engine pingora`. See the [kernel validation record](docs/validation-hyper-kernel-2026-09-28.md); historical HTTP/1 benchmark results do not qualify this expanded implementation.
+
+An earlier [NGINX-aligned optimization](docs/validation-nginx-aligned-2026-09-28.md) reduces measured allocation calls from about **42.3 to 30.5 per 1 KiB proxy request**, through selective context capture and direct delivery of already-buffered small responses. This is an operation-count result; throughput and NGINX parity remain unqualified.
+
+After kernel expansion, the [September 30 Hyper optimization](docs/validation-hyper-performance-2026-09-30.md) reuses informational-response storage, avoids ordinary proxy URI reconstruction and combines small-file reads. Measured 1 KiB proxy allocation/reallocation calls fall from **36.5 to 30.6 per request**, with about **43% fewer cumulative requested bytes**. The final 90-window NGINX 1.28.0 comparison completed without errors, but no scenario passed calibration for both compared programs. Static-file peak memory was higher; stable throughput gains and NGINX parity remain unqualified.
+
 The [original NGINX/OpenResty comparison](docs/validation-nginx-openresty-2026-09-27.md) tested released v0.4.0. Later NGINX reruns used OpenResty only as the common origin; they are not updated OpenResty frontend results. All raw windows, rejected experiments and limitations remain in the linked reports.
 
 **Outside acceptance scope:** stable production capacity, full upstream Gateway conformance, 24-hour soak, physical-node/network failures, cloud load balancers, production CNI interoperability and Redis Sentinel/Cluster failover. Earlier [Gateway](docs/validation-gateway-hardening-2026-09-26.md), [tracing](docs/validation-tracing-2026-09-25.md) and [metrics](docs/validation-metrics-2026-09-25.md) records retain their original version and scope.
 
 ## Scope and documentation
 
-rgnix implements an explicit NGINX subset. It does not implement full Lua/NGINX compatibility, regex/nested locations, `rewrite/map/if`, response caching, HTTP/3, ingress-nginx annotations or automatic business-request retries. Gateway API has a separately documented [support boundary](docs/gateway-api.md). Unsupported configuration fails with diagnostics.
+rgnix implements an explicit NGINX subset. It does not implement full Lua/NGINX compatibility, regex/nested locations, `rewrite/map/if`, response caching, ingress-nginx annotations or automatic business-request retries. Gateway API has a separately documented [support boundary](docs/gateway-api.md). Unsupported configuration fails with diagnostics.
 
 | Guide | Contents |
 | :--- | :--- |
@@ -295,3 +307,7 @@ Most detailed references and validation reports are currently in Chinese. [绠�浣
 ## License
 
 [Apache License 2.0](LICENSE). The bounded Pingora modifications and upstream provenance are documented in [vendor/README.md](vendor/README.md).
+
+The current Hyper hardening adds per-source/listener connection and pending-handshake limits, accept recovery after resource exhaustion, and native-reactor health probes. Route-only publication retains compatible upstream pools and TLS sessions; credential and policy changes isolate them. Build/release gates select both runtimes from the same feature-enabled artifact. See [the implementation and executed scope](docs/validation-hyper-primary-2026-10-01.md); remote release gates remain unexecuted.
+
+The default Hyper engine adds configured CONNECT, HTTP/2 WebSocket conversion, bounded h2c Upgrade, Linux sendfile, generation-scoped TLS resumption, configurable downstream timeouts, and an independent process host. Optional `http3` builds add QUIC listeners with CONNECT, WebSocket forwarding to H1/H2 upstreams, interim responses and generation-scoped session resumption, including mTLS. Incomplete H2 header blocks have a total deadline even alongside active streams. See [support limits](docs/hyper-experimental.md), [deployment validation](docs/validation-hyper-gaps-2026-10-01.md) and [protocol validation](docs/validation-hyper-protocols-2026-10-01.md). Hyper is the development default; full Gateway conformance, 24-hour stability and production performance parity remain unqualified.

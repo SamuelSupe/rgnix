@@ -1,0 +1,178 @@
+{
+  "date": "2026-10-01",
+  "branch": "experiment/replace-pingora",
+  "publication": "NOT PUBLISHED",
+  "default_runtime": "Pingora",
+  "environment": {
+    "linux": "OrbStack Ubuntu 25.10 ARM64",
+    "rust": "1.90",
+    "features": [
+      "http3",
+      "jemalloc"
+    ],
+    "profile": "debug",
+    "kubernetes": "Kind, three logical nodes on one OrbStack Docker host"
+  },
+  "artifacts": {
+    "functional": {
+      "sha256": "b9ca0fa0ec766118898d2d0c275c4c4e553e37d4e79a06e3a1bc868651efa3f0",
+      "image": "rgnix:hyper-primary-20261001",
+      "image_id": "sha256:2922c26f1c548c60e3ba77c1627080e95ca9bfcedf651b48763a42a5f16dccc1"
+    },
+    "final": {
+      "sha256": "ad5dd72ff6358441ed396f6a4971a8ea933c285a990758333687b0ddc254e07f",
+      "image": "rgnix:hyper-primary-checked-20261001",
+      "image_id": "sha256:ceeff0ca7477d2fd7de7ef4cda19aca331a0a14f46d63074bf892aa14f14ef67"
+    },
+    "source_difference": "Clippy removes one redundant let-and-return binding; no functional changes",
+    "source_manifest": {
+      "files": 434,
+      "sha256": "8f8c54400124cbf4c0f9aac5c82e4ba0f982e69c35358f06007ca3a84b0590ba"
+    }
+  },
+  "validation": [
+    {
+      "name": "root unit",
+      "status": "PASS",
+      "passed": 25,
+      "ignored": 1,
+      "source": "final"
+    },
+    {
+      "name": "format and strict Clippy, default and http3,jemalloc",
+      "status": "PASS",
+      "source": "final"
+    },
+    {
+      "name": "scripts/check.sh, Hyper and Pingora",
+      "status": "PASS",
+      "artifact": "functional"
+    },
+    {
+      "name": "Hyper main flow",
+      "status": "PASS",
+      "artifact": "final",
+      "passed": 68,
+      "workers": 2,
+      "new_regressions": [
+        "pending requests are bounded per source before route parsing",
+        "one slow source leaves connection capacity for another source",
+        "completed headers release pending admission but retain IP connection limits",
+        "listener admission cannot consume another listener's reservation",
+        "pending admission is shared across listeners",
+        "cancelled initial requests return all admission permits",
+        "stalled data reactors fail health and readiness while admin stays available",
+        "resumed data reactors recover without restarting the process",
+        "file descriptor exhaustion retains the native server process",
+        "listener recovers after file descriptors become available"
+      ],
+      "pool_reuse": "unchanged upstream pools survive a route-only publication"
+    },
+    {
+      "name": "Extended protocols",
+      "status": "PASS",
+      "artifact": "final",
+      "passed": 71
+    },
+    {
+      "name": "NGINX 1.28.0 behavior parity",
+      "status": "PASS",
+      "artifact": "final",
+      "passed": 49
+    },
+    {
+      "name": "vendor Hyper",
+      "status": "PASS",
+      "passed": 120,
+      "ignored": 6
+    },
+    {
+      "name": "vendor HyperUtil pool",
+      "status": "PASS",
+      "passed": 26,
+      "ignored": 2
+    },
+    {
+      "name": "Ingress",
+      "status": "PASS",
+      "artifact": "final",
+      "passed": 46,
+      "rolling_service_requests": 300,
+      "namespace": "rgnix-primary-ingress-20261001"
+    },
+    {
+      "name": "Gateway",
+      "status": "PASS",
+      "artifact": "functional",
+      "passed": 115,
+      "namespace": "rgnix-hyper-primary-20261001",
+      "routes": 100,
+      "load_seconds": 120,
+      "load": {
+        "workers": [
+          {
+            "requests": 2755,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 2749,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4587,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 2754,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 2755,
+            "failed_requests": 0,
+            "errors": []
+          },
+          {
+            "requests": 4584,
+            "failed_requests": 0,
+            "errors": []
+          }
+        ],
+        "requests": 20184,
+        "failed_requests": 0,
+        "retained_latency_samples": 20184,
+        "p99_ms": 46.374965997529216
+      }
+    },
+    {
+      "name": "Helm lint/render and CI/release YAML parsing",
+      "status": "PASS",
+      "scope": "static validation"
+    },
+    {
+      "name": "Ubuntu binary in Debian bookworm runtime",
+      "status": "FAIL",
+      "reason": "GLIBC_2.38 and GLIBC_2.39 unavailable",
+      "resolution": "local runtime images use matching Ubuntu 25.10; future release builds natively in bookworm, unexecuted"
+    }
+  ],
+  "not_run": [
+    "native amd64",
+    "remote CI/release jobs",
+    "bookworm-native release artifact runtime",
+    "cross physical hosts",
+    "long-duration soak",
+    "release performance qualification",
+    "NGINX throughput calibration"
+  ],
+  "remaining_features": [
+    "OCSP stapling",
+    "TCP multi-SNI/mTLS session resumption",
+    "TLS tuning parameters",
+    "configurable HTTP/2/3 flow control"
+  ],
+  "evidence_directory": ".local/hyper-primary-hardening-20261001/"
+}

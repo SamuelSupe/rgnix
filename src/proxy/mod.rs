@@ -1,6 +1,10 @@
 mod body;
+mod completion;
+#[cfg(feature = "hyper-experimental")]
+pub(crate) mod hyper;
 mod mirror;
 pub(crate) mod planning;
+mod policy;
 mod responses;
 mod static_files;
 use crate::{
@@ -56,16 +60,20 @@ pub struct Context {
     grpc_status: Option<u16>,
     tenant_request: Option<crate::tenancy::Permit>,
     tenant_plugin: Option<crate::tenancy::Permit>,
-    trace: Option<crate::otlp::trace::Trace>,
+    trace: Option<Box<crate::otlp::trace::Trace>>,
     affinity_cookie: Option<String>,
     rollout_stage: usize,
-    mirror: Option<mirror::MirrorRequest>,
+    mirror: Option<Box<mirror::MirrorRequest>>,
 }
 fn error(status: u16, message: impl Into<String>) -> Box<pingora::Error> {
     pingora::Error::explain(pingora::ErrorType::HTTPStatus(status), message.into())
 }
 
 pub fn normalized_path(path: &str) -> anyhow::Result<String> {
+    normalized_path_view(path).map(std::borrow::Cow::into_owned)
+}
+
+fn normalized_path_view(path: &str) -> anyhow::Result<std::borrow::Cow<'_, str>> {
     anyhow::ensure!(path.len() <= 8192, "URI exceeds 8 KiB");
     let bytes = path.as_bytes();
     let mut i = 0;
@@ -82,7 +90,15 @@ pub fn normalized_path(path: &str) -> anyhow::Result<String> {
         i += 1;
     }
     let decoded = percent_encoding::percent_decode_str(path).decode_utf8()?;
-    normalize_decoded_path(&decoded)
+    anyhow::ensure!(
+        decoded.starts_with('/') && !decoded.contains(['\0', '\\', '\r', '\n']),
+        "invalid path"
+    );
+    if !decoded.contains("//") && !decoded.split('/').any(|c| matches!(c, "." | "..")) {
+        Ok(decoded)
+    } else {
+        normalize_decoded_path(&decoded).map(std::borrow::Cow::Owned)
+    }
 }
 
 fn normalize_decoded_path(decoded: &str) -> anyhow::Result<String> {
@@ -115,6 +131,9 @@ fn normalize_decoded_path(decoded: &str) -> anyhow::Result<String> {
 #[async_trait]
 impl ProxyHttp for Proxy {
     type CTX = Context;
+    fn downstream_header_timeout(&self) -> Option<std::time::Duration> {
+        Some(self.shared.snapshot.load().header_timeout(self.listener))
+    }
     fn request_deadline(&self, session: &Session, ctx: &mut Context) -> Option<Instant> {
         let snapshot = self.shared.snapshot.load_full();
         ctx.snapshot = Some(snapshot.clone());
@@ -201,7 +220,8 @@ impl ProxyHttp for Proxy {
         ctx.trace = crate::otlp::trace::Trace::new(
             &session.req_header().headers,
             self.shared.telemetry.trace_ratio,
-        );
+        )
+        .map(Box::new);
         if ctx.snapshot.is_none() {
             ctx.snapshot = Some(self.shared.snapshot.load_full());
         }
@@ -231,23 +251,7 @@ impl ProxyHttp for Proxy {
         )?);
         let snapshot = ctx.snapshot.as_ref().unwrap().clone();
         let request = session.req_header();
-        if request
-            .headers
-            .get_all("connection")
-            .iter()
-            .filter_map(|v| v.to_str().ok())
-            .flat_map(|s| s.split(','))
-            .any(|v| {
-                ["content-length", "transfer-encoding", "host"]
-                    .iter()
-                    .any(|name| v.trim().eq_ignore_ascii_case(name))
-            })
-        {
-            return Err(error(
-                400,
-                "connection header names a framing or routing field",
-            ));
-        }
+        validate_connection_header(&request.headers)?;
         if !ctx.prepared {
             ctx.request.path =
                 normalized_path(request.uri.path()).map_err(|e| error(400, e.to_string()))?;
@@ -313,178 +317,8 @@ impl ProxyHttp for Proxy {
             .digest()
             .and_then(|d| d.ssl_digest.as_ref())
             .and_then(|d| d.extension.get::<crate::security::mtls::Peer>());
-        if !route.settings.security.mtls.authorize(client_certificate) {
-            return Err(error(
-                403,
-                "client certificate required or no longer trusted",
-            ));
-        }
-        let global_rate = self.shared.controls.active.load().global_rate.clone();
-        let rate_group = route
-            .tenant
-            .as_ref()
-            .map_or("standalone", |t| t.name.as_str());
-        let rate_capacity = route
-            .tenant
-            .as_ref()
-            .map_or(16384, |t| t.quota.load().max_limiter_keys);
-        if let Some(tenant) = &route.tenant {
-            ctx.tenant_request = Some(tenant.acquire(crate::tenancy::Resource::Request).map_err(
-                |s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&tenant.name, "request");
-                    error(s, "namespace request quota exhausted")
-                },
-            )?);
-            let quota = tenant.quota.load_full();
-            let policy = crate::traffic::global::policy(
-                global_rate.as_ref(),
-                rate_group,
-                "_namespace",
-                crate::traffic::Policy {
-                    rate: Some(crate::traffic::Rate {
-                        per_second: quota.requests_per_second,
-                        burst: quota.burst,
-                        key: crate::traffic::Key::Route,
-                    }),
-                    concurrency: None,
-                },
-                &ctx.request,
-                rate_capacity,
-                &self.shared.telemetry,
-            )
-            .await
-            .map_err(|s| {
-                self.shared
-                    .telemetry
-                    .namespace_rejected(&tenant.name, "rate");
-                error(s, "shared namespace rate quota unavailable or exhausted")
-            })?;
-            if policy.rate.is_some() {
-                tenant.rate(&ctx.request).map_err(|s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&tenant.name, "rate");
-                    error(s, "namespace rate quota exhausted")
-                })?;
-            }
-        }
-        let traffic = route
-            .tenant
-            .as_ref()
-            .map_or(&self.shared.traffic, |t| &t.traffic);
-        let pre_auth_policy = crate::traffic::global::policy(
-            global_rate.as_ref(),
-            rate_group,
-            &route.id,
-            route.settings.traffic.phase(true),
-            &ctx.request,
-            rate_capacity,
-            &self.shared.telemetry,
-        )
-        .await
-        .map_err(|s| {
-            self.shared
-                .telemetry
-                .rejected
-                .with_label_values(&["rate"])
-                .inc();
-            error(
-                s,
-                "shared pre-authentication rate quota unavailable or exhausted",
-            )
-        })?;
-        ctx.pre_auth_permit = traffic
-            .acquire(&route.id, &pre_auth_policy, &ctx.request, &ctx.claims)
-            .map_err(|status| {
-                self.shared
-                    .telemetry
-                    .rejected
-                    .with_label_values(&[if status == 429 {
-                        "rate"
-                    } else {
-                        "route_concurrency"
-                    }])
-                    .inc();
-                error(status, "pre-authentication traffic budget exhausted")
-            })?;
-        if let Some(jwt) = &route.settings.security.jwt {
-            let mut tokens = session.req_header().headers.get_all("authorization").iter();
-            let token = tokens
-                .next()
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.strip_prefix("Bearer "))
-                .filter(|_| tokens.next().is_none())
-                .ok_or_else(|| error(401, "bearer token required"))?;
-            ctx.claims = jwt
-                .verify(token)
-                .map_err(|_| error(401, "invalid bearer token"))?;
-            ctx.request.claims = ctx.claims.clone();
-        }
-        if let Some(auth) = &route.settings.security.external {
-            let _auth_budget = route
-                .tenant
-                .as_ref()
-                .map(|t| t.acquire(crate::tenancy::Resource::Auth))
-                .transpose()
-                .map_err(|s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&route.tenant.as_ref().unwrap().name, "auth");
-                    error(s, "namespace authentication quota exhausted")
-                })?;
-            for name in &auth.response_headers {
-                ctx.request.headers.remove(name);
-                ctx.edits.headers.insert(name.clone(), None);
-            }
-            let headers = auth
-                .authorize(
-                    &self.shared.auth_client,
-                    &ctx.request,
-                    &ctx.original_uri,
-                    ctx.trace.as_ref(),
-                    self.shared.telemetry.traces.as_ref(),
-                )
-                .await
-                .map_err(|status| error(status, "external authorization rejected"))?;
-            for (name, value) in headers {
-                ctx.request.headers.insert(name.clone(), value.clone());
-                ctx.edits.headers.insert(name, Some(value));
-            }
-        }
-        let post_auth_policy = crate::traffic::global::policy(
-            global_rate.as_ref(),
-            rate_group,
-            &route.id,
-            route.settings.traffic.phase(false),
-            &ctx.request,
-            rate_capacity,
-            &self.shared.telemetry,
-        )
-        .await
-        .map_err(|s| {
-            self.shared
-                .telemetry
-                .rejected
-                .with_label_values(&["rate"])
-                .inc();
-            error(s, "shared rate quota unavailable or exhausted")
-        })?;
-        ctx.traffic_permit = traffic
-            .acquire(&route.id, &post_auth_policy, &ctx.request, &ctx.claims)
-            .map_err(|status| {
-                self.shared
-                    .telemetry
-                    .rejected
-                    .with_label_values(&[if status == 429 {
-                        "rate"
-                    } else {
-                        "route_concurrency"
-                    }])
-                    .inc();
-                error(status, "route traffic budget exhausted")
-            })?;
+        self.authorize(&session.req_header().headers, client_certificate, ctx)
+            .await?;
         let keepalive = route.settings.keepalive;
         let keepalive_seconds = keepalive
             .as_secs()
@@ -496,8 +330,8 @@ impl ProxyHttp for Proxy {
                     .then_some(keepalive_seconds),
             );
         }
-        session.set_read_timeout(Some(route.settings.read_timeout));
-        session.set_write_timeout(Some(route.settings.write_timeout));
+        session.set_read_timeout(Some(route.settings.client_body_timeout));
+        session.set_write_timeout(Some(route.settings.send_timeout));
         if redirect {
             let query = if ctx.request.query.is_empty() {
                 String::new()
@@ -529,163 +363,24 @@ impl ProxyHttp for Proxy {
             return Err(error(413, "request body too large"));
         }
         ctx.rollout_stage = route.rollout.as_ref().map_or(0, |r| r.stage());
-        if let Some(plugin) = &route.script {
-            ctx.tenant_plugin = route
-                .tenant
-                .as_ref()
-                .map(|t| t.acquire(crate::tenancy::Resource::Plugin))
-                .transpose()
-                .map_err(|s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&route.tenant.as_ref().unwrap().name, "plugin");
-                    error(s, "namespace plugin quota exhausted")
-                })?;
-            ctx.plugin_permit = Some(self.shared.plugins.clone().try_acquire_owned().map_err(
-                |_| {
-                    self.shared
-                        .telemetry
-                        .rejected
-                        .with_label_values(&["plugin"])
-                        .inc();
-                    error(503, "plugin instance budget exhausted")
-                },
-            )?);
+        if route.script.is_some() {
+            self.acquire_plugin(ctx)?;
             let started = Instant::now();
             let inspected =
                 body::inspect(session, route.settings.body_policy, route.settings.max_body).await;
-            if let Some(mode) = match route.settings.body_policy.inspection {
-                crate::body::Inspection::Off => None,
-                crate::body::Inspection::Full(_) => Some("full"),
-                crate::body::Inspection::Prefix(_) => Some("prefix"),
-            } {
-                let result = match &inspected {
-                    Ok(Some(view)) => {
-                        self.shared
-                            .telemetry
-                            .traffic
-                            .inspection_bytes
-                            .with_label_values(&[mode])
-                            .inc_by(view.bytes.len() as u64);
-                        if view.complete {
-                            "complete"
-                        } else {
-                            "truncated"
-                        }
-                    }
-                    Err(e) if e.etype() == &pingora::ErrorType::HTTPStatus(408) => "timeout",
-                    Err(e) if e.etype() == &pingora::ErrorType::HTTPStatus(413) => "too_large",
-                    _ => "error",
-                };
-                self.shared
-                    .telemetry
-                    .traffic
-                    .inspection
-                    .with_label_values(&[mode, result])
-                    .observe(started.elapsed().as_secs_f64());
-            }
+            self.observe_inspection(ctx, started, &inspected);
             let inspected = inspected?;
-            let mut plugin_request = std::mem::take(&mut ctx.request);
-            plugin_request.body = inspected;
-            let plugin_request = Arc::new(plugin_request);
-            self.shared.telemetry.plugin_calls.inc();
-            let result = {
-                let _timer = self.shared.telemetry.plugin_duration.start_timer();
-                plugin.request(plugin_request.clone())
-            };
-            let result = result.map(|(execution, outcome)| {
-                if plugin.has_response_hook {
-                    ctx.execution = Some(execution);
-                } else {
-                    drop(execution);
-                    ctx.plugin_permit.take();
-                    ctx.tenant_plugin.take();
-                }
-                outcome
-            });
-            // Request-only hooks release their instance before recovering the
-            // input, avoiding a deep copy. Response hooks retain an immutable
-            // view, and errors still restore the original metadata for logging.
-            ctx.request = Arc::unwrap_or_clone(plugin_request);
-            ctx.request.body = None;
-            match result {
-                Ok(outcome) => {
-                    ctx.edits.path = outcome.edits.path;
-                    ctx.edits.query = outcome.edits.query;
-                    ctx.edits.headers.extend(outcome.edits.headers);
-                    match outcome.decision {
-                        script::Decision::Pass => {}
-                        script::Decision::Proxy(name) => {
-                            let Some(key) = route.allowed_backends.get(&name) else {
-                                self.shared.telemetry.plugin_errors.inc();
-                                return Err(error(500, "plugin selected an undeclared backend"));
-                            };
-                            ctx.backend = Some(key.clone());
-                        }
-                        script::Decision::Reply(status, body) => {
-                            return self.reply(session, ctx, status, body, None).await;
-                        }
-                    }
-                }
-                Err(e) => {
-                    self.shared.telemetry.plugin_errors.inc();
-                    log::error!("plugin {}: {e:#}", route.id);
-                    return Err(error(500, "plugin execution failed"));
-                }
+            if let Some((status, body)) = self.request_plugin(ctx, inspected)? {
+                return self.reply(session, ctx, status, body, None).await;
             }
         }
-        if let Some(backend) = ctx.backend.take() {
-            ctx.backend = Some(
-                route
-                    .rollout
-                    .as_ref()
-                    .map_or_else(|| backend.clone(), |r| r.enforce(backend.clone())),
-            );
-            return Ok(false);
-        }
-        if let Some(policy) = &route.settings.gateway {
-            if let Some((status, location)) =
-                policy.location(&ctx.request, &route.matcher, self.tls)
-            {
-                return self
-                    .reply(session, ctx, status, String::new(), Some(location))
-                    .await;
+
+        match self.dispatch(ctx)? {
+            policy::Dispatch::Proxy => Ok(false),
+            policy::Dispatch::Reply(status, body, location) => {
+                self.reply(session, ctx, status, body, location).await
             }
-            ctx.backend = Some(
-                route
-                    .rollout
-                    .as_ref()
-                    .map_or_else(|| policy.select(), |r| Some(r.select(&ctx.request)))
-                    .ok_or_else(|| error(500, "Gateway backend reference is invalid or missing"))?,
-            );
-            return Ok(false);
-        }
-        match &route.action {
-            Action::Proxy { backend, uri } => {
-                ctx.backend = Some(
-                    route
-                        .rollout
-                        .as_ref()
-                        .map_or_else(|| backend.clone(), |r| r.select(&ctx.request)),
-                );
-                ctx.uri = uri.clone();
-                Ok(false)
-            }
-            Action::Return { status, text } => {
-                let text = expand(text, ctx, self.tls, "");
-                let redirect = (300..400).contains(status) && !text.is_empty();
-                let location = if redirect { Some(text.clone()) } else { None };
-                self.reply(
-                    session,
-                    ctx,
-                    *status,
-                    if redirect { String::new() } else { text },
-                    location,
-                )
-                .await
-            }
-            Action::Unavailable => Err(error(503, "backend unavailable")),
-            Action::Static => self.serve_file(session, ctx, &route).await,
+            policy::Dispatch::Static(route) => self.serve_file(session, ctx, &route).await,
         }
     }
     async fn upstream_peer(
@@ -693,55 +388,7 @@ impl ProxyHttp for Proxy {
         _session: &mut Session,
         ctx: &mut Context,
     ) -> Result<Box<HttpPeer>> {
-        let backend = ctx
-            .snapshot
-            .as_ref()
-            .and_then(|s| ctx.backend.as_ref().and_then(|key| s.backends.get(key)))
-            .ok_or_else(|| error(503, "backend unavailable"))?;
-        let key = match &backend.options.balance {
-            crate::backend::Balance::Hash(key) => key.value(&ctx.request, &ctx.claims),
-            crate::backend::Balance::Sticky(name) => {
-                let existing = ctx.request.headers.get("cookie").and_then(|v| {
-                    v.split(';')
-                        .filter_map(|v| v.trim().split_once('='))
-                        .find(|(k, v)| {
-                            k == name && v.len() == 32 && v.bytes().all(|b| b.is_ascii_hexdigit())
-                        })
-                        .map(|(_, v)| v.to_owned())
-                });
-                existing.unwrap_or_else(|| {
-                    let value = format!("{:032x}", rand::random::<u128>());
-                    ctx.affinity_cookie = Some(format!(
-                        "{name}={value}; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax{}",
-                        if ctx.scheme == "https" {
-                            "; Secure"
-                        } else {
-                            ""
-                        }
-                    ));
-                    value
-                })
-            }
-            _ => String::new(),
-        };
-        let lease = backend
-            .select(&key)
-            .ok_or_else(|| error(503, "no ready endpoint or backend budget exhausted"))?;
-        let address = lease.address;
-        if let Some(trace) = &mut ctx.trace {
-            trace.upstream = Some(trace.client(
-                &ctx.request.method,
-                ctx.backend.as_deref().unwrap_or("-"),
-                "proxy",
-            ));
-        }
-        ctx.upstream_lease = Some(lease);
-        ctx.upstream_address = Some(address);
-        ctx.upstream_started = Some(Instant::now());
-        ctx.upstream_label = ctx
-            .backend
-            .as_ref()
-            .map(|b| self.shared.telemetry.label("backend", b).to_owned());
+        let backend = self.select_endpoint(ctx)?;
         let settings = &ctx.route.as_ref().unwrap().settings;
         let transport = if settings.gateway.is_some() {
             &backend.profile
@@ -749,7 +396,7 @@ impl ProxyHttp for Proxy {
             &settings.upstream
         };
         let mut peer = HttpPeer::new(
-            address,
+            ctx.upstream_address.unwrap(),
             backend.tls,
             transport
                 .server_name
@@ -826,93 +473,7 @@ impl ProxyHttp for Proxy {
         request: &mut RequestHeader,
         ctx: &mut Context,
     ) -> Result<()> {
-        let snapshot = ctx.snapshot.as_ref().unwrap();
-        let backend = &snapshot.backends[ctx.backend.as_ref().unwrap()];
-        let route = ctx.route.as_ref().unwrap();
-        let mut edits = ctx.edits.clone();
-        if edits.path.is_none()
-            && let Some(rewrite) = route
-                .settings
-                .gateway
-                .as_ref()
-                .and_then(|p| p.rewrite.as_ref())
-            && let Some(path) = &rewrite.path
-        {
-            edits.path = Some(path.apply(&ctx.request.path, &route.matcher));
-        }
-        if edits.path.is_some()
-            || edits.query.is_some()
-            || ctx.uri.is_some()
-            || request.uri.scheme().is_some()
-            || request.uri.authority().is_some()
-        {
-            let target = planning::outbound_uri(
-                &ctx.original_uri,
-                &ctx.request,
-                &edits,
-                &route.matcher,
-                ctx.uri.as_deref(),
-            );
-            let target: http::Uri = target
-                .parse()
-                .map_err(|_| error(500, "invalid rewritten URI"))?;
-            request.set_uri(target);
-        }
-        strip_hop_headers(request);
-        if ctx.request.headers.get("te").is_some_and(|v| {
-            v.split(',')
-                .any(|v| v.trim().eq_ignore_ascii_case("trailers"))
-        }) {
-            request.insert_header("TE", "trailers")?;
-        }
-        if let Some(policy) = &route.settings.gateway {
-            if let Some(host) = policy.rewrite.as_ref().and_then(|r| r.hostname.as_deref()) {
-                request.insert_header("Host", host)?;
-            } else if let Some(host) = ctx.request.headers.get("host") {
-                request.insert_header("Host", host)?;
-            } else {
-                request.insert_header("Host", ctx.request.host.as_str())?;
-            }
-            policy.request_headers.request(request)?;
-        } else {
-            request.insert_header("Host", backend.host_header.as_str())?;
-        }
-        for (name, value) in &route.settings.request_headers {
-            let value = expand(value, ctx, self.tls, &backend.host_header);
-            if value.is_empty() {
-                request.remove_header(name);
-            } else {
-                request.insert_header(name.clone(), value)?;
-            }
-        }
-        for (name, value) in &ctx.edits.headers {
-            if let Some(value) = value {
-                request.insert_header(name.clone(), value.as_str())?;
-            } else {
-                request.remove_header(name);
-            }
-        }
-        if let Some(trace) = &ctx.trace
-            && trace.enabled
-            && let Some(span) = &trace.upstream
-        {
-            let mut headers = http::HeaderMap::new();
-            span.inject(&mut headers);
-            request.remove_header("tracestate");
-            for (name, value) in &headers {
-                request.insert_header(name.clone(), value.clone())?;
-            }
-        }
-        // Upgrade headers are transport state and cannot be manufactured by a script.
-        if ctx
-            .request
-            .headers
-            .get("upgrade")
-            .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
-        {
-            request.insert_header("Upgrade", "websocket")?;
-            request.insert_header("Connection", "upgrade")?;
-        }
+        self.upstream_headers(request, ctx)?;
         self.prepare_mirror(session, request, ctx);
         Ok(())
     }
@@ -1044,193 +605,51 @@ impl ProxyHttp for Proxy {
         }
     }
     async fn logging(&self, session: &mut Session, e: Option<&pingora::Error>, ctx: &mut Context) {
-        let finished = Instant::now();
-        let duration = finished.saturating_duration_since(ctx.started);
-        let traffic = &self.shared.telemetry.traffic;
-        traffic
-            .request_bytes
-            .inc_by(session.body_bytes_read() as u64);
-        traffic
-            .response_bytes
-            .inc_by(session.body_bytes_sent() as u64);
-        if let Some(error) = e {
-            traffic.failure(error);
-        }
-        if let (Some(started), Some(backend)) = (ctx.upstream_started, &ctx.upstream_label) {
-            traffic
-                .upstream_duration
-                .with_label_values(&[backend])
-                .observe(finished.saturating_duration_since(started).as_secs_f64());
-        }
-        if let Some(lease) = &ctx.upstream_lease
-            && (e.is_none()
-                || e.is_some_and(|error| error.esource() == &pingora::ErrorSource::Upstream))
-            && lease.record_result(
-                e.is_some(),
-                self.shared.upstream_max_fails,
-                self.shared.upstream_fail_timeout,
-            )
-        {
-            self.shared.telemetry.upstream_ejections.inc();
-            log::warn!(
-                "temporarily excluding upstream {} after repeated transport failures",
-                lease.address
-            );
-        }
-        let status = session
-            .response_written()
-            .map(|r| r.status.as_u16())
-            .unwrap_or(if ctx.status != 0 { ctx.status } else { 502 });
-        self.shared.telemetry.request_completed(status);
-        self.shared
-            .telemetry
-            .duration
-            .observe(duration.as_secs_f64());
-        let route_id = ctx.route.as_ref().map_or("_unmatched", |r| r.id.as_str());
-        let upstream_failed = e.is_some_and(|e| e.esource() == &pingora::ErrorSource::Upstream);
-        let grpc = ctx
-            .request
-            .headers
-            .get("content-type")
-            .is_some_and(|v| v.starts_with("application/grpc"));
-        let grpc_status = grpc.then(|| {
-            ctx.grpc_status.unwrap_or(match status {
-                401 => 16,
-                403 => 7,
-                429 | 502..=504 => 14,
-                _ => 2,
-            })
-        });
-        if let Some(rollout) = ctx.route.as_ref().and_then(|r| r.rollout.as_ref())
-            && let Some(backend) = &ctx.backend
-            && (e.is_none() || upstream_failed)
-            && rollout.completed(
-                backend,
-                upstream_failed || status >= 500 || grpc_status.is_some_and(|s| s != 0),
-                duration,
-                ctx.rollout_stage,
-            )
-        {
-            self.shared.telemetry.rollbacks.inc();
-            log::warn!(
-                "traffic revision {} rolled back for {}",
-                rollout.policy.revision,
-                rollout.owner
-            );
-        }
-        self.shared.telemetry.completed(
-            ctx.route.as_deref(),
-            ctx.backend.as_deref(),
-            status,
-            duration.as_secs_f64(),
-            upstream_failed || status >= 500 || grpc_status.is_some_and(|s| s != 0),
-            grpc_status,
+        self.complete(
+            ctx,
+            completion::Completion {
+                version: session.req_header().version,
+                status: session
+                    .response_written()
+                    .map(|r| r.status.as_u16())
+                    .unwrap_or(if ctx.status != 0 { ctx.status } else { 502 }),
+                request_bytes: session.body_bytes_read(),
+                response_bytes: session.body_bytes_sent(),
+                error: e,
+            },
         );
-        if let (Some(trace), Some(exporter)) = (&ctx.trace, &self.shared.telemetry.traces) {
-            trace.export(
-                exporter,
-                (route_id, ctx.route.as_ref().map(|r| r.matcher.path())),
-                &ctx.request.method,
-                (status, grpc_status),
-                e,
-            );
-        }
-        if let Some(e) = e {
-            if e.esource() == &pingora::ErrorSource::Upstream {
-                self.shared.telemetry.upstream_errors.inc();
-            }
-            log::warn!(
-                "request failed route={} backend={} upstream={:?} version={} trace_id={} span_id={}: {e}",
-                ctx.route.as_ref().map_or("-", |r| r.id.as_str()),
-                ctx.backend.as_deref().unwrap_or("-"),
-                ctx.upstream_address,
-                ctx.snapshot.as_ref().map_or(0, |s| s.version),
-                ctx.trace
-                    .as_ref()
-                    .map_or_else(|| "-".into(), |t| crate::otlp::trace::hex(&t.trace_id)),
-                ctx.trace
-                    .as_ref()
-                    .map_or_else(|| "-".into(), |t| crate::otlp::trace::hex(&t.span_id))
-            );
-        }
-        if let Some(path) = ctx
-            .route
-            .as_ref()
-            .map(|r| r.settings.access_log.clone())
-            .unwrap_or_else(|| {
-                ctx.snapshot
-                    .as_ref()
-                    .and_then(|s| s.default_access_log.clone())
-            })
-        {
-            if let Some(exporter) = &self.shared.telemetry.otlp {
-                exporter.access(crate::otlp::AccessRecord {
-                    trace: ctx.trace.as_ref(),
-                    method: &ctx.request.method,
-                    path: ctx.original_uri.split('?').next().unwrap_or("/"),
-                    host: &ctx.request.host,
-                    client: if ctx
-                        .route
-                        .as_ref()
-                        .is_none_or(|r| r.settings.log_policy.client)
-                    {
-                        &ctx.request.remote_addr
-                    } else {
-                        ""
-                    },
-                    protocol_version: match session.req_header().version {
-                        http::Version::HTTP_09 => "0.9",
-                        http::Version::HTTP_10 => "1.0",
-                        http::Version::HTTP_11 => "1.1",
-                        http::Version::HTTP_2 => "2",
-                        _ => "unknown",
-                    },
-                    tls: self.tls,
-                    status,
-                    response_bytes: session.body_bytes_sent(),
-                    duration,
-                    route: ctx.route.as_ref().map_or("-", |r| r.id.as_str()),
-                    backend: ctx.backend.as_deref(),
-                    upstream: ctx.upstream_address,
-                    config_hash: ctx
-                        .snapshot
-                        .as_ref()
-                        .map_or("-", |s| s.content_hash.as_str()),
-                    config_version: ctx.snapshot.as_ref().map_or(0, |s| s.version),
-                    error_source: e.map(|e| match e.esource() {
-                        pingora::ErrorSource::Upstream => "upstream",
-                        pingora::ErrorSource::Downstream => "downstream",
-                        _ => "internal",
-                    }),
-                });
-            }
-            let policy = ctx
-                .route
-                .as_ref()
-                .map(|r| r.settings.log_policy.clone())
-                .unwrap_or_default();
-            let line = policy.render(serde_json::json!({
-                "timestamp": chrono::DateTime::<chrono::Utc>::from(SystemTime::now()).format("%d/%b/%Y:%H:%M:%S +0000").to_string(),
-                "client":ctx.request.remote_addr,"method":ctx.request.method,"uri":ctx.original_uri,
-                "protocol":format!("{:?}",session.req_header().version),"status":status,"bytes":session.body_bytes_sent(),
-                "referer":ctx.request.headers.get("referer").unwrap_or("-"),
-                "user_agent":ctx.request.headers.get("user-agent").unwrap_or("-"),
-                "route":route_id,"backend":ctx.backend.as_deref().unwrap_or("-"),
-                "upstream":ctx.upstream_address.map_or_else(||"-".into(),|a|a.to_string()),
-                "config":ctx.snapshot.as_ref().map_or("-",|s|s.content_hash.as_str()),
-                "trace_id":ctx.trace.as_ref().map_or_else(||"-".into(),|t|crate::otlp::trace::hex(&t.trace_id)),
-                "span_id":ctx.trace.as_ref().map_or_else(||"-".into(),|t|crate::otlp::trace::hex(&t.span_id)),
-                "parent_span_id":ctx.trace.as_ref().filter(|t|t.enabled && t.parent != [0;8]).map_or_else(||"-".into(),|t|crate::otlp::trace::hex(&t.parent)),
-                "upstream_span_id":ctx.trace.as_ref().filter(|t|t.enabled).and_then(|t|t.upstream.as_ref()).map_or_else(||"-".into(),|s|s.id()),
-                "trace_sampled":ctx.trace.as_ref().is_some_and(|t|t.sampled),
-                "grpc_status":grpc_status
-            }));
-            self.shared.telemetry.access(path, line);
-        }
     }
 }
 
+fn validate_connection_header(headers: &http::HeaderMap) -> Result<()> {
+    if headers
+        .get_all("connection")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|s| s.split(','))
+        .any(|v| {
+            ["content-length", "transfer-encoding", "host"]
+                .iter()
+                .any(|name| v.trim().eq_ignore_ascii_case(name))
+        })
+    {
+        return Err(error(
+            400,
+            "connection header names a framing or routing field",
+        ));
+    }
+    Ok(())
+}
+
 fn request_host(request: &RequestHeader) -> Result<String> {
+    request_host_parts(&request.headers, &request.uri, request.version)
+}
+
+fn request_host_parts(
+    headers: &http::HeaderMap,
+    uri: &http::Uri,
+    version: http::Version,
+) -> Result<String> {
     let parse = |value: &str| -> Result<String> {
         let authority = value
             .parse::<http::uri::Authority>()
@@ -1240,7 +659,7 @@ fn request_host(request: &RequestHeader) -> Result<String> {
         }
         Ok(authority.host().to_ascii_lowercase())
     };
-    let mut fields = request.headers.get_all("host").iter();
+    let mut fields = headers.get_all("host").iter();
     let host = fields
         .next()
         .map(|value| {
@@ -1250,12 +669,11 @@ fn request_host(request: &RequestHeader) -> Result<String> {
             parse(value)
         })
         .transpose()?;
-    if fields.next().is_some() || (request.version == http::Version::HTTP_11 && host.is_none()) {
+    if fields.next().is_some() || (version == http::Version::HTTP_11 && host.is_none()) {
         return Err(error(400, "HTTP/1.1 requires exactly one Host header"));
     }
     // HTTP/2 may supply :authority without an HTTP/1 Host header.
-    Ok(request
-        .uri
+    Ok(uri
         .authority()
         .map(|authority| parse(authority.as_str()))
         .transpose()?

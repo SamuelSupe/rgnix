@@ -1,0 +1,24 @@
+[package]
+name = "rgnix-hyper-prototype"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+# Independent of the product dependency graph: this is a transport experiment.
+[dependencies]
+anyhow = "1"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+http-body-util = "=0.1.5"
+hyper = { version = "=1.11.1", features = ["client", "server", "http1"] }
+hyper-util = { version = "=0.1.20", features = ["client-legacy", "http1", "tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "signal", "time", "macros"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.dev]
+debug = 0

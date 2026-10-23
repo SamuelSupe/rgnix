@@ -1,0 +1,141 @@
+--- a/vendor/hyper/src/proto/h1/io.rs
++++ b/vendor/hyper/src/proto/h1/io.rs
+@@ -226,6 +226,28 @@
+         }
+     }
+ 
++    #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
++    pub(crate) fn poll_read_idle(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
++        debug_assert!(self.read_buf.is_empty());
++        self.read_blocked = false;
++        // Idle clients only distinguish EOF, Pending, and unexpected data. A
++        // response can still own the receive allocation: reserving a full buffer
++        // here would detach it even when no new data is available.
++        let mut scratch = [0; 1];
++        let mut buf = ReadBuf::new(&mut scratch);
++        match Pin::new(&mut self.io).poll_read(cx, buf.unfilled()) {
++            Poll::Ready(Ok(())) => {
++                self.read_buf.extend_from_slice(buf.filled());
++                Poll::Ready(Ok(buf.filled().len()))
++            }
++            Poll::Pending => {
++                self.read_blocked = true;
++                Poll::Pending
++            }
++            Poll::Ready(Err(error)) => Poll::Ready(Err(error)),
++        }
++    }
++
+     pub(crate) fn poll_read_from_io(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
+         self.read_blocked = false;
+         // Get the next amount to allocate, but make sure we don't go over
+--- a/vendor/hyper/src/proto/h1/conn.rs
++++ b/vendor/hyper/src/proto/h1/conn.rs
+@@ -490,6 +490,12 @@
+             return Poll::Ready(Err(crate::Error::new_unexpected_message()));
+         }
+ 
++        #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
++        let num_read = ready!(self.io.poll_read_idle(cx)).map_err(|error| {
++            self.state.close();
++            crate::Error::new_io(error)
++        })?;
++        #[cfg(not(all(feature = "client", feature = "rgnix-reuse-buffer")))]
+         let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
+ 
+         if num_read == 0 {
+@@ -563,7 +569,15 @@
+ 
+         if !self.io.is_read_blocked() {
+             if self.io.read_buf().is_empty() {
+-                match self.io.poll_read_from_io(cx) {
++                #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
++                let reading = if T::is_client() && self.state.is_idle() {
++                    self.io.poll_read_idle(cx)
++                } else {
++                    self.io.poll_read_from_io(cx)
++                };
++                #[cfg(not(all(feature = "client", feature = "rgnix-reuse-buffer")))]
++                let reading = self.io.poll_read_from_io(cx);
++                match reading {
+                     Poll::Ready(Ok(n)) => {
+                         if n == 0 {
+                             trace!("maybe_notify; read eof");
+@@ -1440,6 +1454,29 @@
+         assert_eq!(body, DecodedLength::ZERO);
+     }
+ 
++    #[cfg(feature = "client")]
++    #[test]
++    fn client_rejects_unsolicited_idle_data() {
++        for delayed in [false, true] {
++            tokio_test::task::spawn(()).enter(|cx, _| {
++                let (io, mut handle) = tokio_test::io::Builder::new().build_with_handle();
++                let mut conn = Conn::<_, Bytes, ClientTransaction>::new(Compat::new(io));
++                conn.state.idle::<ClientTransaction>();
++                if delayed {
++                    assert!(conn.poll_read_keep_alive(cx).is_pending());
++                }
++                handle.read(b"H");
++                conn.maybe_notify(cx);
++                let error = ready(conn.poll_read_keep_alive(cx))
++                    .expect_err("an unsolicited response must not be reused");
++                assert!(matches!(
++                    error.kind(),
++                    crate::error::Kind::UnexpectedMessage
++                ));
++            });
++        }
++    }
++
+     #[cfg(feature = "server")]
+     #[test]
+     fn conn_reads_body_and_reports_end() {
+--- a/experiments/hyper-proxy/src/owned.rs
++++ b/experiments/hyper-proxy/src/owned.rs
+@@ -82,10 +82,13 @@
+         let response = std::future::poll_fn(|cx| {
+             // The connection has no separate task or shared foreground lock.
+             // Dropping this future closes the session rather than replaying it.
+-            if let Err(error) = session.drive(cx) {
++            let failure = session.drive(cx).err();
++            let result = response.as_mut().poll(cx).map_err(Into::into);
++            if result.is_pending()
++                && let Some(error) = failure
++            {
+                 return Poll::Ready(Err(error));
+             }
+-            let result = response.as_mut().poll(cx).map_err(Into::into);
+             if result.is_pending() && session.closed {
+                 return Poll::Ready(Err(io::Error::from(io::ErrorKind::UnexpectedEof).into()));
+             }
+@@ -124,17 +127,23 @@
+         mut self: Pin<&mut Self>,
+         cx: &mut Context<'_>,
+     ) -> Poll<Option<Result<Frame<Bytes>, BoxError>>> {
+-        if let Some(session) = &mut self.session
+-            && let Err(error) = session.drive(cx)
+-        {
+-            self.session = None;
+-            return Poll::Ready(Some(Err(error)));
+-        }
++        let failure = self
++            .session
++            .as_mut()
++            .and_then(|session| session.drive(cx).err());
+         let result = Pin::new(&mut self.incoming)
+             .poll_frame(cx)
+             .map(|frame| frame.map(|frame| frame.map_err(Into::into)));
+         if matches!(result, Poll::Ready(Some(Err(_)))) {
+             self.session = None;
++        }
++        // Hyper may have delivered headers or body frames before the driver
++        // reports EOF. Drain those frames before surfacing the transport error.
++        if result.is_pending()
++            && let Some(error) = failure
++        {
++            self.session = None;
++            return Poll::Ready(Some(Err(error)));
+         }
+         if result.is_pending() && self.session.as_ref().is_some_and(|s| s.closed) {
+             return Poll::Ready(Some(Err(

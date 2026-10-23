@@ -1,0 +1,1301 @@
+{
+  "date": "2026-09-28",
+  "source_base": "1bd974f0f302b39268b4128e8e5a7785593a7176",
+  "branch": "experiment/replace-pingora",
+  "scope": "Experimental Hyper HTTP/1 throughput; optional Rust jemalloc. Default Pingora functionally checked, not performance compared.",
+  "allocator_build": {
+    "base": "1bd974f",
+    "features": [
+      "hyper-experimental",
+      "jemalloc"
+    ],
+    "source_hashes": {
+      "Cargo.toml": "1d155a72c4500fd0a574394969ab2c797c19416465418b4eb57e00374835189f",
+      "Cargo.lock": "bad32cceab24e8b7bfad08c3d7b1da7f9d45b6362a158460b7deb0d2a23b29d6",
+      "src/main.rs": "3fe5f7833cb887058e776b86bc88edbedccd965a6a7f1a59ee2194e1e40150de"
+    },
+    "method": "Allocator stage changed only Cargo.toml, Cargo.lock and src/main.rs; all other product sources were at base. Cargo.toml reconstructed by excluding the subsequently added buffer feature."
+  },
+  "final_build": {
+    "binary_sha256": "f16b0d2f35af9143448c6f27b629bd2838b03b77323aa9411eaf26dd5672b976",
+    "sources": {
+      "Cargo.toml": "fb4a8c7db975b9fbb7fc9612a2b98029555b9b064c243197e383bcf816edb79a",
+      "Cargo.lock": "bad32cceab24e8b7bfad08c3d7b1da7f9d45b6362a158460b7deb0d2a23b29d6",
+      "src/main.rs": "3fe5f7833cb887058e776b86bc88edbedccd965a6a7f1a59ee2194e1e40150de",
+      "src/proxy/hyper/request.rs": "b8290c11884358db5cd37c2d5c98f307e540e97e912e18bf2314758bc900549e",
+      "vendor/hyper/Cargo.toml": "d04efc6346bb75f88d6dc56bf596f1f177159020f656708af046ada4dcbdcc32",
+      "vendor/hyper/src/proto/h1/io.rs": "e2dee2b4a0f647eaa288d6bb4f58bfe2a3965c6d17bc1b97f38650a376c4b3a5",
+      "vendor/hyper-util/src/client/legacy/client.rs": "6235bf5b6a721d003c7ea4ebbb025bec8092f20a75ddbc5e4f6034418acb211b"
+    }
+  },
+  "binaries": {
+    "rgnix": {
+      "path": "/var/tmp/rgnix-allocator-20260928/rgnix-jemalloc",
+      "sha256": "a69905c0d843a1a349085b4222f89cd79213e126ff8d08a092e958845f3ce4b6",
+      "version": "rgnix 0.5.0"
+    },
+    "nginx": {
+      "path": "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+      "sha256": "d7509a23828ead5af789b69f2042a2eae74d25f740ef3c071dbc35c1b0f41304",
+      "version": "nginx version: nginx/1.30.5\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/nginx --with-http_ssl_module --with-http_v2_module --with-cc-opt=-O2"
+    },
+    "openresty": {
+      "path": "/tmp/rgnix-compare-20260927/openresty/nginx/sbin/nginx",
+      "sha256": "53de7d8583b2932a904f66f7cab088801fa0e7148e3f5c708507fcfc95f9ea18",
+      "version": "nginx version: openresty/1.31.1.1\nbuilt by gcc 15.2.0 (Ubuntu 15.2.0-4ubuntu4) \nbuilt with OpenSSL 3.5.3 16 Sep 2025\nTLS SNI support enabled\nconfigure arguments: --prefix=/tmp/rgnix-compare-20260927/openresty/nginx --with-cc-opt='-O2 -O2' --add-module=../ngx_devel_kit-0.3.4 --add-module=../echo-nginx-module-0.64 --add-module=../xss-nginx-module-0.07 --add-module=../ngx_coolkit-0.2 --add-module=../set-misc-nginx-module-0.33 --add-module=../form-input-nginx-module-0.12 --add-module=../encrypted-session-nginx-module-0.09 --add-module=../srcache-nginx-module-0.33 --add-module=../ngx_lua-0.10.31rc5 --add-module=../ngx_lua_upstream-0.08 --add-module=../headers-more-nginx-module-0.39 --add-module=../array-var-nginx-module-0.06 --add-module=../memc-nginx-module-0.20 --add-module=../redis2-nginx-module-0.15 --add-module=../redis-nginx-module-0.41 --add-module=../rds-json-nginx-module-0.17 --add-module=../rds-csv-nginx-module-0.10 --add-module=../ngx_stream_lua-0.0.19rc4 --with-ld-opt=-Wl,-rpath,/tmp/rgnix-compare-20260927/openresty/luajit/lib --with-http_ssl_module --with-http_v2_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module"
+    },
+    "candidate": {
+      "path": "/var/tmp/rgnix-allocator-20260928/rgnix-buffer",
+      "sha256": "f16b0d2f35af9143448c6f27b629bd2838b03b77323aa9411eaf26dd5672b976",
+      "version": "rgnix 0.5.0"
+    }
+  },
+  "system_baseline": {
+    "path": "/tmp/rgnix-nginx-opt-20260928/rgnix-body",
+    "sha256": "2e61dfd9255e18ba26777138787f2d4cdb8cc65ecebfebead6b59cabdc1ebbc9",
+    "version": "rgnix 0.5.0"
+  },
+  "harness_sha256": {
+    "benchmark_compare.py": "56be9c76e797691bbdbedca9338a937e47d399e1cafcf4a8e1647ad793a3b903",
+    "hyper_integration.py": "32b6b3e15aa2d94c117690614b92165838d6c01bb8e33b950dcd6ab78cd2bdee",
+    "integration.py": "254f6e58e1432bc7217732505c35cffa3b44cb35e0aad34348af503c87908f55",
+    "profile_http_primitives.py": "db3b94655c99dcb52155ac0851ba81345064cdf82b001ca3eb2404d5820e04f0"
+  },
+  "plan": {
+    "criteria": {
+      "max_pair_symmetric_difference_percent": 10,
+      "max_group_cv_percent": 10,
+      "errors": 0
+    },
+    "design": "Per worker count, 3 interleaved rounds of duplicate baseline, candidate and NGINX windows. Duplicate same-binary windows provide A/A pairs; all windows retained. 1/16KiB c64, warmup3s measure8s. No profiler or build overlaps. No retry based on results.",
+    "workers": [
+      2,
+      1,
+      4
+    ],
+    "completed": [
+      2,
+      1,
+      4
+    ]
+  },
+  "commands_and_exit_codes": [
+    {
+      "name": "build-buffer",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "--features",
+        "hyper-experimental,jemalloc",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "hyper-unit",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "vendor/hyper/Cargo.toml",
+        "--features",
+        "client,server,http1,rgnix-full-body,rgnix-reuse-buffer",
+        "--lib",
+        "-j",
+        "2"
+      ],
+      "exit_code": 101
+    },
+    {
+      "name": "hyper-unit-full",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "vendor/hyper/Cargo.toml",
+        "--features",
+        "full,rgnix-full-body,rgnix-reuse-buffer",
+        "--lib",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "client-unit",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "vendor/hyper-util/Cargo.toml",
+        "--features",
+        "full",
+        "--lib",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "buffer-integration",
+      "command": [
+        "python3",
+        "scripts/hyper_integration.py",
+        "/var/tmp/rgnix-allocator-20260928/rgnix-buffer",
+        "--threads",
+        "2"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "buffer-comparison",
+      "command": [
+        "sudo",
+        "-n",
+        "unshare",
+        "-n",
+        "bash",
+        "-c",
+        "ip link set lo up && exec \"$@\"",
+        "benchmark",
+        "python3",
+        "scripts/benchmark_compare.py",
+        "--rgnix",
+        "/var/tmp/rgnix-allocator-20260928/rgnix-jemalloc",
+        "--candidate",
+        "/var/tmp/rgnix-allocator-20260928/rgnix-buffer",
+        "--nginx",
+        "/tmp/rgnix-compare-20260927/nginx/sbin/nginx",
+        "--openresty",
+        "/tmp/rgnix-compare-20260927/openresty/bin/openresty",
+        "--engines",
+        "rgnix",
+        "rgnix",
+        "candidate",
+        "candidate",
+        "nginx",
+        "nginx",
+        "--rgnix-transport",
+        "hyper",
+        "--candidate-transport",
+        "hyper",
+        "--plain-proxy",
+        "--cases",
+        "proxy-1k",
+        "proxy-16k",
+        "--workers",
+        "2",
+        "--concurrency",
+        "64",
+        "--rounds",
+        "3",
+        "--seconds",
+        "8",
+        "--warmup",
+        "3",
+        "--interleave",
+        "--client-threads",
+        "4",
+        "--client-cpus",
+        "2,3,4,5",
+        "--origin-workers",
+        "4",
+        "--origin-cpus",
+        "6,7,8,9",
+        "--server-cpus",
+        "10,11",
+        "--work-dir",
+        "/var/tmp/rgnix-allocator-20260928/buffer-comparison",
+        "--output",
+        "/var/tmp/rgnix-allocator-20260928/buffer-comparison.json"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "additional_checks": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "platform": "macOS",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo check --locked -j 2",
+      "platform": "OrbStack Linux",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo clippy --locked --features hyper-experimental,jemalloc -j 2 -- -D warnings",
+      "platform": "OrbStack Linux",
+      "exit_code": 0
+    }
+  ],
+  "unit_tests": {
+    "hyper": {
+      "passed": 118,
+      "ignored": 6
+    },
+    "hyper_util": {
+      "passed": 61,
+      "ignored": 2
+    }
+  },
+  "integration_checks": {
+    "hyper-integration": 45,
+    "pingora-integration": 42,
+    "integration": 94,
+    "buffer-integration": 45
+  },
+  "initial_unit_failure": "Hyper tests with only client,server,http1 features could not compile existing Compat helpers gated by http2. Corrected invocation uses full; no product patch for this failure.",
+  "summaries": {
+    "allocator-1w": {
+      "proxy-1k": {
+        "rgnix": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              0.5116700466902327,
+              7.885300559529364,
+              25.867017052605604
+            ],
+            "cvs_pct": [
+              5.3268659980584925,
+              16.633563029989133
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 76767.12755821174,
+              "min": 58207.38440836155,
+              "max": 80169.16341763933
+            },
+            "server_cpu_us_per_request": {
+              "median": 12.958089279077114,
+              "min": 12.443039982505825,
+              "max": 17.137160915395874
+            },
+            "p99_ms": {
+              "median": 1.7160000000000002,
+              "min": 1.376,
+              "max": 2.606
+            },
+            "peak_pss_kib": {
+              "median": 23247.5,
+              "min": 23201,
+              "max": 23278
+            }
+          },
+          "requests": 3594538,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              0.9050160156843137,
+              6.301469852814553,
+              0.0707208181068214
+            ],
+            "cvs_pct": [
+              8.891553851153914,
+              7.839285593512055
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 80065.37393683783,
+              "min": 71255.80782040796,
+              "max": 84203.41745271371
+            },
+            "server_cpu_us_per_request": {
+              "median": 12.495050728232979,
+              "min": 11.861926588017255,
+              "max": 14.034941806972768
+            },
+            "p99_ms": {
+              "median": 1.6085,
+              "min": 1.291,
+              "max": 1.975
+            },
+            "peak_pss_kib": {
+              "median": 27477.5,
+              "min": 27301,
+              "max": 27587
+            }
+          },
+          "requests": 3809604,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              2.38569810776813,
+              17.344427603172505,
+              8.905640458092115
+            ],
+            "cvs_pct": [
+              3.3726881813307936,
+              11.696378166626436
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 121615.65854825312,
+              "min": 100304.58178862387,
+              "max": 127683.39136272737
+            },
+            "server_cpu_us_per_request": {
+              "median": 8.155367695910588,
+              "min": 7.822282385361019,
+              "max": 9.920451762111014
+            },
+            "p99_ms": {
+              "median": 1.3115,
+              "min": 1.014,
+              "max": 3.164
+            },
+            "peak_pss_kib": {
+              "median": 11950.0,
+              "min": 11246,
+              "max": 12011
+            }
+          },
+          "requests": 5790456,
+          "errors": 0
+        }
+      },
+      "proxy-16k": {
+        "rgnix": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              3.133059077311533,
+              1.2715106142183874,
+              15.07881409564444
+            ],
+            "cvs_pct": [
+              21.162036989585356,
+              27.155662797859097
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 66575.01003947445,
+              "min": 39917.46735265123,
+              "max": 70387.41522120817
+            },
+            "server_cpu_us_per_request": {
+              "median": 15.011709025383407,
+              "min": 14.206737852362178,
+              "max": 24.649779432898868
+            },
+            "p99_ms": {
+              "median": 1.903,
+              "min": 1.536,
+              "max": 12.981
+            },
+            "peak_pss_kib": {
+              "median": 25247.0,
+              "min": 24934,
+              "max": 25266
+            }
+          },
+          "requests": 2892871,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              1.2624865857612944,
+              26.476232091052825,
+              37.108945427404535
+            ],
+            "cvs_pct": [
+              23.824185008825054,
+              14.02026742389806
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 66477.56435933946,
+              "min": 43988.3827423952,
+              "max": 70009.30421830738
+            },
+            "server_cpu_us_per_request": {
+              "median": 15.052342180754218,
+              "min": 14.266970464373134,
+              "max": 22.73129088475236
+            },
+            "p99_ms": {
+              "median": 1.792,
+              "min": 1.58,
+              "max": 2.732
+            },
+            "peak_pss_kib": {
+              "median": 29818.0,
+              "min": 29702,
+              "max": 29926
+            }
+          },
+          "requests": 2988090,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              4.208783488883694,
+              9.566635293548138,
+              2.1742135282989854
+            ],
+            "cvs_pct": [
+              9.7674702518096,
+              4.969382201043251
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 59226.46936241914,
+              "min": 55643.334071257275,
+              "max": 65818.20404217373
+            },
+            "server_cpu_us_per_request": {
+              "median": 16.892316310546363,
+              "min": 15.175816239436488,
+              "max": 17.9509709944261
+            },
+            "p99_ms": {
+              "median": 2.2155,
+              "min": 1.888,
+              "max": 2.494
+            },
+            "peak_pss_kib": {
+              "median": 11735.0,
+              "min": 11718,
+              "max": 12017
+            }
+          },
+          "requests": 2908049,
+          "errors": 0
+        }
+      }
+    },
+    "allocator-2w": {
+      "proxy-1k": {
+        "rgnix": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              11.397512493245252,
+              1.0914809699745722,
+              4.884043159105809
+            ],
+            "cvs_pct": [
+              1.3526129084855671,
+              7.117375575586711
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 102320.47939039275,
+              "min": 92932.48246553398,
+              "max": 106886.71963161915
+            },
+            "server_cpu_us_per_request": {
+              "median": 18.634665308515423,
+              "min": 18.15823306069031,
+              "max": 20.76047334954909
+            },
+            "p99_ms": {
+              "median": 1.339,
+              "min": 1.207,
+              "max": 1.687
+            },
+            "peak_pss_kib": {
+              "median": 25070.5,
+              "min": 24925,
+              "max": 25383
+            }
+          },
+          "requests": 4934685,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              9.211413677565295,
+              11.959149196769593,
+              2.9984341853493053
+            ],
+            "cvs_pct": [
+              10.89725345419197,
+              6.331096704320479
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 113507.1749161206,
+              "min": 98492.43898286272,
+              "max": 122285.2615397834
+            },
+            "server_cpu_us_per_request": {
+              "median": 17.203407420253036,
+              "min": 16.06447627684279,
+              "max": 19.48066600310387
+            },
+            "p99_ms": {
+              "median": 1.2215,
+              "min": 1.085,
+              "max": 1.639
+            },
+            "peak_pss_kib": {
+              "median": 29951.5,
+              "min": 29718,
+              "max": 30447
+            }
+          },
+          "requests": 5491028,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              5.583015690516558,
+              4.1592265281210095,
+              4.068622302558358
+            ],
+            "cvs_pct": [
+              2.4321370668765487,
+              5.705247448109099
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 211406.71302017404,
+              "min": 199756.76861512676,
+              "max": 223483.27481449553
+            },
+            "server_cpu_us_per_request": {
+              "median": 9.422198595601182,
+              "min": 8.933005771373612,
+              "max": 9.95642288160262
+            },
+            "p99_ms": {
+              "median": 0.94,
+              "min": 0.764,
+              "max": 1.116
+            },
+            "peak_pss_kib": {
+              "median": 19948.0,
+              "min": 19561,
+              "max": 19979
+            }
+          },
+          "requests": 10261575,
+          "errors": 0
+        }
+      },
+      "proxy-16k": {
+        "rgnix": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              1.6548738160749805,
+              2.664689328279339,
+              5.321906901750072
+            ],
+            "cvs_pct": [
+              2.5823946134292575,
+              1.049240016359481
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 96733.1781847212,
+              "min": 95035.93524038912,
+              "max": 100231.92202678986
+            },
+            "server_cpu_us_per_request": {
+              "median": 20.00504516186969,
+              "min": 19.442744403285552,
+              "max": 20.515276438496237
+            },
+            "p99_ms": {
+              "median": 1.459,
+              "min": 1.316,
+              "max": 33.812
+            },
+            "peak_pss_kib": {
+              "median": 27911.0,
+              "min": 27683,
+              "max": 28385
+            }
+          },
+          "requests": 4705220,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              3.1920088630192107,
+              20.63421377409628,
+              7.528534606433312
+            ],
+            "cvs_pct": [
+              11.996153838522837,
+              8.58816327069779
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 109290.66029035501,
+              "min": 96026.8044253474,
+              "max": 119576.54295260452
+            },
+            "server_cpu_us_per_request": {
+              "median": 17.94744432151375,
+              "min": 16.529147463534695,
+              "max": 20.582850795544537
+            },
+            "p99_ms": {
+              "median": 1.3205,
+              "min": 1.112,
+              "max": 1.977
+            },
+            "peak_pss_kib": {
+              "median": 32554.0,
+              "min": 32245,
+              "max": 32881
+            }
+          },
+          "requests": 5266622,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              11.505195016494378,
+              3.424182424736358,
+              7.497821795640714
+            ],
+            "cvs_pct": [
+              2.995933165214373,
+              4.864436631985859
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 121663.41099773024,
+              "min": 117437.9091487336,
+              "max": 131774.07132788503
+            },
+            "server_cpu_us_per_request": {
+              "median": 16.258644025482383,
+              "min": 15.158541669594383,
+              "max": 16.96773711992111
+            },
+            "p99_ms": {
+              "median": 1.155,
+              "min": 1.034,
+              "max": 30.79
+            },
+            "peak_pss_kib": {
+              "median": 19937.0,
+              "min": 19597,
+              "max": 20022
+            }
+          },
+          "requests": 5969597,
+          "errors": 0
+        }
+      }
+    },
+    "allocator-4w": {
+      "proxy-1k": {
+        "rgnix": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              30.2434640321799,
+              22.455225861910936,
+              13.708196881841697
+            ],
+            "cvs_pct": [
+              15.960714341867293,
+              12.560723743884665
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 109080.11180014409,
+              "min": 93214.93380769527,
+              "max": 126428.88320649159
+            },
+            "server_cpu_us_per_request": {
+              "median": 29.198221734203425,
+              "min": 24.877785531151098,
+              "max": 33.231265873863606
+            },
+            "p99_ms": {
+              "median": 1.456,
+              "min": 1.264,
+              "max": 2.087
+            },
+            "peak_pss_kib": {
+              "median": 26869.0,
+              "min": 26095,
+              "max": 27386
+            }
+          },
+          "requests": 5242232,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              4.020211115775697,
+              9.12714435320508,
+              26.97192015164899
+            ],
+            "cvs_pct": [
+              11.431018045696137,
+              9.66726983559902
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 102149.60770139954,
+              "min": 90619.99050838096,
+              "max": 118871.99619760129
+            },
+            "server_cpu_us_per_request": {
+              "median": 29.627526208607456,
+              "min": 25.202134498492157,
+              "max": 33.082770855197616
+            },
+            "p99_ms": {
+              "median": 1.935,
+              "min": 1.519,
+              "max": 3.854
+            },
+            "peak_pss_kib": {
+              "median": 32910.0,
+              "min": 32653,
+              "max": 33951
+            }
+          },
+          "requests": 5050940,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              17.937926131857722,
+              1.1567217571644455,
+              10.061193415080742
+            ],
+            "cvs_pct": [
+              6.236154586534396,
+              17.6465065445305
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 250596.5978460086,
+              "min": 191534.311057821,
+              "max": 267312.0027951808
+            },
+            "server_cpu_us_per_request": {
+              "median": 13.72012001396344,
+              "min": 12.682389151679434,
+              "max": 15.701865660097154
+            },
+            "p99_ms": {
+              "median": 2.239,
+              "min": 1.383,
+              "max": 3.134
+            },
+            "peak_pss_kib": {
+              "median": 32745.5,
+              "min": 32570,
+              "max": 32899
+            }
+          },
+          "requests": 11759618,
+          "errors": 0
+        }
+      },
+      "proxy-16k": {
+        "rgnix": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              22.037330185737158,
+              6.570606262345034,
+              2.5260176524445814
+            ],
+            "cvs_pct": [
+              9.555939333748158,
+              3.975492986055683
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 97157.66508584197,
+              "min": 81231.33137065548,
+              "max": 104454.7144882829
+            },
+            "server_cpu_us_per_request": {
+              "median": 34.01185942090494,
+              "min": 31.44434846624607,
+              "max": 38.14827367662727
+            },
+            "p99_ms": {
+              "median": 1.7425,
+              "min": 1.557,
+              "max": 2.257
+            },
+            "peak_pss_kib": {
+              "median": 30962.5,
+              "min": 29253,
+              "max": 31659
+            }
+          },
+          "requests": 4661333,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              10.32873430958507,
+              8.032723816402433,
+              19.41951487148895
+            ],
+            "cvs_pct": [
+              4.479084580193093,
+              3.7480180871022633
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 110610.16187704145,
+              "min": 100914.37190959814,
+              "max": 122618.91151863475
+            },
+            "server_cpu_us_per_request": {
+              "median": 30.20648440097594,
+              "min": 26.91344202081387,
+              "max": 32.16617224955178
+            },
+            "p99_ms": {
+              "median": 1.6640000000000001,
+              "min": 1.402,
+              "max": 2.478
+            },
+            "peak_pss_kib": {
+              "median": 35377.0,
+              "min": 34830,
+              "max": 35817
+            }
+          },
+          "requests": 5410181,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              6.326450409699021,
+              8.327395591669426,
+              5.017421143263737
+            ],
+            "cvs_pct": [
+              5.27662625659712,
+              4.759596395891996
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 158084.0201638678,
+              "min": 145531.82064044147,
+              "max": 166121.73000968888
+            },
+            "server_cpu_us_per_request": {
+              "median": 23.519426520903508,
+              "min": 22.525434939320302,
+              "max": 24.88258609222082
+            },
+            "p99_ms": {
+              "median": 3.204,
+              "min": 2.236,
+              "max": 16.606
+            },
+            "peak_pss_kib": {
+              "median": 32540.5,
+              "min": 32446,
+              "max": 32623
+            }
+          },
+          "requests": 7612150,
+          "errors": 0
+        }
+      }
+    },
+    "buffer-comparison": {
+      "proxy-1k": {
+        "rgnix": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              2.1982802590970474,
+              0.13148785838434857,
+              5.065985761064406
+            ],
+            "cvs_pct": [
+              1.9092307998660483,
+              4.277558040305825
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 122214.17729615286,
+              "min": 117779.83136318768,
+              "max": 127830.06656496557
+            },
+            "server_cpu_us_per_request": {
+              "median": 15.955614127593897,
+              "min": 15.134208741511074,
+              "max": 16.709015740437916
+            },
+            "p99_ms": {
+              "median": 1.1880000000000002,
+              "min": 1.113,
+              "max": 1.308
+            },
+            "peak_pss_kib": {
+              "median": 29758.0,
+              "min": 29450,
+              "max": 29995
+            }
+          },
+          "requests": 5957242,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              1.317828506842149,
+              3.85582443212811,
+              0.514198124218324
+            ],
+            "cvs_pct": [
+              5.056511779247557,
+              6.929620097486044
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 126943.94527818375,
+              "min": 122700.79584607652,
+              "max": 139761.33328625612
+            },
+            "server_cpu_us_per_request": {
+              "median": 15.44392565193689,
+              "min": 14.06248619809379,
+              "max": 15.995863208206785
+            },
+            "p99_ms": {
+              "median": 1.0830000000000002,
+              "min": 0.982,
+              "max": 1.175
+            },
+            "peak_pss_kib": {
+              "median": 28286.5,
+              "min": 28044,
+              "max": 28650
+            }
+          },
+          "requests": 6318179,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              23.722587340057093,
+              7.343189544592349,
+              6.771066583179376
+            ],
+            "cvs_pct": [
+              11.048424197505366,
+              4.429185461882841
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 216363.09861112642,
+              "min": 179329.06777078757,
+              "max": 227595.5973120421
+            },
+            "server_cpu_us_per_request": {
+              "median": 9.160590381842692,
+              "min": 8.723248433558465,
+              "max": 10.90538818431483
+            },
+            "p99_ms": {
+              "median": 1.0194999999999999,
+              "min": 0.794,
+              "max": 14.525
+            },
+            "peak_pss_kib": {
+              "median": 18347.0,
+              "min": 18290,
+              "max": 18497
+            }
+          },
+          "requests": 10296081,
+          "errors": 0
+        }
+      },
+      "proxy-16k": {
+        "rgnix": {
+          "calibration": {
+            "passed": true,
+            "pairs_pct": [
+              5.273177600950146,
+              6.8312976355305,
+              6.387262602126535
+            ],
+            "cvs_pct": [
+              6.248077183463001,
+              4.3052683664360964
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 111396.4776883165,
+              "min": 103898.98357381806,
+              "max": 118566.39480071807
+            },
+            "server_cpu_us_per_request": {
+              "median": 17.588298390310218,
+              "min": 16.712865678542343,
+              "max": 18.92446730692088
+            },
+            "p99_ms": {
+              "median": 1.294,
+              "min": 1.102,
+              "max": 1.525
+            },
+            "peak_pss_kib": {
+              "median": 32530.0,
+              "min": 30614,
+              "max": 33191
+            }
+          },
+          "requests": 5365068,
+          "errors": 0
+        },
+        "candidate": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              5.273261547550618,
+              7.596404330522973,
+              14.582942926447434
+            ],
+            "cvs_pct": [
+              4.126854236463073,
+              12.96639265938656
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 109555.23678426427,
+              "min": 91569.41448447753,
+              "max": 118926.95439048788
+            },
+            "server_cpu_us_per_request": {
+              "median": 18.013744860743643,
+              "min": 16.61864111208915,
+              "max": 21.557796871355634
+            },
+            "p99_ms": {
+              "median": 1.2810000000000001,
+              "min": 1.088,
+              "max": 1.509
+            },
+            "peak_pss_kib": {
+              "median": 30842.0,
+              "min": 30384,
+              "max": 31446
+            }
+          },
+          "requests": 5267089,
+          "errors": 0
+        },
+        "nginx": {
+          "calibration": {
+            "passed": false,
+            "pairs_pct": [
+              3.4430616818088007,
+              11.704441309584013,
+              8.503189577371181
+            ],
+            "cvs_pct": [
+              2.5245529836124345,
+              6.229882390871944
+            ]
+          },
+          "stats": {
+            "rps": {
+              "median": 129095.03428240177,
+              "min": 114414.41207888468,
+              "max": 134720.92194348003
+            },
+            "server_cpu_us_per_request": {
+              "median": 15.421823793960982,
+              "min": 14.800124999198134,
+              "max": 17.047686046361076
+            },
+            "p99_ms": {
+              "median": 1.1855,
+              "min": 0.99,
+              "max": 3.918
+            },
+            "peak_pss_kib": {
+              "median": 18337.5,
+              "min": 18263,
+              "max": 18435
+            }
+          },
+          "requests": 6197754,
+          "errors": 0
+        }
+      }
+    }
+  },
+  "changes_vs_allocator_only": {
+    "proxy-1k": {
+      "rps_percent": 3.8700649030018575,
+      "cpu_percent": -3.2069494258580966,
+      "round_rps_ratios": [
+        1.0981185810024603,
+        1.0387330320210186,
+        1.043016952097322
+      ]
+    },
+    "proxy-16k": {
+      "rps_percent": -1.6528717444764807,
+      "cpu_percent": 2.4189177428773467,
+      "round_rps_ratios": [
+        1.0030405829167675,
+        1.0271171620721455,
+        0.9137603207368674
+      ]
+    }
+  },
+  "formal_totals": {
+    "allocator-1w": {
+      "windows": 36,
+      "requests": 21983608,
+      "errors": 0
+    },
+    "allocator-2w": {
+      "windows": 36,
+      "requests": 36628727,
+      "errors": 0
+    },
+    "allocator-4w": {
+      "windows": 36,
+      "requests": 39736454,
+      "errors": 0
+    },
+    "buffer-comparison": {
+      "windows": 36,
+      "requests": 39401413,
+      "errors": 0
+    },
+    "all": {
+      "windows": 144,
+      "requests": 137750202,
+      "errors": 0
+    }
+  },
+  "allocation_probe": {
+    "requests_each": 500,
+    "calls_per_request": [
+      31.002,
+      27.554
+    ],
+    "requested_bytes_per_request": [
+      19828.52,
+      5411.72
+    ],
+    "requested_bytes_delta_percent": -72.70739318920424,
+    "allocations_8192_bytes": [
+      1000,
+      133
+    ],
+    "interpretation": "Prefixed allocation/reallocation API entries, not live memory or throughput; warmed single connection with exact response checks; background allocations included."
+  },
+  "soak_summary": {
+    "duration_seconds": 120,
+    "requests": 14238746,
+    "errors": 0,
+    "peak_pss_mib": 30.8681640625,
+    "after_warmup_pss_mib": 27.623046875,
+    "after_idle_pss_mib": 17.521484375,
+    "completed": true
+  },
+  "drivers": {
+    "benchmark.py": "#!/usr/bin/env python3\nimport json, subprocess, sys, time\nfrom pathlib import Path\nROOT=Path('/Users/livesite/Documents/ChatGPT/rgnix')\nWORK=Path('/var/tmp/rgnix-allocator-20260928')\nbase='/tmp/rgnix-nginx-opt-20260928/rgnix-body'\ncandidate=str(WORK/'rgnix-jemalloc')\nnginx='/tmp/rgnix-compare-20260927/nginx/sbin/nginx'\norigin='/tmp/rgnix-compare-20260927/openresty/bin/openresty'\nplan={'criteria':{'max_pair_symmetric_difference_percent':10,'max_group_cv_percent':10,'errors':0},'design':'Per worker count, 3 interleaved rounds of duplicate baseline, candidate and NGINX windows. Duplicate same-binary windows provide A/A pairs; all windows retained. 1/16KiB c64, warmup3s measure8s. No profiler or build overlaps. No retry based on results.','workers':[2,1,4],'completed':[]}\n(WORK/'plan.json').write_text(json.dumps(plan,indent=2)+'\\n')\nfor workers in plan['workers']:\n    out=WORK/f'matrix-{workers}w.json'\n    cmd=[sys.executable,str(ROOT/'scripts/benchmark_compare.py'),'--rgnix',base,'--candidate',candidate,'--nginx',nginx,'--openresty',origin,'--engines','rgnix','rgnix','candidate','candidate','nginx','nginx','--rgnix-transport','hyper','--candidate-transport','hyper','--plain-proxy','--cases','proxy-1k','proxy-16k','--workers',str(workers),'--concurrency','64','--rounds','3','--seconds','8','--warmup','3','--interleave','--client-threads','4','--client-cpus','2,3,4,5','--origin-workers','4','--origin-cpus','6,7,8,9','--server-cpus',','.join(str(10+i) for i in range(workers)),'--work-dir',str(WORK/f'matrix-{workers}w'),'--output',str(out)]\n    print('START', workers, 'workers',time.strftime('%H:%M:%S'),flush=True)\n    subprocess.run(cmd,cwd=ROOT,check=True)\n    plan['completed'].append(workers)\n    (WORK/'plan.json').write_text(json.dumps(plan,indent=2)+'\\n')\nprint('COMPLETE',flush=True)\n",
+    "next.py": "import hashlib,json,os,subprocess,sys,time\nfrom pathlib import Path\nROOT=Path('/Users/livesite/Documents/ChatGPT/rgnix')\nWORK=Path('/var/tmp/rgnix-allocator-20260928')\nwait_until=time.monotonic()+1800\nwhile True:\n    try:ready=json.loads((WORK/'plan.json').read_text()).get('completed')==[2,1,4]\n    except (FileNotFoundError,json.JSONDecodeError):ready=False\n    if ready:break\n    if time.monotonic()>wait_until:raise TimeoutError('initial benchmark did not complete')\n    time.sleep(5)\ntime.sleep(1)\nenv={**os.environ,'CARGO_TARGET_DIR':'/home/livesite/.cache/rgnix-opt-target'}\nrecords=[]\ndef run(name,cmd):\n    print('START',name,time.strftime('%H:%M:%S'),flush=True)\n    with (WORK/(name+'.log')).open('w') as log:\n        result=subprocess.run(cmd,cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)\n    records.append({'name':name,'command':cmd,'exit_code':result.returncode})\n    (WORK/'next-results.json').write_text(json.dumps(records,indent=2)+'\\n')\n    result.check_returncode()\n    print('PASS',name,flush=True)\nrun('build-buffer',['cargo','build','--locked','--release','--features','hyper-experimental,jemalloc','-j','2'])\nimport shutil\nbinary=WORK/'rgnix-buffer'\nshutil.copy2(Path(env['CARGO_TARGET_DIR'])/'release/rgnix',binary)\n(WORK/'buffer-source.json').write_text(json.dumps({'binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'sources':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in ['Cargo.toml','Cargo.lock','src/main.rs','src/proxy/hyper/request.rs','vendor/hyper/Cargo.toml','vendor/hyper/src/proto/h1/io.rs','vendor/hyper-util/src/client/legacy/client.rs']}},indent=2)+'\\n')\nrun('hyper-unit',['cargo','test','--manifest-path','vendor/hyper/Cargo.toml','--features','client,server,http1,rgnix-full-body,rgnix-reuse-buffer','--lib','-j','2'])\nrun('client-unit',['cargo','test','--manifest-path','vendor/hyper-util/Cargo.toml','--features','client-legacy,http1,tokio','--lib','-j','2'])\nrun('buffer-integration',['python3','scripts/hyper_integration.py',str(binary),'--threads','2'])\nbase=str(WORK/'rgnix-jemalloc')\ncmd=['sudo','-n','unshare','-n','bash','-c','ip link set lo up && exec \"$@\"','benchmark','python3','scripts/benchmark_compare.py','--rgnix',base,'--candidate',str(binary),'--nginx','/tmp/rgnix-compare-20260927/nginx/sbin/nginx','--openresty','/tmp/rgnix-compare-20260927/openresty/bin/openresty','--engines','rgnix','rgnix','candidate','candidate','nginx','nginx','--rgnix-transport','hyper','--candidate-transport','hyper','--plain-proxy','--cases','proxy-1k','proxy-16k','--workers','2','--concurrency','64','--rounds','3','--seconds','8','--warmup','3','--interleave','--client-threads','4','--client-cpus','2,3,4,5','--origin-workers','4','--origin-cpus','6,7,8,9','--server-cpus','10,11','--work-dir',str(WORK/'buffer-comparison'),'--output',str(WORK/'buffer-comparison.json')]\nrun('buffer-comparison',cmd)\nprint('COMPLETE',flush=True)\n",
+    "resume.py": "import hashlib,json,os,subprocess,sys,time\nfrom pathlib import Path\nROOT=Path('/Users/livesite/Documents/ChatGPT/rgnix')\nWORK=Path('/var/tmp/rgnix-allocator-20260928')\nenv={**os.environ,'CARGO_TARGET_DIR':'/home/livesite/.cache/rgnix-opt-target'}\nrecords=json.loads((WORK/'next-results.json').read_text())\ndef run(name,cmd):\n    print('START',name,time.strftime('%H:%M:%S'),flush=True)\n    with (WORK/(name+'.log')).open('w') as log:\n        result=subprocess.run(cmd,cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)\n    records.append({'name':name,'command':cmd,'exit_code':result.returncode})\n    (WORK/'next-results.json').write_text(json.dumps(records,indent=2)+'\\n')\n    result.check_returncode()\n    print('PASS',name,flush=True)\nbinary=WORK/'rgnix-buffer'\nrun('hyper-unit-full',['cargo','test','--manifest-path','vendor/hyper/Cargo.toml','--features','full,rgnix-full-body,rgnix-reuse-buffer','--lib','-j','2'])\nrun('client-unit',['cargo','test','--manifest-path','vendor/hyper-util/Cargo.toml','--features','full','--lib','-j','2'])\nrun('buffer-integration',['python3','scripts/hyper_integration.py',str(binary),'--threads','2'])\nbase=str(WORK/'rgnix-jemalloc')\ncmd=['sudo','-n','unshare','-n','bash','-c','ip link set lo up && exec \"$@\"','benchmark','python3','scripts/benchmark_compare.py','--rgnix',base,'--candidate',str(binary),'--nginx','/tmp/rgnix-compare-20260927/nginx/sbin/nginx','--openresty','/tmp/rgnix-compare-20260927/openresty/bin/openresty','--engines','rgnix','rgnix','candidate','candidate','nginx','nginx','--rgnix-transport','hyper','--candidate-transport','hyper','--plain-proxy','--cases','proxy-1k','proxy-16k','--workers','2','--concurrency','64','--rounds','3','--seconds','8','--warmup','3','--interleave','--client-threads','4','--client-cpus','2,3,4,5','--origin-workers','4','--origin-cpus','6,7,8,9','--server-cpus','10,11','--work-dir',str(WORK/'buffer-comparison'),'--output',str(WORK/'buffer-comparison.json')]\nrun('buffer-comparison',cmd)\nprint('COMPLETE',flush=True)\n",
+    "summarize.py": "import json, statistics\nfrom pathlib import Path\n\ndef summarize(data):\n    rows={}\n    for case in ('proxy-1k','proxy-16k'):\n        rows[case]={}\n        for engine in dict.fromkeys(r['engine'] for r in data['runs']):\n            runs=[r for r in data['runs'] if r['case']==case and r['engine']==engine]\n            groups=[[r for r in runs if r['round']==i] for i in (1,2,3)]\n            if not all(len(g)==2 for g in groups):continue\n            pairs=[200*abs(g[0]['rps']-g[1]['rps'])/(g[0]['rps']+g[1]['rps']) for g in groups]\n            cvs=[100*statistics.stdev(g[n]['rps'] for g in groups)/statistics.mean(g[n]['rps'] for g in groups) for n in (0,1)]\n            stats={k:{'median':statistics.median(r[k] for r in runs),'min':min(r[k] for r in runs),'max':max(r[k] for r in runs)} for k in ['rps','server_cpu_us_per_request','p99_ms','peak_pss_kib']}\n            rows[case][engine]={'calibration':{'passed':max(pairs+cvs)<=10 and all(r['errors']==0 for r in runs),'pairs_pct':pairs,'cvs_pct':cvs},'stats':stats,'requests':sum(r['requests'] for r in runs),'errors':sum(r['errors'] for r in runs)}\n    return rows\nif __name__=='__main__':\n    import sys\n    for file in sys.argv[1:]:\n        p=Path(file)\n        data=json.loads(p.read_text())\n        out=summarize(data)\n        p.with_name(p.stem+'-summary.json').write_text(json.dumps(out,indent=2)+'\\n')\n        print(p.name)\n        for case,engines in out.items():\n            for engine,r in engines.items():\n                s=r['stats']; c=r['calibration']\n                print(case,engine,'A/A',c['passed'],'RPS',round(s['rps']['median']),'CPU',round(s['server_cpu_us_per_request']['median'],2),'P99max',s['p99_ms']['max'],'PSSmaxMiB',round(s['peak_pss_kib']['max']/1024,2))\n",
+    "allocations.py": "#!/usr/bin/env python3\n\"\"\"Count libc copies and clocks for warmed HTTP/1 requests on Linux AArch64.\"\"\"\nimport argparse\nimport bisect\nimport collections\nimport ctypes\nimport hashlib\nimport http.client\nimport json\nimport os\nfrom pathlib import Path\nimport re\nimport signal\nimport subprocess\nimport time\n\nimport sys\nsys.path.insert(0, \"/Users/livesite/Documents/ChatGPT/rgnix/scripts\")\nfrom benchmark_compare import start, stop\nfrom integration import request, wait_for\n\n\ndef main():\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument(\"--profile\", type=Path, required=True, help=\"profile_http.py result with retained fixture paths\")\n    parser.add_argument(\"--matrix\", type=Path, required=True, help=\"benchmark JSON used by profile_http.py\")\n    parser.add_argument(\"--work-dir\", type=Path, required=True)\n    parser.add_argument(\"--engines\", nargs=\"+\", default=[\"hyper\", \"prototype\", \"pingora\"])\n    parser.add_argument(\"--binary\", type=Path, help=\"replace the product binary for a candidate run\")\n    args = parser.parse_args()\n    if os.uname().machine != \"aarch64\":\n        parser.error(\"probe return-address registers currently require Linux AArch64\")\n    profile = json.loads(args.profile.read_text())\n    matrix = json.loads(args.matrix.read_text())\n    selected = {r[\"engine\"]: r for r in profile[\"records\"] if r[\"engine\"] in args.engines}\n    if set(selected) != set(args.engines) or \"nginx\" in selected:\n        parser.error(\"engines must identify non-forking Rust processes in the profile\")\n    work = args.work_dir.resolve()\n    work.mkdir(parents=True, exist_ok=False)\n    fixture = args.profile.resolve().parent / \"fixture\"\n    ports = matrix[\"ports\"]\n    libc = str(args.binary.resolve())\n    group = f\"rgnix_http_{os.getpid()}\"\n    events = []\n    origin = server = recorder = None\n    result = {\"method\": \"Prefixed jemalloc allocation/reallocation entry uprobes for Rust GlobalAlloc. One connection, 10 warm and 500 status/body-validated requests. Background allocations included; internal jemalloc callers excluded to avoid nested API double counting. calloc assumes the verified Rust wrapper calloc(1,size). Requested bytes are cumulative, not live memory; not throughput evidence.\", \"records\": []}\n    try:\n        for kind in [\"malloc\", \"mallocx\", \"calloc\", \"realloc\", \"rallocx\"]:\n            register = \"x0\" if kind in [\"malloc\", \"mallocx\"] else \"x1\"\n            location = f\"_rjem_{kind} bytes=%{register}:u64 caller=%x30:x64\"\n            subprocess.run([\"perf\", \"probe\", \"-x\", libc, \"-a\", f\"{group}:{kind}={location}\"], check=True)\n            events.append(f\"{group}:{kind}\")\n        origin = start([\"taskset\", \"-c\", matrix[\"settings\"][\"origin_cpus\"], profile[\"binaries\"][\"origin\"][\"path\"], \"-p\", str(fixture / \"origin\"), \"-c\", str(fixture / \"origin/nginx.conf\"), \"-g\", \"daemon off;\"], work / \"origin.log\")\n        wait_for(lambda: request(ports[\"primary\"], \"/proxy-1k\")[0], 200)\n        for engine, previous in selected.items():\n            binary = profile[\"binaries\"][engine][\"path\"]\n            command = previous[\"server_command\"][:]\n            if args.binary and engine in [\"hyper\", \"pingora\"]:\n                replacement = str(args.binary.resolve())\n                command = [replacement if value == binary else value for value in command]\n                binary = replacement\n            server = start(command, work / f\"{engine}.log\")\n            wait_for(lambda: request(ports[\"http\"], \"/proxy-1k\")[0], 200)\n            connection = http.client.HTTPConnection(\"127.0.0.1\", ports[\"http\"], timeout=15)\n            def send():\n                connection.request(\"GET\", \"/proxy-1k\", headers={\"Host\": \"localhost\"})\n                response = connection.getresponse()\n                assert response.status == 200 and response.read() == b\"x\" * 1024\n            for _ in range(10):\n                send()\n            maps = Path(f\"/proc/{server.pid}/maps\").read_text()\n            offset = min(int(line.split(\"-\")[0], 16) - int(line.split()[2], 16)\n                         for line in maps.splitlines() if line.endswith(binary))\n            data = work / f\"{engine}.data\"\n            recorder = subprocess.Popen([\"perf\", \"record\", \"-e\", \",\".join(events), \"-p\", str(server.pid), \"-o\", str(data)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)\n            time.sleep(0.2)\n            if recorder.poll() is not None:\n                raise RuntimeError(recorder.communicate()[1])\n            for _ in range(500):\n                send()\n            recorder.send_signal(signal.SIGINT)\n            _, diagnostic = recorder.communicate(timeout=15)\n            assert recorder.returncode in [0, -signal.SIGINT], diagnostic\n            recorder = None\n            connection.close()\n            stop(server); server = None\n            symbols = []\n            for line in subprocess.check_output([\"nm\", \"-nC\", binary], text=True).splitlines():\n                match = re.match(r\"^([0-9a-f]+) [tTwW] (.+)$\", line)\n                if match:\n                    symbols.append((int(match[1], 16), match[2]))\n            addresses = [address for address, _ in symbols]\n            counts, sizes, copies, clocks = (collections.Counter() for _ in range(4))\n            decode = subprocess.run([\"perf\", \"script\", \"-i\", str(data), \"-F\", \"comm,pid,tid,time,event,trace\"], text=True, capture_output=True, check=True)\n            if \"lost\" in decode.stderr.lower():\n                raise RuntimeError(decode.stderr)\n            decoded = decode.stdout\n            for line in decoded.splitlines():\n                event = re.search(group + r\":(\\w+):\", line)\n                if not event:\n                    continue\n                kind = event[1]\n                values = dict(re.findall(r\"(bytes|caller)=(0x[0-9a-f]+|[0-9]+)\", line))\n                address = int(values[\"caller\"], 0) - offset\n                position = bisect.bisect_right(addresses, address) - 1\n                symbol = symbols[position][1] if position >= 0 and 0 <= address - symbols[position][0] < 1_000_000 else \"outside-main-binary\"\n                if symbol.startswith((\"_rjem_\", \"je_\")):\n                    continue\n                counts[kind] += 1\n                if kind == \"clock\":\n                    clocks[symbol] += 1\n                else:\n                    size = int(values[\"bytes\"], 0)\n                    sizes[size] += 1\n                    copies[symbol] += size\n            result[\"records\"].append({\"engine\": engine, \"binary\": binary, \"sha256\": hashlib.sha256(Path(binary).read_bytes()).hexdigest(), \"requests\": 500, \"events\": dict(counts), \"requested_bytes\": sum(size * count for size, count in sizes.items()), \"sizes\": dict(sizes), \"requested_bytes_by_caller\": dict(copies.most_common()), \"perf_script_diagnostics\": decode.stderr, \"record_output\": diagnostic, \"server_command\": command})\n            print(engine, dict(counts), \"requested bytes/request\", sum(size * count for size, count in sizes.items()) / 500, flush=True)\n    finally:\n        if recorder and recorder.poll() is None:\n            recorder.send_signal(signal.SIGINT)\n            recorder.communicate(timeout=15)\n        stop(server); stop(origin)\n        for event in reversed(events):\n            subprocess.run([\"perf\", \"probe\", \"-d\", event], check=True)\n        (work / \"result.json\").write_text(json.dumps(result, indent=2) + \"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+    "soak.py": "import json,os,sys,time\nfrom pathlib import Path\nfrom types import SimpleNamespace\nsys.path.insert(0,'/Users/livesite/Documents/ChatGPT/rgnix/scripts')\nfrom benchmark_compare import start,stop,measure,tree_stats,preflight\nfrom integration import request,wait_for\nwork=Path('/var/tmp/rgnix-allocator-20260928')\nmatrix=json.loads((work/'buffer-comparison.json').read_text())\nassert matrix.get('completed_at')\nfixture=Path(matrix['settings']['work_dir'])\nports=matrix['ports']\nargs=SimpleNamespace(wrk='wrk',client_threads=4,client_cpus='2,3,4,5',connection_close=False)\norigin=server=None\nresult={'method':'Two-worker c64; 10s warmup then six alternating 20s 1/16KiB windows in one proxy process. Idle memory after 15s. Short soak, not long-term leak or production-capacity certification.','runs':[]}\ntry:\n origin=start(['taskset','-c','6,7,8,9',matrix['binaries']['openresty']['path'],'-p',str(fixture/'origin'),'-c',str(fixture/'origin/nginx.conf'),'-g','daemon off;'],work/'soak-origin.log')\n wait_for(lambda:request(ports['primary'],'/proxy-1k')[0],200)\n server=start(['taskset','-c','10,11',str(work/'rgnix-buffer'),'serve','-c',str(fixture/'rgnix/nginx.conf'),'--admin',f\"127.0.0.1:{ports['admin']}\",'--threads','2','--experimental-hyper','--upstream-keepalive-pool-size','128','--max-inflight','4096','--shutdown-grace-seconds','0','--shutdown-timeout-seconds','5'],work/'soak-server.log')\n wait_for(lambda:request(ports['admin'],'/readyz')[0],200)\n result['preflight']=preflight('rgnix',ports,True)\n (work/'soak-maps.txt').write_text(Path(f'/proc/{server.pid}/maps').read_text())\n # Rust uses the statically linked prefixed allocator; no interposition is active.\n result['ld_preload_present']=b'LD_PRELOAD=' in Path(f'/proc/{server.pid}/environ').read_bytes()\n warm=measure(args,f\"http://127.0.0.1:{ports['http']}/proxy-1k\",fixture/'wrk-proxy-1k.lua',64,10,server,origin)\n assert warm['errors']==0 and warm['requests']>0\n result['after_warmup']=tree_stats(server.pid)\n for i in range(6):\n  case=['proxy-1k','proxy-16k'][i%2]\n  run=measure(args,f\"http://127.0.0.1:{ports['http']}/{case}\",fixture/f'wrk-{case}.lua',64,20,server,origin)\n  run.update(case=case,post_window=tree_stats(server.pid))\n  result['runs'].append(run)\n  (work/'soak.json').write_text(json.dumps(result,indent=2)+'\\n')\n  assert run['errors']==0 and run['requests']>0\n  print(i+1,case,run['requests'],'errors',run['errors'],'PSS MiB',run['post_window']['pss_kib']/1024,flush=True)\n time.sleep(15)\n result['after_idle']=tree_stats(server.pid)\n result['completed']=True\nfinally:\n stop(server);stop(origin)\n (work/'soak.json').write_text(json.dumps(result,indent=2)+'\\n')\n"
+  },
+  "logs": {
+    "build-allocator": "    Updating crates.io index\n     Locking 2 packages to latest Rust 1.90 compatible versions\n      Adding tikv-jemalloc-sys v0.6.1+5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7\n      Adding tikv-jemallocator v0.6.1 (available: v0.7.0)\n   Compiling tikv-jemalloc-sys v0.6.1+5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7\n   Compiling tikv-jemallocator v0.6.1\n   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 2m 57s\n",
+    "hyper-integration": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 2,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n",
+    "pingora-integration": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"pingora\",\n  \"threads\": 1,\n  \"passed\": 42,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n",
+    "integration": "compiled /tmp/rgnix-acceptance-9jx7pfyq/routes.rgl -> /tmp/rgnix-acceptance-9jx7pfyq/routes.wasm (780 bytes)\nconfiguration valid: 2 listeners, 2 virtual hosts, 8 backends\nPASS script aliases reject upstreams with conflicting transport protocols\nPASS configuration rejects invalid body modes, limits and timeouts\nPASS header variables retain the last valid repeated value\nPASS static GET\nPASS static HEAD\nPASS static small and streamed files preserve lengths, ranges and conditional responses across file changes\nPASS atomic file replacement and ranges remain fresh across persistent requests\nPASS static single range\nPASS unsatisfiable range\nPASS conditional GET\nPASS If-Range HTTP date retains partial response\nPASS directory redirect and index\nPASS symlink containment\nPASS contained symlink still serves a regular file\nPASS FIFO files and indexes cannot exhaust the static file pool\nPASS path traversal rejection\nPASS proxy_pass URI replacement\nPASS large header sets preserve duplicates and isolate keepalive requests\nPASS proxy_pass preserves original URI\nPASS IPv6 upstream\nPASS trusted HTTPS upstream\nPASS HTTPS upstream rejects hostname mismatch\nPASS HTTPS upstream rejects untrusted certificate\nPASS Connection cannot remove framing or Host\nPASS inherited response header\nPASS streaming request body\nPASS valid chunked request keeps its connection reusable\nPASS TE plus Content-Length cannot re-enable connection reuse\nPASS HTTP/1.0 without keep-alive closes after the response\nPASS request body limit\nPASS chunked HTTP body limit\nPASS chunked HTTP body limit before a requested WebSocket upgrade\nPASS compiled request and response hooks\nPASS query-only edits preserve raw paths and can clear the query\nPASS query edits retain proxy URI replacement and explicit path rewrites\nPASS compiled Wasm artifact loads independently\nPASS static plugin redirect preserves literal percent and rewritten query\nPASS informational responses do not consume the final response hook\nPASS plugin direct response\nPASS superseded plugin decisions fail instead of selecting another backend\nPASS script backend alias preserves HTTPS and forwarded headers\nPASS script HTTPS backend still verifies certificates\nPASS fuel limits infinite loops\nPASS trapped request-only hook retains client identity in access logs\nPASS response hook failure returns 500 without staged edits\nPASS upstream disconnect never replays POST\nPASS upstream read timeout returns 504\nPASS TLS listener\nPASS HTTP/2 negotiation\nPASS JSON body routes to the selected HTTPS backend without changing bytes\nPASS JSON routing is isolated between requests\nPASS invalid JSON, incomplete JSON and non-string fields do not match\nPASS full inspection can replay bodies larger than Pingora's original 64 KiB buffer\nPASS prefix inspection routes binary uploads and preserves the entire body\nPASS body byte metrics count prefix replay once and inspection only includes the prefix\nPASS content beyond the configured prefix cannot influence routing\nPASS a closed JSON object in a truncated prefix is not treated as complete JSON\nPASS short prefix-inspected bodies may use JSON routing when fully read\nPASS UTF-8 cut at the prefix boundary is nil as text but searchable as bytes\nPASS body inspection remains opt-in\nPASS full inspection rejects oversized known-length bodies\nPASS fragmented and chunked prefix uploads replay once and keep the next request aligned\nPASS full inspection rejects oversized chunked bodies before proxying\nPASS prefix decisions do not wait for the tail; incomplete prefixes have a total timeout\nPASS Expect 100-continue works before inspection without a second upstream expectation\nPASS HTTP/2 full and prefix routing preserve the original body\nPASS body inspection does not enable upstream POST retries\nPASS cancelled body inspection leaves the service available\nPASS in-flight body inspection retains its policy across reload\nPASS SSE first event is streamed\nPASS WebSocket upgrade and bidirectional frames\nPASS WebSocket streams beyond the HTTP body limit (3 MiB)\nPASS WebSocket close frame survives the long stream\nPASS reload keeps in-flight snapshot\nPASS invalid reload retains active configuration\nPASS compiler rejects a flat expression with excessive AST depth\nPASS deep AST reload cannot abort the data plane\nPASS plugin budget rejects excess instances while plain routes work\nPASS inflight budget sheds requests without blocking admin\nPASS live gauges show occupied process, plugin and backend permits\nPASS completed requests release resource permits\nPASS live metrics release permits after requests finish\nPASS request-only hooks release the plugin budget before a slow upstream completes\nPASS single endpoint still ejects failed connections without retrying\nPASS failed endpoint is excluded without replaying its requests\nPASS excluded endpoint re-enters rotation after cooldown\nPASS single endpoint also recovers after cooldown\nPASS repeated SIGINT exits all listener workers without spinning on a stopped reactor\nPASS metrics are exposed\nPASS client cancellation preserves service\nPASS drain removes readiness while health stays live\nPASS drain finishes the next keepalive request and advertises Connection close\nPASS established WebSocket remains usable during drain\nPASS failed controller is neither healthy nor ready\n94 integration checks passed; .local/acceptance.json\n",
+    "build-buffer": "   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n   Compiling rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `release` profile [optimized] target(s) in 2m 45s\n",
+    "hyper-unit": "   Compiling slab v0.4.12\n   Compiling tokio-util v0.7.19\n   Compiling futures-util v0.3.34\n   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\nerror[E0432]: unresolved import `super::super::Compat`\n   --> src/common/io/rewind.rs:118:9\n    |\n118 |     use super::super::Compat;\n    |         ^^^^^^^^^^^^^^^^^^^^ no `Compat` in `common::io`\n    |\nnote: found an item that was configured out\n   --> src/common/io/mod.rs:6:30\n    |\n  5 | #[cfg(all(any(feature = \"client\", feature = \"server\"), feature = \"http2\"))]\n    |                                                        ----------------- the item is gated behind the `http2` feature\n  6 | pub(crate) use self::compat::Compat;\n    |                              ^^^^^^\n\nerror[E0432]: unresolved import `crate::common::io::Compat`\n    --> src/proto/h1/conn.rs:1294:9\n     |\n1294 |     use crate::common::io::Compat;\n     |         ^^^^^^^^^^^^^^^^^^^^^^^^^ no `Compat` in `common::io`\n     |\nnote: found an item that was configured out\n    --> src/common/io/mod.rs:6:30\n     |\n   5 | #[cfg(all(any(feature = \"client\", feature = \"server\"), feature = \"http2\"))]\n     |                                                        ----------------- the item is gated behind the `http2` feature\n   6 | pub(crate) use self::compat::Compat;\n     |                              ^^^^^^\n\nerror[E0432]: unresolved import `crate::common::io::Compat`\n   --> src/proto/h1/dispatch.rs:790:9\n    |\n790 |     use crate::common::io::Compat;\n    |         ^^^^^^^^^^^^^^^^^^^^^^^^^ no `Compat` in `common::io`\n    |\nnote: found an item that was configured out\n   --> src/common/io/mod.rs:6:30\n    |\n  5 | #[cfg(all(any(feature = \"client\", feature = \"server\"), feature = \"http2\"))]\n    |                                                        ----------------- the item is gated behind the `http2` feature\n  6 | pub(crate) use self::compat::Compat;\n    |                              ^^^^^^\n\nerror[E0432]: unresolved import `crate::common::io::Compat`\n   --> src/proto/h1/io.rs:674:9\n    |\n674 |     use crate::common::io::Compat;\n    |         ^^^^^^^^^^^^^^^^^^^^^^^^^ no `Compat` in `common::io`\n    |\nnote: found an item that was configured out\n   --> src/common/io/mod.rs:6:30\n    |\n  5 | #[cfg(all(any(feature = \"client\", feature = \"server\"), feature = \"http2\"))]\n    |                                                        ----------------- the item is gated behind the `http2` feature\n  6 | pub(crate) use self::compat::Compat;\n    |                              ^^^^^^\n\nerror[E0432]: unresolved import `crate::common::io::Compat`\n    --> src/proto/h1/conn.rs:1241:13\n     |\n1241 |         use crate::common::io::Compat;\n     |             ^^^^^^^^^^^^^^^^^^^^^^^^^ no `Compat` in `common::io`\n     |\nnote: found an item that was configured out\n    --> src/common/io/mod.rs:6:30\n     |\n   5 | #[cfg(all(any(feature = \"client\", feature = \"server\"), feature = \"http2\"))]\n     |                                                        ----------------- the item is gated behind the `http2` feature\n   6 | pub(crate) use self::compat::Compat;\n     |                              ^^^^^^\nhelp: consider importing this unresolved item through its public re-export instead\n     |\n1241 -         use crate::common::io::Compat;\n1241 +         use crate::proto::h1::conn::tests::Compat;\n     |\n\nerror[E0433]: failed to resolve: could not find `Compat` in `io`\n    --> src/proto/h1/decode.rs:1013:42\n     |\n1013 |         let mut ins = crate::common::io::Compat::new(if block_at == 0 {\n     |                                          ^^^^^^ could not find `Compat` in `io`\n     |\nnote: found an item that was configured out\n    --> src/common/io/mod.rs:6:30\n     |\n   5 | #[cfg(all(any(feature = \"client\", feature = \"server\"), feature = \"http2\"))]\n     |                                                        ----------------- the item is gated behind the `http2` feature\n   6 | pub(crate) use self::compat::Compat;\n     |                              ^^^^^^\n\nerror[E0412]: cannot find type `Compat` in module `crate::common::io`\n   --> src/upgrade.rs:385:44\n    |\n385 |             .downcast::<crate::common::io::Compat<std::io::Cursor<Vec<u8>>>>()\n    |                                            ^^^^^^ not found in `crate::common::io`\n    |\nnote: found an item that was configured out\n   --> src/common/io/mod.rs:6:30\n    |\n  5 | #[cfg(all(any(feature = \"client\", feature = \"server\"), feature = \"http2\"))]\n    |                                                        ----------------- the item is gated behind the `http2` feature\n  6 | pub(crate) use self::compat::Compat;\n    |                              ^^^^^^\n\nSome errors have detailed explanations: E0412, E0432, E0433.\nFor more information about an error, try `rustc --explain E0412`.\nerror: could not compile `hyper` (lib test) due to 7 previous errors\n",
+    "hyper-unit-full": "   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.09s\n     Running unittests src/lib.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/hyper-a76e6d61980e25e3)\n\nrunning 124 tests\ntest body::incoming::tests::channel_abort ... ok\ntest body::incoming::tests::channel_buffers_one ... ok\ntest body::incoming::tests::channel_notices_closure ... ok\ntest body::incoming::tests::channel_ready ... ok\ntest body::incoming::tests::channel_abort_when_buffer_is_full ... ok\ntest body::incoming::tests::channel_empty ... ok\ntest body::incoming::tests::test_size_of ... ok\ntest client::conn::http2::tests::not_send_not_sync_executor_of_not_send_futures ... ignored\ntest client::conn::http2::tests::send_not_sync_executor_of_not_send_futures ... ignored\ntest client::conn::http2::tests::send_not_sync_executor_of_send_futures ... ignored\ntest client::conn::http2::tests::send_sync_executor_of_non_send_futures ... ignored\ntest client::conn::http2::tests::send_sync_executor_of_send_futures ... ignored\ntest body::length::tests::sub_if_chunked ... ok\ntest body::incoming::tests::channel_wanter ... ok\ntest body::incoming::tests::size_hint ... ok\ntest body::length::tests::sub_if_known ... ok\ntest client::dispatch::tests::unbounded_sender_doesnt_bound_on_want ... ok\ntest client::dispatch::tests::sender_checks_for_want_on_send ... ok\ntest common::buf::tests::one_long_buf_to_bytes ... ok\ntest common::buf::tests::buf_to_bytes_too_many - should panic ... ok\ntest common::buf::tests::to_bytes_shorter ... ok\ntest client::dispatch::tests::drop_receiver_sends_cancel_errors ... ok\ntest error::tests::error_size_of ... ok\ntest error::tests::h2_reason_nested ... ok\ntest error::tests::h2_reason_one_level ... ok\ntest error::tests::h2_reason_unknown ... ok\ntest ext::h1_reason_phrase::tests::basic_valid ... ok\ntest common::buf::tests::to_bytes_eq ... ok\ntest common::date::tests::test_date_len ... ok\ntest ext::h1_reason_phrase::tests::cr_invalid_panic - should panic ... ok\ntest ext::h1_reason_phrase::tests::empty_valid ... ok\ntest common::io::rewind::tests::partial_rewind ... ok\ntest ext::h1_reason_phrase::tests::newline_invalid_err ... ok\ntest ext::h1_reason_phrase::tests::obs_text_valid ... ok\ntest ext::h1_reason_phrase::tests::newline_invalid_panic - should panic ... ok\ntest headers::tests::te_is_trailers_accepts_multiple_header_lines ... ok\ntest headers::tests::te_is_trailers_accepts_comma_separated_values ... ok\ntest proto::h1::conn::tests::client_rejects_eof_while_busy ... ok\ntest common::io::rewind::tests::full_rewind ... ok\ntest headers::tests::te_is_trailers_rejects_missing_trailers_token ... ok\ntest proto::h1::conn::tests::client_request_connection_close_disables_keep_alive ... ok\ntest proto::h1::conn::tests::closed_conn_cannot_read_or_write ... ok\ntest common::buf::tests::to_bytes_longer ... ok\ntest proto::h1::conn::tests::conn_reads_partial_request_head ... ok\ntest proto::h1::conn::tests::conn_reads_body_and_reports_end ... ok\ntest proto::h1::conn::tests::conn_reads_empty_response_before_eof ... ok\ntest proto::h1::conn::tests::conn_reads_request_head ... ok\ntest proto::h1::conn::tests::server_accepts_eof_while_busy ... ok\ntest proto::h1::decode::tests::test_decode_trailers_preserves_duplicate_values ... ok\ntest ext::h1_reason_phrase::tests::cr_invalid_err ... ok\ntest proto::h1::decode::tests::test_decode_trailers ... ok\ntest proto::h1::conn::tests::conn_writes_chunked_body ... ok\ntest error::tests::error_satisfies_send_sync ... ok\ntest proto::h1::conn::tests::conn_accepts_eof_when_idle ... ok\ntest proto::h1::decode::tests::test_read_chunked_after_eof ... ok\ntest proto::h1::decode::tests::test_read_chunk_size ... ok\ntest proto::h1::decode::tests::test_read_chunked_early_eof ... ok\ntest proto::h1::conn::tests::conn_rejects_eof_during_partial_head ... ok\ntest proto::h1::decode::tests::test_read_chunked_trailer_with_missing_lf ... ok\ntest proto::h1::decode::tests::test_read_chunked_with_missing_zero_digit ... ok\ntest proto::h1::decode::tests::test_read_sized_early_eof ... ok\ntest proto::h1::decode::tests::test_read_chunked_single_read ... ok\ntest proto::h1::decode::tests::test_trailer_max_header_size_many_small_trailers ... ok\ntest proto::h1::decode::tests::test_trailer_max_header_size_huge_trailer ... ok\ntest proto::h1::dispatch::tests::client_read_bytes_before_writing_request ... ok\ntest proto::h1::dispatch::tests::body_empty_chunks_ignored ... ok\ntest proto::h1::encode::tests::chunked ... ok\ntest proto::h1::decode::tests::test_trailer_max_headers_allows_exact_limit ... ok\ntest proto::h1::dispatch::tests::partial_small_response_preserves_immediate_streaming ... ok\ntest proto::h1::dispatch::tests::client_flushing_is_not_ready_for_next_request ... ok\ntest proto::h1::encode::tests::chunked_trailers_case_insensitive_matching ... ok\ntest proto::h1::decode::tests::test_trailer_max_headers_enforced ... ok\ntest proto::h1::encode::tests::chunked_with_multiple_trailer_headers ... ok\ntest proto::h1::encode::tests::chunked_with_duplicate_trailer_values ... ok\ntest proto::h1::encode::tests::chunked_with_invalid_trailers ... ok\ntest proto::h1::encode::tests::chunked_with_no_trailer_header ... ok\ntest proto::h1::io::tests::iobuf_write_empty_slice ... ignored\ntest proto::h1::encode::tests::eof ... ok\ntest proto::h1::encode::tests::chunked_with_valid_trailers ... ok\ntest proto::h1::encode::tests::length ... ok\ntest proto::h1::encode::tests::chunked_with_title_case_headers ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_increments ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_decrements ... ok\ntest proto::h1::io::tests::parse_reads_until_blocked ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_stays_the_same ... ok\ntest proto::h1::io::tests::read_strategy_adaptive_max_fuzz ... ok\ntest proto::h1::io::tests::write_buf_flatten ... ok\ntest proto::h1::io::tests::write_buf_flatten_partially_flushed ... ok\ntest proto::h1::io::tests::write_buf_queue_disable_auto ... ok\ntest proto::h1::role::tests::test_client_request_encode_orig_case ... ok\ntest proto::h1::role::tests::test_client_request_encode_title_case ... ok\ntest proto::h1::role::tests::test_disabled_date_header ... ok\ntest proto::h1::role::tests::parse_header_htabs ... ok\ntest proto::h1::io::tests::write_buf_requires_non_empty_bufs - should panic ... ok\ntest proto::h1::role::tests::test_decoder_response ... ok\ntest proto::h1::role::tests::test_client_request_encode_orig_and_title_case ... ok\ntest proto::h1::role::tests::test_parse_accepts_lf_crlf_terminator ... ok\ntest proto::h1::role::tests::test_is_complete_fast ... ok\ntest proto::h1::dispatch::tests::buffered_response_consumption_and_connection_reuse ... ok\ntest proto::h1::role::tests::test_parse_reject_request_with_multiple_spaces_in_request_line ... ok\ntest proto::h1::decode::tests::test_read_chunked_extensions_over_limit ... ok\ntest proto::h1::role::tests::test_parse_preserve_header_case_in_request ... ok\ntest proto::h1::role::tests::test_parse_allow_request_with_multiple_spaces_in_request_line ... ok\ntest proto::h1::role::tests::test_parse_request_errors ... ok\ntest proto::h1::role::tests::test_decoder_request ... ok\ntest proto::h1::role::tests::test_parse_response ... ok\ntest proto::h1::role::tests::test_parse_allow_response_with_spaces_before_colons ... ok\ntest proto::h1::role::tests::test_parse_reject_response_with_spaces_before_colons ... ok\ntest proto::h1::role::tests::test_client_obs_fold_line ... ok\ntest proto::h1::role::tests::test_parse_response_h09_allowed ... ok\ntest proto::h1::role::tests::test_parse_response_h09_rejected ... ok\ntest proto::h1::role::tests::test_parse_request ... ok\ntest proto::h1::role::tests::test_server_encode_connect_method ... ok\ntest proto::h1::role::tests::test_server_response_encode_orig_and_title_case ... ok\ntest proto::h1::role::tests::test_server_response_encode_orig_case ... ok\ntest proto::h1::role::tests::test_server_response_encode_title_case ... ok\ntest upgrade::tests::upgraded_downcast ... ok\ntest proto::h1::role::tests::test_write_headers_orig_case_multiple_entries ... ok\ntest proto::h1::role::tests::test_write_headers_orig_case_empty_value ... ok\ntest proto::h1::role::tests::parse_too_large_headers ... ok\ntest proto::h1::io::tests::retained_frames_survive_mixed_size_reads ... ok\ntest proto::h1::decode::tests::test_read_length_async ... ok\ntest proto::h1::decode::tests::test_read_eof_async ... ok\ntest proto::h1::decode::tests::test_read_chunked_async ... ok\n\ntest result: ok. 118 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 0.26s\n\n",
+    "client-unit": "   Compiling hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n   Compiling hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\nwarning: unused attribute\n    --> src/client/legacy/connect/http.rs:1167:66\n     |\n1167 |     #[cfg_attr(not(feature = \"__internal_happy_eyeballs_tests\"), ignore)]\n     |                                                                  ^^^^^^ help: remove this attribute\n     |\nnote: attribute also specified here\n    --> src/client/legacy/connect/http.rs:1166:5\n     |\n1166 |     #[ignore] // TODO\n     |     ^^^^^^^^^\n     = note: `#[warn(unused_attributes)]` on by default\n\nwarning: `hyper-util` (lib test) generated 1 warning (run `cargo fix --lib -p hyper-util --tests` to apply 1 suggestion)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.53s\n     Running unittests src/lib.rs (/home/livesite/.cache/rgnix-opt-target/debug/deps/hyper_util-db9cf066df4a4cdb)\n\nrunning 63 tests\ntest client::legacy::connect::http::tests::client_happy_eyeballs ... ignored\ntest client::legacy::connect::http::tests::interface ... ignored, setting `SO_BINDTODEVICE` requires the `CAP_NET_RAW` capability (works when running as root)\ntest client::legacy::connect::dns::tests::test_name_from_str ... ok\ntest client::legacy::connect::capture::test::test_sync_capture_connection ... ok\ntest client::legacy::connect::capture::test::capture_connection_sender_side_dropped ... ok\ntest client::legacy::connect::capture::test::async_capture_connection ... ok\ntest client::legacy::connect::http::tests::tcp_keepalive_retries_config ... ok\ntest client::legacy::connect::http::tests::tcp_keepalive_time_config ... ok\ntest client::legacy::connect::dns::tests::test_ip_addrs_split_by_preference ... ok\ntest client::legacy::connect::http::tests::no_tcp_keepalive_config ... ok\ntest client::legacy::pool::tests::pooled_drop_if_closed_doesnt_reinsert ... ok\ntest client::legacy::connect::tests::test_connected_extra_chain ... ok\ntest client::legacy::connect::http::tests::test_errors_missing_scheme ... ok\ntest client::legacy::connect::http::tests::test_errors_enforce_http ... ok\ntest client::legacy::connect::http::tests::test_set_port ... ok\ntest client::legacy::connect::http::tests::local_address ... ok\ntest client::legacy::pool::tests::test_pool_checkout_drop_cleans_up_waiters ... ok\ntest client::legacy::connect::http::tests::tcp_keepalive_interval_config ... ok\ntest client::legacy::pool::tests::test_pool_max_idle_per_host ... ok\ntest client::legacy::pool::tests::test_pool_checkout_smoke ... ok\ntest client::legacy::pool::tests::test_pool_checkout_task_unparked ... ok\ntest client::legacy::connect::tests::test_connected_extra ... ok\ntest client::pool::map::tests::smoke ... ok\ntest client::pool::cache::tests::test_reuses_after_idle ... ok\ntest client::pool::negotiate::tests::not_negotiated_falls_back_to_left ... ok\ntest client::pool::singleton::tests::cancel_waiter_does_not_affect_others ... ok\ntest client::pool::negotiate::tests::negotiated_uses_right ... ok\ntest client::pool::singleton::tests::cached_service_poll_ready_error_clears_singleton ... ok\ntest client::pool::singleton::tests::cancel_driver_cancels_all ... ok\ntest client::pool::singleton::tests::first_call_drives_subsequent_wait ... ok\ntest client::legacy::pool::tests::test_pool_timer_removes_expired_faketime ... ok\ntest client::pool::cache::tests::test_makes_svc_when_empty ... ok\ntest client::pool::singleton::tests::made_state_returns_immediately ... ok\ntest client::proxy::matcher::tests::test_domain_matcher_case_insensitive ... ok\ntest client::proxy::matcher::tests::test_no_proxy_wildcard ... ok\ntest client::proxy::matcher::tests::test_dont_parse_http_when_is_cgi ... ok\ntest client::proxy::matcher::tests::test_parse_http_auth ... ok\ntest client::proxy::matcher::tests::test_parse_http_auth_without_password ... ok\ntest client::proxy::matcher::tests::test_all_proxy ... ok\ntest client::proxy::matcher::tests::test_parse_http_auth_without_scheme ... ok\ntest client::proxy::matcher::tests::test_parse_no_scheme_defaults_to_http ... ok\ntest client::proxy::matcher::tests::test_specific_overrides_all ... ok\ntest client::proxy::matcher::tests::test_no_proxy_case_insensitive ... ok\ntest client::proxy::matcher::tests::test_domain_matcher ... ok\ntest client::proxy::matcher::tests::test_no_proxy_ip_ranges ... ok\ntest server::conn::auto::tests::configuration ... ok\ntest rt::tokio::tests::simple_execute ... ok\ntest server::conn::auto::tests::graceful_shutdown ... ok\ntest server::conn::auto::tests::preserve_header_case_configuration ... ok\ntest server::conn::auto::tests::title_case_headers_configuration ... ok\ntest server::conn::auto::tests::http1_only ... ok\ntest server::conn::auto::tests::http1 ... ok\ntest server::conn::auto::tests::http2_only_fail_if_client_is_http1 ... ok\ntest server::conn::auto::tests::http2_only ... ok\ntest server::conn::auto::tests::http2 ... ok\ntest server::conn::auto::tests::http1_only_fail_if_client_is_http2 ... ok\ntest server::graceful::test::test_graceful_shutdown_ok ... ok\ntest client::legacy::pool::tests::test_pool_checkout_removes_expired ... ok\ntest client::legacy::pool::tests::test_pool_checkout_returns_none_if_expired ... ok\ntest server::graceful::test::test_graceful_shutdown_timeout ... ok\ntest client::legacy::pool::tests::test_pool_timer_removes_expired_realtime ... ok\ntest server::graceful::test::test_graceful_shutdown_delayed_ok ... ok\ntest server::graceful::test::test_graceful_shutdown_multi_per_watcher_ok ... ok\n\ntest result: ok. 61 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.16s\n\n",
+    "buffer-integration": "PASS Connection cannot strip routing or framing headers\nPASS exact route and configured response header\nPASS prepared exact and prefix routes with the same path stay distinct\nPASS virtual host selects its route\nPASS URI replacement preserves query and variable expansion\nPASS proxy_pass without URI preserves raw target\nPASS selective context capture preserves all forwarded headers\nPASS variables retain original duplicate and UTF-8 header semantics\nPASS selective context retains X-Tenant rate keys\nPASS selective context retains Cookie rate keys\nPASS prefix trailing slash redirect\nPASS HEAD preserves response length without body\nPASS fixed-length body limit\nPASS chunked body limit\nPASS 8 MiB streaming POST is intact\nPASS OTLP exports linked server and client spans with the inherited parent\nPASS W3C propagation uses the exported client span\nPASS OTLP access logs correlate with the server span\nPASS ongoing upload progress extends the upstream read deadline\nPASS upstream header timeout\nPASS upstream timeout after headers terminates incomplete stream\nPASS route rate limiter\nPASS POST is never replayed after origin commit disconnect\nPASS keepalive expires an idle connection\nPASS socket completion and guard drop count each response once\nPASS pipelined responses finish once and release permits\nPASS process budget rejects a third active request\nPASS backend budget rejects excess work without blocking local responses\nPASS upstream write stall returns a gateway timeout\nPASS response streams before origin completes\nPASS request budget remains held after response headers\nPASS route concurrency permit remains held\nPASS reload publishes prepared request headers with the new snapshot\nPASS old request retains snapshot across reload\nPASS old stream completes after reload\nPASS client cancellation releases request and backend budgets\nPASS unsupported reload preserves active valid snapshot\nPASS unsupported Upgrade fails explicitly\nPASS rollback rebuilds prepared clients and headers from retained history\nPASS selective context capture retains access log request metadata\nPASS completion logs include route/config and W3C identifiers\nPASS request and upstream failure metrics are recorded\nPASS all request and backend permits return to zero\nPASS graceful shutdown lets an admitted stream finish\nPASS graceful shutdown exits within the drain deadline\n{\n  \"transport\": \"hyper\",\n  \"threads\": 2,\n  \"passed\": 45,\n  \"checks\": [\n    \"Connection cannot strip routing or framing headers\",\n    \"exact route and configured response header\",\n    \"prepared exact and prefix routes with the same path stay distinct\",\n    \"virtual host selects its route\",\n    \"URI replacement preserves query and variable expansion\",\n    \"proxy_pass without URI preserves raw target\",\n    \"selective context capture preserves all forwarded headers\",\n    \"variables retain original duplicate and UTF-8 header semantics\",\n    \"selective context retains X-Tenant rate keys\",\n    \"selective context retains Cookie rate keys\",\n    \"prefix trailing slash redirect\",\n    \"HEAD preserves response length without body\",\n    \"fixed-length body limit\",\n    \"chunked body limit\",\n    \"8 MiB streaming POST is intact\",\n    \"OTLP exports linked server and client spans with the inherited parent\",\n    \"W3C propagation uses the exported client span\",\n    \"OTLP access logs correlate with the server span\",\n    \"ongoing upload progress extends the upstream read deadline\",\n    \"upstream header timeout\",\n    \"upstream timeout after headers terminates incomplete stream\",\n    \"route rate limiter\",\n    \"POST is never replayed after origin commit disconnect\",\n    \"keepalive expires an idle connection\",\n    \"socket completion and guard drop count each response once\",\n    \"pipelined responses finish once and release permits\",\n    \"process budget rejects a third active request\",\n    \"backend budget rejects excess work without blocking local responses\",\n    \"upstream write stall returns a gateway timeout\",\n    \"response streams before origin completes\",\n    \"request budget remains held after response headers\",\n    \"route concurrency permit remains held\",\n    \"reload publishes prepared request headers with the new snapshot\",\n    \"old request retains snapshot across reload\",\n    \"old stream completes after reload\",\n    \"client cancellation releases request and backend budgets\",\n    \"unsupported reload preserves active valid snapshot\",\n    \"unsupported Upgrade fails explicitly\",\n    \"rollback rebuilds prepared clients and headers from retained history\",\n    \"selective context capture retains access log request metadata\",\n    \"completion logs include route/config and W3C identifiers\",\n    \"request and upstream failure metrics are recorded\",\n    \"all request and backend permits return to zero\",\n    \"graceful shutdown lets an admitted stream finish\",\n    \"graceful shutdown exits within the drain deadline\"\n  ]\n}\n",
+    "default-check": "    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 2.49s\n",
+    "clippy": "   Compiling tikv-jemalloc-sys v0.6.1+5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7\n    Checking hyper v1.11.1 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper)\n    Checking hyper-util v0.1.20 (/Users/livesite/Documents/ChatGPT/rgnix/vendor/hyper-util)\n    Checking tikv-jemallocator v0.6.1\n    Checking rgnix v0.5.0 (/Users/livesite/Documents/ChatGPT/rgnix)\n    Finished `dev` profile [unoptimized] target(s) in 29.10s\n",
+    "alloc-before": "Added new event:\n  rgnix_http_332635:malloc (on _rjem_malloc in /var/tmp/rgnix-allocator-20260928/rgnix-jemalloc with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332635:malloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_332635:mallocx (on _rjem_mallocx in /var/tmp/rgnix-allocator-20260928/rgnix-jemalloc with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332635:mallocx -aR sleep 1\n\nAdded new event:\n  rgnix_http_332635:calloc (on _rjem_calloc in /var/tmp/rgnix-allocator-20260928/rgnix-jemalloc with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332635:calloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_332635:realloc (on _rjem_realloc in /var/tmp/rgnix-allocator-20260928/rgnix-jemalloc with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332635:realloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_332635:rallocx (on _rjem_rallocx in /var/tmp/rgnix-allocator-20260928/rgnix-jemalloc with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332635:rallocx -aR sleep 1\n\nhyper {'malloc': 15001, 'realloc': 500} requested bytes/request 19828.52\nRemoved event: rgnix_http_332635:rallocx\nRemoved event: rgnix_http_332635:realloc\nRemoved event: rgnix_http_332635:calloc\nRemoved event: rgnix_http_332635:mallocx\nRemoved event: rgnix_http_332635:malloc\n",
+    "alloc-after": "Added new event:\n  rgnix_http_332674:malloc (on _rjem_malloc in /var/tmp/rgnix-allocator-20260928/rgnix-buffer with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332674:malloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_332674:mallocx (on _rjem_mallocx in /var/tmp/rgnix-allocator-20260928/rgnix-buffer with bytes=%x0:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332674:mallocx -aR sleep 1\n\nAdded new event:\n  rgnix_http_332674:calloc (on _rjem_calloc in /var/tmp/rgnix-allocator-20260928/rgnix-buffer with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332674:calloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_332674:realloc (on _rjem_realloc in /var/tmp/rgnix-allocator-20260928/rgnix-buffer with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332674:realloc -aR sleep 1\n\nAdded new event:\n  rgnix_http_332674:rallocx (on _rjem_rallocx in /var/tmp/rgnix-allocator-20260928/rgnix-buffer with bytes=%x1:u64 caller=%x30:x64)\n\nYou can now use it in all perf tools, such as:\n\n\tperf record -e rgnix_http_332674:rallocx -aR sleep 1\n\nhyper {'malloc': 13276, 'realloc': 500, 'mallocx': 1} requested bytes/request 5411.72\nRemoved event: rgnix_http_332674:rallocx\nRemoved event: rgnix_http_332674:realloc\nRemoved event: rgnix_http_332674:calloc\nRemoved event: rgnix_http_332674:mallocx\nRemoved event: rgnix_http_332674:malloc\n"
+  },
+  "limitations": [
+    "Shared OrbStack ARM64 host; virtual CPU affinity does not reserve physical cores; variance cause unresolved.",
+    "A/A and A/B use the same interleaved windows. Gate screens variability, not a confidence interval or independent replication.",
+    "Allocator-only comparisons have no scenario where both system and jemalloc pass A/A; keep allocator optional.",
+    "Final 1KiB before/after pass A/A but effect is small; final 16KiB fails A/A and shows -1.65% observed throughput.",
+    "NGINX fails both final A/A scenarios. No certified relative NGINX ratio or capacity claim.",
+    "No summing gains or comparison to historical runs to attribute performance.",
+    "Only two workers tested for the final combination; one/four-worker tests cover allocator-only candidate.",
+    "No Docker image, amd64, real NIC, long-duration soak, fixed-rate latency, TLS/H2/RGL/Ingress performance qualification.",
+    "Probe caller attribution uses ELF symbol plus return address; API requested bytes are cumulative and include background allocations."
+  ]
+}

@@ -1,0 +1,704 @@
+{
+  "mode": "profile",
+  "fixture_settings": {
+    "rgnix": "/var/tmp/rgnix-deep-20261001/rgnix-before",
+    "nginx": "/usr/sbin/nginx",
+    "openresty": "/usr/sbin/nginx",
+    "candidate": null,
+    "plain_proxy": true,
+    "rgnix_transport": "hyper",
+    "candidate_transport": "pingora",
+    "pingora": null,
+    "hyper": null,
+    "hyper_control": null,
+    "engines": [
+      "rgnix"
+    ],
+    "wrk": "wrk",
+    "work_dir": "/var/tmp/rgnix-deep-20261001/fixture",
+    "output": "/var/tmp/rgnix-deep-20261001/fixture.json",
+    "rounds": 1,
+    "seconds": 3,
+    "warmup": 2,
+    "concurrency": [
+      64
+    ],
+    "cases": [
+      "proxy-1k"
+    ],
+    "connection_close": false,
+    "interleave": true,
+    "workers": 1,
+    "origin_workers": 1,
+    "client_threads": 1,
+    "server_cpus": "10",
+    "client_cpus": "2",
+    "origin_cpus": "6"
+  },
+  "profile_settings": {
+    "concurrency": 64,
+    "warmup_seconds": 3,
+    "seconds": 20,
+    "engines": [
+      "hyper",
+      "nginx"
+    ]
+  },
+  "network_namespace": "net:[4026556214]",
+  "method": "Single-worker CPU-pinned c64 plain HTTP/1 proxy; 3s warmup; cpu-clock 199 Hz DWARF stacks or separate syscall counters. Instrumented counts and stack samples, not throughput evidence. Stack scopes overlap; flat samples do not identify every inlined caller.",
+  "binaries": {
+    "pingora": {
+      "path": "/var/tmp/rgnix-deep-20261001/rgnix-before",
+      "sha256": "55bc3a5bf5bc0638a70525740bd15c002724c9ff2540bd84bae6e4b3c60f2cee"
+    },
+    "hyper": {
+      "path": "/var/tmp/rgnix-deep-20261001/rgnix-before",
+      "sha256": "55bc3a5bf5bc0638a70525740bd15c002724c9ff2540bd84bae6e4b3c60f2cee"
+    },
+    "nginx": {
+      "path": "/usr/sbin/nginx",
+      "sha256": "f6543200b866fad21ee74f2e3b753e27c0a5c39c671e95ba001529270471f77d"
+    },
+    "origin": {
+      "path": "/usr/sbin/nginx",
+      "sha256": "f6543200b866fad21ee74f2e3b753e27c0a5c39c671e95ba001529270471f77d"
+    }
+  },
+  "records": [
+    {
+      "engine": "hyper",
+      "server_command": [
+        "taskset",
+        "-c",
+        "10",
+        "/var/tmp/rgnix-deep-20261001/rgnix-before",
+        "serve",
+        "-c",
+        "/var/tmp/rgnix-deep-20261001/profile-before/fixture/rgnix/nginx.conf",
+        "--admin",
+        "127.0.0.1:58927",
+        "--threads",
+        "1",
+        "--max-inflight",
+        "4096",
+        "--max-plugin-instances",
+        "512",
+        "--shutdown-grace-seconds",
+        "0",
+        "--shutdown-timeout-seconds",
+        "5",
+        "--experimental-hyper"
+      ],
+      "instrument_command": [
+        "perf",
+        "record",
+        "-e",
+        "cpu-clock",
+        "-F",
+        "199",
+        "-g",
+        "--call-graph",
+        "dwarf,16384",
+        "-p",
+        "50219",
+        "-o",
+        "/var/tmp/rgnix-deep-20261001/profile-before/hyper.data"
+      ],
+      "instrument_output": "[ perf record: Woken up 256 times to write data ]\n[ perf record: Captured and wrote 63.989 MB /var/tmp/rgnix-deep-20261001/profile-before/hyper.data (3983 samples) ]\n",
+      "preflight": [
+        "proxy-1k:200 and exact payload",
+        "proxy-16k:200 and exact payload"
+      ],
+      "run": {
+        "requests": 1950078,
+        "seconds": 20.100021,
+        "bytes": 2482449294,
+        "connect_errors": 0,
+        "read_errors": 0,
+        "write_errors": 0,
+        "status_errors": 0,
+        "timeout_errors": 0,
+        "p50_ms": 0.626,
+        "p95_ms": 0.893,
+        "p99_ms": 1.3,
+        "errors": 0,
+        "rps": 97018.70460732354,
+        "server_cpu_cores": 0.9970138837168377,
+        "server_cpu_us_per_request": 10.27651201644242,
+        "origin_cpu_cores": 0.6278600405442362,
+        "client_cpu_cores": 0.5029708675428747,
+        "peak_pss_kib": 29159,
+        "peak_rss_kib": 30656,
+        "server_pids": [
+          50219
+        ],
+        "host_cpu_ticks": {
+          "cpu": [
+            4143,
+            0,
+            1918,
+            26617,
+            1549,
+            0,
+            2673,
+            0
+          ],
+          "cpu0": [
+            97,
+            0,
+            195,
+            641,
+            992,
+            0,
+            952,
+            0
+          ],
+          "cpu1": [
+            176,
+            0,
+            34,
+            1655,
+            100,
+            0,
+            138,
+            0
+          ],
+          "cpu2": [
+            255,
+            0,
+            409,
+            921,
+            6,
+            0,
+            245,
+            0
+          ],
+          "cpu3": [
+            170,
+            0,
+            35,
+            1715,
+            44,
+            0,
+            106,
+            0
+          ],
+          "cpu4": [
+            163,
+            0,
+            32,
+            1709,
+            70,
+            0,
+            85,
+            0
+          ],
+          "cpu5": [
+            218,
+            0,
+            32,
+            1683,
+            44,
+            0,
+            59,
+            0
+          ],
+          "cpu6": [
+            438,
+            0,
+            467,
+            693,
+            2,
+            0,
+            290,
+            0
+          ],
+          "cpu7": [
+            174,
+            0,
+            34,
+            1726,
+            48,
+            0,
+            40,
+            0
+          ],
+          "cpu8": [
+            178,
+            0,
+            36,
+            1719,
+            40,
+            0,
+            37,
+            0
+          ],
+          "cpu9": [
+            186,
+            0,
+            35,
+            1713,
+            46,
+            0,
+            26,
+            0
+          ],
+          "cpu10": [
+            966,
+            0,
+            419,
+            8,
+            0,
+            0,
+            620,
+            0
+          ],
+          "cpu11": [
+            195,
+            0,
+            39,
+            1711,
+            36,
+            0,
+            21,
+            0
+          ],
+          "cpu12": [
+            163,
+            0,
+            32,
+            1759,
+            24,
+            0,
+            17,
+            0
+          ],
+          "cpu13": [
+            189,
+            0,
+            30,
+            1731,
+            33,
+            0,
+            14,
+            0
+          ],
+          "cpu14": [
+            191,
+            0,
+            32,
+            1741,
+            18,
+            0,
+            9,
+            0
+          ],
+          "cpu15": [
+            178,
+            0,
+            28,
+            1752,
+            24,
+            0,
+            10,
+            0
+          ],
+          "cpu16": [
+            208,
+            0,
+            26,
+            1724,
+            22,
+            0,
+            6,
+            0
+          ],
+          "cpu17": [
+            0,
+            0,
+            0,
+            2014,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "server_threads": {
+          "50219": {
+            "name": "rgnix-before",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50220": {
+            "name": "file-logs",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50221": {
+            "name": "BG control",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50222": {
+            "name": "BG rollout-metr",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50223": {
+            "name": "BG access-polic",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50224": {
+            "name": "BG upstream-mai",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50225": {
+            "name": "admin",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50226": {
+            "name": "BG hyper-127.0.",
+            "cpu_seconds": 20.01,
+            "last_cpu": 10
+          },
+          "50227": {
+            "name": "BG connection-d",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50228": {
+            "name": "Server",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50229": {
+            "name": "BG access-polic",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50230": {
+            "name": "Timer thread",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          }
+        },
+        "load_before": "10.11 9.47 9.88 3/9201 50234",
+        "load_after": "9.50 9.38 9.84 3/9201 50258",
+        "command": [
+          "taskset",
+          "-c",
+          "2",
+          "wrk",
+          "-t",
+          "1",
+          "-c",
+          "64",
+          "-d",
+          "20s",
+          "--timeout",
+          "5s",
+          "--latency",
+          "-s",
+          "/var/tmp/rgnix-deep-20261001/profile-before/fixture/wrk-proxy-1k.lua",
+          "-H",
+          "Host: localhost",
+          "http://127.0.0.1:46001/proxy-1k"
+        ],
+        "wrk_output": "Running 20s test @ http://127.0.0.1:46001/proxy-1k\n  1 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   660.72us  173.49us   5.03ms   88.92%\n    Req/Sec    97.61k     9.85k  109.15k    76.12%\n  Latency Distribution\n     50%  626.00us\n     75%  683.00us\n     90%  787.00us\n     99%    1.30ms\n  1950078 requests in 20.10s, 2.31GB read\nRequests/sec:  97018.70\nTransfer/sec:    117.78MB\nBENCH_RESULT {\"requests\":1950078,\"seconds\":20.100021,\"bytes\":2482449294,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.626000,\"p95_ms\":0.893000,\"p99_ms\":1.300000}\n"
+      },
+      "flat_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 3K of event 'cpu-clock'\n# Event count (approx.): 20015072875\n#\n# Overhead  Command          Shared Object      Symbol                                                                                                                                                                                                                                             \n# ........  ...............  .................  ...................................................................................................................................................................................................................................................\n#\n    14.39%  BG hyper-127.0.  [kernel.kallsyms]  [k] __wake_up_sync_key\n     6.70%  BG hyper-127.0.  [kernel.kallsyms]  [k] arch_counter_get_cntvct\n     4.19%  BG hyper-127.0.  [vdso]             [.] __kernel_clock_gettime\n     3.54%  BG hyper-127.0.  [kernel.kallsyms]  [k] net_rx_action\n     3.49%  BG hyper-127.0.  [kernel.kallsyms]  [k] __arch_copy_to_user\n     2.46%  BG hyper-127.0.  libc.so.6          [.] 0x000000000009542c\n     2.18%  BG hyper-127.0.  [kernel.kallsyms]  [k] __local_bh_enable_ip\n     2.13%  BG hyper-127.0.  [kernel.kallsyms]  [k] local_daif_restore\n     1.78%  BG hyper-127.0.  rgnix-before       [.] rgnix::proxy::hyper::request::serve::{{closure}}\n     1.48%  BG hyper-127.0.  [kernel.kallsyms]  [k] __do_softirq\n     1.43%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_sendmsg\n     1.28%  BG hyper-127.0.  rgnix-before       [.] hyper_util::client::legacy::client::Client<C,B>::try_send_request::{{closure}}\n     1.18%  BG hyper-127.0.  rgnix-before       [.] <core::hash::sip::Hasher<S> as core::hash::Hasher>::write\n     1.13%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a9940\n     1.03%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_ack\n     0.98%  BG hyper-127.0.  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore\n     0.93%  BG hyper-127.0.  rgnix-before       [.] <hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::encode\n     0.93%  BG hyper-127.0.  rgnix-before       [.] httparse::parse_headers_iter_uninit\n     0.90%  BG hyper-127.0.  libc.so.6          [.] 0x0000000000095428\n     0.83%  BG hyper-127.0.  rgnix-before       [.] __aarch64_ldadd8_relax\n     0.75%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_rcv\n     0.68%  BG hyper-127.0.  rgnix-before       [.] <hyper_util::server::conn::auto::UpgradeableConnection<I,S,E> as core::future::future::Future>::poll\n     0.68%  BG hyper-127.0.  rgnix-before       [.] http::header::map::HeaderMap<T>::remove\n     0.68%  BG hyper-127.0.  rgnix-before       [.] http::header::name::StandardHeader::from_bytes\n     0.63%  BG hyper-127.0.  [kernel.kallsyms]  [k] local_bh_enable\n     0.63%  BG hyper-127.0.  rgnix-before       [.] __aarch64_ldadd8_rel\n     0.63%  BG hyper-127.0.  rgnix-before       [.] http::header::name::HeaderName::from_bytes\n     0.63%  BG hyper-127.0.  rgnix-before       [.] http::uri::Uri::from_parts\n     0.58%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_poll\n     0.55%  BG hyper-127.0.  [kernel.kallsyms]  [k] __kfree_skb\n     0.55%  BG hyper-127.0.  rgnix-before       [.] http::header::map::hash_elem_using\n     0.53%  BG hyper-127.0.  [kernel.kallsyms]  [k] __arch_copy_from_user\n     0.53%  BG hyper-127.0.  rgnix-before       [.] <tokio::sync::oneshot::Receiver<T> as core::future::future::Future>::poll\n     0.50%  BG hyper-127.0.  rgnix-before       [.] http::header::map::HeaderMap<T>::try_append2\n     0.50%  BG hyper-127.0.  rgnix-before       [.] tokio::runtime::io::registration::Registration::poll_ready\n     0.48%  BG hyper-127.0.  [kernel.kallsyms]  [k] do_el0_svc\n     0.48%  BG hyper-127.0.  [kernel.kallsyms]  [k] fdget_pos\n     0.48%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_queue_xmit\n     0.45%  BG hyper-127.0.  rgnix-before       [.] hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write\n     0.45%  BG hyper-127.0.  rgnix-before       [.] hyper_util::client::legacy::client::Client<C,B>::request::{{closure}}\n     0.43%  BG hyper-127.0.  [kernel.kallsyms]  [k] _raw_spin_lock_irq\n     0.43%  BG hyper-127.0.  rgnix-before       [.] <alloc::collections::vec_deque::iter::Iter<T> as core::iter::traits::iterator::Iterator>::fold\n     0.43%  BG hyper-127.0.  rgnix-before       [.] <hyper::proto::h1::role::Client as hyper::proto::h1::Http1Transaction>::parse\n     0.40%  BG hyper-127.0.  [kernel.kallsyms]  [k] __dev_queue_xmit\n     0.40%  BG hyper-127.0.  [kernel.kallsyms]  [k] napi_consume_skb\n     0.40%  BG hyper-127.0.  libc.so.6          [.] memcmp\n     0.40%  BG hyper-127.0.  rgnix-before       [.] <hyper_util::client::legacy::pool::Checkout<T,K> as core::future::future::Future>::poll\n     0.40%  BG hyper-127.0.  rgnix-before       [.] __aarch64_cas8_acq_rel\n     0.40%  BG hyper-127.0.  rgnix-before       [.] _rjem_malloc\n     0.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] kmem_cache_free\n     0.38%  BG hyper-127.0.  [kernel.kallsyms]  [k] mod_timer\n     0.35%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a992c\n     0.33%  BG hyper-127.0.  [kernel.kallsyms]  [k] __alloc_skb\n     0.33%  BG hyper-127.0.  [kernel.kallsyms]  [k] ip_output\n     0.33%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_rcv_established\n     0.33%  BG hyper-127.0.  [kernel.kallsyms]  [k] validate_xmit_skb\n     0.33%  BG hyper-127.0.  rgnix-before       [.] <hyper::proto::h1::role::Server as hyper::proto::h1::Http1Transaction>::parse\n     0.33%  BG hyper-127.0.  rgnix-before       [.] <rgnix::proxy::hyper::Listener as pingora_core::services::background::BackgroundService>::start::{{closure}}::{{closure}}\n     0.33%  BG hyper-127.0.  rgnix-before       [.] core::str::iter::SplitInternal<P>::next\n     0.33%  BG hyper-127.0.  rgnix-before       [.] http::header::map::hash_elem_using\n     0.33%  BG hyper-127.0.  rgnix-before       [.] tokio::runtime::scheduler::multi_thread::worker::Context::run_task\n     0.30%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_ack_update_rtt\n     0.30%  BG hyper-127.0.  rgnix-before       [.] http::header::map::HeaderMap<T>::remove_found\n     0.30%  BG hyper-127.0.  rgnix-before       [.] http::header::map::HeaderMap<T>::try_reserve_one\n     0.30%  BG hyper-127.0.  rgnix-before       [.] hyper_util::client::legacy::client::origin_form\n     0.28%  BG hyper-127.0.  [kernel.kallsyms]  [k] kmem_cache_alloc_node_noprof\n     0.28%  BG hyper-127.0.  [kernel.kallsyms]  [k] tcp_recvmsg\n     0.28%  BG hyper-127.0.  rgnix-before       [.] http::header::map::HeaderMap<T>::get_all\n     0.28%  BG hyper-127.0.  rgnix-before       [.] hyper::proto::h1::conn::Conn<I,B,T>::write_head\n     0.28%  BG hyper-127.0.  rgnix-before       [.] hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_write\n     0.28%  BG hyper-127.0.  rgnix-before       [.] tokio::runtime::scheduler::multi_thread::worker::<impl tokio::runtime::scheduler::multi_thread::handle::Handle>::schedule_task::{{closure}}\n     0.28%  BG hyper-127.0.  rgnix-before       [.] tokio::runtime::task::raw::poll\n     0.28%  BG hyper-127.0.  rgnix-before       [.] tokio::runtime::task::raw::poll\n     0.25%  BG hyper-127.0.  [kernel.kallsyms]  [k] fdget\n     0.25%  BG hyper-127.0.  libc.so.6          [.] 0x00000000000a9960\n     0.25%  BG hyper-127.0.  rgnix-before       [.] <rgnix::proxy::hyper::io::TrackedIo as tokio::io::async_write::AsyncWrite>::poll_flush\n     0.25%  BG hyper-127.0.  rgnix-before       [.] hyper::proto::h1::io::Buffered<T,B>::poll_read_from_io\n     0.25%  BG hyper-127.0.  rgnix-before       [.] tokio::net::unix::stream::UnixStream::poll_read_priv\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+    },
+    {
+      "engine": "nginx",
+      "server_command": [
+        "taskset",
+        "-c",
+        "10",
+        "/usr/sbin/nginx",
+        "-p",
+        "/var/tmp/rgnix-deep-20261001/profile-before/fixture/nginx",
+        "-c",
+        "/var/tmp/rgnix-deep-20261001/profile-before/fixture/nginx/nginx.conf",
+        "-g",
+        "daemon off;"
+      ],
+      "instrument_command": [
+        "perf",
+        "record",
+        "-e",
+        "cpu-clock",
+        "-F",
+        "199",
+        "-g",
+        "--call-graph",
+        "dwarf,16384",
+        "-p",
+        "50268,50269",
+        "-o",
+        "/var/tmp/rgnix-deep-20261001/profile-before/nginx.data"
+      ],
+      "instrument_output": "[ perf record: Woken up 245 times to write data ]\n[ perf record: Captured and wrote 61.311 MB /var/tmp/rgnix-deep-20261001/profile-before/nginx.data (3813 samples) ]\n",
+      "preflight": [
+        "proxy-1k:200 and exact payload",
+        "proxy-16k:200 and exact payload"
+      ],
+      "run": {
+        "requests": 2538014,
+        "seconds": 20.004173,
+        "bytes": 3291804158,
+        "connect_errors": 0,
+        "read_errors": 0,
+        "write_errors": 0,
+        "status_errors": 0,
+        "timeout_errors": 0,
+        "p50_ms": 0.448,
+        "p95_ms": 0.899,
+        "p99_ms": 13.563,
+        "errors": 0,
+        "rps": 126874.22769239197,
+        "server_cpu_cores": 0.9583000506944226,
+        "server_cpu_us_per_request": 7.5531498250206655,
+        "origin_cpu_cores": 0.7633407289569032,
+        "client_cpu_cores": 0.625683001241791,
+        "peak_pss_kib": 11895,
+        "peak_rss_kib": 21700,
+        "server_pids": [
+          50268,
+          50269
+        ],
+        "host_cpu_ticks": {
+          "cpu": [
+            4442,
+            0,
+            2660,
+            25945,
+            933,
+            0,
+            2854,
+            0
+          ],
+          "cpu0": [
+            179,
+            0,
+            291,
+            871,
+            546,
+            0,
+            827,
+            0
+          ],
+          "cpu1": [
+            205,
+            0,
+            54,
+            1630,
+            72,
+            0,
+            132,
+            0
+          ],
+          "cpu2": [
+            401,
+            0,
+            513,
+            618,
+            6,
+            0,
+            323,
+            0
+          ],
+          "cpu3": [
+            225,
+            0,
+            50,
+            1646,
+            48,
+            0,
+            100,
+            0
+          ],
+          "cpu4": [
+            179,
+            0,
+            53,
+            1683,
+            56,
+            0,
+            87,
+            0
+          ],
+          "cpu5": [
+            189,
+            0,
+            54,
+            1705,
+            28,
+            0,
+            76,
+            0
+          ],
+          "cpu6": [
+            546,
+            0,
+            590,
+            417,
+            1,
+            0,
+            391,
+            0
+          ],
+          "cpu7": [
+            225,
+            0,
+            56,
+            1672,
+            21,
+            0,
+            47,
+            0
+          ],
+          "cpu8": [
+            212,
+            0,
+            52,
+            1700,
+            14,
+            0,
+            35,
+            0
+          ],
+          "cpu9": [
+            243,
+            0,
+            43,
+            1677,
+            17,
+            0,
+            33,
+            0
+          ],
+          "cpu10": [
+            662,
+            0,
+            589,
+            44,
+            1,
+            0,
+            715,
+            0
+          ],
+          "cpu11": [
+            142,
+            0,
+            46,
+            1757,
+            37,
+            0,
+            24,
+            0
+          ],
+          "cpu12": [
+            186,
+            0,
+            68,
+            1711,
+            19,
+            0,
+            21,
+            0
+          ],
+          "cpu13": [
+            222,
+            0,
+            46,
+            1698,
+            15,
+            0,
+            12,
+            0
+          ],
+          "cpu14": [
+            186,
+            0,
+            49,
+            1723,
+            21,
+            0,
+            10,
+            0
+          ],
+          "cpu15": [
+            217,
+            0,
+            51,
+            1693,
+            16,
+            0,
+            10,
+            0
+          ],
+          "cpu16": [
+            221,
+            0,
+            57,
+            1684,
+            16,
+            0,
+            10,
+            0
+          ],
+          "cpu17": [
+            0,
+            0,
+            0,
+            2018,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "server_threads": {
+          "50268": {
+            "name": "nginx",
+            "cpu_seconds": 0.0,
+            "last_cpu": 10
+          },
+          "50269": {
+            "name": "nginx",
+            "cpu_seconds": 19.17,
+            "last_cpu": 10
+          }
+        },
+        "load_before": "9.50 9.38 9.84 7/9197 50277",
+        "load_after": "9.91 9.51 9.87 11/9228 50308",
+        "command": [
+          "taskset",
+          "-c",
+          "2",
+          "wrk",
+          "-t",
+          "1",
+          "-c",
+          "64",
+          "-d",
+          "20s",
+          "--timeout",
+          "5s",
+          "--latency",
+          "-s",
+          "/var/tmp/rgnix-deep-20261001/profile-before/fixture/wrk-proxy-1k.lua",
+          "-H",
+          "Host: localhost",
+          "http://127.0.0.1:46001/proxy-1k"
+        ],
+        "wrk_output": "Running 20s test @ http://127.0.0.1:46001/proxy-1k\n  1 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     0.92ms    4.33ms 101.74ms   98.37%\n    Req/Sec   127.70k    26.11k  159.80k    78.00%\n  Latency Distribution\n     50%  448.00us\n     75%  521.00us\n     90%  685.00us\n     99%   13.56ms\n  2538014 requests in 20.00s, 3.07GB read\nRequests/sec: 126874.23\nTransfer/sec:    156.93MB\nBENCH_RESULT {\"requests\":2538014,\"seconds\":20.004173,\"bytes\":3291804158,\"connect_errors\":0,\"read_errors\":0,\"write_errors\":0,\"status_errors\":0,\"timeout_errors\":0,\"p50_ms\":0.448000,\"p95_ms\":0.899000,\"p99_ms\":13.563000}\n"
+      },
+      "flat_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 3K of event 'cpu-clock'\n# Event count (approx.): 19160801625\n#\n# Overhead  Command  Shared Object      Symbol                                          \n# ........  .......  .................  ................................................\n#\n    10.54%  nginx    [kernel.kallsyms]  [k] __wake_up_sync_key\n     8.94%  nginx    [kernel.kallsyms]  [k] arch_counter_get_cntvct\n     4.72%  nginx    [kernel.kallsyms]  [k] net_rx_action\n     4.48%  nginx    [kernel.kallsyms]  [k] __arch_copy_to_user\n     4.27%  nginx    libc.so.6          [.] 0x0000000000087d20\n     3.80%  nginx    [kernel.kallsyms]  [k] local_daif_restore\n     3.38%  nginx    nginx              [.] ngx_http_parse_header_line\n     3.30%  nginx    [kernel.kallsyms]  [k] __do_softirq\n     3.15%  nginx    [kernel.kallsyms]  [k] __local_bh_enable_ip\n     1.91%  nginx    [kernel.kallsyms]  [k] __kfree_skb\n     1.81%  nginx    [kernel.kallsyms]  [k] tcp_ack\n     1.65%  nginx    nginx              [.] ngx_hash_find\n     1.49%  nginx    [kernel.kallsyms]  [k] tcp_sendmsg\n     1.23%  nginx    [kernel.kallsyms]  [k] __arch_copy_from_user\n     1.23%  nginx    [kernel.kallsyms]  [k] ip_output\n     1.08%  nginx    [kernel.kallsyms]  [k] __dev_queue_xmit\n     1.08%  nginx    [kernel.kallsyms]  [k] do_el0_svc\n     1.02%  nginx    [kernel.kallsyms]  [k] ip_rcv\n     1.02%  nginx    nginx              [.] ngx_http_parse_request_line\n     0.97%  nginx    libc.so.6          [.] 0x0000000000087d1c\n     0.94%  nginx    libc.so.6          [.] getsockopt\n     0.87%  nginx    [kernel.kallsyms]  [k] tcp_poll\n     0.84%  nginx    [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore\n     0.84%  nginx    nginx              [.] ngx_rbtree_delete\n     0.79%  nginx    nginx              [.] ngx_rbtree_insert_timer_value\n     0.68%  nginx    nginx              [.] ngx_rbtree_insert\n     0.63%  nginx    [kernel.kallsyms]  [k] ip_queue_xmit\n     0.63%  nginx    nginx              [.] ngx_pcalloc\n     0.60%  nginx    [kernel.kallsyms]  [k] _raw_spin_lock_irq\n     0.60%  nginx    [kernel.kallsyms]  [k] local_bh_enable\n     0.58%  nginx    [kernel.kallsyms]  [k] fdget\n     0.52%  nginx    [kernel.kallsyms]  [k] fdget_pos\n     0.50%  nginx    [kernel.kallsyms]  [k] mod_timer\n     0.50%  nginx    nginx              [.] ngx_palloc\n     0.47%  nginx    [kernel.kallsyms]  [k] napi_consume_skb\n     0.47%  nginx    [kernel.kallsyms]  [k] tcp_recvmsg\n     0.42%  nginx    [kernel.kallsyms]  [k] __tcp_transmit_skb\n     0.39%  nginx    [kernel.kallsyms]  [k] __alloc_skb\n     0.39%  nginx    nginx              [.] ngx_http_write_filter\n     0.37%  nginx    [kernel.kallsyms]  [k] tcp_v4_rcv\n     0.34%  nginx    [kernel.kallsyms]  [k] __netif_rx\n     0.34%  nginx    [kernel.kallsyms]  [k] dst_release\n     0.34%  nginx    [kernel.kallsyms]  [k] validate_xmit_skb\n     0.34%  nginx    libc.so.6          [.] malloc\n     0.34%  nginx    libc.so.6          [.] 0x00000000000a9840\n     0.31%  nginx    [kernel.kallsyms]  [k] __arm64_sys_epoll_pwait\n     0.31%  nginx    [kernel.kallsyms]  [k] kmem_cache_free\n     0.31%  nginx    [kernel.kallsyms]  [k] loopback_xmit\n     0.31%  nginx    [kernel.kallsyms]  [k] tcp_current_mss\n     0.31%  nginx    nginx              [.] ngx_unix_recv\n     0.29%  nginx    nginx              [.] ngx_list_push\n     0.29%  nginx    nginx              [.] ngx_pnalloc\n     0.26%  nginx    [kernel.kallsyms]  [k] __alloc_pages_noprof\n     0.26%  nginx    [kernel.kallsyms]  [k] sock_poll\n     0.26%  nginx    [kernel.kallsyms]  [k] tcp_ack_update_rtt\n     0.26%  nginx    nginx              [.] ngx_http_core_run_phases\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+    }
+  ]
+}

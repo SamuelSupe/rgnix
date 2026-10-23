@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import resource
 import signal
 import ssl
@@ -18,9 +19,11 @@ from integration import certificate, free_port, request, wait_for
 
 
 CASES = ["return", "static", "proxy-1k", "proxy-16k", "header", "body", "tls"]
+MINIMAL_ENGINES = {"pingora", "hyper", "hyper-control"}
 PATHS = {"return": "/return", "static": "/static.bin", "proxy-1k": "/proxy-1k",
          "proxy-16k": "/proxy-16k", "header": "/route-header", "body": "/route-body", "tls": "/proxy-1k"}
 BODY_SIZE = 65536
+KEEPALIVE_PER_WORKER = 128
 MARKER = b"route=canary;"
 BODY_CANARY = MARKER + b"x" * (BODY_SIZE - len(MARKER))
 BODY_PRIMARY = b"x" * 1024 + MARKER + b"x" * (BODY_SIZE - 1024 - len(MARKER))
@@ -83,11 +86,14 @@ def thread_stats(pids):
     return result
 
 
-def start(command, log_path):
+def start(command, log_path, transport=None):
     environment = os.environ.copy()
     for key in ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]:
         environment.pop(key, None)
     environment["RUST_LOG"] = "warn"
+    if transport:
+        environment["RGNIX_ENGINE"] = transport
+        environment["RGNIX_EXPERIMENTAL_HYPER"] = str(transport == "hyper").lower()
     with log_path.open("w") as log:
         return subprocess.Popen(command, stdout=log, stderr=log, start_new_session=True, env=environment)
 
@@ -103,12 +109,24 @@ def stop(process):
             raise RuntimeError(f"benchmark process {process.pid} failed to terminate gracefully")
 
 
-def measure(args, url, script, concurrency, seconds, server, origin):
+def connection_counts(port):
+    status, _, body = request(port, "/metrics")
+    if status != 200:
+        raise RuntimeError("benchmark metrics endpoint failed")
+    counts = {"new": 0.0, "reused": 0.0}
+    for labels, value in re.findall(r'^rgnix_upstream_connect_seconds_count\{([^}]+)\} ([0-9.eE+-]+)$', body.decode(), re.MULTILINE):
+        kind = "reused" if 'reused="true"' in labels else "new"
+        counts[kind] += float(value)
+    return counts
+
+
+def measure(args, url, script, concurrency, seconds, server, origin, metrics_port=None):
     command = [*affinity(args.client_cpus), args.wrk, "-t", str(args.client_threads), "-c", str(concurrency),
                "-d", f"{seconds}s", "--timeout", "5s", "--latency", "-s", str(script), "-H", "Host: localhost"]
     if args.connection_close:
         command.extend(["-H", "Connection: close"])
     command.append(url)
+    connections_before = connection_counts(metrics_port) if metrics_port else None
     before = tree_stats(server.pid)
     threads_before = thread_stats(before["pids"])
     origin_before = tree_stats(origin.pid)
@@ -158,6 +176,9 @@ def measure(args, url, script, concurrency, seconds, server, origin):
                                   for tid, value in threads_after.items()},
                   load_before=load_before, load_after=Path("/proc/loadavg").read_text().strip(),
                   command=command, wrk_output=stdout)
+    if connections_before is not None:
+        connections_after = connection_counts(metrics_port)
+        result["upstream_checkouts"] = {key: connections_after[key] - value for key, value in connections_before.items()}
     return result
 
 
@@ -228,14 +249,14 @@ ngx.print(string.rep("x", 1024))
     origin_dir.mkdir()
     origin_conf = nginx_prelude(origin_dir, args.origin_workers)
     for name in ["primary", "canary"]:
+        body_location = f"  location = /route-body {{ content_by_lua_file {directory}/origin.lua; }}\n" if "body" in args.cases else ""
         origin_conf += f'''server {{
   listen 127.0.0.1:{ports[name]};
   root {data};
   add_header X-Origin {name} always;
   add_header X-Observed-Selected $http_x_selected always;
   location = /route-header {{ return 200 "{'x' * 1024}"; }}
-  location = /route-body {{ content_by_lua_file {directory}/origin.lua; }}
-}}
+{body_location}}}
 '''
     (origin_dir / "nginx.conf").write_text(origin_conf + "}\n")
 
@@ -252,26 +273,29 @@ proxy_next_upstream off;
     for engine in ["rgnix", "nginx", "openresty"]:
         engine_dir = directory / engine
         engine_dir.mkdir()
-        config = ("events {}\nhttp {\naccess_log off;\nkeepalive_timeout 60s;\n" if engine == "rgnix"
+        config = ("events {}\nhttp {\naccess_log off;\nkeepalive_timeout 60s;\n"
+                  "proxy_set_header Host localhost;\nproxy_connect_timeout 5s;\n"
+                  "proxy_read_timeout 5s;\nproxy_send_timeout 5s;\n" if engine == "rgnix"
                   else nginx_prelude(engine_dir, args.workers) + proxy)
         for name in ["primary", "canary"]:
-            keepalive = "" if engine == "rgnix" else "keepalive 512; keepalive_requests 1000000; keepalive_timeout 60s;"
+            keepalive = "" if engine == "rgnix" else f"keepalive {KEEPALIVE_PER_WORKER}; keepalive_requests 1000000; keepalive_timeout 60s;"
             config += f"upstream {name} {{ server 127.0.0.1:{ports[name]}; {keepalive} }}\n"
         if engine == "nginx":
             config += "map $http_x_canary $selected_upstream { default primary; 1 canary; }\n"
-        config += f'''server {{
-listen 127.0.0.1:{ports['http']};
-listen 127.0.0.1:{ports['tls']} ssl;
-server_name localhost;
+        tls_listener = "" if args.plain_proxy else f'''listen 127.0.0.1:{ports['tls']} ssl;
 ssl_certificate {directory}/cert.pem;
 ssl_certificate_key {directory}/key.pem;
+'''
+        config += f'''server {{
+listen 127.0.0.1:{ports['http']};
+{tls_listener}server_name localhost;
 root {data};
 location = /return {{ return 200 ok; }}
-location = /static.bin {{ }}
 location = /proxy-1k {{ proxy_pass http://primary; }}
 location = /proxy-16k {{ proxy_pass http://primary; }}
 '''
-        for case in ["header", "body"]:
+        config += "location / { return 404; }\n" if args.plain_proxy else "location = /static.bin { }\n"
+        for case in ([] if args.plain_proxy else ["header", "body"]):
             if engine == "rgnix":
                 hook = f"rgnix_script {directory}/{case}.rgl;"
                 if case == "body":
@@ -310,10 +334,10 @@ end
         (directory / f"wrk-{case}.lua").write_text(setup + REPORT_LUA)
 
 
-def preflight(engine, ports):
+def preflight(engine, ports, plain_proxy=False, cases=CASES):
     results = []
-    for case in CASES:
-        if engine == "pingora" and case not in ["proxy-1k", "proxy-16k"]:
+    for case in cases:
+        if (engine in MINIMAL_ENGINES or plain_proxy) and case not in ["proxy-1k", "proxy-16k"]:
             continue
         if engine == "nginx" and case == "body":
             continue
@@ -333,7 +357,7 @@ def preflight(engine, ports):
             expected = b"ok" if case == "return" else b"x" * (16384 if case in ["static", "proxy-16k"] else 1024)
             assert status == 200 and payload == expected, (engine, case, status, payload[:100])
             results.append(f"{case}:200 and exact payload")
-    if engine == "pingora":
+    if engine in MINIMAL_ENGINES or plain_proxy or "tls" not in cases:
         return results
     import socket
     with socket.create_connection(("127.0.0.1", ports["tls"])) as raw:
@@ -367,8 +391,13 @@ def main():
     for engine in ["rgnix", "nginx", "openresty"]:
         parser.add_argument(f"--{engine}", type=Path, required=True)
     parser.add_argument("--candidate", type=Path, help="additional rgnix binary using exactly the same configuration")
+    parser.add_argument("--plain-proxy", action="store_true", help="only common plain HTTP/1 proxy configuration; no TLS/static/RGL routes")
+    parser.add_argument("--rgnix-transport", choices=["pingora", "hyper"], default="pingora")
+    parser.add_argument("--candidate-transport", choices=["pingora", "hyper"], default="pingora")
     parser.add_argument("--pingora", type=Path, help="minimal_proxy example; diagnostic proxy-only baseline without product policies")
-    parser.add_argument("--engines", nargs="+", choices=["rgnix", "candidate", "nginx", "openresty", "pingora"],
+    parser.add_argument("--hyper", type=Path, help="experimental Hyper HTTP/1 proxy; no product policies")
+    parser.add_argument("--hyper-control", type=Path, help="same Hyper binary for interleaved A/A calibration")
+    parser.add_argument("--engines", nargs="+", choices=["rgnix", "candidate", "nginx", "openresty", "pingora", "hyper", "hyper-control"],
                         help="engines to measure; defaults to all supplied binaries")
     parser.add_argument("--wrk", default="wrk")
     parser.add_argument("--work-dir", type=Path, required=True, help="new directory on a native Linux filesystem")
@@ -387,10 +416,15 @@ def main():
     parser.add_argument("--client-cpus", default="2,3,4,5")
     parser.add_argument("--origin-cpus", default="6,7,8,9")
     args = parser.parse_args()
+    if args.plain_proxy and any(case not in ["proxy-1k", "proxy-16k"] for case in args.cases):
+        parser.error("--plain-proxy requires --cases proxy-1k and/or proxy-16k")
     if args.engines and "candidate" in args.engines and not args.candidate:
         parser.error("--engines candidate requires --candidate")
     if args.engines and "pingora" in args.engines and not args.pingora:
         parser.error("--engines pingora requires --pingora")
+    for name in ["hyper", "hyper-control"]:
+        if args.engines and name in args.engines and not getattr(args, name.replace("-", "_")):
+            parser.error(f"--engines {name} requires --{name}")
     if min(args.rounds, args.seconds, args.warmup, args.workers, args.origin_workers, args.client_threads, *args.concurrency) < 1:
         parser.error("counts and durations must be positive")
     if args.client_threads > min(args.concurrency):
@@ -413,14 +447,18 @@ def main():
     binaries = {name: str(getattr(args, name).resolve()) for name in ["rgnix", "nginx", "openresty"]}
     if args.candidate:
         binaries["candidate"] = str(args.candidate.resolve())
-    if args.pingora:
-        binaries["pingora"] = str(args.pingora.resolve())
-        (directory / "pingora").mkdir()
+    product_help = {name: command_output([binary, "serve", "--help"])
+                    for name, binary in binaries.items() if name in ("rgnix", "candidate")}
+    for name in sorted(MINIMAL_ENGINES):
+        binary = getattr(args, name.replace("-", "_"))
+        if binary:
+            binaries[name] = str(binary.resolve())
+            (directory / name).mkdir()
     output = {"started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "platform": platform.platform(),
               "os_release": Path("/etc/os-release").read_text(), "lscpu": command_output(["lscpu"]),
               "settings": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
               "binaries": {name: {"path": binary, "sha256": hashlib.sha256(Path(binary).read_bytes()).hexdigest(),
-                                   "version": command_output([binary, "--version" if name in ["rgnix", "candidate", "pingora"] else "-V"])} for name, binary in binaries.items()},
+                                   "version": command_output([binary, "--version" if name in {"rgnix", "candidate"} | MINIMAL_ENGINES else "-V"])} for name, binary in binaries.items()},
               "wrk_version": command_output([args.wrk, "--version"], accepted=(0, 1)).splitlines()[0],
               "ports": ports, "preflight": {}, "runs": [], "origin_baselines": []}
     fixtures(args, directory, ports)
@@ -432,7 +470,9 @@ def main():
     try:
         wait_for(lambda: request(ports["primary"], "/proxy-1k")[0], 200)
         # Establish upstream headroom separately; body baseline includes the same 64 KiB upload.
-        for case in ["proxy-1k", "proxy-16k", "header", "body"]:
+        origin_cases = list(dict.fromkeys("proxy-1k" if case == "tls" else case for case in args.cases
+                                         if case in ["proxy-1k", "proxy-16k", "header", "body", "tls"]))
+        for case in origin_cases:
             url = f"http://127.0.0.1:{ports['primary']}{PATHS[case]}"
             script = directory / f"wrk-{case}.lua"
             measure(args, url, script, max(args.concurrency), args.warmup, origin, origin)
@@ -452,7 +492,7 @@ def main():
                        if args.interleave else [(engine, windows) for engine in ordered_engines])
             for batch_index, (engine, batch) in enumerate(batches):
                 batch = [(concurrency, case) for concurrency, case in batch if engine != "nginx" or case != "body"]
-                if engine == "pingora":
+                if engine in MINIMAL_ENGINES:
                     batch = [(concurrency, case) for concurrency, case in batch if case in ["proxy-1k", "proxy-16k"]]
                 if not batch:
                     continue
@@ -462,23 +502,33 @@ def main():
                 if is_rgnix:
                     command = [binaries[engine], "serve", "-c", str(config), "--admin", f"127.0.0.1:{ports['admin']}",
                                "--threads", str(args.workers), "--max-inflight", "4096", "--max-plugin-instances", "512",
+                               "--upstream-keepalive-pool-size", str(KEEPALIVE_PER_WORKER),
                                "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "5"]
-                elif engine == "pingora":
+                    if getattr(args, f"{engine}_transport") == "hyper":
+                        command.append("--experimental-hyper")
+                        if "--hyper-max-handshakes-per-ip" in product_help[engine]:
+                            # The benchmark intentionally originates all traffic from one trusted IP.
+                            command += ["--hyper-max-handshakes", "4096", "--hyper-max-handshakes-per-ip", "4096",
+                                        "--hyper-max-connections-per-ip", "16384"]
+                elif engine in MINIMAL_ENGINES:
                     command = [binaries[engine], "--listen", f"127.0.0.1:{ports['http']}",
                                "--upstream", f"127.0.0.1:{ports['primary']}", "--workers", str(args.workers)]
                 else:
                     command = [binaries[engine], "-p", str(engine_dir), "-c", str(config), "-g", "daemon off;"]
                 suffix = f"-batch{batch_index + 1}" if args.interleave else ""
-                frontend = start([*affinity(args.server_cpus), *command], engine_dir / f"{engine}-process-{round_index + 1}{suffix}.log")
-                ready_path = "/readyz" if is_rgnix else "/proxy-1k" if engine == "pingora" else "/return"
+                output.setdefault("commands", {})[engine] = command
+                transport = args.rgnix_transport if engine == "rgnix" else args.candidate_transport if engine == "candidate" else None
+                frontend = start([*affinity(args.server_cpus), *command], engine_dir / f"{engine}-process-{round_index + 1}{suffix}.log", transport)
+                ready_path = "/readyz" if is_rgnix else "/proxy-1k" if engine in MINIMAL_ENGINES or args.plain_proxy else "/return"
                 wait_for(lambda: request(ports["admin"] if is_rgnix else ports["http"], ready_path)[0], 200, timeout=30)
-                output["preflight"][f"{engine}/round{round_index + 1}{suffix}"] = preflight(engine, ports)
+                output["preflight"][f"{engine}/round{round_index + 1}{suffix}"] = preflight(engine, ports, args.plain_proxy, args.cases)
                 for concurrency, case in batch:
                     url = f"{'https' if case == 'tls' else 'http'}://127.0.0.1:{ports['tls' if case == 'tls' else 'http']}{PATHS[case]}"
                     script = directory / f"wrk-{case}.lua"
-                    warmup = measure(args, url, script, concurrency, args.warmup, frontend, origin)
+                    metrics_port = ports["admin"] if is_rgnix else None
+                    warmup = measure(args, url, script, concurrency, args.warmup, frontend, origin, metrics_port)
                     assert not warmup["errors"] and warmup["requests"], warmup
-                    run = measure(args, url, script, concurrency, args.seconds, frontend, origin)
+                    run = measure(args, url, script, concurrency, args.seconds, frontend, origin, metrics_port)
                     run.update(engine=engine, case=case, concurrency=concurrency, round=round_index + 1)
                     output["runs"].append(run)
                     save_results(output, args.output)

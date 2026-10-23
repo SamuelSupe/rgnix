@@ -146,3 +146,34 @@ tasks, so using that timeout alone truncated gRPC streams after the initial
 grace period. The check and runtime cleanup share the same total timeout.
 Keep the live Gateway gRPC stream termination and HTTP keepalive rollout checks
 when upgrading this patch.
+
+## Experimental Hyper client
+
+`hyper-util/` is an optional direct path dependency used only by `hyper-experimental`.
+It is not a global crates.io override: reqwest and kube retain their registry copy.
+The HTTP/1-only client keeps requests boxed through checkout and retry state, then
+moves the request into the existing Hyper dispatcher. Automatic retries remain off.
+See [patch provenance and tradeoffs](hyper-util/RGNIX.md) and the
+[measured validation](../docs/validation-hyper-prepared-2026-09-28.md).
+
+`hyper/` is also an isolated optional path dependency, based on crates.io 1.11.1.
+With `rgnix-full-body`, a complete fixed-length client response of at most 8 KiB
+already in the read buffer uses a single `Bytes` body instead of a channel.
+It uses the original decoder, never waits for more bytes to qualify, and keeps
+all other bodies on the existing streaming path. See its [patch contract](hyper/RGNIX.md)
+and [allocation, framing and streaming checks](../docs/validation-nginx-aligned-2026-09-28.md).
+
+## HTTP/3 Extended CONNECT
+
+`h3/` is based on crates.io h3 0.0.8 (MIT; original license retained).
+The root lockfile pins it, including h3-quinn's copy through a crates.io override.
+`ext::Protocol` accepts valid protocol tokens and preserves their value, including
+`websocket` and unknown tokens, rather than rejecting them before request routing.
+Unknown protocols therefore receive the RFC 9220 application response (501).
+The protocol value is now `Clone` rather than `Copy`; pseudo-header construction
+clones it. No QPACK, frame validation or QUIC transport changes are included.
+Retain H3 WebSocket-to-H1/H2, unknown-protocol and sibling-stream tests on upgrades.
+
+The bounded Hyper informational queue also exposes a transport-adapter channel
+and receiver, so HTTP/3 can forward the same 102/103 responses before final headers.
+Its four-response/64 KiB limits and closed-sender contract are unchanged.

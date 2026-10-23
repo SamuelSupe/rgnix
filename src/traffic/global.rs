@@ -67,7 +67,7 @@ fn concurrency() -> usize {
 
 pub struct Global {
     client: redis::Client,
-    connection: Mutex<Option<MultiplexedConnection>>,
+    connection: Mutex<Option<Arc<MultiplexedConnection>>>,
     permits: Semaphore,
     scope: String,
     timeout: Duration,
@@ -123,28 +123,31 @@ impl Global {
         rate: &Rate,
         value: &str,
         capacity: usize,
+        used_connection: &mut Option<Arc<MultiplexedConnection>>,
     ) -> Result<i32> {
         let _permit = self.permits.try_acquire()?;
-        let mut connection = {
+        let connection = {
             let mut cached = self.connection.lock().await;
             if cached.is_none() {
                 let config = redis::AsyncConnectionConfig::new()
                     .set_connection_timeout(Some(self.timeout))
                     .set_response_timeout(Some(self.timeout));
-                *cached = Some(
+                *cached = Some(Arc::new(
                     self.client
                         .get_multiplexed_async_connection_with_config(&config)
                         .await?,
-                );
+                ));
             }
             cached.as_ref().unwrap().clone()
         };
+        *used_connection = Some(connection.clone());
+        let mut connection = connection.as_ref().clone();
         let group = format!("{:x}", Sha256::digest(format!("{}\0{group}", self.scope)));
         let bucket = format!(
             "{:x}",
             Sha256::digest(serde_json::to_vec(&(bucket, rate, value))?)
         );
-        let result = redis::cmd("EVAL")
+        Ok(redis::cmd("EVAL")
             .arg(ADMIT)
             .arg(2)
             .arg(format!("rgnix:{{{group}}}:rates"))
@@ -154,12 +157,7 @@ impl Global {
             .arg(rate.burst)
             .arg(capacity)
             .query_async(&mut connection)
-            .await;
-        if result.is_err() {
-            // Do not retry an ambiguous debit; reconnect for the next request.
-            self.connection.lock().await.take();
-        }
-        Ok(result?)
+            .await?)
     }
 
     async fn local(
@@ -172,9 +170,10 @@ impl Global {
         telemetry: &Telemetry,
     ) -> std::result::Result<bool, u16> {
         let started = std::time::Instant::now();
+        let mut used_connection = None;
         let result = tokio::time::timeout(
             self.timeout,
-            self.admit(group, bucket, rate, value, capacity),
+            self.admit(group, bucket, rate, value, capacity, &mut used_connection),
         )
         .await;
         let (label, decision) = match result {
@@ -182,7 +181,14 @@ impl Global {
             Ok(Ok(0)) => ("limited", Err(429)),
             Ok(Ok(-1)) => ("capacity", Err(503)),
             _ => {
-                if let Ok(mut connection) = self.connection.try_lock() {
+                // Local overload has not contacted Redis. An old failed debit must
+                // not evict a replacement connection; never replay an ambiguous debit.
+                if let Some(used) = used_connection
+                    && let Ok(mut connection) = self.connection.try_lock()
+                    && connection
+                        .as_ref()
+                        .is_some_and(|cached| Arc::ptr_eq(cached, &used))
+                {
                     connection.take();
                 }
                 match self.failure {

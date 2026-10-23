@@ -153,7 +153,7 @@ server {{ listen 127.0.0.1:{mtls} ssl; server_name example.test; ssl_certificate
 server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0.0/8; real_ip_header proxy_protocol; return 200 "$remote_addr|$realip_remote_addr"; }}
 }}''')
             command(binary, "check", "-c", str(config))
-            output = open(root / "stderr", "w+")
+            output = open(root / "stderr", "a+")
             process = subprocess.Popen([binary, "serve", "-c", str(config), "--admin", f"127.0.0.1:{admin}", "--admin-token-file", str(root / "admin.token")], stdout=output, stderr=output)
             wait_for(lambda: request(admin, "/readyz")[0], 200)
             check("trusted XFF resolves the last untrusted hop and retains socket peer", request(port, "/ip", headers={"X-Forwarded-For": "192.0.2.9, 203.0.113.7, 127.0.0.2", "X-Forwarded-Proto": "https"})[2] == b"203.0.113.7|127.0.0.1|https")
@@ -167,7 +167,10 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
                 held = pool.submit(request, port, "/limited", headers={"x-tenant": "one"})
                 time.sleep(.15)
                 check("route concurrency rejects excess requests", request(port, "/limited", headers={"x-tenant": "one"})[0] == 503)
-                check("concurrency permit releases after completion", held.result()[0] == 200 and request(port, "/limited", headers={"x-tenant": "one"})[0] == 200)
+                completed = held.result()[0] == 200
+                if completed:
+                    wait_for(lambda: request(port, "/limited", headers={"x-tenant": "one"})[0], 200)
+                check("concurrency permit releases after completion", completed)
                 held = pool.submit(request, port, "/backend-limit")
                 time.sleep(.15)
                 metrics = request(admin, "/metrics")[2].decode()
@@ -232,7 +235,10 @@ server {{ listen 127.0.0.1:{proxy_port} proxy_protocol; set_real_ip_from 127.0.0
             check("mTLS accepts a client issued by the configured CA", response.status == 200 and response.read() == b"mutual")
             denied = False
             try:
-                request(mtls, tls=True)
+                # CPython can leave a system error in OpenSSL's thread-local
+                # queue after a rejected TLS write, poisoning the trusted client.
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    pool.submit(request, mtls, tls=True).result()
             except (OSError, http.client.HTTPException):
                 denied = True
             check("mTLS rejects an anonymous TLS client", denied)
@@ -350,6 +356,7 @@ return 200 "$remote_addr";
         with open(root / "security-transport.log", "w+") as output:
             process = subprocess.Popen([binary, "serve", "-c", str(config), "--admin", f"127.0.0.1:{admin}"], stdout=output, stderr=output, env={**os.environ, "SSL_CERT_FILE": str(root / "ca.crt")})
             wait_for(lambda: request(admin, "/readyz")[0], 200)
+            wait_for(lambda: request(port, "/allowed")[0], 200)
             check("HTTPS upstream validates a private CA and explicit server name", request(port, "/allowed")[0] == 200)
             check("upstream pool cannot reuse a connection across different CA policies", request(port, "/denied")[0] == 502)
             context = ssl.create_default_context(cafile=str(root / "ca.crt"))
@@ -391,13 +398,21 @@ return 200 "$remote_addr";
 def grpc_cases(binary, root, _):
     import grpc
     server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=4))
+    peers = set()
+    slow_started = threading.Event()
     def chat(iterator, context):
+        peers.add(context.peer())
         context.set_trailing_metadata((("x-qa", "done"),))
         for message in iterator:
             yield message.upper()
     def fail(_request, context):
         context.abort(grpc.StatusCode.UNAVAILABLE, "synthetic failure")
-    server.add_generic_rpc_handlers((grpc.method_handlers_generic_handler("qa.Echo", {"Chat": grpc.stream_stream_rpc_method_handler(chat), "Fail": grpc.unary_unary_rpc_method_handler(fail)}),))
+    def slow(_request, context):
+        peers.add(context.peer())
+        slow_started.set()
+        time.sleep(2)
+        return b"late"
+    server.add_generic_rpc_handlers((grpc.method_handlers_generic_handler("qa.Echo", {"Chat": grpc.stream_stream_rpc_method_handler(chat), "Fail": grpc.unary_unary_rpc_method_handler(fail), "Slow": grpc.unary_unary_rpc_method_handler(slow)}),))
     class Collector(http.server.BaseHTTPRequestHandler):
         def log_message(self, *_): pass
         def do_POST(self):
@@ -411,11 +426,11 @@ def grpc_cases(binary, root, _):
     port, admin = free_port(), free_port()
     config = root / "grpc.conf"
     config.write_text(f'''http {{ server {{ listen 127.0.0.1:{port} ssl; http2 on; ssl_certificate {root}/server.crt; ssl_certificate_key {root}/server.key;
-    location / {{ proxy_http_version 2; proxy_pass http://127.0.0.1:{upstream};
+    location / {{ proxy_http_version 2; proxy_read_timeout 250ms; proxy_pass http://127.0.0.1:{upstream};
     gzip on; gzip_min_length 0; gzip_types application/grpc text/event-stream;
     }} }} }}''')
     with open(root / "grpc.log", "w+") as output:
-        process = subprocess.Popen([binary, "serve", "-c", str(config), "--admin", f"127.0.0.1:{admin}"], stdout=output, stderr=output, env={**os.environ,"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT":f"http://127.0.0.1:{collector.server_port}/v1/traces","RGNIX_TRACE_SAMPLE_RATIO":"1"})
+        process = subprocess.Popen([binary, "serve", "-c", str(config), "--threads", "1", "--admin", f"127.0.0.1:{admin}"], stdout=output, stderr=output, env={**os.environ,"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT":f"http://127.0.0.1:{collector.server_port}/v1/traces","RGNIX_TRACE_SAMPLE_RATIO":"1"})
         try:
             wait_for(lambda: request(admin, "/readyz")[0], 200)
             credentials = grpc.ssl_channel_credentials((root / "ca.crt").read_bytes())
@@ -448,6 +463,21 @@ def grpc_cases(binary, root, _):
                 return spans
             wait_for(lambda:len(failure_spans())>=2,True)
             check("OTLP marks both server and client spans as failed for gRPC errors",{span[6][0] for span in failure_spans()}=={2,3})
+            completed = []
+            peers.clear()
+            start = time.monotonic()
+            blocked = channel.unary_unary("/qa.Echo/Slow").future(b"test", timeout=3)
+            blocked.add_done_callback(lambda _: completed.append(time.monotonic() - start))
+            assert slow_started.wait(2)
+            def pulses():
+                for _ in range(30):
+                    yield b"pulse"
+                    time.sleep(0.03)
+            assert list(channel.stream_stream("/qa.Echo/Chat")(pulses(), timeout=4)) == [b"PULSE"] * 30
+            isolated = completed and completed[0] < 1 and blocked.code() != grpc.StatusCode.OK
+            if not isolated:
+                print("H2 timeout diagnosis:", completed, blocked.code(), peers, flush=True)
+            check("HTTP/2 header timeout expires while another RPC continues", isolated)
             channel.close()
         finally:
             process.send_signal(signal.SIGINT)
