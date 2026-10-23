@@ -125,7 +125,11 @@ fn run(
                         .name(name)
                         .spawn(move || -> Result<()> {
                             let mut builder = if threads == 1 {
-                                tokio::runtime::Builder::new_current_thread()
+                                let mut builder = tokio::runtime::Builder::new_current_thread();
+                                // Busy connection/driver tasks must not defer new socket and
+                                // timeout events for the default 61 scheduler polls.
+                                builder.event_interval(16);
+                                builder
                             } else {
                                 let mut builder = tokio::runtime::Builder::new_multi_thread();
                                 builder.worker_threads(threads);

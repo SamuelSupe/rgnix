@@ -8,6 +8,10 @@ The current development engine defaults to Hyper. The [2026-10-23 fixed-cost com
 
 The subsequent [instruction-count optimization](validation-hyper-instructions-2026-10-23.md) compares main `7f20b00` with request-local reuse of a prepared-route index. Matched Cachegrind controls pass the 1% A/A gate: single-worker user-space instructions fall 1.90% for ordinary 1 KiB proxy requests and 0.89% with 64 extra fields. These are instruction results, not throughput or P99 gains. An optional reactor/reference wakeup probe supports separate tail-latency diagnosis.
 
+A fresh [Hyper/Pingora comparison of main `971afcd`](validation-hyper-pingora-main-2026-10-23.md) uses the same release ELF for both engines: two workers, 1/16 KiB responses, 64/256 connections, 48 alternating windows and 56,516,904 error-free requests. All four throughput and P99 repeatability checks fail on the shared OrbStack host. The observed median differences are diagnostic observations rather than qualified stable performance ratios.
+
+The [focused 1 KiB / 64-connection tail-latency study](validation-hyper-tail-2026-10-24.md) distinguishes wrk's corrected histogram from raw response latency and evaluates more frequent native-reactor I/O checks. The before/after P99 observation is 2.404 to 2.105 ms with passing P99 repeatability; throughput observes -6.4% and fails calibration. The separate Hyper/Pingora comparison also fails calibration. The report preserves the throughput tradeoff, complete histograms, diagnostic controls and functional validation rather than claiming a stable production gain.
+
 ## Earlier measurements
 
 The [round-nine comparison](validation-performance-round9-2026-09-27.md) measured plain HTTP/1, two workers, 64 connections, three alternating 8-second windows after warmup, on shared OrbStack Linux ARM64. Access logging/OTLP output was disabled; product policies and metrics remained active.
