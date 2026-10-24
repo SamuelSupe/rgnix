@@ -304,6 +304,127 @@ where
     }
 }
 
+#[cfg(feature = "rgnix-extensions")]
+impl<T, B> Connection<T, B>
+where
+    T: Read + Write + Unpin,
+    B: Body + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    /// Convert a fresh connection into single-owner request dispatch.
+    /// Drop its `SendRequest` and drive requests exclusively through the result.
+    /// Convert before polling the connection or submitting any request.
+    pub fn into_inline(self) -> InlineConnection<T, B> {
+        InlineConnection {
+            inner: self.inner.into_inline(),
+            closed: false,
+        }
+    }
+}
+
+/// An HTTP/1 connection driven by the owner of its current request and body.
+/// It uses the standard framing, buffering and timeout implementation without
+/// request dispatch channels. Cancellation requires dropping the connection;
+/// submitted requests are never returned for replay. Upgrades are unsupported.
+#[cfg(feature = "rgnix-extensions")]
+pub struct InlineConnection<T, B>
+where
+    T: Read + Write + Unpin,
+    B: Body + 'static,
+{
+    inner: proto::dispatch::Dispatcher<
+        proto::dispatch::InlineClient<B>,
+        B,
+        T,
+        proto::h1::ClientTransaction,
+    >,
+    closed: bool,
+}
+
+#[cfg(feature = "rgnix-extensions")]
+impl<T, B> InlineConnection<T, B>
+where
+    T: Read + Write + Unpin,
+    B: Body + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    /// Whether upstream framing permits a new request after the preceding body.
+    pub fn is_ready(&self) -> bool {
+        !self.closed && self.inner.inline_ready()
+    }
+
+    /// Whether driving the connection has completed or failed.
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    /// Submit one request. An unavailable connection rejects it without replay.
+    pub fn start_request(&mut self, request: Request<B>) -> crate::Result<()> {
+        if self.closed {
+            return Err(crate::Error::new_canceled());
+        }
+        self.inner.start_request(request)
+    }
+
+    /// Drive the connection until response headers arrive. Continue polling this
+    /// connection while consuming a streaming body. Drop it on cancellation.
+    pub fn poll_response(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<crate::Result<Response<IncomingBody>>> {
+        let progress = Pin::new(&mut *self).poll(cx);
+        if let Some(response) = self.inner.take_response() {
+            return Poll::Ready(response);
+        }
+        match progress {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Err(error)) => Poll::Ready(Err(error)),
+            Poll::Ready(Ok(())) => Poll::Ready(Err(crate::Error::new_incomplete())),
+        }
+    }
+}
+
+#[cfg(feature = "rgnix-extensions")]
+impl<T, B> Future for InlineConnection<T, B>
+where
+    T: Read + Write + Unpin,
+    B: Body + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    type Output = crate::Result<()>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self.closed {
+            return Poll::Ready(Ok(()));
+        }
+        let result = Pin::new(&mut self.inner).poll(cx).map(|result| {
+            result.map(|dispatched| {
+                if let proto::Dispatched::Upgrade(pending) = dispatched {
+                    pending.manual();
+                }
+            })
+        });
+        if result.is_ready() {
+            self.closed = true;
+        }
+        result
+    }
+}
+
+#[cfg(feature = "rgnix-extensions")]
+impl<T, B> fmt::Debug for InlineConnection<T, B>
+where
+    T: Read + Write + Unpin,
+    B: Body + 'static,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InlineConnection")
+            .field("closed", &self.closed)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: Read + Write + fmt::Debug,

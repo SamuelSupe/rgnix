@@ -86,7 +86,7 @@ class EarlyHints(socketserver.StreamRequestHandler):
     def handle(self):
         while (line := self.rfile.readline()) != b"\r\n":
             if not line: return
-        self.wfile.write(b"HTTP/1.1 103 Early Hints\r\nLink: </app.css>; rel=preload\r\n\r\nHTTP/1.1 102 Processing\r\n\r\n")
+        self.wfile.write(b"HTTP/1.1 103 Early Hints\r\nLink: </app.css>; rel=preload\r\nConnection: x-hop\r\nX-Hop: hidden\r\n\r\nHTTP/1.1 102 Processing\r\n\r\n")
         self.wfile.flush()
         time.sleep(.05)
         self.wfile.write(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nhinted")
@@ -465,6 +465,20 @@ ssl_client_certificate {root}/ca.crt; ssl_verify_client on; return 200 private;
                 process = subprocess.Popen([binary, "serve", "-c", str(config), "--experimental-hyper", "--threads", "2", "--admin", f"127.0.0.1:{admin}", "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "3"], stdout=output, stderr=output)
                 wait_for(lambda: request(admin, "/readyz")[0], 200)
                 check("Hyper runs without the Pingora process host", request(port, "/health")[2] == b"alive")
+                with socket.create_connection(("127.0.0.1", port), timeout=3) as client:
+                    with client.makefile("rb") as stream:
+                        for _ in range(3):
+                            client.sendall(b"GET /hints HTTP/1.1\r\nHost: example.test\r\n\r\n")
+                            responses = []
+                            for _ in range(3):
+                                lines = [stream.readline()]
+                                while lines[-1] not in [b"\r\n", b""]:
+                                    lines.append(stream.readline())
+                                responses.append(b"".join(lines).lower())
+                            assert [int(r.splitlines()[0].split()[1]) for r in responses] == [103, 102, 200], responses
+                            assert b"link: </app.css>; rel=preload" in responses[0] and b"x-hop" not in responses[0], responses
+                            assert stream.read(6) == b"hinted"
+                check("ordinary H1 forwards filtered 103/102 responses across keepalive requests", True)
                 conn = socket.create_connection(("127.0.0.1", port), timeout=3)
                 conn.sendall(f"CONNECT 127.0.0.1:{raw.server_address[1]} HTTP/1.1\r\nHost: example.test\r\n\r\n".encode())
                 headers = bytearray()

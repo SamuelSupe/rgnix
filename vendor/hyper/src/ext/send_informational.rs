@@ -16,11 +16,14 @@ use std::{
 pub struct SendInformational {
     state: Arc<State>,
     request: Arc<RequestState>,
+    #[cfg(feature = "client")]
+    pub(super) forward: Option<fn(&mut Response<()>)>,
 }
 
 #[derive(Debug)]
 struct State {
     responses: Mutex<VecDeque<Response<()>>>,
+    extensions: Mutex<http::Extensions>,
     active_request: AtomicUsize,
     queued: AtomicBool,
     waker: AtomicWaker,
@@ -48,11 +51,35 @@ impl Clone for SendInformational {
         Self {
             state: self.state.clone(),
             request: self.request.clone(),
+            #[cfg(feature = "client")]
+            forward: self.forward,
         }
     }
 }
 
 impl SendInformational {
+    pub(crate) fn reuse_extensions(&self, extensions: &mut http::Extensions) {
+        if extensions.is_empty() {
+            // Only empty maps enter this cache: retaining a sender here would
+            // form an Arc cycle, and retaining other extensions would leak
+            // request metadata into a subsequent keep-alive exchange.
+            let mut cached = self
+                .state
+                .extensions
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            std::mem::swap(&mut *cached, extensions);
+        }
+    }
+
+    /// Forward upstream HTTP/1 informational responses through this sender.
+    /// Leave the sender in the upstream request extensions. The filter runs
+    /// before the existing status, size, queue and request-lifetime checks.
+    #[cfg(feature = "client")]
+    pub fn forward(&mut self, filter: fn(&mut Response<()>)) {
+        self.forward = Some(filter);
+    }
+
     /// Create a queue for a transport adapter. Drain it before sending the final
     /// response; it closes when the last sender is dropped or the receiver is dropped.
     pub fn channel() -> (Self, Receiver) {
@@ -134,6 +161,8 @@ impl Receiver {
         SendInformational {
             state: self.state.clone(),
             request: self.request.clone(),
+            #[cfg(feature = "client")]
+            forward: None,
         }
     }
 
@@ -198,6 +227,7 @@ pub(crate) fn channel() -> (SendInformational, Receiver) {
     });
     let state = Arc::new(State {
         responses: Mutex::new(VecDeque::new()),
+        extensions: Mutex::new(http::Extensions::new()),
         active_request: AtomicUsize::new(request_id(&request)),
         queued: AtomicBool::new(false),
         waker: AtomicWaker::new(),
@@ -206,6 +236,8 @@ pub(crate) fn channel() -> (SendInformational, Receiver) {
         SendInformational {
             state: state.clone(),
             request: request.clone(),
+            #[cfg(feature = "client")]
+            forward: None,
         },
         Receiver { state, request },
     )

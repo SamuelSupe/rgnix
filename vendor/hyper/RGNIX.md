@@ -14,9 +14,9 @@ does not wait for more data, prefetch a response, or bypass header validation.
 Requests, upgrades, Expect, declared trailers, chunked/EOF-delimited bodies and
 incomplete or larger bodies retain the original channel path.
 
-This removes the body channel for eligible responses. The request dispatch and
-response callback channels remain. Product response permits are still retained
-until downstream socket completion or cancellation. The feature can be disabled
+This removes the body channel for eligible responses. Standard `SendRequest`
+retains request dispatch and response callback channels. Product response permits
+are still retained until downstream socket completion or cancellation. The feature can be disabled
 for a same-source ablation; dependency feature isolation must be measured
 separately from this body change.
 
@@ -31,3 +31,22 @@ the timer to its own deadline. A retained timer may wake a long-running body
 once, but cannot expire that body or renew a partially received header's
 deadline. Keep incomplete/trickling header and persistent-connection checks
 when upgrading this patch.
+
+With `rgnix-extensions`, a fresh client HTTP/1 connection can be converted with
+`into_inline`. Its single owner submits a request with `start_request`, drives
+headers with `poll_response`, and continues polling the connection while reading
+a streaming body. It reuses the existing dispatcher, parser, decoder, buffering,
+I/O timeouts and response-body channels. Only request submission and response
+delivery use owner-local slots instead of channels. A cancelled exchange must
+drop its connection; requests are never returned for replay. The ordinary rgnix
+pool performs its existing idle EOF check before reuse. Upgrades and multiplexed
+requests keep the standard client API.
+
+An HTTP/1 `SendInformational` sender can be marked for direct forwarding with a
+noncapturing response filter. The client moves owned 102/103 responses through
+the existing bounded queue without allocating a generic callback or cloning its
+headers. Unmarked senders and the general callback API retain their behavior.
+The forwarding path recycles an empty request Extensions map back to its server
+connection; maps with any remaining metadata are not cached. The cache never
+contains a sender, preventing reference cycles and cross-request metadata leaks.
+Status/size bounds, stale-sender isolation and final-response hooks still apply.

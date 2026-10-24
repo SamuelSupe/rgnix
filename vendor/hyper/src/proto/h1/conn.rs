@@ -726,7 +726,7 @@ where
                 #[cfg(feature = "client")]
                 {
                     self.state.on_informational =
-                        head.extensions.remove::<crate::ext::OnInformational>();
+                        crate::ext::OnInformational::take(&mut head.extensions);
                 }
 
                 Some(encoder)

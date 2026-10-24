@@ -422,15 +422,9 @@ async fn forward(
     }
     if let Some(sender) = request
         .extensions_mut()
-        .remove::<hyper::ext::SendInformational>()
+        .get_mut::<hyper::ext::SendInformational>()
     {
-        hyper::ext::on_informational(&mut request, move |response| {
-            let mut interim = Response::new(());
-            *interim.status_mut() = response.status();
-            *interim.headers_mut() = response.headers().clone();
-            strip_hop_headers(interim.headers_mut());
-            let _ = sender.try_send(interim);
-        });
+        sender.forward(|response| strip_hop_headers(response.headers_mut()));
     }
     let request = request.map(|body| {
         if body.is_end_stream() {

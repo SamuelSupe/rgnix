@@ -19,6 +19,11 @@ use crate::common::task;
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
+#[cfg(all(feature = "client", feature = "rgnix-extensions"))]
+mod inline;
+#[cfg(all(feature = "client", feature = "rgnix-extensions"))]
+pub(crate) use inline::InlineClient;
+
 pub(crate) struct Dispatcher<D, Bs: Body, I, T> {
     conn: Conn<I, Bs::Data, T>,
     dispatch: D,
@@ -685,6 +690,7 @@ cfg_server! {
                         sender
                     }
                 };
+                sender.reuse_extensions(req.extensions_mut());
                 req.extensions_mut().insert(sender);
             }
             let fut = self.service.call(req);

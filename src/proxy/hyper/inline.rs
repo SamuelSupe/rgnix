@@ -2,7 +2,7 @@
 //! It uses Hyper's framing and streaming implementation, never a second codec.
 use super::{
     body::{BoxError, Payload, RequestBody},
-    upstream::Connector,
+    upstream::{Connector, UpstreamIo},
 };
 use hyper::{
     Request, Response,
@@ -20,10 +20,9 @@ use std::{
 };
 
 pub(super) type Observer = Arc<dyn Fn(bool, Duration) + Send + Sync>;
-type Connection = Pin<Box<dyn Future<Output = hyper::Result<()>> + Send>>;
+type Connection = Pin<Box<http1::InlineConnection<UpstreamIo<super::tls::Stream>, RequestBody>>>;
 
 struct Exchange {
-    sender: http1::SendRequest<RequestBody>,
     connection: Connection,
     address: SocketAddr,
 }
@@ -109,7 +108,7 @@ impl Client {
                 Poll::Ready(exchange.connection.as_mut().poll(cx).is_pending())
             })
             .await;
-            if open && exchange.sender.is_ready() {
+            if open && exchange.connection.is_ready() {
                 return Ok((exchange, true));
             }
         }
@@ -121,9 +120,10 @@ impl Client {
         let (sender, connection) = http1::handshake(io)
             .await
             .map_err(|e| Failure::connect(e.into()))?;
+        let connection = connection.into_inline();
+        drop(sender);
         Ok((
             Exchange {
-                sender,
                 connection: Box::pin(connection),
                 address,
             },
@@ -132,7 +132,7 @@ impl Client {
     }
 
     fn put(&self, exchange: Exchange) {
-        if self.maximum == 0 || self.keepalive.is_zero() || !exchange.sender.is_ready() {
+        if self.maximum == 0 || self.keepalive.is_zero() || !exchange.connection.is_ready() {
             return;
         }
         let Some(expires) = Instant::now().checked_add(self.keepalive) else {
@@ -207,31 +207,30 @@ impl Client {
                 },
             );
         }
-        let response = exchange.sender.send_request(request);
-        tokio::pin!(response);
-        let mut completed = false;
-        let response = futures::future::poll_fn(|cx| {
-            if !completed {
-                completed = exchange.connection.as_mut().poll(cx).is_ready();
-            }
-            response.as_mut().poll(cx)
-        })
-        .await
-        .map_err(|e| Failure {
-            error: e.into(),
-            connect: false,
-        })?;
+        exchange
+            .connection
+            .start_request(request)
+            .map_err(|error| Failure {
+                error: error.into(),
+                connect: false,
+            })?;
+        let response = futures::future::poll_fn(|cx| exchange.connection.poll_response(cx))
+            .await
+            .map_err(|e| Failure {
+                error: e.into(),
+                connect: false,
+            })?;
         let (parts, body) = response.into_parts();
         // This is the same readiness invariant as legacy finish_response:
         // a ready sender has finished upstream framing. Buffered Incoming bytes
         // are independently owned and do not require the connection to advance.
-        if !completed && exchange.sender.is_ready() {
+        if exchange.connection.is_ready() {
             self.put(exchange);
             return Ok(Response::from_parts(parts, Payload::Incoming(body)));
         }
         let mut body = InlineBody {
             body,
-            exchange: (!completed).then_some(exchange),
+            exchange: (!exchange.connection.is_closed()).then_some(exchange),
             pool: self.clone(),
         };
         if body.body.is_end_stream() {
@@ -258,7 +257,7 @@ impl InlineBody {
     fn finish(&mut self, cx: Option<&mut Context<'_>>) {
         if let Some(mut exchange) = self.exchange.take() {
             let open = cx.is_none_or(|cx| exchange.connection.as_mut().poll(cx).is_pending());
-            if open && exchange.sender.is_ready() {
+            if open && exchange.connection.is_ready() {
                 self.pool.put(exchange);
             }
         }
