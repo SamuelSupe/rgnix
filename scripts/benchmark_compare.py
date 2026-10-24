@@ -282,12 +282,15 @@ proxy_next_upstream off;
             config += f"upstream {name} {{ server 127.0.0.1:{ports[name]}; {keepalive} }}\n"
         if engine == "nginx":
             config += "map $http_x_canary $selected_upstream { default primary; 1 canary; }\n"
+        # Match rgnix's per-worker HTTP listeners so a persistent client cohort
+        # cannot be accepted entirely by one shared-socket NGINX worker.
+        reuseport = " reuseport" if engine != "rgnix" and args.workers > 1 else ""
         tls_listener = "" if args.plain_proxy else f'''listen 127.0.0.1:{ports['tls']} ssl;
 ssl_certificate {directory}/cert.pem;
 ssl_certificate_key {directory}/key.pem;
 '''
         config += f'''server {{
-listen 127.0.0.1:{ports['http']};
+listen 127.0.0.1:{ports['http']}{reuseport};
 {tls_listener}server_name localhost;
 root {data};
 location = /return {{ return 200 ok; }}

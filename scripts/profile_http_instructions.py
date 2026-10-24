@@ -37,18 +37,22 @@ def profile_counts(path):
     return summary, functions
 
 
-def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers):
+def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, nginx=False):
     directory.mkdir()
     profile = directory / 'cachegrind.out'
     command = ['taskset', '-c', cpu, 'valgrind', '--tool=cachegrind', '--cache-sim=no', '--branch-sim=no',
-               '--cachegrind-out-file=' + str(profile), str(binary), 'serve', '-c', str(fixture / 'rgnix/nginx.conf'),
+               '--cachegrind-out-file=' + str(profile), str(binary)]
+    command += (['-p', str(fixture / 'nginx'), '-c', str(fixture / 'nginx/nginx.conf'),
+                 '-g', 'daemon off; master_process off;'] if nginx else
+               ['serve', '-c', str(fixture / 'rgnix/nginx.conf'),
                '--engine', 'hyper', '--threads', '1', '--admin', f"127.0.0.1:{ports['admin']}",
                '--max-inflight', '4096', '--upstream-keepalive-pool-size', '128',
-               '--shutdown-grace-seconds', '0', '--shutdown-timeout-seconds', '5']
+               '--shutdown-grace-seconds', '0', '--shutdown-timeout-seconds', '5'])
     server = connection = None
     try:
         server = start(command, directory / 'server.log')
-        wait_for(lambda: request(ports['admin'], '/readyz')[0], 200, timeout=60)
+        wait_for(lambda: request(ports['http'] if nginx else ports['admin'],
+                                 '/proxy-1k' if nginx else '/readyz')[0], 200, timeout=60)
         connection = http.client.HTTPConnection('127.0.0.1', ports['http'], timeout=30)
         started = time.monotonic()
         for _ in range(warmup + requests):
@@ -87,6 +91,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--candidate', type=Path)
+    parser.add_argument('--nginx', type=Path, help='optional one-worker NGINX control, without a forking master')
     parser.add_argument('--work-dir', type=Path, required=True, help='new directory on native Linux storage')
     parser.add_argument('--requests', type=int, default=2000)
     parser.add_argument('--warmup', type=int, default=100)
@@ -111,6 +116,8 @@ def main():
     binaries = {'baseline': args.binary.resolve()}
     if args.candidate:
         binaries['candidate'] = args.candidate.resolve()
+    if args.nginx:
+        binaries['nginx'] = args.nginx.resolve()
     fixture = work / 'fixture'
     fixture.mkdir()
     fixtures(SimpleNamespace(plain_proxy=True, workers=1, origin_workers=1, cases=['proxy-1k'], connection_close=False), fixture, ports)
@@ -132,7 +139,7 @@ def main():
                 for engine in order:
                     runs = {}
                     for count in ([0, args.requests] if (round_index + repeat) % 2 == 0 else [args.requests, 0]):
-                        runs[count] = measure(binaries[engine], work / f'{round_index + 1}-{repeat + 1}-{engine}-{count}', fixture, ports, count, args.warmup, args.server_cpu, headers)
+                        runs[count] = measure(binaries[engine], work / f'{round_index + 1}-{repeat + 1}-{engine}-{count}', fixture, ports, count, args.warmup, args.server_cpu, headers, engine == 'nginx')
                     load, control = runs[args.requests], runs[0]
                     difference = Counter(load['functions'])
                     difference.subtract(control['functions'])

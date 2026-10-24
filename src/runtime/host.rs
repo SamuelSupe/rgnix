@@ -125,7 +125,11 @@ fn run(
                         .name(name)
                         .spawn(move || -> Result<()> {
                             let mut builder = if threads == 1 {
-                                tokio::runtime::Builder::new_current_thread()
+                                let mut builder = tokio::runtime::Builder::new_current_thread();
+                                // Bound I/O deferral without polling the reactor after
+                                // every few proxy exchanges under sustained load.
+                                builder.event_interval(32);
+                                builder
                             } else {
                                 let mut builder = tokio::runtime::Builder::new_multi_thread();
                                 builder.worker_threads(threads);

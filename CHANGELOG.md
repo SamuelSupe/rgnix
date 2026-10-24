@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Prioritize I/O and timer event checks on single-thread native reactors. The [focused tail-latency study](docs/validation-hyper-tail-2026-10-24.md) records the observed P99 reduction and unresolved throughput tradeoff.
 - Add a single-worker Cachegrind instruction harness with matched startup controls, per-function deltas and repeated A/A calibration.
 - Reuse the selected immutable prepared-route index through plain HTTP/1 forwarding and completion, removing three repeated map lookups without extra request-time Arc clones.
 - Add opt-in `--hyper-wakeup-probe` reactor/reference-thread wakeup histograms; the default heartbeat period remains 250 ms.

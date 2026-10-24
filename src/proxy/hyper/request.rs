@@ -27,23 +27,6 @@ pub(super) async fn serve(
     peer: SocketAddr,
     connection: Arc<Connection>,
 ) -> Result<Response<ResponseBody>, Infallible> {
-    #[cfg(feature = "http3")]
-    let advertise_h3 = request.method() != http::Method::CONNECT
-        || request.extensions().get::<hyper::ext::Protocol>().is_some();
-    #[cfg(feature = "http3")]
-    let public_port = request
-        .uri()
-        .authority()
-        .and_then(|a| a.port_u16())
-        .or_else(|| {
-            request
-                .headers()
-                .get(header::HOST)
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse::<http::uri::Authority>().ok())
-                .and_then(|a| a.port_u16())
-        })
-        .unwrap_or(443);
     if matches!(
         request.version(),
         http::Version::HTTP_10 | http::Version::HTTP_11
@@ -55,6 +38,28 @@ pub(super) async fn serve(
     {
         return Ok(super::plain::serve(listener, request, connection, selected, permit).await);
     }
+    #[cfg(feature = "http3")]
+    let advertise_h3 = connection.tls
+        && (request.method() != http::Method::CONNECT
+            || request.extensions().get::<hyper::ext::Protocol>().is_some());
+    #[cfg(feature = "http3")]
+    let public_port = if advertise_h3 {
+        request
+            .uri()
+            .authority()
+            .and_then(|a| a.port_u16())
+            .or_else(|| {
+                request
+                    .headers()
+                    .get(header::HOST)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.parse::<http::uri::Authority>().ok())
+                    .and_then(|a| a.port_u16())
+            })
+            .unwrap_or(443)
+    } else {
+        443
+    };
     let proxy = Proxy {
         shared: listener.shared.clone(),
         listener: listener.address,
