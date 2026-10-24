@@ -50,3 +50,9 @@ The forwarding path recycles an empty request Extensions map back to its server
 connection; maps with any remaining metadata are not cached. The cache never
 contains a sender, preventing reference cycles and cross-request metadata leaks.
 Status/size bounds, stale-sender isolation and final-response hooks still apply.
+
+The owned connection exposes an idle poll that reuses the existing buffered
+IO/TLS reader. It skips dispatcher write/flush work only when no request or body
+is active, no bytes remain buffered for writing, and the last transport flush
+completed. Busy connections, pending flushes and EOF keep the normal driver.
+A controlled pending-flush regression fails when this guard is removed.

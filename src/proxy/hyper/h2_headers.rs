@@ -132,6 +132,10 @@ impl<T: AsyncRead + Unpin> AsyncRead for HeaderIo<T> {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
+        if self.disabled {
+            // H1 detection is final; h2c installs a fresh monitor after upgrade.
+            return Pin::new(&mut self.inner).poll_read(cx, buf);
+        }
         self.check(cx)?;
         let before = buf.filled().len();
         let result = Pin::new(&mut self.inner).poll_read(cx, buf);

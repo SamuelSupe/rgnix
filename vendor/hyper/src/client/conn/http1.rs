@@ -359,6 +359,27 @@ where
         self.closed
     }
 
+    /// Check an idle connection for EOF or unsolicited bytes through the same
+    /// buffered IO/TLS reader. Busy connections and EOF retain normal driving
+    /// and shutdown. Pending alone does not promise request readiness; also
+    /// check `is_ready` before submitting another request.
+    pub fn poll_idle(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+        if self.closed {
+            return Poll::Ready(Ok(()));
+        }
+        let result = self.inner.poll_idle(cx).map(|result| {
+            result.map(|dispatched| {
+                if let proto::Dispatched::Upgrade(pending) = dispatched {
+                    pending.manual();
+                }
+            })
+        });
+        if result.is_ready() {
+            self.closed = true;
+        }
+        result
+    }
+
     /// Submit one request. An unavailable connection rejects it without replay.
     pub fn start_request(&mut self, request: Request<B>) -> crate::Result<()> {
         if self.closed {

@@ -7,6 +7,7 @@ pin_project_lite::pin_project! {
         response: Option<crate::Result<http::Response<IncomingBody>>>,
         awaiting: bool,
         ready: bool,
+        flushed: bool,
     }
 }
 
@@ -17,6 +18,7 @@ impl<B> InlineClient<B> {
             response: None,
             awaiting: false,
             ready: true,
+            flushed: true,
         }
     }
 }
@@ -77,6 +79,10 @@ impl<B: Body> Dispatch for InlineClient<B> {
     fn should_poll(&self) -> bool {
         !self.awaiting
     }
+
+    fn on_flush(&mut self, ready: bool) {
+        self.flushed = ready;
+    }
 }
 
 impl<B, I> Dispatcher<InlineClient<B>, B, I, super::super::ClientTransaction>
@@ -99,12 +105,37 @@ where
             return Err(crate::Error::new_canceled());
         }
         self.dispatch.ready = false;
+        self.dispatch.flushed = false;
         self.dispatch.request = Some(request);
         Ok(())
     }
 
     pub(crate) fn take_response(&mut self) -> Option<crate::Result<http::Response<IncomingBody>>> {
         self.dispatch.response.take()
+    }
+
+    pub(crate) fn poll_idle(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<Dispatched>>
+    where
+        B::Data: Send,
+    {
+        if self.inline_ready()
+            && self.dispatch.flushed
+            && self.body_rx.is_none()
+            && self.body_tx.0.is_none()
+            && self.conn.can_poll_idle()
+        {
+            match self.conn.poll_read_keep_alive(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Err(error)) => {
+                    self.close();
+                    return Poll::Ready(Err(error));
+                }
+                // EOF still goes through normal shutdown. Busy or buffered
+                // connections also retain the full dispatcher path.
+                Poll::Ready(Ok(())) => {}
+            }
+        }
+        Pin::new(self).poll(cx)
     }
 }
 
@@ -131,6 +162,104 @@ where
 mod tests {
     use super::*;
     use crate::common::io::Compat;
+
+    #[tokio::test]
+    async fn idle_check_drives_a_pending_transport_flush() {
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
+        use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+
+        struct HeldFlush {
+            inner: tokio_test::io::Mock,
+            released: Arc<AtomicBool>,
+            flushed: Arc<AtomicBool>,
+        }
+        impl AsyncRead for HeldFlush {
+            fn poll_read(
+                mut self: Pin<&mut Self>,
+                cx: &mut Context<'_>,
+                buf: &mut ReadBuf<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                Pin::new(&mut self.inner).poll_read(cx, buf)
+            }
+        }
+        impl AsyncWrite for HeldFlush {
+            fn poll_write(
+                mut self: Pin<&mut Self>,
+                cx: &mut Context<'_>,
+                bytes: &[u8],
+            ) -> Poll<std::io::Result<usize>> {
+                Pin::new(&mut self.inner).poll_write(cx, bytes)
+            }
+            fn poll_flush(
+                mut self: Pin<&mut Self>,
+                cx: &mut Context<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                if self.released.load(Ordering::Relaxed) {
+                    self.flushed.store(true, Ordering::Relaxed);
+                    Pin::new(&mut self.inner).poll_flush(cx)
+                } else {
+                    Poll::Pending
+                }
+            }
+            fn poll_shutdown(
+                mut self: Pin<&mut Self>,
+                cx: &mut Context<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                Pin::new(&mut self.inner).poll_shutdown(cx)
+            }
+        }
+        let released = Arc::new(AtomicBool::new(false));
+        let flushed = Arc::new(AtomicBool::new(false));
+        let io = tokio_test::io::Builder::new()
+            .write(b"GET / HTTP/1.1\r\n\r\n")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+            .write(b"GET / HTTP/1.1\r\n\r\n")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+            .build();
+        let (sender, connection) =
+            crate::client::conn::http1::handshake::<_, IncomingBody>(Compat::new(HeldFlush {
+                inner: io,
+                released: released.clone(),
+                flushed: flushed.clone(),
+            }))
+            .await
+            .unwrap();
+        let mut connection = connection.into_inline();
+        drop(sender);
+        connection
+            .start_request(Request::new(IncomingBody::empty()))
+            .unwrap();
+        let response = std::future::poll_fn(|cx| connection.poll_response(cx))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        assert!(connection.is_ready());
+        released.store(true, Ordering::Relaxed);
+        std::future::poll_fn(|cx| {
+            let progress = connection.poll_idle(cx);
+            assert!(progress.is_pending());
+            Poll::Ready(())
+        })
+        .await;
+        let flushed_at_idle = flushed.load(Ordering::Relaxed);
+        connection
+            .start_request(Request::new(IncomingBody::empty()))
+            .unwrap();
+        assert_eq!(
+            std::future::poll_fn(|cx| connection.poll_response(cx))
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
+        assert!(
+            flushed_at_idle,
+            "idle checking must drive an outstanding transport flush"
+        );
+    }
 
     #[tokio::test]
     async fn inline_requests_reuse_only_after_response_framing() {
@@ -163,7 +292,7 @@ mod tests {
                 let mut body = response.into_body();
                 let mut received = Vec::new();
                 while let Some(frame) = std::future::poll_fn(|cx| {
-                    let _ = Pin::new(&mut connection).poll(cx);
+                    let _ = connection.poll_idle(cx);
                     Pin::new(&mut body).poll_frame(cx)
                 })
                 .await
@@ -172,7 +301,7 @@ mod tests {
                 }
                 assert_eq!(received, expected);
                 std::future::poll_fn(|cx| {
-                    let _ = Pin::new(&mut connection).poll(cx);
+                    let _ = connection.poll_idle(cx);
                     if connection.is_ready() || connection.is_closed() {
                         Poll::Ready(())
                     } else {

@@ -45,6 +45,7 @@ pub(crate) trait Dispatch {
         -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
+    fn on_flush(&mut self, _ready: bool) {}
     #[cfg(all(feature = "server", feature = "rgnix-extensions"))]
     fn poll_informational(&mut self, _cx: &mut Context<'_>) -> Poll<Option<http::Response<()>>> {
         Poll::Ready(None)
@@ -500,10 +501,12 @@ where
     }
 
     fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
-        self.conn.poll_flush(cx).map_err(|err| {
+        let result = self.conn.poll_flush(cx).map_err(|err| {
             debug!("error writing: {}", err);
             crate::Error::new_body_write(err)
-        })
+        });
+        self.dispatch.on_flush(matches!(&result, Poll::Ready(Ok(()))));
+        result
     }
 
     fn close(&mut self) {

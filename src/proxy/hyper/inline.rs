@@ -105,7 +105,7 @@ impl Client {
             // The connection has no request queued yet. Polling it detects a
             // buffered EOF or unsolicited response before any new bytes are sent.
             let open = futures::future::poll_fn(|cx| {
-                Poll::Ready(exchange.connection.as_mut().poll(cx).is_pending())
+                Poll::Ready(exchange.connection.poll_idle(cx).is_pending())
             })
             .await;
             if open && exchange.connection.is_ready() {

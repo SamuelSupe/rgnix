@@ -477,6 +477,11 @@ where
         )
     }
 
+    #[cfg(all(feature = "client", feature = "rgnix-extensions"))]
+    pub(super) fn can_poll_idle(&self) -> bool {
+        !self.is_read_closed() && !self.is_mid_message() && !self.has_buffered_write()
+    }
+
     // This will check to make sure the io object read is empty.
     //
     // This should only be called for Clients wanting to enter the idle
