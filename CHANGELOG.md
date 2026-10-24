@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Drive eligible ordinary HTTP/1 upstream exchanges inline with Hyper's existing codec and bounded worker pools; reduce common Host/header setup and empty-body allocations. Matched single-worker instructions fall 9.13% for 1 KiB and 10.68% for 16 KiB against main `3a44af7`; capacity and P99 remain subject to the [complete execution-path validation](docs/validation-hyper-execution-2026-10-24.md).
+- Replace the nonwaiting process request semaphore with an exact atomic budget, and shard hot cumulative request metrics while preserving public labels, histogram observations and synchronous scrape aggregation.
 - Batch Hyper pool-key hashing and defer unused HTTP/3 metadata on ordinary HTTP requests. Matched user-space instructions fall 3.855%; throughput and P99 improvements remain unqualified. See the [execution-chain study](docs/validation-hyper-chain-2026-10-24.md).
 - Reuse HTTP/1 request-header timers on keepalive connections while resetting a fresh absolute deadline for every new request head.
 - Prioritize I/O and timer event checks on single-thread native reactors. The [focused tail-latency study](docs/validation-hyper-tail-2026-10-24.md) records the observed P99 reduction and unresolved throughput tradeoff.
