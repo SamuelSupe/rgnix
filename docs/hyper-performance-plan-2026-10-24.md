@@ -7,7 +7,7 @@
 - 正式压测的 CPU 中位数与独立 perf 窗口比例不能相乘构成同窗内核/用户态微秒预算。现有数据只能支持用户态工作明显更多的方向。
 - HTTP/1 客户端池已按 worker 分开，池 mutex 不直接证明跨 worker 争用；全局指标、快照与预算仍可能有共享写入。
 - 当前 OrbStack 对 cycles/instructions 报不支持，perf c2c 报无内存事件 PMU。保留失败输出，提供同负载的 1/2 worker 原生 PMU 复现入口；不伪造 IPC/HITM 结论。
-- epoll 次数不能唯一反推出任务 poll 次数；Date 已按线程缓存格式化结果，但每响应仍检查时钟。
+- epoll 次数不能唯一反推出任务 poll 次数；Date 已按线程缓存格式化结果；仅在需要自动添加 Date 时检查时钟，已有上游 Date 透传不触发该生成路径。
 
 ## 实施阶段
 

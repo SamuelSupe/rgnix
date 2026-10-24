@@ -88,7 +88,7 @@ impl Client {
     async fn checkout(
         &self,
         address: SocketAddr,
-        uri: hyper::Uri,
+        uri: &hyper::Uri,
         now: Instant,
     ) -> Result<(Exchange, bool), Failure> {
         loop {
@@ -118,7 +118,7 @@ impl Client {
         let io = self
             .connector
             .clone()
-            .call(uri)
+            .call(uri.clone())
             .await
             .map_err(Failure::connect)?;
         let (sender, connection) = http1::handshake(io)
@@ -194,7 +194,7 @@ impl Client {
         address: SocketAddr,
     ) -> Result<Response<Payload>, Failure> {
         let now = Instant::now();
-        let (mut exchange, reused) = self.checkout(address, request.uri().clone(), now).await?;
+        let (mut exchange, reused) = self.checkout(address, request.uri(), now).await?;
         (self.observer)(reused, now.elapsed());
         *request.uri_mut() = request.uri().path_and_query().cloned().map_or_else(
             || hyper::Uri::from_static("/"),
@@ -209,9 +209,6 @@ impl Client {
         tokio::pin!(response);
         let mut completed = false;
         let response = futures::future::poll_fn(|cx| {
-            if let Poll::Ready(result) = response.as_mut().poll(cx) {
-                return Poll::Ready(result);
-            }
             if !completed {
                 completed = exchange.connection.as_mut().poll(cx).is_ready();
             }
@@ -223,6 +220,13 @@ impl Client {
             connect: false,
         })?;
         let (parts, body) = response.into_parts();
+        // This is the same readiness invariant as legacy finish_response:
+        // a ready sender has finished upstream framing. Buffered Incoming bytes
+        // are independently owned and do not require the connection to advance.
+        if !completed && exchange.sender.is_ready() {
+            self.put(exchange);
+            return Ok(Response::from_parts(parts, Payload::Incoming(body)));
+        }
         let mut body = InlineBody {
             body,
             exchange: (!completed).then_some(exchange),
@@ -265,14 +269,19 @@ impl Body for InlineBody {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, BoxError>>> {
-        if let Some(exchange) = &mut self.exchange
-            && exchange.connection.as_mut().poll(cx).is_ready()
-        {
-            self.exchange = None;
-        }
-        let frame = Pin::new(&mut self.body)
+        let mut frame = Pin::new(&mut self.body)
             .poll_frame(cx)
             .map(|f| f.map(|r| r.map_err(Into::into)));
+        if frame.is_pending() {
+            if let Some(exchange) = &mut self.exchange
+                && exchange.connection.as_mut().poll(cx).is_ready()
+            {
+                self.exchange = None;
+            }
+            frame = Pin::new(&mut self.body)
+                .poll_frame(cx)
+                .map(|f| f.map(|r| r.map_err(Into::into)));
+        }
         if matches!(frame, Poll::Ready(Some(Err(_)))) {
             self.exchange = None;
         }

@@ -7,6 +7,7 @@ import http.client
 import json
 from pathlib import Path
 import platform
+import signal
 import statistics
 import subprocess
 import time
@@ -65,7 +66,16 @@ def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, n
     finally:
         if connection:
             connection.close()
-        stop(server)
+        if nginx and server and server.poll() is None:
+            server.send_signal(signal.SIGQUIT)
+            try:
+                server.wait(timeout=35)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait()
+                raise RuntimeError('instrumented NGINX failed to quit gracefully')
+        else:
+            stop(server)
     total, functions = profile_counts(profile)
     return {'requests': requests, 'warmup_requests': warmup, 'instructions': total, 'functions': dict(functions),
             'seconds_including_warmup': seconds, 'command': command, 'profile': str(profile),
