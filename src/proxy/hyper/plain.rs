@@ -16,11 +16,14 @@ use crate::{
 use bytes::Bytes;
 use http::header;
 use http_body_util::Full;
+use hyper::body::Body as _;
 use hyper::{Request, Response};
 use std::{
     sync::{Arc, atomic::Ordering},
     time::Instant,
 };
+
+static TRACEPARENT: http::HeaderName = http::HeaderName::from_static("traceparent");
 
 pub(super) enum Action {
     Proxy(PreparedTarget),
@@ -106,7 +109,7 @@ pub(super) fn select(listener: &Listener, request: &Request<Payload>) -> Option<
     if request.version() != http::Version::HTTP_11
         || request.method() == http::Method::CONNECT
         || listener.shared.telemetry.trace_ratio.is_some()
-        || request.headers().contains_key("traceparent")
+        || request.headers().contains_key(&TRACEPARENT)
         || request.headers().contains_key(header::UPGRADE)
         || request
             .headers()
@@ -154,12 +157,13 @@ pub(super) fn select(listener: &Listener, request: &Request<Payload>) -> Option<
 
 pub(super) struct Guard {
     pub proxy: Proxy,
-    pub counts: Arc<Counters>,
+    pub counts: Counters,
+    upload_counts: Option<Arc<Counters>>,
     pub snapshot: Arc<RuntimeSnapshot>,
     pub route: Arc<Route>,
     prepared_route: usize,
     pub started: Instant,
-    pub _permit: tokio::sync::OwnedSemaphorePermit,
+    pub _permit: crate::runtime::RequestPermit,
     backend_attempted: bool,
     pub upstream_started: Option<Instant>,
     pub lease: Option<crate::backend::Lease>,
@@ -209,7 +213,11 @@ impl Guard {
         let completion = Completion {
             version: http::Version::HTTP_11,
             status: self.status,
-            request_bytes: self.counts.request.load(Ordering::Relaxed) as usize,
+            request_bytes: self
+                .upload_counts
+                .as_ref()
+                .map_or(0, |counts| counts.request.load(Ordering::Relaxed))
+                as usize,
             response_bytes: self.counts.response.load(Ordering::Relaxed) as usize,
             error: self.error.as_deref(),
         };
@@ -269,7 +277,7 @@ pub(super) async fn serve(
     request: Request<Payload>,
     connection: Arc<Connection>,
     selected: Selected,
-    permit: tokio::sync::OwnedSemaphorePermit,
+    permit: crate::runtime::RequestPermit,
 ) -> Response<ResponseBody> {
     let mut guard = Box::new(Guard {
         proxy: Proxy {
@@ -277,7 +285,8 @@ pub(super) async fn serve(
             listener: listener.address,
             tls: connection.tls,
         },
-        counts: Arc::new(Counters::default()),
+        counts: Counters::default(),
+        upload_counts: None,
         snapshot: selected.snapshot,
         route: selected.route,
         prepared_route: selected.prepared_route,
@@ -444,30 +453,38 @@ async fn forward(
         });
     }
     let request = request.map(|body| {
+        if body.is_end_stream() {
+            return RequestBody::empty();
+        }
+        let counts = Arc::new(Counters::default());
+        guard.upload_counts = Some(counts.clone());
         RequestBody::new(
             body,
-            guard.counts.clone(),
+            counts,
             settings.max_body,
             settings.client_body_timeout,
         )
     });
     let result = selected.client(listener.worker).request(request).await;
-    let mut response =
-        result.map_err(
-            |failure| match guard.counts.request_error.load(Ordering::Relaxed) {
-                1 => error(413, "request body too large"),
-                2 => error(400, "incomplete request body").into_down(),
-                3 => error(408, "request body timed out").into_down(),
-                _ => upstream_error(
-                    &failure,
-                    if failure.is_connect() {
-                        FailurePhase::Connect
-                    } else {
-                        FailurePhase::Request
-                    },
-                ),
-            },
-        )?;
+    let mut response = result.map_err(|failure| {
+        match guard
+            .upload_counts
+            .as_ref()
+            .map_or(0, |counts| counts.request_error.load(Ordering::Relaxed))
+        {
+            1 => error(413, "request body too large"),
+            2 => error(400, "incomplete request body").into_down(),
+            3 => error(408, "request body timed out").into_down(),
+            _ => upstream_error(
+                &failure,
+                if failure.is_connect() {
+                    FailurePhase::Connect
+                } else {
+                    FailurePhase::Request
+                },
+            ),
+        }
+    })?;
     let seconds = guard.upstream_started.unwrap().elapsed().as_secs_f64();
     let telemetry = &listener.shared.telemetry;
     match selected.backend.metrics(telemetry, name) {

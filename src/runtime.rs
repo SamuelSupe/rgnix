@@ -24,6 +24,9 @@ use std::{
     sync::{Arc, Mutex, atomic::Ordering},
 };
 
+mod budget;
+pub use budget::{RequestBudget, RequestPermit};
+
 pub struct Shared {
     #[cfg(feature = "hyper-experimental")]
     pub(crate) experimental_hyper: bool,
@@ -34,7 +37,7 @@ pub struct Shared {
     pub snapshot: ArcSwap<RuntimeSnapshot>,
     pub compiler: Arc<Compiler>,
     pub telemetry: Arc<Telemetry>,
-    pub requests: Arc<tokio::sync::Semaphore>,
+    pub requests: Arc<RequestBudget>,
     pub plugins: Arc<tokio::sync::Semaphore>,
     pub traffic: Arc<crate::traffic::Limiter>,
     pub tenants: crate::tenancy::Tenants,
@@ -142,7 +145,7 @@ impl Shared {
             snapshot: ArcSwap::from(self.snapshot.load_full()),
             compiler: self.compiler.clone(),
             telemetry: self.telemetry.clone(),
-            requests: Arc::new(tokio::sync::Semaphore::new(1)),
+            requests: Arc::new(RequestBudget::new(1)),
             plugins: Arc::new(tokio::sync::Semaphore::new(1)),
             traffic: Default::default(),
             tenants: Default::default(),
@@ -510,7 +513,7 @@ pub fn serve(
         limits.max_plugin_instances > 0 && limits.max_plugin_instances <= limits.max_inflight,
         "max-plugin-instances must be 1..max-inflight"
     );
-    let telemetry = Telemetry::new(otlp)?;
+    let telemetry = Telemetry::with_workers(otlp, threads)?;
     #[cfg(feature = "hyper-experimental")]
     ensure!(
         (1..=1_000_000).contains(&limits.hyper_max_connections),
@@ -589,7 +592,7 @@ pub fn serve(
         snapshot: ArcSwap::from_pointee(snapshot),
         compiler,
         telemetry: telemetry.clone(),
-        requests: Arc::new(tokio::sync::Semaphore::new(limits.max_inflight)),
+        requests: Arc::new(RequestBudget::new(limits.max_inflight)),
         plugins: Arc::new(tokio::sync::Semaphore::new(limits.max_plugin_instances)),
         traffic: Arc::new(crate::traffic::Limiter::default()),
         tenants: Default::default(),

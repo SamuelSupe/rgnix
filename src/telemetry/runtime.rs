@@ -219,11 +219,11 @@ impl Collector for RuntimeCollector {
         ] {
             set("rgnix_config_resources", &[kind], count as f64);
         }
-        for ((budget, semaphore), limit) in [
-            ("inflight", &shared.requests),
-            ("plugin", &shared.plugins),
-            ("mirror", &shared.mirrors),
-            ("simulation", &shared.simulations),
+        for ((budget, available), limit) in [
+            ("inflight", shared.requests.available_permits()),
+            ("plugin", shared.plugins.available_permits()),
+            ("mirror", shared.mirrors.available_permits()),
+            ("simulation", shared.simulations.available_permits()),
         ]
         .into_iter()
         .zip(self.limits)
@@ -231,7 +231,7 @@ impl Collector for RuntimeCollector {
             set(
                 "rgnix_budget_in_use",
                 &[budget],
-                limit.saturating_sub(semaphore.available_permits()) as f64,
+                limit.saturating_sub(available) as f64,
             );
             set("rgnix_budget_limit", &[budget], limit as f64);
         }

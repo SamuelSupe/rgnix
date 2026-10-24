@@ -11,7 +11,7 @@ pub(super) struct Completion<'a> {
 pub(super) struct UpstreamCompletion<'a> {
     pub lease: &'a crate::backend::Lease,
     pub label: &'a str,
-    pub duration_metric: Option<&'a prometheus::Histogram>,
+    pub duration_metric: Option<&'a crate::telemetry::sharded::Histogram>,
     pub started: Instant,
 }
 

@@ -46,7 +46,7 @@ pub struct Context {
     body_bytes: u64,
     started: Instant,
     status: u16,
-    request_permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    request_permit: Option<crate::runtime::RequestPermit>,
     plugin_permit: Option<tokio::sync::OwnedSemaphorePermit>,
     upstream_address: Option<SocketAddr>,
     upstream_lease: Option<crate::backend::Lease>,
@@ -623,7 +623,7 @@ impl ProxyHttp for Proxy {
 
 fn validate_connection_header(headers: &http::HeaderMap) -> Result<()> {
     if headers
-        .get_all("connection")
+        .get_all(http::header::CONNECTION)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|s| s.split(','))
@@ -643,23 +643,47 @@ fn validate_connection_header(headers: &http::HeaderMap) -> Result<()> {
 
 fn request_host(request: &RequestHeader) -> Result<String> {
     request_host_parts(&request.headers, &request.uri, request.version)
+        .map(std::borrow::Cow::into_owned)
 }
 
-fn request_host_parts(
-    headers: &http::HeaderMap,
-    uri: &http::Uri,
+fn request_host_parts<'a>(
+    headers: &'a http::HeaderMap,
+    uri: &'a http::Uri,
     version: http::Version,
-) -> Result<String> {
-    let parse = |value: &str| -> Result<String> {
+) -> Result<std::borrow::Cow<'a, str>> {
+    fn parse(value: &str) -> Result<std::borrow::Cow<'_, str>> {
+        // Only a strict reg-name/decimal-port subset bypasses Authority's owning
+        // parser. IPv6, escapes and unusual syntax retain its validation rules.
+        let host = match value.rsplit_once(':') {
+            Some((host, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => {
+                host
+            }
+            None => value,
+            _ => "",
+        };
+        if !host.is_empty()
+            && value.len() <= 1024
+            && host
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-'))
+        {
+            return Ok(if host.bytes().any(|b| b.is_ascii_uppercase()) {
+                std::borrow::Cow::Owned(host.to_ascii_lowercase())
+            } else {
+                std::borrow::Cow::Borrowed(host)
+            });
+        }
         let authority = value
             .parse::<http::uri::Authority>()
             .map_err(|_| error(400, "invalid request authority"))?;
         if authority.host().is_empty() || value.contains('@') {
             return Err(error(400, "invalid request authority"));
         }
-        Ok(authority.host().to_ascii_lowercase())
-    };
-    let mut fields = headers.get_all("host").iter();
+        Ok(std::borrow::Cow::Owned(
+            authority.host().to_ascii_lowercase(),
+        ))
+    }
+    let mut fields = headers.get_all(http::header::HOST).iter();
     let host = fields
         .next()
         .map(|value| {
@@ -708,7 +732,7 @@ pub(crate) fn encode_path(path: &str) -> String {
 fn strip_hop_headers(request: &mut RequestHeader) {
     let connection: Vec<String> = request
         .headers
-        .get_all("connection")
+        .get_all(http::header::CONNECTION)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|s| s.split(',').map(|s| s.trim().to_ascii_lowercase()))
@@ -758,4 +782,54 @@ pub(crate) fn https_redirect(host: &str, uri: &str, port: u16) -> String {
         .and_then(|u| u.path_and_query().map(|p| p.as_str().to_owned()))
         .unwrap_or_else(|| "/".into());
     format!("https://{host}{port}{path}")
+}
+
+#[cfg(test)]
+mod host_tests {
+    use super::*;
+
+    #[test]
+    fn borrowed_hosts_preserve_authority_validation_and_header_cardinality() {
+        let uri: http::Uri = "/".parse().unwrap();
+        let base = b"Example.test:8080";
+        let mut cases = vec![
+            b"[2001:DB8::A]:443".to_vec(),
+            b"test:999999999".to_vec(),
+            b"".to_vec(),
+            b"user@host".to_vec(),
+            b"test:".to_vec(),
+            vec![b'a'; 1100],
+        ];
+        for position in 0..base.len() {
+            for byte in 0..=127 {
+                let mut value = base.to_vec();
+                value[position] = byte;
+                cases.push(value);
+            }
+        }
+        for value in cases {
+            let Ok(value) = http::HeaderValue::from_bytes(&value) else {
+                continue;
+            };
+            let expected = value.to_str().ok().and_then(|text| {
+                let a = text.parse::<http::uri::Authority>().ok()?;
+                (!a.host().is_empty() && !text.contains('@')).then(|| a.host().to_ascii_lowercase())
+            });
+            let mut headers = http::HeaderMap::new();
+            headers.insert(http::header::HOST, value);
+            let actual = request_host_parts(&headers, &uri, http::Version::HTTP_11);
+            assert_eq!(actual.ok().map(|v| v.into_owned()), expected, "{headers:?}");
+        }
+        let mut headers = http::HeaderMap::new();
+        assert!(request_host_parts(&headers, &uri, http::Version::HTTP_11).is_err());
+        headers.append(
+            http::header::HOST,
+            http::HeaderValue::from_static("one.test"),
+        );
+        headers.append(
+            http::header::HOST,
+            http::HeaderValue::from_static("two.test"),
+        );
+        assert!(request_host_parts(&headers, &uri, http::Version::HTTP_11).is_err());
+    }
 }

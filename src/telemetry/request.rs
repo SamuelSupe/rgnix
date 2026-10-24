@@ -1,5 +1,5 @@
 use super::Telemetry;
-use prometheus::{Histogram, IntCounter};
+use super::sharded::{Counter as IntCounter, Histogram};
 use std::sync::OnceLock;
 
 #[cfg(feature = "hyper-experimental")]

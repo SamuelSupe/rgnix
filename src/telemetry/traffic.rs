@@ -14,19 +14,62 @@ pub struct Traffic {
     pub hyper_rejected: IntCounter,
     #[cfg(feature = "hyper-experimental")]
     pub hyper_handshake_errors: IntCounter,
-    pub request_bytes: IntCounter,
-    pub response_bytes: IntCounter,
+    pub request_bytes: super::sharded::Counter,
+    pub response_bytes: super::sharded::Counter,
     pub failures: IntCounterVec,
-    pub upstream_connect: HistogramVec,
-    pub upstream_headers: HistogramVec,
-    pub upstream_duration: HistogramVec,
+    pub upstream_connect: super::sharded::HistogramVec,
+    pub upstream_headers: super::sharded::HistogramVec,
+    pub upstream_duration: super::sharded::HistogramVec,
     pub inspection: HistogramVec,
     pub inspection_bytes: IntCounterVec,
 }
 
 impl Traffic {
     pub fn new(registry: &Registry) -> Result<Self> {
+        Self::with_workers(registry, 1)
+    }
+
+    pub fn with_workers(registry: &Registry, workers: usize) -> Result<Self> {
         use prometheus::*;
+        let request_bytes = super::sharded::Counter::new(
+            "rgnix_request_body_bytes_total",
+            "Downstream body bytes read, accounted when a request finishes",
+            workers,
+        )?;
+        registry.register(Box::new(request_bytes.clone()))?;
+        let response_bytes = super::sharded::Counter::new(
+            "rgnix_response_body_bytes_total",
+            "Downstream body bytes sent, accounted when a request finishes",
+            workers,
+        )?;
+        registry.register(Box::new(response_bytes.clone()))?;
+        let upstream_connect = super::sharded::HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rgnix_upstream_connect_seconds",
+                "Successful upstream connection acquisition, including TLS or pool reuse",
+            ),
+            &["backend", "reused"],
+            workers,
+        )?;
+        registry.register(Box::new(upstream_connect.clone()))?;
+        let upstream_headers = super::sharded::HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rgnix_upstream_header_seconds",
+                "Time from upstream selection to response headers, including request upload",
+            ),
+            &["backend"],
+            workers,
+        )?;
+        registry.register(Box::new(upstream_headers.clone()))?;
+        let upstream_duration = super::sharded::HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rgnix_upstream_request_seconds",
+                "Time from upstream selection to request completion",
+            ),
+            &["backend"],
+            workers,
+        )?;
+        registry.register(Box::new(upstream_duration.clone()))?;
         Ok(Self {
             #[cfg(feature = "hyper-experimental")]
             hyper_connections: register_int_gauge_with_registry!(
@@ -66,40 +109,17 @@ impl Traffic {
                 "Failed downstream TLS handshakes",
                 registry
             )?,
-            request_bytes: register_int_counter_with_registry!(
-                "rgnix_request_body_bytes_total",
-                "Downstream body bytes read, accounted when a request finishes",
-                registry
-            )?,
-            response_bytes: register_int_counter_with_registry!(
-                "rgnix_response_body_bytes_total",
-                "Downstream body bytes sent, accounted when a request finishes",
-                registry
-            )?,
+            request_bytes,
+            response_bytes,
             failures: register_int_counter_vec_with_registry!(
                 "rgnix_request_failures_total",
                 "Requests ending with a proxy error, including failures after response headers",
                 &["source", "reason"],
                 registry
             )?,
-            upstream_connect: register_histogram_vec_with_registry!(
-                "rgnix_upstream_connect_seconds",
-                "Successful upstream connection acquisition, including TLS or pool reuse",
-                &["backend", "reused"],
-                registry
-            )?,
-            upstream_headers: register_histogram_vec_with_registry!(
-                "rgnix_upstream_header_seconds",
-                "Time from upstream selection to response headers, including request upload",
-                &["backend"],
-                registry
-            )?,
-            upstream_duration: register_histogram_vec_with_registry!(
-                "rgnix_upstream_request_seconds",
-                "Time from upstream selection to request completion",
-                &["backend"],
-                registry
-            )?,
+            upstream_connect,
+            upstream_headers,
+            upstream_duration,
             inspection: register_histogram_vec_with_registry!(
                 "rgnix_body_inspection_seconds",
                 "Request body inspection duration and outcome",

@@ -126,6 +126,10 @@ pub(super) struct RequestBody {
     stream: Option<Box<Upload>>,
 }
 impl RequestBody {
+    pub fn empty() -> Self {
+        Self { stream: None }
+    }
+
     pub fn new(inner: Payload, counts: Arc<Counters>, max: u64, timeout: Duration) -> Self {
         // Keeping upload state inline enlarges every client request and its
         // channel/future moves, including the common requests without a body.

@@ -237,7 +237,8 @@ async fn forward(
             })?,
     );
     crate::proxy::validate_connection_header(request.headers())?;
-    ctx.request.host = request_host_parts(request.headers(), request.uri(), request.version())?;
+    ctx.request.host =
+        request_host_parts(request.headers(), request.uri(), request.version())?.into_owned();
     ctx.request.path = if request.method() == http::Method::CONNECT
         && request.extensions().get::<hyper::ext::Protocol>().is_none()
     {
@@ -799,8 +800,32 @@ pub(super) fn strip_hop_headers(headers: &mut http::HeaderMap) {
     for name in names {
         headers.remove(name);
     }
-    for name in &HOP_HEADERS {
-        headers.remove(name);
+    if headers.len() > 16 {
+        for name in &HOP_HEADERS {
+            headers.remove(name);
+        }
+        return;
+    }
+    let mut present = 0u16;
+    for name in headers.keys() {
+        let index = match name.as_str() {
+            "connection" => 0,
+            "proxy-connection" => 1,
+            "keep-alive" => 2,
+            "proxy-authenticate" => 3,
+            "proxy-authorization" => 4,
+            "te" => 5,
+            "trailer" => 6,
+            "transfer-encoding" => 7,
+            "upgrade" => 8,
+            _ => continue,
+        };
+        present |= 1 << index;
+    }
+    while present != 0 {
+        let index = present.trailing_zeros() as usize;
+        present &= present - 1;
+        headers.remove(&HOP_HEADERS[index]);
     }
 }
 
