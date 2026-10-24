@@ -18,7 +18,6 @@ use std::{
     task::{Context, Poll},
     time::{Duration, Instant},
 };
-use tower_service::Service;
 
 pub(super) type Observer = Arc<dyn Fn(bool, Duration) + Send + Sync>;
 type Connection = Pin<Box<dyn Future<Output = hyper::Result<()>> + Send>>;
@@ -88,7 +87,6 @@ impl Client {
     async fn checkout(
         &self,
         address: SocketAddr,
-        uri: &hyper::Uri,
         now: Instant,
     ) -> Result<(Exchange, bool), Failure> {
         loop {
@@ -117,8 +115,7 @@ impl Client {
         }
         let io = self
             .connector
-            .clone()
-            .call(uri.clone())
+            .connect(address)
             .await
             .map_err(Failure::connect)?;
         let (sender, connection) = http1::handshake(io)
@@ -194,17 +191,22 @@ impl Client {
         address: SocketAddr,
     ) -> Result<Response<Payload>, Failure> {
         let now = Instant::now();
-        let (mut exchange, reused) = self.checkout(address, request.uri(), now).await?;
+        let (mut exchange, reused) = self.checkout(address, now).await?;
         (self.observer)(reused, now.elapsed());
-        *request.uri_mut() = request.uri().path_and_query().cloned().map_or_else(
-            || hyper::Uri::from_static("/"),
-            |p| {
-                hyper::Uri::builder()
-                    .path_and_query(p)
-                    .build()
-                    .expect("validated origin-form URI")
-            },
-        );
+        if request.uri().scheme().is_some()
+            || request.uri().authority().is_some()
+            || request.uri().path_and_query().is_none()
+        {
+            *request.uri_mut() = request.uri().path_and_query().cloned().map_or_else(
+                || hyper::Uri::from_static("/"),
+                |p| {
+                    hyper::Uri::builder()
+                        .path_and_query(p)
+                        .build()
+                        .expect("validated origin-form URI")
+                },
+            );
+        }
         let response = exchange.sender.send_request(request);
         tokio::pin!(response);
         let mut completed = false;

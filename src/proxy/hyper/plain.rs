@@ -420,26 +420,6 @@ async fn forward(
     if let Some(trailer) = trailer {
         request.headers_mut().insert(header::TRAILER, trailer);
     }
-    let path = request
-        .uri()
-        .path_and_query()
-        .cloned()
-        .unwrap_or_else(|| http::uri::PathAndQuery::from_static("/"));
-    *request.uri_mut() = http::Uri::builder()
-        .scheme(if selected.backend.backend.tls {
-            "https"
-        } else {
-            "http"
-        })
-        .authority(
-            selected
-                .backend
-                .authority(address)
-                .map_err(|_| error(500, "invalid upstream authority"))?,
-        )
-        .path_and_query(path)
-        .build()
-        .map_err(|_| error(500, "invalid upstream URI"))?;
     if let Some(sender) = request
         .extensions_mut()
         .remove::<hyper::ext::SendInformational>()

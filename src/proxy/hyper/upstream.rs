@@ -7,6 +7,7 @@ use hyper_util::{
 use std::{
     future::Future,
     io,
+    net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -26,6 +27,20 @@ pub(super) struct Connector {
 }
 
 impl Connector {
+    pub async fn connect(
+        &self,
+        address: SocketAddr,
+    ) -> Result<UpstreamIo<super::tls::Stream>, BoxError> {
+        // The transport destination is needed only on a pool miss. Request-target
+        // and Host retain their independently validated forwarding semantics.
+        let uri = Uri::builder()
+            .scheme(if self.tls.is_some() { "https" } else { "http" })
+            .authority(address.to_string())
+            .path_and_query("/")
+            .build()?;
+        self.clone().call(uri).await
+    }
+
     pub fn new(
         connect: Duration,
         read: Duration,

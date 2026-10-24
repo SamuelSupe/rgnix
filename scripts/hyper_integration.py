@@ -168,6 +168,7 @@ def exercise_plain_upstream(binary, directory, threads):
     config.write_text(f'''events {{}} http {{ access_log off; keepalive_timeout 5s;
 upstream app {{ server 127.0.0.1:{origin.server_port}; rgnix_max_inflight 2; }}
 server {{ listen 127.0.0.1:{port}; server_name example.test; proxy_read_timeout 2s;
+proxy_set_header Host forwarded.example;
 location / {{ proxy_pass http://app; }}
 location /idle-reuse {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
 location /inline-stale {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
@@ -180,6 +181,12 @@ location /inline-partial {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
     budget = lambda: metric_value(request(admin,"/metrics")[2].decode(),"rgnix_budget_in_use",budget="inflight")
     try:
         wait_for(lambda: request(admin,"/readyz")[0],200)
+        with contextlib.closing(http.client.HTTPConnection("127.0.0.1",port,timeout=3)) as client:
+            path="/uri%20encoded?q=a%2Fb&v=one"
+            for target in [path,"http://example.test:9999"+path]:
+                client.request("GET",target,headers={"Host":"example.test"})
+                response=client.getresponse();value=json.loads(response.read())
+                check("ordinary H1 preserves origin-form path/query and configured Host for "+target,response.status==200 and value["path"]==path and value["headers"]["Host"]=="forwarded.example")
         exercise_h1_pool(port,budget)
         wait_for(budget,0)
         check("policy-free ordinary H1 requests release the process budget", process.poll() is None and budget()==0)
