@@ -552,6 +552,25 @@ ssl_client_certificate {root}/ca.crt; ssl_verify_client on; return 200 private;
                     time.sleep(.6)
                     response = client.recv(65536)
                     check("client_header_timeout closes incomplete headers", not response or b"408" in response)
+                with socket.create_connection(("127.0.0.1", port), timeout=3) as client:
+                    statuses = []
+                    for _ in range(2):
+                        client.sendall(b"GET /proxy HTTP/1.1\r\nHost:")
+                        time.sleep(.3)
+                        client.sendall(b" example.test\r\n\r\n")
+                        response = http.client.HTTPResponse(client); response.begin()
+                        statuses.append(response.status); response.read(); response.close()
+                    check("reused HTTP/1 header timer starts a fresh deadline for each request", statuses == [200, 200])
+                with socket.create_connection(("127.0.0.1", port), timeout=3) as client:
+                    client.sendall(b"GET /proxy HTTP/1.1\r\nHost: example.test\r\nX-Slow:")
+                    for _ in range(4):
+                        time.sleep(.15)
+                        try: client.sendall(b"x")
+                        except OSError: break
+                    client.settimeout(.25)
+                    try: response = client.recv(65536)
+                    except ConnectionResetError: response = b""
+                    check("HTTP/1 header byte progress does not renew its absolute deadline", not response or b"408" in response)
                 status, headers, body = request(port, "/files/large.bin")
                 check("sendfile sends a complete file with correct framing", status == 200 and body == data and int(headers["content-length"]) == len(data))
                 check("sendfile preserves a bounded range", request(port, "/files/large.bin", headers={"Range": "bytes=65530-65550"})[2] == data[65530:65551])

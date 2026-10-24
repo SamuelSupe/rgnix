@@ -273,7 +273,8 @@ where
         #[cfg(feature = "server")]
         {
             self.state.h1_header_read_timeout_running = false;
-            self.state.h1_header_read_timeout_fut = None;
+            // Reuse the timer allocation on keep-alive requests. Only the
+            // running flag enables timeout checks; the next head resets it.
         }
 
         // Note: don't deconstruct `msg` into local variables, it appears

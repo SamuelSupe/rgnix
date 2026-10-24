@@ -24,3 +24,10 @@ Tests extend the existing dispatcher tests to cover response consumption and
 connection reuse on both sides of the size boundary, and prompt delivery of the
 first fragment while a small response is incomplete. Existing parser, framing,
 upgrade and legacy-client tests continue to apply.
+
+HTTP/1 request-header timers retain their allocation across keep-alive
+exchanges. Completion disables timeout checks; the next header read resets
+the timer to its own deadline. A retained timer may wake a long-running body
+once, but cannot expire that body or renew a partially received header's
+deadline. Keep incomplete/trickling header and persistent-connection checks
+when upgrading this patch.

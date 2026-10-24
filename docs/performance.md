@@ -57,6 +57,8 @@ For single-worker user-space fixed costs, use `scripts/profile_http_instructions
 
 Use [scripts/benchmark_compare.py](../scripts/benchmark_compare.py) and its `--help` on an isolated Linux test machine. Build with locked dependencies, record compiler and binary hashes, pin client/proxy/origin CPU sets, verify response correctness and keep equivalent feature settings. The JSON records include the actual invocation, configuration, warmup, durations and all windows.
 
+For separate CPU/syscall diagnostics of the same plain-proxy fixture, use `scripts/profile_http.py --matrix /native/linux/result.json --binary /absolute/path/rgnix --engines hyper nginx --concurrency 256 --seconds 15 --work-dir /native/linux/new-profile`. The default concurrency remains 64. `--sudo-perf` uses passwordless sudo for perf alone when tracepoints/kernel samples require it; proxy and origin processes retain the calling user. Match the benchmark's single-IP admission and upstream-pool settings. Instrumented windows do not establish throughput gains.
+
 Run interleaved same-binary A/A at every target worker/concurrency setting before interpreting A/B. Preserve rejected/outlier windows; report CPU per request, P99, errors and memory alongside throughput. Separate allocation/perf instrumentation from formal throughput. Include large/chunked uploads, slow readers, cancellation, early responses, TLS/H2, SSE/WebSocket, timeout, no-replay and reload/drain checks when changing transport code. `examples/minimal_proxy.rs` is diagnostic only and omits product policies.
 
 ## Historical records
