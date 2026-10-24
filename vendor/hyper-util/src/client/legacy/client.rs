@@ -7,6 +7,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::future::{poll_fn, Future};
+use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
@@ -95,7 +96,24 @@ macro_rules! e {
 }
 
 // We might change this... :shrug:
-type PoolKey = (http::uri::Scheme, http::uri::Authority);
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PoolKey(http::uri::Scheme, http::uri::Authority);
+
+impl Hash for PoolKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+        let authority = self.1.as_str().as_bytes();
+        authority.len().hash(state);
+        // Authority equality ignores ASCII case. Feed the same folded bytes
+        // in bounded batches instead of one SipHash update per byte.
+        for chunk in authority.chunks(64) {
+            let mut folded = [0; 64];
+            folded[..chunk.len()].copy_from_slice(chunk);
+            folded[..chunk.len()].make_ascii_lowercase();
+            state.write(&folded[..chunk.len()]);
+        }
+    }
+}
 
 enum TrySendError<B> {
     Retryable {
@@ -1026,7 +1044,7 @@ fn authority_form(uri: &mut Uri) {
 fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> Result<PoolKey, Error> {
     let uri_clone = uri.clone();
     match (uri_clone.scheme(), uri_clone.authority()) {
-        (Some(scheme), Some(auth)) => Ok((scheme.clone(), auth.clone())),
+        (Some(scheme), Some(auth)) => Ok(PoolKey(scheme.clone(), auth.clone())),
         (None, Some(auth)) if is_http_connect => {
             let scheme = match auth.port_u16() {
                 Some(443) => {
@@ -1038,7 +1056,7 @@ fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> Result<PoolKey, Error
                     Scheme::HTTP
                 }
             };
-            Ok((scheme, auth.clone()))
+            Ok(PoolKey(scheme, auth.clone()))
         }
         _ => {
             debug!("Client requires absolute-form URIs, received: {:?}", uri);
@@ -1047,7 +1065,7 @@ fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> Result<PoolKey, Error
     }
 }
 
-fn domain_as_uri((scheme, auth): PoolKey) -> Uri {
+fn domain_as_uri(PoolKey(scheme, auth): PoolKey) -> Uri {
     http::uri::Builder::new()
         .scheme(scheme)
         .authority(auth)
@@ -1783,5 +1801,28 @@ impl Error {
 
     fn closed(src: hyper::Error) -> Self {
         e!(ChannelClosed, src)
+    }
+}
+
+#[cfg(test)]
+mod pool_key_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn authority_case_reuses_keys_without_merging_schemes_or_ports() {
+        let key = |scheme, value: &str| PoolKey(scheme, value.parse().unwrap());
+        let long = format!("{}.{}.example:80", "A".repeat(63), "B".repeat(63));
+        for authority in ["ExAmPlE.test:80", "[2001:DB8::A]:80", long.as_str()] {
+            let mut pool = HashMap::new();
+            pool.insert(key(Scheme::HTTP, authority), 1);
+            assert_eq!(
+                pool.get(&key(Scheme::HTTP, &authority.to_ascii_lowercase())),
+                Some(&1)
+            );
+            assert_eq!(pool.get(&key(Scheme::HTTPS, authority)), None);
+            let other_port = authority.strip_suffix(":80").unwrap().to_owned() + ":81";
+            assert_eq!(pool.get(&key(Scheme::HTTP, &other_port)), None);
+        }
     }
 }

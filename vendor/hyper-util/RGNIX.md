@@ -26,6 +26,12 @@ Changes in `src/client/legacy/client.rs`:
   connection future; a miss retains its registered waiter and runs the original
   checkout/connect race in a boxed future. Expiration, poisoned connections,
   cancellation cleanup and retry policy still use the original pool logic.
+- Hash the private pool key's ASCII-folded authority in bounded batches. The
+  default randomized map hasher remains in use; scheme, literal port and the
+  authority's case-insensitive equality are unchanged. This avoids one hasher
+  update per authority byte without allocating a normalized key. No hashes are
+  persisted or transferred between pools. Keep mixed-case, IPv6, long-authority
+  and scheme/port-isolation checks when updating this patch.
 
 The request box adds one allocation; the cold connection path adds one more.
 The client state has one shared allocation per client, instead of repeated
