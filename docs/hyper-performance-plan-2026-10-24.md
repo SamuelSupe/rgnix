@@ -37,3 +37,9 @@
 在 `57b069e` 上继续实现 `cb9f67a`：普通 H1 改用单所有者的请求/响应槽，省去每请求发送队列和 oneshot；1xx 直接转交并复用连接内的空 Extensions Map。保留原 codec、流式背压、EOF 检查、强预算、指标和 flush 完成边界。最终 1 KiB / 16 KiB 指令下降 11.49% / 11.05%，宽首部下降 5.02%，全部配对通过 1% A/A 与 CV；普通请求稳定分配由八笔减为三笔。
 
 本轮 540 项真实运行检查通过，另有根库、协议库和 legacy client 测试及 strict Clippy 通过。没有新的吞吐/P99 容量结论；完整数据、缓冲配置差异及失败重跑见[后续验证报告](validation-hyper-instructions3-2026-10-24.md)。
+
+## 空闲检查与已停用监视器
+
+在 `cb9f67a` 上继续实现 `b7c8858`：空闲 H1 上游以原 buffered IO/TLS reader 检查 EOF/意外数据，只有无活动 body、写缓冲为空且 transport flush 完成才绕过完整 dispatcher；H1 确认后直接转交已停用的 H2 首部监视器读取。新增 pending-flush 回归及移除条件的失败对照，保持原有帧就绪、超时和不重放语义。
+
+最终 1 KiB / 16 KiB / 宽首部指令分别下降 **0.94% / 0.93% / 0.37%**，所有 A/A 与 CV 通过 1%。撤销了三个造成宽首部回退的首部名试验，以及没有独立收益证据的 timer 试验。540 项 Linux 运行检查、214 项库和客户端测试及 strict Clippy 通过；没有新的吞吐或 P99 结论。详细数据与限制见[本轮验证报告](validation-hyper-instructions4-2026-10-24.md)。
