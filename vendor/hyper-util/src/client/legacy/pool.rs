@@ -121,7 +121,8 @@ impl IdlePoolBudget {
             limit,
         }
     }
-    fn acquire(&self) -> Option<IdlePermit> {
+    /// Reserve one cached connection, including pools driven by an inline exchange.
+    pub fn acquire(&self) -> Option<IdlePermit> {
         self.used
             .fetch_update(Ordering::AcqRel, Ordering::Relaxed, |used| {
                 (used < self.limit).then_some(used + 1)
@@ -130,7 +131,9 @@ impl IdlePoolBudget {
             .map(|_| IdlePermit(self.used.clone()))
     }
 }
-struct IdlePermit(Arc<AtomicUsize>);
+/// Releases a shared idle-connection reservation when dropped.
+#[derive(Debug)]
+pub struct IdlePermit(Arc<AtomicUsize>);
 impl Drop for IdlePermit {
     fn drop(&mut self) {
         self.0.fetch_sub(1, Ordering::Release);

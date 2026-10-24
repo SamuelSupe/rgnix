@@ -55,6 +55,8 @@ CONNECT 通过 `rgnix_connect on;` 显式启用，目的地址必须匹配选中
 - Hyper 请求 future 同时覆盖上传和等待响应头。无法可靠区分的上游 I/O 超时使用 `upstream_timeout` 错误标签；响应 body 读超时仍使用 `read_timeout`，来源标签为 `upstream`。没有伪造分阶段时间。
 - `rgnix_upstream_connect_seconds{backend,reused}` 记录连接获取时间和是否复用。新增 `rgnix_hyper_connections`、`rgnix_hyper_connection_rejections_total`、`rgnix_hyper_tls_handshake_errors_total`。标签不包含请求路径或任意域名。
 - Hyper 每个 worker 使用独立的单线程 Tokio reactor，连接及其显式 HTTP/1 上游池在该 worker 内推进。Linux 多 worker 使用 SO_REUSEPORT 分配新连接；其他平台共用接受 socket，但本轮只在 Linux 验证。HTTP/2 和 ALPN 自动协商继续共享客户端池以保留跨 worker 多路复用；各 stream 的超时仍独立。进程连接、请求、租户和后端预算，以及空闲上游总预算继续共享。Pingora 保留原有调度模式；对照包含这项 worker 和池归属调整，不能归因为单一 parser 优化。
+- 无策略普通 HTTP/1 代理使用 worker 归属的池，由当前请求和响应 body 共同驱动 Hyper Connection future；不为每个上游连接和流式归还额外调度任务。池内部短 mutex 只保护快照跨线程释放所需的 Send/Sync 所有权，普通数据 worker 不共享此池。取消、未完成 body、EOF 或异常连接不归还；复用前检查关闭/到期，后台按原有最小清理间隔淘汰闲置连接。HTTP/2、Auto、升级、隧道及完整策略路径继续使用 legacy client。全局闲置上限与最旧连接淘汰语义保持一致。
+- 请求并发准入使用非等待的进程级原子预算，不按 worker 平分额度。热指标以有界 producer 分片写入，scrape 同步汇总；指标名称、标签、全部耗时直方图和观察次数不变。时间仍使用精确时钟，未用粗时钟改变超时或亚毫秒时长。
 - 单线程原生服务 reactor 每 16 次任务轮询检查外部 I/O 和定时器事件，减少就绪任务持续繁忙时的事件交付等待；这不能抢占单次 poll 内的同步阻塞或消除宿主暂停。默认心跳仍为 250 ms。尾延迟观察结果与吞吐取舍见[专项分析](validation-hyper-tail-2026-10-24.md)。
 - 静态文件复用安全打开、条件请求和 Range 选择逻辑。Linux 明文 H1.1 且不启用压缩时使用已安全打开的文件描述符进行 sendfile；每次最多 64 KiB，256 KiB 后让出调度。TLS/H2/H3/压缩继续流式发送。文件截断会关闭不完整响应；指标和许可在传输完成或失败时结算。
 - Hyper 顺序处理 HTTP/1 流水线请求；显式选择 Pingora 时配置关闭 pipelining，发送首个响应后关闭连接。

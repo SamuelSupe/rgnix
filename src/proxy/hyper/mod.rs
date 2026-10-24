@@ -6,6 +6,7 @@ mod h2c;
 pub(crate) mod h3;
 #[cfg(feature = "http3")]
 mod h3_tls;
+mod inline;
 mod io;
 mod plain;
 mod prepared;

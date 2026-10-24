@@ -70,9 +70,26 @@ struct Clients {
     workers: Vec<OnceLock<ProxyClient>>,
     websocket_connector: Option<Connector>,
     websocket_workers: Vec<OnceLock<ProxyClient>>,
+    inline: Vec<OnceLock<Arc<super::inline::Client>>>,
+    observer: super::inline::Observer,
+    idle_budget: hyper_util::client::legacy::IdlePoolBudget,
+    maximum: usize,
+    keepalive: std::time::Duration,
 }
 
 impl PreparedTarget {
+    pub fn inline(&self, worker: usize) -> &Arc<super::inline::Client> {
+        let clients = &self.clients;
+        clients.inline[worker].get_or_init(|| {
+            super::inline::Client::new(
+                clients.connector.clone(),
+                clients.observer.clone(),
+                clients.idle_budget.clone(),
+                clients.maximum,
+                clients.keepalive,
+            )
+        })
+    }
     pub fn websocket_client(&self, worker: usize) -> &ProxyClient {
         match &self.clients.websocket_connector {
             Some(connector) => self.clients.websocket_workers[worker]
@@ -241,7 +258,7 @@ impl Prepared {
                         let telemetry = telemetry.clone();
                         let label = name.clone();
                         let observed = backend.clone();
-                        builder.connection_observer(move |reused, elapsed| {
+                        let observer: super::inline::Observer = Arc::new(move |reused, elapsed| {
                             if let Some(metrics) = observed.metrics(&telemetry, &label) {
                                 metrics.connect[usize::from(reused)].observe(elapsed.as_secs_f64());
                                 return;
@@ -252,6 +269,10 @@ impl Prepared {
                                 .upstream_connect
                                 .with_label_values(&[label, if reused { "true" } else { "false" }])
                                 .observe(elapsed.as_secs_f64());
+                        });
+                        builder.connection_observer({
+                            let observer = observer.clone();
+                            move |reused, elapsed| observer(reused, elapsed)
                         });
                         let connector = Connector::new(
                             settings.connect_timeout,
@@ -275,6 +296,11 @@ impl Prepared {
                                 None
                             };
                         Arc::new(Clients {
+                            inline: (0..client_workers).map(|_| OnceLock::new()).collect(),
+                            observer,
+                            idle_budget: idle_budget.clone(),
+                            maximum: pool_size / client_workers,
+                            keepalive: settings.keepalive,
                             builder,
                             connector,
                             workers: (0..client_workers).map(|_| OnceLock::new()).collect(),

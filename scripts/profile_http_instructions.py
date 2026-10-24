@@ -37,7 +37,7 @@ def profile_counts(path):
     return summary, functions
 
 
-def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, nginx=False):
+def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, nginx=False, case="proxy-1k"):
     directory.mkdir()
     profile = directory / 'cachegrind.out'
     command = ['taskset', '-c', cpu, 'valgrind', '--tool=cachegrind', '--cache-sim=no', '--branch-sim=no',
@@ -52,13 +52,13 @@ def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, n
     try:
         server = start(command, directory / 'server.log')
         wait_for(lambda: request(ports['http'] if nginx else ports['admin'],
-                                 '/proxy-1k' if nginx else '/readyz')[0], 200, timeout=60)
+                                 '/' + case if nginx else '/readyz')[0], 200, timeout=60)
         connection = http.client.HTTPConnection('127.0.0.1', ports['http'], timeout=30)
         started = time.monotonic()
         for _ in range(warmup + requests):
-            connection.request('GET', '/proxy-1k', headers=headers)
+            connection.request('GET', '/' + case, headers=headers)
             response = connection.getresponse()
-            assert response.status == 200 and response.read() == b'x' * 1024
+            assert response.status == 200 and response.read() == b'x' * (1024 if case == 'proxy-1k' else 16384)
         seconds = time.monotonic() - started
         connection.close()
         connection = None
@@ -98,6 +98,7 @@ def main():
     parser.add_argument('--rounds', type=int, default=3)
     parser.add_argument('--server-cpu', default='10')
     parser.add_argument('--origin-cpu', default='6')
+    parser.add_argument('--case', choices=['proxy-1k', 'proxy-16k'], default='proxy-1k')
     parser.add_argument('--extra-headers', type=int, default=0, help='fixed additional request fields for header-width sensitivity')
     args = parser.parse_args()
     if min(args.requests, args.warmup, args.rounds) < 1:
@@ -120,8 +121,8 @@ def main():
         binaries['nginx'] = args.nginx.resolve()
     fixture = work / 'fixture'
     fixture.mkdir()
-    fixtures(SimpleNamespace(plain_proxy=True, workers=1, origin_workers=1, cases=['proxy-1k'], connection_close=False), fixture, ports)
-    output = {'method': 'Single worker, one persistent client, validated 1 KiB responses. Each sample subtracts its own full startup/warmup/shutdown control from a full run with N extra requests. Flat user-space instructions only; kernel work, cache contention, throughput and P99 are not measured. All samples retained.',
+    fixtures(SimpleNamespace(plain_proxy=True, workers=1, origin_workers=1, cases=[args.case], connection_close=False), fixture, ports)
+    output = {'method': f'Single worker, one persistent client, validated {args.case} responses. Each sample subtracts its own full startup/warmup/shutdown control from a full run with N extra requests. Flat user-space instructions only; kernel work, cache contention, throughput and P99 are not measured. All samples retained.',
               'platform': platform.platform(), 'valgrind': subprocess.check_output(['valgrind', '--version'], text=True).strip(),
               'settings': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
               'binaries': {name: {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()} for name, path in binaries.items()},
@@ -139,7 +140,7 @@ def main():
                 for engine in order:
                     runs = {}
                     for count in ([0, args.requests] if (round_index + repeat) % 2 == 0 else [args.requests, 0]):
-                        runs[count] = measure(binaries[engine], work / f'{round_index + 1}-{repeat + 1}-{engine}-{count}', fixture, ports, count, args.warmup, args.server_cpu, headers, engine == 'nginx')
+                        runs[count] = measure(binaries[engine], work / f'{round_index + 1}-{repeat + 1}-{engine}-{count}', fixture, ports, count, args.warmup, args.server_cpu, headers, engine == 'nginx', args.case)
                     load, control = runs[args.requests], runs[0]
                     difference = Counter(load['functions'])
                     difference.subtract(control['functions'])

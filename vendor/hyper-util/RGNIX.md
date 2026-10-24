@@ -40,3 +40,11 @@ copy, allocation and behavioral evidence; the product transport disables retries
 See `docs/validation-hyper-prepared-2026-09-28.md` and
 `docs/validation-hyper-pool-2026-09-28.md` in the root repository. Fewer counted
 operations do not by themselves establish a throughput or tail-latency gain.
+
+
+`src/client/legacy/pool.rs` exposes the existing shared idle-budget reservation
+as an RAII permit. The product's inline HTTP/1 pool uses the same counter as
+legacy H1/H2 clients, listeners and retained configuration generations. Every
+cached connection must own a permit; checkout/eviction releases it. A full
+budget first evicts this client's oldest idle entry, matching legacy policy,
+and must never disable the hard process-wide bound.

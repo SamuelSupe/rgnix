@@ -48,7 +48,7 @@ def command_output(command, accepted=(0,)):
 def tree_stats(pid):
     """Count master and workers; PSS avoids counting shared pages once per worker."""
     pending, seen = [pid], set()
-    cpu, rss, pss = 0, 0, 0
+    user, system, rss, pss = 0, 0, 0, 0
     while pending:
         current = pending.pop()
         if current in seen:
@@ -56,13 +56,17 @@ def tree_stats(pid):
         seen.add(current)
         base = Path(f"/proc/{current}")
         stat = (base / "stat").read_text().rsplit(")", 1)[1].split()
-        cpu += int(stat[11]) + int(stat[12])
+        user += int(stat[11])
+        system += int(stat[12])
         memory = dict(line.split(":", 1) for line in (base / "smaps_rollup").read_text().splitlines()[1:])
         rss += int(memory["Rss"].split()[0])
         pss += int(memory["Pss"].split()[0])
         # NGINX forks workers from its main thread; rgnix has no subprocesses.
         pending.extend(int(child) for child in (base / f"task/{current}/children").read_text().split())
-    return {"cpu_seconds": cpu / os.sysconf("SC_CLK_TCK"), "rss_kib": rss, "pss_kib": pss, "pids": sorted(seen)}
+    frequency = os.sysconf("SC_CLK_TCK")
+    return {"cpu_seconds": (user + system) / frequency,
+            "user_cpu_seconds": user / frequency, "system_cpu_seconds": system / frequency,
+            "rss_kib": rss, "pss_kib": pss, "pids": sorted(seen)}
 
 
 def cpu_snapshot():
@@ -168,6 +172,8 @@ def measure(args, url, script, concurrency, seconds, server, origin, metrics_por
     server_seconds = after["cpu_seconds"] - before["cpu_seconds"]
     result.update(server_cpu_cores=server_seconds / result["seconds"],
                   server_cpu_us_per_request=server_seconds * 1e6 / max(1, result["requests"]),
+                  server_user_cpu_us_per_request=(after["user_cpu_seconds"] - before["user_cpu_seconds"]) * 1e6 / max(1, result["requests"]),
+                  server_system_cpu_us_per_request=(after["system_cpu_seconds"] - before["system_cpu_seconds"]) * 1e6 / max(1, result["requests"]),
                   origin_cpu_cores=(origin_after["cpu_seconds"] - origin_before["cpu_seconds"]) / result["seconds"],
                   client_cpu_cores=(usage_after.ru_utime + usage_after.ru_stime - usage_before.ru_utime - usage_before.ru_stime) / result["seconds"],
                   peak_pss_kib=peak_pss, peak_rss_kib=peak_rss, server_pids=after["pids"],

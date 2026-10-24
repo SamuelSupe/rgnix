@@ -465,7 +465,10 @@ async fn forward(
             settings.client_body_timeout,
         )
     });
-    let result = selected.client(listener.worker).request(request).await;
+    let result = selected
+        .inline(listener.worker)
+        .request(request, address)
+        .await;
     let mut response = result.map_err(|failure| {
         match guard
             .upload_counts
@@ -508,5 +511,5 @@ async fn forward(
     for trailer in trailers {
         response.headers_mut().append(header::TRAILER, trailer);
     }
-    Ok(response.map(Payload::Incoming))
+    Ok(response)
 }

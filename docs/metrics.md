@@ -169,3 +169,11 @@ Admission TLS exposes `rgnix_admission_certificate_expiry_timestamp_seconds`, `r
 | `rgnix_runtime_wakeup_lag_seconds{service}` | 仅在 Hyper 启用 `--hyper-wakeup-probe` 后采样的唤醒延迟直方图；`reference` 为独立线程，其余为已注册原生服务。1 ms 诊断采样会增加开销，不代表请求耗时或宿主暂停的直接证据 |
 
 上游连接获取仍使用 `rgnix_upstream_connect_seconds{backend,reused}`，包含真实池复用标记。详见 [Hyper 数据面](hyper-experimental.md)。
+
+
+请求、路由和上游的热 counter/histogram 使用有界 producer 分片，以配置的
+worker 数量分配（1–256），不同生产线程映射到分片；分片内仍用原子操作，
+因此生产线程数更多或哈希落在相同分片时仍保持正确。抓取时合并相同标签的
+counter、histogram count/sum 和累计 buckets，不添加 worker 标签、不延迟 flush、
+不删除全局或路由耗时，也保留复用连接的 acquisition 分布。抓取跨指标本来就
+不是全局原子快照；分片会增加按 worker 数量增长的内部指标存储和抓取工作。

@@ -40,8 +40,16 @@ class Origin(Upstream):
     release = threading.Event()
     entered = threading.Event()
     attempts = 0
+    inline_attempts = 0
 
     def do_POST(self):
+        if self.path == "/inline-early":
+            self.send_response(413)
+            self.send_header("Content-Length", "0")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            return
         if self.path != "/trailers-upload":
             return super().do_POST()
         data, trailers = bytearray(), []
@@ -60,12 +68,28 @@ class Origin(Upstream):
         self.wfile.write(payload)
 
     def do_GET(self):
-        if self.path == "/idle-reuse":
+        if self.path == "/inline-no-replay":
+            type(self).inline_attempts += 1
+            self.close_connection = True
+            return
+        if self.path == "/inline-large":
+            self.send_response(200)
+            self.send_header("Content-Length", "16384")
+            self.send_header("X-Origin-Peer", str(self.client_address[1]))
+            self.end_headers()
+            self.wfile.write(b"x" * 8192)
+            self.wfile.flush()
+            time.sleep(0.005)
+            self.wfile.write(b"x" * 8192)
+            return
+        if self.path in ["/idle-reuse", "/inline-stale"]:
             body = str(self.client_address[1]).encode()
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            if self.path == "/inline-stale":
+                self.close_connection = True
             return
         if self.path == "/trailers":
             self.send_response(200)
@@ -78,14 +102,16 @@ class Origin(Upstream):
             time.sleep(1)
             self.close_connection = True
             return
-        if self.path in ["/hold", "/stall"]:
+        if self.path in ["/hold", "/stall", "/inline-partial"]:
             self.send_response(200)
-            self.send_header("Content-Length", "8195" if self.path == "/hold" else "6")
+            held = self.path != "/stall"
+            self.send_header("Content-Length", "8195" if held else "6")
+            self.send_header("X-Origin-Peer", str(self.client_address[1]))
             self.end_headers()
             self.entered.set()
-            self.wfile.write(b"x" * 8192 if self.path == "/hold" else b"one")
+            self.wfile.write(b"x" * 8192 if held else b"one")
             self.wfile.flush()
-            if self.path == "/hold":
+            if held:
                 self.release.wait(5)
             else:
                 time.sleep(0.5)
@@ -97,6 +123,74 @@ class Origin(Upstream):
             if self.path == "/commit":
                 type(self).attempts += 1
             super().do_GET()
+
+
+def exercise_h1_pool(port, budget):
+    with contextlib.closing(http.client.HTTPConnection("127.0.0.1", port, timeout=3)) as connection:
+        peers = []
+        for _ in range(3):
+            connection.request("GET", "/inline-large", headers={"Host": "example.test"})
+            response = connection.getresponse()
+            assert response.status == 200 and response.read() == b"x" * 16384
+            peers.append(response.getheader("X-Origin-Peer"))
+        check("ordinary HTTP/1 reuses upstream after a streamed 16 KiB response", len(set(peers)) == 1)
+    with contextlib.closing(http.client.HTTPConnection("127.0.0.1", port, timeout=3)) as connection:
+        connection.request("GET", "/inline-stale", headers={"Host": "example.test"})
+        previous_peer = connection.getresponse().read()
+        time.sleep(0.05)
+        connection.request("GET", "/idle-reuse", headers={"Host": "example.test"})
+        response = connection.getresponse()
+        check("closed idle upstream is discarded before sending a new request", response.status == 200 and response.read() != previous_peer)
+    Origin.release.clear()
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+    connection.request("GET", "/inline-partial", headers={"Host": "example.test"})
+    response = connection.getresponse()
+    peer = response.getheader("X-Origin-Peer")
+    assert response.read(8192) == b"x" * 8192
+    response.close(); connection.close()
+    wait_for(budget, 0)
+    Origin.release.set()
+    check("cancelled streamed upstream is never returned as reusable", request(port, "/idle-reuse")[2] != peer.encode())
+    attempts = Origin.inline_attempts
+    check("ordinary HTTP/1 failure never replays a sent request", request(port, "/inline-no-replay")[0] == 502 and Origin.inline_attempts == attempts + 1)
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as client:
+        client.sendall(b"POST /inline-early HTTP/1.1\r\nHost: example.test\r\nContent-Length: 1048576\r\n\r\n" + b"x" * 512)
+        response = http.client.HTTPResponse(client); response.begin()
+        check("early upstream rejection arrives before the upload finishes", response.status == 413 and response.read() == b"")
+    wait_for(budget, 0)
+
+
+def exercise_plain_upstream(binary, directory, threads):
+    origin = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Origin)
+    threading.Thread(target=origin.serve_forever, daemon=True).start()
+    port, admin = free_port(), free_port()
+    config = directory / "plain.conf"
+    config.write_text(f'''events {{}} http {{ access_log off; keepalive_timeout 5s;
+upstream app {{ server 127.0.0.1:{origin.server_port}; rgnix_max_inflight 2; }}
+server {{ listen 127.0.0.1:{port}; server_name example.test; proxy_read_timeout 2s;
+location / {{ proxy_pass http://app; }}
+location /idle-reuse {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /inline-stale {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /inline-partial {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
+}} }}''')
+    log = (directory / "plain.log").open("w+")
+    command = [binary,"serve","-c",str(config),"--engine","hyper","--admin",f"127.0.0.1:{admin}","--threads",str(threads),"--max-inflight","2","--max-plugin-instances","1","--upstream-max-fails","0","--upstream-keepalive-pool-size","1","--shutdown-grace-seconds","0","--shutdown-timeout-seconds","3"]
+    env = {k:v for k,v in os.environ.items() if not k.startswith("OTEL_")}
+    process = subprocess.Popen(command,stdout=log,stderr=log,env=env)
+    budget = lambda: metric_value(request(admin,"/metrics")[2].decode(),"rgnix_budget_in_use",budget="inflight")
+    try:
+        wait_for(lambda: request(admin,"/readyz")[0],200)
+        exercise_h1_pool(port,budget)
+        wait_for(budget,0)
+        check("policy-free ordinary H1 requests release the process budget", process.poll() is None and budget()==0)
+    except BaseException:
+        log.flush();log.seek(0);print(log.read(),file=sys.stderr)
+        raise
+    finally:
+        Origin.release.set();process.terminate()
+        try:process.wait(timeout=6)
+        except subprocess.TimeoutExpired:process.kill();process.wait()
+        log.close();origin.shutdown();origin.server_close()
 
 
 class H2Origin(socketserver.BaseRequestHandler):
@@ -267,7 +361,12 @@ location /cookie-limit {{ access_log off; rgnix_limit_rate 1 burst=1 key=cookie:
 location /small {{ client_max_body_size 16; proxy_pass http://app; }}
 location /large {{ client_max_body_size 16m; proxy_pass http://app; }}
 location /slow {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
-location /idle-reuse {{ keepalive_timeout 5s; proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /idle-reuse {{ access_log off; keepalive_timeout 5s; proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /inline-large {{ access_log off; keepalive_timeout 5s; proxy_pass http://app; }}
+location /inline-stale {{ access_log off; keepalive_timeout 5s; proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /inline-partial {{ access_log off; keepalive_timeout 5s; proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /inline-no-replay {{ access_log off; proxy_pass http://app; }}
+location /inline-early {{ access_log off; proxy_pass http://app; }}
 location /upload-progress {{ proxy_read_timeout 250ms; proxy_pass http://app; }}
 location /stall {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
 location /limited {{ rgnix_limit_rate 1 burst=1 key=route; return 200 limited; }}
@@ -406,6 +505,7 @@ server {{ listen 127.0.0.1:{auxiliary_config}; http2 on; location / {{ return 20
                     assert response.status == 200
                     peers.append(response.read())
                 check("HTTP/1 idle upstream outlives response read timeout and stays reusable", len(set(peers)) == 1)
+            exercise_h1_pool(port, budget)
             status, _, data = request(port, "/same/child", headers={"X-Remove": "discard"})
             prepared_headers = {k.lower(): v for k, v in json.loads(data)["headers"].items()}
             check("prepared exact and prefix routes with the same path stay distinct",
@@ -622,6 +722,9 @@ server {{ listen 127.0.0.1:{auxiliary_config}; http2 on; location / {{ return 20
             origin.shutdown(); origin.server_close()
             h2origin.shutdown(); h2origin.server_close()
             collector.shutdown(); collector.server_close()
+    if hyper:
+        with tempfile.TemporaryDirectory(prefix="rgnix-plain-upstream-") as directory:
+            exercise_plain_upstream(binary, Path(directory), args.threads)
     if hyper and sys.platform.startswith("linux"):
         with tempfile.TemporaryDirectory(prefix="rgnix-native-limits-") as directory:
             exercise_native_limits(binary, Path(directory))
