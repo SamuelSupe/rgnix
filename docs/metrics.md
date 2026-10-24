@@ -171,9 +171,16 @@ Admission TLS exposes `rgnix_admission_certificate_expiry_timestamp_seconds`, `r
 上游连接获取仍使用 `rgnix_upstream_connect_seconds{backend,reused}`，包含真实池复用标记。详见 [Hyper 数据面](hyper-experimental.md)。
 
 
-请求、路由和上游的热 counter/histogram 使用有界 producer 分片，以配置的
-worker 数量分配（1–256），不同生产线程映射到分片；分片内仍用原子操作，
-因此生产线程数更多或哈希落在相同分片时仍保持正确。抓取时合并相同标签的
-counter、histogram count/sum 和累计 buckets，不添加 worker 标签、不延迟 flush、
-不删除全局或路由耗时，也保留复用连接的 acquisition 分布。抓取跨指标本来就
-不是全局原子快照；分片会增加按 worker 数量增长的内部指标存储和抓取工作。
+请求、路由和上游的热 counter/histogram 使用有界 producer 分片。Hyper
+按所有 H1/H2 监听器的 worker 数量分配独立编号；HTTP/3 运行时另有专用
+范围，线程退出时归还编号，以便阻塞线程回收后重新启动仍不碰撞。控制服务
+不写这些业务指标，因此不额外占用业务分片。每个监听器仍受 1–256 worker 限制，总分片数不再截断为 256。
+Pingora 保留按配置 worker 数量的自动映射。分片内仍用原子操作，抓取时
+合并相同标签的 counter、histogram count/sum 和累计 buckets，不增加 worker
+标签、不延迟 flush、不删除全局或路由耗时，也保留复用连接的 acquisition
+分布。抓取跨指标本来就不是全局原子快照；分片会增加随监听器和运行时线程
+数量增长的内部存储和抓取工作，尚无硬件 HITM 或稳定吞吐收益结论。
+
+普通 Hyper H1 在取得最终响应头时记录接收时间，同时用于响应头耗时与
+已完成连接的闲置过期计算；响应头耗时不再包含随后归还连接池的工作。
+流式响应仍以实际 body 完成时刻开始计算闲置过期，所有精确超时保持原规则。

@@ -53,6 +53,8 @@ where
             state: State {
                 allow_half_close: false,
                 cached_headers: None,
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: Default::default(),
                 error: None,
                 keep_alive: KA::Busy,
                 method: None,
@@ -238,6 +240,8 @@ where
             cx,
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: &mut self.state.header_names,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
                 h1_max_headers: self.state.h1_max_headers,
@@ -1011,6 +1015,8 @@ struct State {
     allow_half_close: bool,
     /// Re-usable `HeaderMap` to reduce allocating new ones.
     cached_headers: Option<HeaderMap>,
+    #[cfg(feature = "rgnix-extensions")]
+    header_names: super::role::HeaderNameCache,
     /// If an error occurs when there wasn't a direct way to return it
     /// back to the user, this is set.
     error: Option<crate::Error>,

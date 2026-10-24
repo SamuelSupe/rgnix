@@ -131,11 +131,11 @@ impl Client {
         ))
     }
 
-    fn put(&self, exchange: Exchange) {
+    fn put(&self, exchange: Exchange, finished: Instant) {
         if self.maximum == 0 || self.keepalive.is_zero() || !exchange.connection.is_ready() {
             return;
         }
-        let Some(expires) = Instant::now().checked_add(self.keepalive) else {
+        let Some(expires) = finished.checked_add(self.keepalive) else {
             return;
         };
         let mut idle = self.idle.lock().unwrap_or_else(|e| e.into_inner());
@@ -189,7 +189,7 @@ impl Client {
         self: &Arc<Self>,
         mut request: Request<RequestBody>,
         address: SocketAddr,
-    ) -> Result<Response<Payload>, Failure> {
+    ) -> Result<(Response<Payload>, Instant), Failure> {
         let now = Instant::now();
         let (mut exchange, reused) = self.checkout(address, now).await?;
         (self.observer)(reused, now.elapsed());
@@ -220,13 +220,17 @@ impl Client {
                 error: e.into(),
                 connect: false,
             })?;
+        let received = Instant::now();
         let (parts, body) = response.into_parts();
         // This is the same readiness invariant as legacy finish_response:
         // a ready sender has finished upstream framing. Buffered Incoming bytes
         // are independently owned and do not require the connection to advance.
         if exchange.connection.is_ready() {
-            self.put(exchange);
-            return Ok(Response::from_parts(parts, Payload::Incoming(body)));
+            self.put(exchange, received);
+            return Ok((
+                Response::from_parts(parts, Payload::Incoming(body)),
+                received,
+            ));
         }
         let mut body = InlineBody {
             body,
@@ -236,7 +240,10 @@ impl Client {
         if body.body.is_end_stream() {
             body.finish(None);
         }
-        Ok(Response::from_parts(parts, Payload::Stream(Box::pin(body))))
+        Ok((
+            Response::from_parts(parts, Payload::Stream(Box::pin(body))),
+            received,
+        ))
     }
 }
 
@@ -258,7 +265,7 @@ impl InlineBody {
         if let Some(mut exchange) = self.exchange.take() {
             let open = cx.is_none_or(|cx| exchange.connection.as_mut().poll(cx).is_pending());
             if open && exchange.connection.is_ready() {
-                self.pool.put(exchange);
+                self.pool.put(exchange, Instant::now());
             }
         }
     }

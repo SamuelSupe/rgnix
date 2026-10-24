@@ -56,3 +56,15 @@ IO/TLS reader. It skips dispatcher write/flush work only when no request or body
 is active, no bytes remain buffered for writing, and the last transport flush
 completed. Busy connections, pending flushes and EOF keep the normal driver.
 A controlled pending-flush regression fails when this guard is removed.
+
+With `rgnix-extensions`, each HTTP/1 connection also retains up to 64 parsed
+header names of at most 64 bytes each. A positional hit requires an exact match
+of the current wire name before cloning its canonical HeaderName. Values,
+ordering, framing and all parser validation continue through the existing codec.
+Case changes and misses use the original parser. After 64 positional mismatches,
+the connection clears the entries and uses the original whole-header parse path;
+the bounded vector capacity remains until the connection closes. Wire and
+canonical name payloads total at most 8 KiB per connection, plus 64 entry
+descriptors and allocator metadata. Nothing is shared between connections or
+retained from header values. Parser regressions cover changing values, case,
+order, duplicates, invalid framing/names, long/wide fields and sustained churn.

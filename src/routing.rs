@@ -1,5 +1,5 @@
-use crate::model::{PathMatch, Route, VirtualHost};
-use std::{borrow::Cow, collections::BTreeMap, net::SocketAddr, sync::Arc};
+use crate::model::{PathMatch, VirtualHost};
+use std::{borrow::Cow, collections::BTreeMap, net::SocketAddr};
 
 #[derive(Clone, Default)]
 pub(crate) struct Index {
@@ -14,10 +14,10 @@ struct Hosts {
 }
 #[derive(Clone, Default)]
 struct Paths {
-    exact: BTreeMap<String, Arc<Route>>,
-    nginx: BTreeMap<String, Arc<Route>>,
-    ingress: BTreeMap<String, Arc<Route>>,
-    fallback: Option<Arc<Route>>,
+    exact: BTreeMap<String, usize>,
+    nginx: BTreeMap<String, usize>,
+    ingress: BTreeMap<String, usize>,
+    fallback: Option<usize>,
     prefix_lengths: Vec<usize>,
 }
 
@@ -40,28 +40,22 @@ impl Index {
                 }
             }
             let mut paths = Paths::default();
-            for route in &host.routes {
+            for (route_id, route) in host.routes.iter().enumerate() {
                 match &route.matcher {
                     PathMatch::Exact(path) => {
-                        paths
-                            .exact
-                            .entry(path.clone())
-                            .or_insert_with(|| route.clone());
+                        paths.exact.entry(path.clone()).or_insert(route_id);
                     }
                     PathMatch::NginxPrefix(path) => {
-                        paths
-                            .nginx
-                            .entry(path.clone())
-                            .or_insert_with(|| route.clone());
+                        paths.nginx.entry(path.clone()).or_insert(route_id);
                     }
                     PathMatch::IngressPrefix(path) => {
                         paths
                             .ingress
                             .entry(path.trim_end_matches('/').into())
-                            .or_insert_with(|| route.clone());
+                            .or_insert(route_id);
                     }
                     PathMatch::IngressDefault => {
-                        paths.fallback.get_or_insert_with(|| route.clone());
+                        paths.fallback.get_or_insert(route_id);
                     }
                 }
             }
@@ -95,7 +89,7 @@ impl Index {
         listener: SocketAddr,
         host: &str,
         path: &str,
-    ) -> Option<Arc<Route>> {
+    ) -> Option<(usize, usize)> {
         let names = self.listeners.get(&listener)?;
         let host = host.trim_end_matches('.');
         let host = if host.bytes().any(|b| b.is_ascii_uppercase()) {
@@ -114,20 +108,25 @@ impl Index {
                 })
             })
             .or(names.default)?;
-        self.paths[selected].route(path).or_else(|| {
-            if hosts[selected].ingress {
-                names.default.and_then(|id| self.paths[id].route(path))
-            } else {
-                None
-            }
-        })
+        self.paths[selected]
+            .route(path)
+            .map(|route| (selected, route))
+            .or_else(|| {
+                if hosts[selected].ingress {
+                    names
+                        .default
+                        .and_then(|id| self.paths[id].route(path).map(|route| (id, route)))
+                } else {
+                    None
+                }
+            })
     }
 }
 
 impl Paths {
-    fn route(&self, path: &str) -> Option<Arc<Route>> {
+    fn route(&self, path: &str) -> Option<usize> {
         if let Some(route) = self.exact.get(path) {
-            return Some(route.clone());
+            return Some(*route);
         }
         // Use configured lengths for long URIs, but retain the URI-length bound
         // when a configuration contains many distinct prefix lengths.
@@ -145,21 +144,23 @@ impl Paths {
         for end in ends {
             let prefix = &path[..end];
             if let Some(route) = self.nginx.get(prefix) {
-                return Some(route.clone());
+                return Some(*route);
             }
             if (end == path.len() || path[end..].starts_with('/'))
                 && let Some(route) = self.ingress.get(prefix)
             {
-                return Some(route.clone());
+                return Some(*route);
             }
         }
-        self.fallback.clone()
+        self.fallback
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::Route;
+    use std::sync::Arc;
 
     #[test]
     fn configured_prefix_lengths_preserve_longest_match_and_segment_boundaries() {
@@ -204,13 +205,19 @@ mod tests {
             ("/汉/", "root"),
         ] {
             assert_eq!(
-                index.route(&hosts, listener, "test", path).unwrap().id,
+                {
+                    let (h, r) = index.route(&hosts, listener, "test", path).unwrap();
+                    &hosts[h].routes[r].id
+                },
                 expected
             );
         }
         let long = format!("/api/{}", "文".repeat(1000));
         assert_eq!(
-            index.route(&hosts, listener, "test", &long).unwrap().id,
+            {
+                let (h, r) = index.route(&hosts, listener, "test", &long).unwrap();
+                &hosts[h].routes[r].id
+            },
             "segment"
         );
     }

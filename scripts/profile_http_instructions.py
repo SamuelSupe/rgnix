@@ -38,7 +38,7 @@ def profile_counts(path):
     return summary, functions
 
 
-def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, nginx=False, case="proxy-1k"):
+def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, nginx=False, case="proxy-1k", rotating_headers=False):
     directory.mkdir()
     profile = directory / 'cachegrind.out'
     command = ['taskset', '-c', cpu, 'valgrind', '--tool=cachegrind', '--cache-sim=no', '--branch-sim=no',
@@ -56,8 +56,9 @@ def measure(binary, directory, fixture, ports, requests, warmup, cpu, headers, n
                                  '/' + case if nginx else '/readyz')[0], 200, timeout=60)
         connection = http.client.HTTPConnection('127.0.0.1', ports['http'], timeout=30)
         started = time.monotonic()
-        for _ in range(warmup + requests):
-            connection.request('GET', '/' + case, headers=headers)
+        alternate = {name + '-alt' if name.lower().startswith('x-extra-') else name: value for name, value in headers.items()}
+        for index in range(warmup + requests):
+            connection.request('GET', '/' + case, headers=alternate if rotating_headers and index % 2 else headers)
             response = connection.getresponse()
             assert response.status == 200 and response.read() == b'x' * (1024 if case == 'proxy-1k' else 16384)
         seconds = time.monotonic() - started
@@ -110,9 +111,12 @@ def main():
     parser.add_argument('--origin-cpu', default='6')
     parser.add_argument('--case', choices=['proxy-1k', 'proxy-16k'], default='proxy-1k')
     parser.add_argument('--extra-headers', type=int, default=0, help='fixed additional request fields for header-width sensitivity')
+    parser.add_argument('--rotating-headers', action='store_true', help='alternate additional field names on each request to exercise cache misses')
     args = parser.parse_args()
     if min(args.requests, args.warmup, args.rounds) < 1:
         parser.error('counts must be positive')
+    if args.rotating_headers and not args.extra_headers:
+        parser.error('rotating headers require additional fields')
     if not 0 <= args.extra_headers <= 64:
         parser.error('extra headers must be 0..64')
     headers = {'Host': 'localhost', **{f'X-Extra-{n}': f'value-{n}' for n in range(args.extra_headers)}}
@@ -150,7 +154,7 @@ def main():
                 for engine in order:
                     runs = {}
                     for count in ([0, args.requests] if (round_index + repeat) % 2 == 0 else [args.requests, 0]):
-                        runs[count] = measure(binaries[engine], work / f'{round_index + 1}-{repeat + 1}-{engine}-{count}', fixture, ports, count, args.warmup, args.server_cpu, headers, engine == 'nginx', args.case)
+                        runs[count] = measure(binaries[engine], work / f'{round_index + 1}-{repeat + 1}-{engine}-{count}', fixture, ports, count, args.warmup, args.server_cpu, headers, engine == 'nginx', args.case, args.rotating_headers)
                     load, control = runs[args.requests], runs[0]
                     difference = Counter(load['functions'])
                     difference.subtract(control['functions'])

@@ -30,6 +30,7 @@ pub(crate) struct Prepared {
     // Route IDs need not be unique (exact and prefix locations can share a path).
     // These identities remain valid while the owning snapshot retains its routes.
     route_ids: HashMap<(SocketAddr, usize), usize>,
+    pub(super) route_positions: Vec<Vec<usize>>,
     // Indices belong to this immutable snapshot; requests retain its owner across reloads.
     pub(super) routes: Vec<PreparedRoute>,
     clients: HashMap<ClientKey, Arc<Clients>>,
@@ -37,6 +38,7 @@ pub(crate) struct Prepared {
 }
 
 pub(super) struct PreparedRoute {
+    pub route: Arc<Route>,
     pub plain: Option<super::plain::Action>,
     pub targets: HashMap<String, PreparedTarget>,
     pub request_headers: Vec<(HeaderName, Value)>,
@@ -356,6 +358,7 @@ impl Prepared {
                 )?;
                 route_ids.insert((host.listener, Arc::as_ptr(route) as usize), routes.len());
                 routes.push(PreparedRoute {
+                    route: route.clone(),
                     plain,
                     targets,
                     request_headers,
@@ -364,6 +367,16 @@ impl Prepared {
                 });
             }
         }
+        let route_positions = snapshot
+            .hosts
+            .iter()
+            .map(|host| {
+                host.routes
+                    .iter()
+                    .map(|route| route_ids[&(host.listener, Arc::as_ptr(route) as usize)])
+                    .collect()
+            })
+            .collect();
         let mut acceptors = HashMap::new();
         let mut tls_keys = HashMap::new();
         #[cfg(feature = "http3")]
@@ -408,6 +421,7 @@ impl Prepared {
             workers,
             routes,
             route_ids,
+            route_positions,
             idle_budget,
             clients,
             tls_keys,

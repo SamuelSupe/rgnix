@@ -78,7 +78,7 @@ impl Telemetry {
     }
 
     pub fn with_workers(otlp: crate::otlp::Options, workers: usize) -> Result<Arc<Self>> {
-        let workers = workers.clamp(1, 256);
+        let workers = workers.max(1);
         let registry = Registry::new();
         #[cfg(feature = "hyper-experimental")]
         let data_plane = data_plane::DataPlane::new(&registry)?;

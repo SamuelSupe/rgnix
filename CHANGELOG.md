@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Assign distinct native metric producer slots across listeners, reclaim runtime-thread slots, use snapshot route positions without a request-time hash lookup and share final-header timestamps. Cache repeated HTTP/1 header names within a bounded connection cache; see the [follow-up record](docs/validation-hyper-instructions5-2026-10-24.md).
+
 - Construct ordinary Hyper upstream connection URIs only on pool misses and bypass percent decoding for literal paths. Matched user instructions fall a further 2.34% / 2.32% for 1 KiB / 16 KiB against the preceding optimized candidate; see the [instruction reduction record](docs/validation-hyper-instructions2-2026-10-24.md). Throughput and P99 were not requalified.
 - Drive eligible ordinary HTTP/1 upstream exchanges inline with Hyper's existing codec and bounded worker pools; reduce common Host/header setup and empty-body allocations. Matched single-worker instructions fall 9.13% for 1 KiB and 10.68% for 16 KiB against main `3a44af7`; capacity and P99 remain subject to the [complete execution-path validation](docs/validation-hyper-execution-2026-10-24.md).
 - Replace the nonwaiting process request semaphore with an exact atomic budget, and shard hot cumulative request metrics while preserving public labels, histogram observations and synchronous scrape aggregation.

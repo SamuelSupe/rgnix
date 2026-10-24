@@ -129,8 +129,9 @@ pub(super) fn select(listener: &Listener, request: &Request<Payload>) -> Option<
         crate::proxy::request_host_parts(request.headers(), request.uri(), request.version())
             .ok()?;
     let path = crate::proxy::normalized_path_view(request.uri().path()).ok()?;
-    let route = snapshot.route(listener.address, &host, &path)?;
-    let prepared_route = prepared.route_index(listener.address, &route);
+    let (h, r) = snapshot.route_position(listener.address, &host, &path)?;
+    let prepared_route = prepared.route_positions[h][r];
+    let route = prepared.routes[prepared_route].route.clone();
     prepared.routes[prepared_route].plain.as_ref()?;
     if prepared.slash_redirects
         && !path.ends_with('/')
@@ -443,7 +444,7 @@ async fn forward(
         .inline(listener.worker)
         .request(request, address)
         .await;
-    let mut response = result.map_err(|failure| {
+    let (mut response, received) = result.map_err(|failure| {
         match guard
             .upload_counts
             .as_ref()
@@ -462,7 +463,9 @@ async fn forward(
             ),
         }
     })?;
-    let seconds = guard.upstream_started.unwrap().elapsed().as_secs_f64();
+    let seconds = received
+        .duration_since(guard.upstream_started.unwrap())
+        .as_secs_f64();
     let telemetry = &listener.shared.telemetry;
     match selected.backend.metrics(telemetry, name) {
         Some(metrics) => metrics.headers.observe(seconds),

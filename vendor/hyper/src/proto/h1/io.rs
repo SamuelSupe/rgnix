@@ -214,6 +214,8 @@ where
                 self.partial_len,
                 ParseContext {
                     cached_headers: parse_ctx.cached_headers,
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: parse_ctx.header_names,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
                     h1_max_headers: parse_ctx.h1_max_headers,
@@ -769,6 +771,8 @@ mod tests {
         futures_util::future::poll_fn(|cx| {
             let parse_ctx = ParseContext {
                 cached_headers: &mut None,
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: &mut Default::default(),
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,

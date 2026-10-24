@@ -301,6 +301,15 @@ impl RuntimeSnapshot {
                 },
             );
         }
+        self.route_position(listener, host, path)
+            .map(|(h, r)| self.hosts[h].routes[r].clone())
+    }
+    pub(crate) fn route_position(
+        &self,
+        listener: SocketAddr,
+        host: &str,
+        path: &str,
+    ) -> Option<(usize, usize)> {
         self.routing.route(&self.hosts, listener, host, path)
     }
     pub fn route_request(

@@ -513,7 +513,35 @@ pub fn serve(
         limits.max_plugin_instances > 0 && limits.max_plugin_instances <= limits.max_inflight,
         "max-plugin-instances must be 1..max-inflight"
     );
-    let telemetry = Telemetry::with_workers(otlp, threads)?;
+    #[cfg(feature = "http3")]
+    let http3_listeners: std::collections::BTreeSet<_> = snapshot
+        .listeners
+        .iter()
+        .filter(|listener| {
+            engine == Engine::Hyper
+                && listener.tls
+                && (limits.hyper_http3
+                    || snapshot
+                        .hosts
+                        .iter()
+                        .filter(|h| h.listener == listener.address)
+                        .flat_map(|h| &h.routes)
+                        .any(|r| r.settings.http3))
+        })
+        .map(|l| l.address)
+        .collect();
+    #[cfg(feature = "http3")]
+    let http3_shards = http3_listeners.len()
+        * (1 + (if threads > 1 { threads } else { 0 }) + (16 / threads).clamp(1, 2));
+    #[cfg(not(feature = "http3"))]
+    let http3_shards = 0;
+    let metric_workers = if engine == Engine::Hyper {
+        // Business observations come from H1/H2 workers and H3 runtime threads.
+        snapshot.listeners.len() * threads + http3_shards
+    } else {
+        threads
+    };
+    let telemetry = Telemetry::with_workers(otlp, metric_workers)?;
     #[cfg(feature = "hyper-experimental")]
     ensure!(
         (1..=1_000_000).contains(&limits.hyper_max_connections),
@@ -644,17 +672,7 @@ pub fn serve(
         #[cfg(feature = "hyper-experimental")]
         if engine == Engine::Hyper {
             #[cfg(feature = "http3")]
-            if listener.tls
-                && (limits.hyper_http3
-                    || shared
-                        .snapshot
-                        .load()
-                        .hosts
-                        .iter()
-                        .filter(|h| h.listener == listener.address)
-                        .flat_map(|h| &h.routes)
-                        .any(|r| r.settings.http3))
-            {
+            if http3_listeners.contains(&listener.address) {
                 ensure!(
                     !listener.proxy_protocol,
                     "HTTP/3 does not accept PROXY protocol"
