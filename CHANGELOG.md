@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Batch Hyper pool-key hashing and defer unused HTTP/3 metadata on ordinary HTTP requests. Matched user-space instructions fall 3.855%; throughput and P99 improvements remain unqualified. See the [execution-chain study](docs/validation-hyper-chain-2026-10-24.md).
+- Reuse HTTP/1 request-header timers on keepalive connections while resetting a fresh absolute deadline for every new request head.
 - Prioritize I/O and timer event checks on single-thread native reactors. The [focused tail-latency study](docs/validation-hyper-tail-2026-10-24.md) records the observed P99 reduction and unresolved throughput tradeoff.
 - Add a single-worker Cachegrind instruction harness with matched startup controls, per-function deltas and repeated A/A calibration.
 - Reuse the selected immutable prepared-route index through plain HTTP/1 forwarding and completion, removing three repeated map lookups without extra request-time Arc clones.
