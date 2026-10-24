@@ -75,21 +75,25 @@ pub fn normalized_path(path: &str) -> anyhow::Result<String> {
 
 fn normalized_path_view(path: &str) -> anyhow::Result<std::borrow::Cow<'_, str>> {
     anyhow::ensure!(path.len() <= 8192, "URI exceeds 8 KiB");
-    let bytes = path.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' {
-            anyhow::ensure!(
-                i + 2 < bytes.len()
-                    && bytes[i + 1].is_ascii_hexdigit()
-                    && bytes[i + 2].is_ascii_hexdigit(),
-                "invalid percent escape"
-            );
-            i += 2;
+    let decoded = if path.contains('%') {
+        let bytes = path.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'%' {
+                anyhow::ensure!(
+                    i + 2 < bytes.len()
+                        && bytes[i + 1].is_ascii_hexdigit()
+                        && bytes[i + 2].is_ascii_hexdigit(),
+                    "invalid percent escape"
+                );
+                i += 2;
+            }
+            i += 1;
         }
-        i += 1;
-    }
-    let decoded = percent_encoding::percent_decode_str(path).decode_utf8()?;
+        percent_encoding::percent_decode_str(path).decode_utf8()?
+    } else {
+        std::borrow::Cow::Borrowed(path)
+    };
     anyhow::ensure!(
         decoded.starts_with('/') && !decoded.contains(['\0', '\\', '\r', '\n']),
         "invalid path"
@@ -785,8 +789,28 @@ pub(crate) fn https_redirect(host: &str, uri: &str, port: u16) -> String {
 }
 
 #[cfg(test)]
-mod host_tests {
+mod request_validation_tests {
     use super::*;
+
+    #[test]
+    fn plain_and_encoded_paths_keep_normalization_and_rejection_boundaries() {
+        for (input, expected) in [
+            ("/", "/"),
+            ("/a/b", "/a/b"),
+            ("/中", "/中"),
+            ("/%E4%B8%AD", "/中"),
+            ("/a//b/../c", "/a/c"),
+            ("/a/%2e%2e/c", "/c"),
+        ] {
+            assert_eq!(normalized_path_view(input).unwrap(), expected);
+        }
+        for input in [
+            "relative", "/%", "/%0", "/%GG", "/%FF", "/%00", "/%5C", "/\\", "/\0", "/\r", "/\n",
+        ] {
+            assert!(normalized_path_view(input).is_err(), "{input:?}");
+        }
+        assert!(normalized_path_view(&"/".repeat(8193)).is_err());
+    }
 
     #[test]
     fn borrowed_hosts_preserve_authority_validation_and_header_cardinality() {

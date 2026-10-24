@@ -15,13 +15,14 @@ from pathlib import Path
 import signal
 import socket
 import socketserver
+import ssl
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 
-from integration import Upstream, check, free_port, metric_value, request, wait_for, RESULTS
+from integration import Upstream, certificate, check, free_port, metric_value, request, wait_for, RESULTS
 from product_features import wire_fields
 
 
@@ -163,16 +164,27 @@ def exercise_h1_pool(port, budget):
 def exercise_plain_upstream(binary, directory, threads):
     origin = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Origin)
     threading.Thread(target=origin.serve_forever, daemon=True).start()
+    class IPv6Server(http.server.ThreadingHTTPServer):
+        address_family=socket.AF_INET6
+    certificate(directory,1,names=("origin.test",))
+    secure=IPv6Server(("::1",0),Origin);secure.daemon_threads=True
+    context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(directory/"cert.pem",directory/"key.pem")
+    secure.socket=context.wrap_socket(secure.socket,server_side=True)
+    threading.Thread(target=secure.serve_forever,daemon=True).start()
     port, admin = free_port(), free_port()
     config = directory / "plain.conf"
     config.write_text(f'''events {{}} http {{ access_log off; keepalive_timeout 5s;
 upstream app {{ server 127.0.0.1:{origin.server_port}; rgnix_max_inflight 2; }}
+upstream secure {{ server [::1]:{secure.server_port}; }}
 server {{ listen 127.0.0.1:{port}; server_name example.test; proxy_read_timeout 2s;
 proxy_set_header Host forwarded.example;
 location / {{ proxy_pass http://app; }}
 location /idle-reuse {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
 location /inline-stale {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
 location /inline-partial {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
+location /inline-secure {{ proxy_pass https://secure; proxy_ssl_name origin.test; proxy_ssl_trusted_certificate {directory}/cert.pem; }}
+location /inline-wrong-name {{ proxy_pass https://secure; proxy_ssl_name wrong.test; proxy_ssl_trusted_certificate {directory}/cert.pem; }}
 }} }}''')
     log = (directory / "plain.log").open("w+")
     command = [binary,"serve","-c",str(config),"--engine","hyper","--admin",f"127.0.0.1:{admin}","--threads",str(threads),"--max-inflight","2","--max-plugin-instances","1","--upstream-max-fails","0","--upstream-keepalive-pool-size","1","--shutdown-grace-seconds","0","--shutdown-timeout-seconds","3"]
@@ -186,8 +198,12 @@ location /inline-partial {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
             for target in [path,"http://example.test:9999"+path]:
                 client.request("GET",target,headers={"Host":"example.test"})
                 response=client.getresponse();value=json.loads(response.read())
-                check("ordinary H1 preserves origin-form path/query and configured Host for "+target,response.status==200 and value["path"]==path and value["headers"]["Host"]=="forwarded.example")
+                check("ordinary H1 preserves origin-form path/query and configured Host for "+target,response.status==200 and value["path"]==path and {k.lower():v for k,v in value["headers"].items()}["host"]=="forwarded.example")
         exercise_h1_pool(port,budget)
+        status,_,body=request(port,"/inline-secure?q=tls")
+        value=json.loads(body)
+        check("ordinary H1 uses the selected IPv6 TLS endpoint and verifies its configured name",status==200 and value["port"]==secure.server_port and value["path"]=="/inline-secure?q=tls")
+        check("ordinary H1 rejects an upstream TLS hostname mismatch",request(port,"/inline-wrong-name")[0]==502)
         wait_for(budget,0)
         check("policy-free ordinary H1 requests release the process budget", process.poll() is None and budget()==0)
     except BaseException:
@@ -197,7 +213,7 @@ location /inline-partial {{ proxy_read_timeout 100ms; proxy_pass http://app; }}
         Origin.release.set();process.terminate()
         try:process.wait(timeout=6)
         except subprocess.TimeoutExpired:process.kill();process.wait()
-        log.close();origin.shutdown();origin.server_close()
+        log.close();origin.shutdown();origin.server_close();secure.shutdown();secure.server_close()
 
 
 class H2Origin(socketserver.BaseRequestHandler):

@@ -220,13 +220,15 @@ impl BackgroundService for Listener {
                                 let request_listener = listener.clone();
                                 let request_state = state.clone();
                                 let upgrade_stop = stop.clone();
-                                let service = hyper::service::service_fn(move |request| {
+                                let service = hyper::service::service_fn(move |request: hyper::Request<hyper::body::Incoming>| {
                                     let listener = request_listener.clone();
                                     let state = request_state.clone();
-                                    let stop = upgrade_stop.clone();
+                                    let stop = request.headers().get(http::header::UPGRADE)
+                                        .is_some_and(|v| v.as_bytes().eq_ignore_ascii_case(b"h2c"))
+                                        .then(|| upgrade_stop.clone());
                                     async move {
                                         if let Some(lease) = &state.admission { lease.established(); }
-                                        if request.headers().get(http::header::UPGRADE).is_some_and(|v| v.as_bytes().eq_ignore_ascii_case(b"h2c")) {
+                                        if let Some(stop) = stop {
                                             Ok(h2c::upgrade(listener, request, peer, state, stop).await)
                                         } else { request::serve(&listener, request.map(body::Payload::Incoming), peer, state).await }
                                     }
