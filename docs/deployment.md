@@ -52,9 +52,11 @@ Gateway API 使用独立的 `rgnix gateway` / Helm `mode=gateway`，其 CRD、�
 helm upgrade --install rgnix charts/rgnix \
   --namespace rgnix-system --create-namespace \
   --set image.repository=YOUR_REGISTRY/rgnix \
-  --set image.tag=0.4.0 --set shutdown.enabled=true
+  --set image.tag=YOUR_TESTED_TAG --set shutdown.enabled=true
 kubectl -n rgnix-system rollout status deployment/rgnix
 ```
+
+当前源码 Chart 默认选择 Hyper，需要使用当前开发版本构建的镜像。沿用已发布的 v0.5.0 或更早镜像时，设置 `experimentalHyper.enabled=false` 并保持 `engine=null`；这些旧镜像不包含 Hyper，也不接受新的 `--engine` 参数。开发镜像可用 `engine=pingora` 回退。验收状态见[默认内核记录](hyper-default-rollout.md)。
 
 Chart 默认：2 个副本、LoadBalancer Service 的 80→8080 / 443→8443、管理端口 9090 不由业务 Service 暴露；只读 rootfs、drop ALL capabilities、seccomp RuntimeDefault；请求 100m CPU/128Mi、限制 2 CPU/512Mi。滚动更新 maxUnavailable=0、maxSurge=1、minReadySeconds=2；preStop 等待 5 秒让端点撤销传播后再接收 SIGTERM，terminationGracePeriodSeconds 为 60，覆盖请求、OTLP logs/traces 和本地日志排空预算；PDB 至少 1 个可用副本。无需 CRD。
 
@@ -189,6 +191,12 @@ v0.5.0 提供可调的上游空闲池预算，默认保持每 worker 128。每�
 
 当前源码还提供上游分阶段耗时、body 字节/预读、后端健康、进程及命名空间预算、watch/Lease、发布门禁和 Linux CPU/RSS/FD 指标。Helm 提供独立 metrics Service 与可选 ServiceMonitor；完整目录、计量边界、基数限制、PromQL 和告警见[运维指标](metrics.md)。`otlpTraces.*` 可独立启用 W3C 上下文传播、server/client spans 和访问日志关联，详见[可观测性](product-features.md#可观测性)。
 
+### Hyper 唤醒延迟诊断
+
+需要定位 10–50 ms 尾延迟时，可临时为 Hyper 启动命令增加 `--hyper-wakeup-probe`。它将各原生服务的心跳采样周期从 250 ms 缩短为 1 ms，并启动一个独立参考线程；`rgnix_runtime_wakeup_lag_seconds{service}` 记录计划唤醒时间之后的延迟，`service="reference"` 是参考线程，其余名称与原有 reactor 心跳一致。退出时参考线程随服务停止。
+
+默认关闭，未启用时不启动参考线程，保留原有 250 ms 心跳周期。高频采样会增加计时、调度和指标开销，不要在正式性能 A/B 中启用。应比较同一时间范围内的 reactor 与 reference 分布；业务 reactor 单独升高可支持局部阻塞的排查，两者一起升高也可能来自操作系统或宿主调度。两种定时机制和粒度不同，不能直接相减，也不能仅凭它们认定虚拟机暂停或证明具体阻塞来源。
+
 ## OrbStack 验收
 
 Linux 构建/验证在 OrbStack 中执行，避免用 macOS 编译结果代表 Linux 服务：
@@ -197,9 +205,9 @@ Linux 构建/验证在 OrbStack 中执行，避免用 macOS 编译结果代表 L
 
 ```sh
 orb -m ubuntu bash -lc 'cd /PATH/TO/rgnix && CARGO_TARGET_DIR=/tmp/rgnix-target bash scripts/check.sh'
-docker build -t rgnix:0.5.0 .
-RGNIX_IMAGE_TAG=0.4.0 bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
-RGNIX_IMAGE_TAG=0.4.0 python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
+docker build -t rgnix:hyper-dev .
+RGNIX_IMAGE_REPOSITORY=rgnix RGNIX_IMAGE_TAG=hyper-dev bash scripts/ingress-e2e.sh rgnix-qa-example orbstack
+RGNIX_IMAGE_REPOSITORY=rgnix RGNIX_IMAGE_TAG=hyper-dev python3 scripts/product_kubernetes.py rgnix-qa-example orbstack
 ```
 
 脚本只接受专用命名空间，并要求现有 namespace 带 `rgnix-qa=true`；使用专属 IngressClass，不修改其他 controller 或工作负载。它会创建两个 NGINX 后端、插件、临时证书，执行删除/恢复和滚动升级。结束后保留环境便于检查。QA 的 LoadBalancerClass 为 `rgnix.io/acceptance`、禁用 NodePort，通过 port-forward 和集群内 Service 验证；地址 `192.0.2.10` 仅是 status 回写测试数据，不是真实公网 LB。
@@ -213,9 +221,9 @@ helm uninstall rgnix-qa -n rgnix-qa-example --kube-context orbstack
 kubectl --context orbstack delete namespace rgnix-qa-example
 ```
 
-## 共享请求速率配额
+## 请求速率配额与副本数
 
-当前源码可通过 `globalRateLimit.secret.name/key` 挂载 Redis 协调器配置；同一部署的副本共享 route 与 namespace 请求速率，故障模式默认 503，支持显式放行或本地降级。配置、Redis 权限及持久性边界见[跨副本速率限制](shared-rate-limits.md)。并发、CPU/内存保护仍按进程执行。
+route 与 namespace 的速率、并发以及 CPU/内存保护均按进程执行，各副本独立计数。根据副本数量分配每副本速率与 burst；扩缩容会改变部署总额度。旧 Redis 配置的迁移要求见[限流范围与升级](shared-rate-limits.md)。
 
 ## 静态文件 I/O
 

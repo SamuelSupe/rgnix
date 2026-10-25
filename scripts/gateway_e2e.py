@@ -22,14 +22,20 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--context", default="orbstack")
 parser.add_argument("--namespace", required=True)
 parser.add_argument("--image", required=True)
+parser.add_argument("--engine", choices=["hyper", "pingora"])
+parser.add_argument("--experimental-hyper", action="store_true", default=None)
 parser.add_argument("--output", required=True)
 parser.add_argument("--soak-seconds", type=int, default=0)
+parser.add_argument("--soak-event-seconds", type=int, default=600)
 parser.add_argument("--scale-routes", type=int, default=100)
 parser.add_argument("--require-multiple-nodes", action="store_true")
 parser.add_argument("--grpc-image", default="rgnix:gateway-grpc-fixture")
 args = parser.parse_args()
 assert 0 <= args.soak_seconds <= 86400 and 1 <= args.scale_routes <= 2000
+assert args.soak_event_seconds >= 30
 ns, peer = args.namespace, args.namespace + "-peer"
+expected_engine = args.engine or "hyper"
+pathlib.Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 root = pathlib.Path(__file__).resolve().parents[1]
 checks = []
 kubectl = ["kubectl", "--context", args.context]
@@ -86,19 +92,40 @@ def condition(kind, name, type_, value, namespace=ns):
     return any(c.get("type") == type_ and c.get("status") == value and c.get("observedGeneration") == item["metadata"]["generation"] for c in conditions)
 
 
-origin = '''import http.server,json,os,ssl,time
+origin = '''import base64,hashlib,http.server,json,os,ssl,time
 class Handler(http.server.BaseHTTPRequestHandler):
  protocol_version="HTTP/1.1"
  mirrors=0
  last_mirror=None
  def do_GET(self):
   body=self.rfile.read(int(self.headers.get('Content-Length',0)))
+  if self.headers.get('Upgrade','').lower() == 'websocket':
+   key=self.headers['Sec-WebSocket-Key']+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+   self.send_response(101);self.send_header('Connection','Upgrade');self.send_header('Upgrade','websocket');self.send_header('Sec-WebSocket-Accept',base64.b64encode(hashlib.sha1(key.encode()).digest()).decode());self.end_headers()
+   try:
+    while True:
+     frame=self.rfile.read(2)
+     if len(frame)!=2: break
+     size=frame[1]&127
+     if size>125 or not frame[1]&128: break
+     mask=self.rfile.read(4);data=self.rfile.read(size)
+     if len(mask)!=4 or len(data)!=size: break
+     data=bytes(b^mask[i%4] for i,b in enumerate(data))
+     self.wfile.write(bytes([frame[0],size])+data);self.wfile.flush()
+   except (BrokenPipeError,ConnectionResetError): pass
+   self.close_connection=True;return
   if self.headers.get('x-rgnix-mirror') == 'true':
    Handler.mirrors += 1; Handler.last_mirror={'path':self.path,'host':self.headers.get('Host'),'body':body.decode(errors='replace')}
   if self.path in ('/v1/logs','/v1/traces'):
-   self.send_response(200);self.send_header('Content-Length','0');self.end_headers();return
+   self.send_response(200);self.send_header('Content-Type','application/x-protobuf');self.send_header('Content-Length','0');self.end_headers();return
   if self.headers.get('x-delay'): time.sleep(min(5,float(self.headers['x-delay'])))
   if self.path.startswith('/slow'): time.sleep(0.4)
+  if self.path.startswith('/flow-'):
+   out=b'x' * {'/flow-small':32,'/flow-large':1048576,'/flow-empty':0}[self.path]
+   self.send_response(200);self.send_header('Content-Length',str(len(out)));self.end_headers()
+   try: self.wfile.write(out);self.wfile.flush()
+   except (BrokenPipeError,ConnectionResetError): pass
+   return
   if self.path.startswith('/trickle'):
    self.send_response(200);self.send_header('Content-Length','20');self.end_headers()
    try:
@@ -115,6 +142,74 @@ server=http.server.ThreadingHTTPServer(('0.0.0.0',8080),Handler)
 if os.getenv('TLS'):
  context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain('/tls/tls.crt','/tls/tls.key');server.socket=context.wrap_socket(server.socket,server_side=True)
 server.serve_forever()
+'''
+
+h2_deadline_probe = r'''import json,socket,struct,sys,time
+address,port,host,expected,path,window=sys.argv[1:]
+window=int(window)
+def frame(kind,flags,stream,payload=b''):
+ return len(payload).to_bytes(3,'big')+bytes([kind,flags])+struct.pack('!I',stream)+payload
+def headers(path):
+ authority=host.encode();path=path.encode()
+ return b'\x82\x86\x01'+bytes([len(authority)])+authority+b'\x04'+bytes([len(path)])+path
+with socket.create_connection((address,int(port)),timeout=2) as client:
+ started=time.monotonic();client.settimeout(0.05)
+ client.sendall(b'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n'+frame(4,0,0,struct.pack('!HI',4,window))+frame(1,5,1,headers(path))+frame(1,5,3,headers('/flow-empty')))
+ buffer=b'';reset=None;reset_code=None;response=False;sibling=False;received=0;ended=False
+ def receive():
+  global buffer,reset,reset_code,response,sibling,received,ended
+  try: data=client.recv(65536)
+  except socket.timeout: return
+  assert data,'connection closed instead of resetting only the expired stream'
+  buffer+=data
+  while len(buffer)>=9:
+   size=int.from_bytes(buffer[:3],'big')
+   if len(buffer)<9+size: break
+   kind,flags=buffer[3:5];stream=int.from_bytes(buffer[5:9],'big')&0x7fffffff;payload=buffer[9:9+size];buffer=buffer[9+size:]
+   if kind==4 and not flags&1: client.sendall(frame(4,1,0))
+   if stream==1:
+    if kind==1: response=True
+    if kind==0: received+=len(payload)
+    if kind in (0,1) and flags&1: ended=True
+    if kind==3: reset=time.monotonic()-started;reset_code=int.from_bytes(payload,'big')
+   if stream==3:
+    assert kind!=3,'unrelated stream was reset'
+    if kind in (0,1) and flags&1: sibling=True
+ while time.monotonic()-started<0.6: receive()
+ assert response and sibling and received==window and not ended,(response,sibling,received,ended)
+ if expected=='reset':
+  assert reset is not None and reset<0.6 and reset_code==8,(reset,reset_code)
+ else:
+  assert reset is None,reset
+  client.sendall(frame(8,0,1,struct.pack('!I',2097152))+frame(8,0,0,struct.pack('!I',2097152)))
+  until=time.monotonic()+2
+  while not ended and time.monotonic()<until: receive()
+  assert ended and received=={'/flow-small':32,'/flow-large':1048576}[path],(ended,received)
+ print(json.dumps({'reset_seconds':reset,'reset_code':reset_code,'sibling_completed':sibling,'bytes':received}))
+'''
+
+websocket_deadline_probe = r'''import json,socket,sys,time
+address,port,host,expected=sys.argv[1:]
+with socket.create_connection((address,int(port)),timeout=2) as client:
+ started=time.monotonic()
+ client.sendall(('GET /ws HTTP/1.1\r\nHost: '+host+'\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n').encode())
+ stream=client.makefile('rb')
+ assert b'101' in stream.readline()
+ while stream.readline()!=b'\r\n': pass
+ closed=False;echoes=0
+ while time.monotonic()-started<0.6:
+  try:
+   client.sendall(b'\x89\x81mask'+bytes([ord('x')^ord('m')]))
+   frame=stream.read(3)
+   if not frame: closed=True;break
+   assert frame==b'\x89\x01x',frame
+   echoes+=1
+   time.sleep(0.03)
+  except (BrokenPipeError,ConnectionResetError): closed=True;break
+ elapsed=time.monotonic()-started
+ assert echoes>0 and closed==(expected=='closed'),(closed,echoes,elapsed)
+ assert elapsed<0.8,(closed,elapsed)
+ print(json.dumps({'closed':closed,'echoes':echoes,'seconds':elapsed}))
 '''
 grpc_origin = '''import grpc
 from concurrent.futures import ThreadPoolExecutor
@@ -155,19 +250,17 @@ with tempfile.TemporaryDirectory() as directory:
     values["reportReplicas"] = True
     values["shutdown"] = {"enabled": True}
     values["requireMultipleNodes"] = args.require_multiple_nodes
+    values["experimentalHyper"] = {"enabled": args.experimental_hyper, "maxConnections": 16384}
+    if args.engine:
+        values["engine"] = args.engine
     values["upstreamMaxFails"] = 0
     cli_token = "gateway-qa-wait-" + ns
     apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"wait-token","namespace":ns},"stringData":{"token":cli_token}})
     values["admin"] = {"usersSecret": {"name": "admin-users", "key": "users.json"}, "tokenSecret":{"name":"wait-token","key":"token"}}
     apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"release-metrics","namespace":ns},"stringData":{"metrics.json":json.dumps({"gates":{"orders":{"url":f"http://a.{ns}.svc/metric","pointer":"/value","max":-1}}})}})
     values["rolloutMetrics"]={"secret":{"name":"release-metrics","key":"metrics.json"}}
-    apply({"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"redis","namespace":ns},"spec":{"replicas":1,"selector":{"matchLabels":{"qa-origin":"redis"}},"template":{"metadata":{"labels":{"qa-origin":"redis"}},"spec":{"containers":[{"name":"redis","image":"redis:8.0.2-alpine","args":["--save","","--appendonly","no"],"ports":[{"containerPort":6379}]}]}}}},
-          {"apiVersion":"v1","kind":"Service","metadata":{"name":"redis","namespace":ns},"spec":{"selector":{"qa-origin":"redis"},"ports":[{"port":6379}]}})
-    command(*kubectl,"-n",ns,"rollout","status","deployment/redis","--timeout=90s")
-    apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"shared-rate","namespace":ns},"stringData":{"config.json":json.dumps({"url":f"redis://redis.{ns}.svc:6379","scope":ns,"timeout_ms":200})}})
     namespace_policy={"default":{"allow_mirroring":True,"requests_per_second":10000,"burst":10000}}
     apply({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"namespace-policy","namespace":ns},"data":{"policy.json":json.dumps(namespace_policy)}})
-    values["globalRateLimit"]={"secret":{"name":"shared-rate","key":"config.json"}}
     values["tenancy"]={"policyConfigMap":{"name":"namespace-policy","key":"policy.json"}}
     (directory / "values.json").write_text(json.dumps(values))
     # Previous runs intentionally mutate listener ownership; reset only this fixture's Gateway.
@@ -193,7 +286,9 @@ with tempfile.TemporaryDirectory() as directory:
         data = response.read()
         try: data = json.loads(data)
         except ValueError: pass
-        return response.status, dict(response.headers), data
+        if isinstance(data, dict) and isinstance(data.get("headers"), dict):
+            data["headers"] = {k.lower(): v for k, v in data["headers"].items()}
+        return response.status, response.headers, data
 
     def reconnect(restart=True):
         global forward
@@ -245,9 +340,15 @@ with tempfile.TemporaryDirectory() as directory:
     try:
         wait("Gateway status reflects published generation", lambda: condition("gateway", "gateway", "Programmed", "True"))
         apply(route("base", [rule()]))
-        wait("Service backend and Host preservation", lambda: request()[2].get("headers", {}).get("Host") == "api.example.test")
+        wait("Service backend and Host preservation", lambda: request()[2].get("headers", {}).get("host") == "api.example.test")
         wait("HTTPRoute status", lambda: condition("httproute", "base", "ResolvedRefs", "True"))
         wait("All replicas acknowledge the same accepted configuration", lambda: admin("/v1/fleet", credential=operator)[1].get("converged"))
+        with replicas() as pairs:
+            for _, replica_admin_port, name in pairs:
+                with urllib.request.urlopen(f"http://127.0.0.1:{replica_admin_port}/metrics", timeout=3) as response:
+                    metrics = [line for line in response.read().decode().splitlines() if line.startswith("rgnix_engine_info{")]
+                assert f'rgnix_engine_info{{engine="{expected_engine}"}} 1' in metrics, {"expected": expected_engine, "observed": metrics}
+                checks.append({"name": "Gateway replica uses selected HTTP engine", "passed": True, "pod": name, "engine": expected_engine})
         if args.require_multiple_nodes:
             pods = json.loads(command(*kubectl, "-n", ns, "get", "pods", "-l", "app.kubernetes.io/instance=gateway", "-o", "json"))["items"]
             nodes = sorted({pod["spec"]["nodeName"] for pod in pods if not pod["metadata"].get("deletionTimestamp")})
@@ -277,7 +378,7 @@ with tempfile.TemporaryDirectory() as directory:
         finally:
             lease_verbs(verbs)
         wait("Replica observation recovers after RBAC restoration", lambda: admin("/v1/fleet", credential=operator)[1].get("converged"))
-        for name, budgets in [("request-deadline", {"request":"150ms"}), ("backend-deadline", {"backendRequest":"150ms"}), ("disabled-deadline", {"request":"0s", "backendRequest":"0s"})]:
+        for name, budgets in [("request-deadline", {"request":"150ms"}), ("backend-deadline", {"backendRequest":"150ms"}), ("earlier-backend-deadline", {"request":"1s","backendRequest":"150ms"}), ("disabled-deadline", {"request":"0s", "backendRequest":"0s"})]:
             apply(route(name, [rule(timeouts=budgets)], hosts=[name+".example.test"]))
             expected = 200 if name == "disabled-deadline" else 504
             wait(name+" bounds delayed upstream headers", lambda: request("/slow", host=name+".example.test")[0] == expected)
@@ -298,6 +399,19 @@ finally: connection.close()
             measured = json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",probe))
             return measured["status"] == 200 and 0 < measured["bytes"] < 20 and measured["seconds"] < 0.8
         wait("Backend deadline cancels a continuously streaming response", total_stream_timeout)
+        for name in ["request-deadline", "backend-deadline", "earlier-backend-deadline", "disabled-deadline"]:
+            if expected_engine == "hyper":
+                for path, window in [("/flow-small",0), ("/flow-small",1), ("/flow-large",0), ("/flow-large",1), ("/flow-large",65535)]:
+                    def h2_timeout(name=name, path=path, window=window):
+                        expected = "complete" if name == "disabled-deadline" else "reset"
+                        measured = json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",h2_deadline_probe,"gateway","80",name+".example.test",expected,path,str(window)))
+                        return measured["sibling_completed"] and (measured["reset_seconds"] is not None) == (expected == "reset")
+                    wait(name+" bounds HTTP/2 flow-control waits for "+path+" window="+str(window), h2_timeout)
+            def websocket_timeout(name=name):
+                expected = "open" if name == "disabled-deadline" else "closed"
+                measured = json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",websocket_deadline_probe,"gateway","80",name+".example.test",expected))
+                return measured["echoes"] > 0 and measured["closed"] == (expected == "closed")
+            wait(name+" applies to an actively exchanging WebSocket tunnel", websocket_timeout)
         candidate = route("preview", [rule("/preview", timeouts={"request":"1s","backendRequest":"100ms"})])
         before = admin("/v1/config")[1]["version"]
         code, preview = admin("/v1/validate-gateway", candidate)
@@ -351,7 +465,7 @@ finally: connection.close()
         apply(route("rewrite", [rule("/old", filters=[{"type": "URLRewrite", "urlRewrite": {"hostname": "backend.test", "path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/new"}}}, {"type": "RequestHeaderModifier", "requestHeaderModifier": {"set": [{"name": "X-Literal", "value": "$host"}], "remove": ["X-Remove"]}}, {"type": "ResponseHeaderModifier", "responseHeaderModifier": {"set": [{"name": "X-Gateway", "value": "yes"}], "remove": ["X-Origin"]}}])]))
         def rewritten():
             code, headers, data = request("/old/item?q=1", headers={"X-Remove": "secret"})
-            return code == 200 and data["path"] == "/new/item?q=1" and data["headers"].get("Host") == "backend.test" and data["headers"].get("X-Literal") == "$host" and "X-Remove" not in data["headers"] and headers.get("X-Gateway") == "yes" and "X-Origin" not in headers
+            return code == 200 and data["path"] == "/new/item?q=1" and data["headers"].get("host") == "backend.test" and data["headers"].get("x-literal") == "$host" and "x-remove" not in data["headers"] and headers.get("X-Gateway") == "yes" and "X-Origin" not in headers
         wait("Rewrite and literal request/response header modifiers", rewritten)
         apply(route("redirect", [{"matches": [{"path": {"type": "PathPrefix", "value": "/redirect"}}], "filters": [{"type": "RequestRedirect", "requestRedirect": {"scheme": "https", "statusCode": 301, "path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/secure"}}}]}]))
         wait("Redirect preserves suffix/query and scheme default port", lambda: request("/redirect/a?q=1")[0] == 301 and request("/redirect/a?q=1")[1].get("Location") == "https://api.example.test/secure/a?q=1")
@@ -435,10 +549,10 @@ finally: connection.close()
         apply(route("rate",[rule()],hosts=["rate.example.test"],annotations={"rgnix.io/limit-rate":"1 burst=1 key=header:x-client"}))
         wait("Gateway rate policy accepted",lambda:condition("httproute","rate","Accepted","True"))
         with replicas() as pairs:
-            for pair in pairs: wait("Replica serves shared-rate policy",lambda:admin("/v1/config",target_port=pair[1])[0]==200)
-            statuses=[request(host="rate.example.test",headers={"x-client":"across-pods"},target_port=p[0])[0] for p in pairs]
-            assert statuses==[200,429],statuses
-            checks.append({"name":"Gateway rate budget is shared across replicas","passed":True})
+            for pair in pairs: wait("Replica serves local rate policy",lambda:admin("/v1/config",target_port=pair[1])[0]==200)
+            statuses=[[request(host="rate.example.test",headers={"x-client":"across-pods"},target_port=p[0])[0] for _ in range(2)] for p in pairs]
+            assert statuses==[[200,429] for _ in pairs],statuses
+            checks.append({"name":"Gateway enforces an independent rate budget per replica","passed":True})
         apply(route("mirror-count",[rule("/mirror-count","b")]))
         traffic={"revision":"gateway-staged","backends":[{"service":"a:80","weight":90},{"service":"b:80","weight":10}],
                  "mirror":{"service":"b:80","percent":100,"max_body_bytes":1024,"timeout_ms":500},
@@ -562,17 +676,26 @@ finally: connection.close()
         command(*kubectl, "-n", ns, "patch", "service", "grpc", "--type=json", "-p", json.dumps([{"op": "replace", "path": "/spec/ports/0/appProtocol", "value": "https"}]))
         wait("Unsupported HTTPS backend cannot be downgraded to plaintext", lambda: condition("httproute", "grpc-http", "ResolvedRefs", "False") and request(host="http-grpc.example.test")[0] == 500)
         command(*kubectl, "-n", ns, "patch", "service", "grpc", "--type=json", "-p", json.dumps([{"op": "replace", "path": "/spec/ports/0/appProtocol", "value": "kubernetes.io/h2c"}]))
-        namespace_policy["namespaces"]={peer:{"requests_per_second":1,"burst":2}}
-        apply({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"namespace-policy","namespace":ns},"data":{"policy.json":json.dumps(namespace_policy)}})
+        apply(route("quota-peer",[rule()],hosts=["quota-peer.example.test"],namespace=peer))
         def quota_loaded(admin_port):
             return any(r.get("tenant",{}).get("namespace")==peer and r["tenant"]["quota"]["burst"]==2 for h in admin("/v1/config",target_port=admin_port)[1]["routes"] for r in h["routes"])
         with replicas() as pairs:
             for index,pair in enumerate(pairs):
+                wait(f"Replica {index+1} loads the second tenant route",lambda:request(host="quota-peer.example.test",target_port=pair[0])[0]==200)
+            namespace_policy["namespaces"]={peer:{"requests_per_second":1,"burst":2}}
+            apply({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"namespace-policy","namespace":ns},"data":{"policy.json":json.dumps(namespace_policy)}})
+            for index,pair in enumerate(pairs):
                 wait(f"Replica {index+1} loads administrator namespace quota",lambda:quota_loaded(pair[1]),seconds=180)
-            statuses=[request(host="foreign.example.test",target_port=pairs[n%2][0])[0] for n in range(3)]
-            assert statuses==[200,200,429],statuses
-            checks.append({"name":"Namespace total request quota is shared across replicas","passed":True})
-            assert request(target_port=pairs[0][0])[0]==200
+            observations=[]
+            for pair in pairs:
+                started=time.monotonic()
+                statuses=[request(host=host,target_port=pair[0])[0] for host in ["foreign.example.test","quota-peer.example.test","foreign.example.test"]]
+                elapsed=time.monotonic()-started
+                assert elapsed<1, f"quota burst probe crossed the one-token refill interval: {elapsed}s"
+                assert statuses==[200,200,429],{"pod":pair[2],"statuses":statuses,"seconds":elapsed}
+                observations.append({"pod":pair[2],"statuses":statuses,"seconds":elapsed})
+                assert request(target_port=pair[0])[0]==200
+            checks.append({"name":"Namespace quota aggregates routes within each replica and each replica has its own burst","passed":True,"observations":observations})
             checks.append({"name":"Exhausted tenant does not consume another namespace budget","passed":True})
         command(*kubectl, "-n", ns, "rollout", "restart", "deployment/gateway")
         command(*kubectl, "-n", ns, "rollout", "status", "deployment/gateway", "--timeout=90s")
@@ -614,16 +737,43 @@ finally: connection.close()
                 wait("New requests use the newly published plugin",lambda:request("/plugin")[1].get("x-release")=="new")
                 assert old.result()[1].get("x-release")=="old"
             checks.append({"name":"In-flight requests retain their plugin snapshot across publication", "passed":True})
-            load_script = r'''import concurrent.futures,http.client,json,socket,ssl,time
+            load_script = r'''import concurrent.futures,http.client,json,math,socket,ssl,threading,time
 from collections import deque
 host = "gateway.NAMESPACE.svc"
-stop = time.monotonic()+SECONDS
+started_at = time.monotonic()
+stop = started_at+SECONDS
 payload = b"body-routing-soak"*256
+lock = threading.Lock()
+failed = threading.Event()
+workers = [{"requests":0,"failed_requests":0,"errors":[],"samples":deque(maxlen=3000)} for _ in range(6)]
+# Fixed 100us buckets preserve the whole run without retaining every request.
+latency_histogram = [0]*30002
+latency_max_seconds = 0
+
+def report(final=False):
+ with lock:
+  results=[{key:value for key,value in worker.items() if key!="samples"} for worker in workers]
+  samples=sorted(v for worker in workers for v in worker["samples"])
+  histogram=latency_histogram.copy(); maximum=latency_max_seconds
+ count=sum(histogram)
+ def percentile(fraction):
+  if not count: return None
+  target=math.ceil(count*fraction); cumulative=0
+  for bucket,frequency in enumerate(histogram):
+   cumulative+=frequency
+   if cumulative>=target: return bucket/10 if bucket<=30000 else None
+ measurement={"final":final,"elapsed_seconds":time.monotonic()-started_at,"workers":results,"requests":sum(r["requests"] for r in results),"failed_requests":sum(r["failed_requests"] for r in results),"retained_latency_samples":len(samples),"p99_ms":samples[min(len(samples)-1,int(len(samples)*0.99))]*1000 if samples else None,
+  "full_run_latency":{"count":count,"bucket_width_us":100,"p50_upper_ms":percentile(.50),"p95_upper_ms":percentile(.95),"p99_upper_ms":percentile(.99),"max_ms":maximum*1000,"overflow_above_3s":histogram[-1]}}
+ if final:
+  assert count==measurement["requests"]
+  measurement["full_run_latency"]["histogram_upper_us"]={str(bucket*100):frequency for bucket,frequency in enumerate(histogram[:-1]) if frequency}
+ print(json.dumps(measurement),flush=True)
 
 def load(worker):
- samples=deque(maxlen=10000); errors=[]; completed=0; failed=0
+ global latency_max_seconds
+ state=workers[worker]
  client=http.client.HTTPConnection(host,80,timeout=3)
- while time.monotonic()<stop:
+ while time.monotonic()<stop and not failed.is_set():
   started=time.monotonic()
   try:
    if worker%3==0 and client.sock is None:
@@ -634,38 +784,115 @@ def load(worker):
    assert response.status==200, f"HTTP {response.status}: {body[:120]!r}"
    data=json.loads(body)
    assert worker%3!=2 or data["body"]==payload.decode(), "request body changed"
-   completed+=1; samples.append(time.monotonic()-started)
+   latency=time.monotonic()-started
+   with lock:
+    state["requests"]+=1; state["samples"].append(latency)
+    latency_histogram[min(30001,math.ceil(latency*10000))]+=1
+    latency_max_seconds=max(latency_max_seconds,latency)
   except Exception as error:
-   failed+=1
-   if len(errors)<20: errors.append(str(error))
+   failed.set()
+   with lock:
+    state["failed_requests"]+=1
+    if len(state["errors"])<20: state["errors"].append(str(error))
    client.close()
   time.sleep(max(0, 0.025-(time.monotonic()-started)))
  client.close()
- return {"requests":completed,"failed_requests":failed,"errors":errors,"samples":list(samples)}
-with concurrent.futures.ThreadPoolExecutor(6) as pool: results=list(pool.map(load,range(6)))
-samples=sorted(v for result in results for v in result.pop("samples"))
-print(json.dumps({"workers":results,"requests":sum(r["requests"] for r in results),"failed_requests":sum(r["failed_requests"] for r in results),"retained_latency_samples":len(samples),"p99_ms":samples[min(len(samples)-1,int(len(samples)*0.99))]*1000 if samples else None}),flush=True)
-assert all(r["failed_requests"]==0 and r["requests"]>0 for r in results)
+with concurrent.futures.ThreadPoolExecutor(6) as pool:
+ futures=[pool.submit(load,worker) for worker in range(6)]
+ while any(not future.done() for future in futures):
+  if failed.wait(timeout=min(30,max(0.1,stop-time.monotonic()))): break
+  report()
+ for future in futures: future.result()
+report(final=True)
+assert all(r["failed_requests"]==0 and r["requests"]>0 for r in workers)
 '''.replace("NAMESPACE",ns).replace("SECONDS",str(args.soak_seconds))
-            output_file=directory/"soak.log"
+            output_file=pathlib.Path(args.output).with_suffix(".load.jsonl")
+            samples_file=pathlib.Path(args.output).with_suffix(".samples.jsonl")
             with output_file.open("w+") as output:
                 load=subprocess.Popen([*kubectl,"-n",ns,"exec","-i","deployment/a","--","python","-"],stdin=subprocess.PIPE,stdout=output,stderr=subprocess.STDOUT,text=True)
                 load.stdin.write(load_script);load.stdin.close()
-                time.sleep(min(3,args.soak_seconds/4))
-                publish_plugin("soak")
-                pods=json.loads(command(*kubectl,"-n",ns,"get","pods","-l","app.kubernetes.io/instance=gateway","-o","json"))["items"]
-                command(*kubectl,"-n",ns,"delete","pod",pods[0]["metadata"]["name"],"--wait=false")
-                status=load.wait(timeout=args.soak_seconds+30)
+                started=time.monotonic(); next_event=started+min(3,args.soak_seconds/4); events=0
+                try:
+                    initial=json.loads(command(*kubectl,"-n",ns,"get","pods","-l","app.kubernetes.io/instance=gateway","-o","json"))["items"]
+                    stable=next(p for p in initial if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[{}])))
+                    stable_uid=stable["metadata"]["uid"]
+                    stable_restarts=sum(c.get("restartCount",0) for c in stable["status"]["containerStatuses"])
+                    initial_signal_metrics=None
+                    with samples_file.open("w") as samples:
+                        while load.poll() is None:
+                            now=time.monotonic()
+                            assert now-started < args.soak_seconds+120, "soak load exceeded its deadline"
+                            pods=json.loads(command(*kubectl,"-n",ns,"get","pods","-l","app.kubernetes.io/instance=gateway","-o","json"))["items"]
+                            active=[p for p in pods if p.get("status",{}).get("podIP") and not p["metadata"].get("deletionTimestamp")]
+                            steady=next((p for p in active if p["metadata"]["uid"]==stable_uid),None)
+                            assert steady is not None, "the continuous soak replica disappeared"
+                            assert sum(c.get("restartCount",0) for c in steady.get("status",{}).get("containerStatuses",[]))==stable_restarts, "the continuous soak replica restarted"
+                            addresses={p["metadata"]["name"]:p["status"]["podIP"] for p in active}
+                            probe=r'''import json, urllib.request
+result = {}
+for name, address in ADDRESSES.items():
+ try:
+  metrics = urllib.request.urlopen("http://"+address+":9090/metrics",timeout=3).read().decode()
+  result[name] = {line.rsplit(None,1)[0]:float(line.rsplit(None,1)[1])
+   for line in metrics.splitlines() if line.startswith(("process_","rgnix_engine_info",
+    "rgnix_hyper_","rgnix_budget_","rgnix_config_version ","rgnix_runtime_service_","rgnix_ready ",
+    "rgnix_otlp_"))}
+ except Exception as error:
+  result[name] = {"error":str(error)}
+print(json.dumps(result))
+'''.replace("ADDRESSES",repr(addresses))
+                            observation=json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",probe))
+                            stable_metrics=observation[steady["metadata"]["name"]]
+                            assert stable_metrics.get("rgnix_ready")==1, stable_metrics
+                            if initial_signal_metrics is None:
+                                initial_signal_metrics=stable_metrics.copy()
+                            sample={"elapsed_seconds":now-started,"stable_pod_uid":stable_uid,"pods":observation,"images":{p["metadata"]["name"]:[c.get("imageID") for c in p.get("status",{}).get("containerStatuses",[])] for p in active}}
+                            if now>=next_event and now-started<args.soak_seconds-5:
+                                events+=1
+                                publish_plugin(f"soak-{events}")
+                                sample["event"]="plugin publication"
+                                if events==1 or events%6==0:
+                                    certificate(100+events)
+                                    ready=[p for p in active if all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[{}]))]
+                                    if len(ready)==2:
+                                        replacement=next(p for p in ready if p["metadata"]["uid"]!=stable_uid)
+                                        command(*kubectl,"-n",ns,"delete","pod",replacement["metadata"]["name"],"--wait=false")
+                                        sample["event"]+="; TLS rotation; Pod replacement"
+                                next_event=now+args.soak_event_seconds
+                            samples.write(json.dumps(sample)+"\n"); samples.flush()
+                            print(f"SOAK {int(now-started)}/{args.soak_seconds}s, samples={samples_file}, events={events}",flush=True)
+                            try: load.wait(timeout=min(30,max(0.1,args.soak_seconds-(time.monotonic()-started))))
+                            except subprocess.TimeoutExpired: pass
+                    status=load.returncode
+                finally:
+                    if load.poll() is None:
+                        load.terminate(); load.wait(timeout=10)
                 output.seek(0); data=output.read()
                 measurements=[json.loads(line) for line in data.splitlines() if line.startswith('{')]
                 soak=measurements[-1] if measurements else {"error":data[-4096:]}
-                checks.append({"name":"Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement","passed":status==0,"seconds":args.soak_seconds,"scale_routes":args.scale_routes,"connection_mode":"HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker","measurement":soak})
+                checks.append({"name":"Keepalive HTTP/TLS/RGL/body/logs/traces load survives publication and Pod replacement","passed":status==0,"seconds":args.soak_seconds,"scale_routes":args.scale_routes,"events":events,"stable_pod_uid":stable_uid,"samples_file":str(samples_file),"load_file":str(output_file),"connection_mode":"HTTP/1.1 keepalive; reconnect on Connection: close, no request replay; at most 40 requests/s per worker; rolling latency samples retain at most 3000 successes per worker; full-run success histogram has 100us buckets and explicit overflow above 3s","measurement":soak})
                 assert status==0,data
+                for _ in range(30):
+                    final_observation=json.loads(command(*kubectl,"-n",ns,"exec","deployment/a","--","python","-c",probe))
+                    stable_metrics=final_observation[stable["metadata"]["name"]]
+                    if all(stable_metrics.get(f"rgnix_otlp_{signal}_pending",0)==0 for signal in ("logs","traces")):
+                        break
+                    time.sleep(0.5)
+                assert all(stable_metrics.get(f"rgnix_otlp_{signal}_pending",0)==0 for signal in ("logs","traces")), "OTLP records did not flush after soak"
+                delivered={}
+                for signal in ("logs","traces"):
+                    metric=f"rgnix_otlp_{signal}_exported_total"
+                    delivered[signal]=stable_metrics.get(metric,0)-initial_signal_metrics.get(metric,0)
+                    assert delivered[signal]>0, f"OTLP {signal} receiver accepted no records during soak"
+                    dropped=f"rgnix_otlp_{signal}_dropped_total"
+                    lost=sum(v for k,v in stable_metrics.items() if k.startswith(dropped))-sum(v for k,v in initial_signal_metrics.items() if k.startswith(dropped))
+                    assert lost==0, f"OTLP {signal} lost {lost} records during soak"
+                checks.append({"name":"Continuous replica delivers OTLP logs and spans without dropping records during soak","passed":True,"delivered":delivered})
             reconnect()
             wait("Replacement replica acknowledges the accepted configuration",lambda:admin("/v1/fleet",credential=operator)[1].get("converged"),seconds=180)
 
         admission_key,admission_cert=directory/"admission.key",directory/"admission.crt"
-        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(admission_key),"-out",str(admission_cert),"-days","2","-subj",f"/CN=gateway-admission.{ns}.svc","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
+        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(admission_key),"-out",str(admission_cert),"-days","2","-subj","/CN=gateway-admission","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
         apply({"apiVersion":"v1","kind":"Secret","metadata":{"name":"admission-tls","namespace":ns},"type":"kubernetes.io/tls","stringData":{"tls.crt":admission_cert.read_text(),"tls.key":admission_key.read_text()}})
         admission_values=directory/"admission-values.json"
         admission_values.write_text(json.dumps({"admission":{"enabled":True,"register":False,"tlsSecret":"admission-tls","caBundle":base64.b64encode(admission_cert.read_bytes()).decode()}}))
@@ -721,7 +948,7 @@ assert all(r["failed_requests"]==0 and r["requests"]>0 for r in results)
         controller_uids={pod["metadata"]["uid"] for pod in controllers}
         addresses=[pod["status"]["podIP"] for pod in controllers]
         rotated_key,rotated_cert=directory/"rotated.key",directory/"rotated.crt"
-        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(rotated_key),"-out",str(rotated_cert),"-days","2","-subj",f"/CN=gateway-admission.{ns}.svc","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
+        command("openssl","req","-x509","-newkey","rsa:2048","-nodes","-keyout",str(rotated_key),"-out",str(rotated_cert),"-days","2","-subj","/CN=gateway-admission","-addext",f"subjectAltName=DNS:gateway-admission.{ns}.svc")
         old_pem,new_pem=admission_cert.read_text(),rotated_cert.read_text()
         def trust(pem):
             command(*kubectl,"patch","validatingwebhookconfiguration",webhook_name,"--type=json","-p",json.dumps([
@@ -755,5 +982,5 @@ assert all(r["failed_requests"]==0 and r["requests"]>0 for r in results)
         forward.terminate()
         forward.wait(timeout=5)
         forward_log.close()
-        pathlib.Path(args.output).write_text(json.dumps({"complete":failure is None,"failure":failure,"namespace":ns,"peer_namespace":peer,"image":args.image,"soak_seconds":args.soak_seconds,"scale_routes":args.scale_routes,"checks":checks,"scope":"Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"}, indent=2) + "\n")
+        pathlib.Path(args.output).write_text(json.dumps({"complete":failure is None,"failure":failure,"namespace":ns,"peer_namespace":peer,"image":args.image,"engine":expected_engine,"soak_seconds":args.soak_seconds,"scale_routes":args.scale_routes,"checks":checks,"scope":"Gateway, HTTPRoute and GRPCRoute live Kubernetes checks; upstream conformance certification is not claimed"}, indent=2) + "\n")
 print(f"PASS {len(checks)} checks; namespace retained for inspection")

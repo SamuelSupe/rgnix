@@ -1,6 +1,6 @@
 # 域名授权、发布流程与管理治理
 
-基础治理能力从 v0.2.0 提供，跨副本速率配额、Gateway 策略及业务指标回退包含在 v0.3.0 预览版中；实现阶段的实际运行范围见[治理验证记录](validation-governance.md)。
+基础治理能力从 v0.2.0 提供，Gateway 策略及业务指标回退包含在 v0.3.0 预览版中。当前开发版本已移除 Redis 协调器，速率配额按进程执行；旧配置升级见[限流迁移说明](shared-rate-limits.md)。实现阶段的历史运行范围见[治理验证记录](validation-governance.md)。
 
 ## 命名空间与域名边界
 
@@ -25,7 +25,7 @@
 
 Helm `watchNamespaces: [payments, shop]` 同时生成限定范围的 Role/RoleBinding 并设置重复的 `--watch-namespace` 参数。列表为空时保持集群范围。发布 Service 和检查点所在 namespace 额外需要 Service/ConfigMap watch；IngressClass 是集群资源。namespace 必须先存在，变更 watch 范围需要滚动更新。
 
-可选 [Redis 协调器](shared-rate-limits.md) 将请求速率与命名空间总速率按 scope 跨副本计数；并发等资源配额仍按控制器进程计数。CPU、内存和全局预算属于进程共享资源；需要硬隔离时，使用独立 Deployment、IngressClass、namespace watch 列表与 Kubernetes requests/limits。
+请求速率、命名空间总速率与并发等资源配额均按控制器进程计数，各副本独立维护限额。CPU、内存和全局预算属于进程共享资源；需要硬隔离时，使用独立 Deployment、IngressClass、namespace watch 列表与 Kubernetes requests/limits。
 
 ## 具名管理身份与热更新
 
@@ -68,6 +68,8 @@ reader 可查看本 namespace 的路由、后端、证书，进行解释、模�
 每阶段权重必须覆盖 backends 中所有 Service，允许 0，总和必须大于 0。最多 16 阶段；阶段时长 0..86400 秒，`min_requests` 默认 20，上限 10000，允许 0（无流量样本门槛）。阶段发布要求配置 rollback。普通分流使用轮询；cohort 支持 `header:NAME`、`cookie:NAME`、`jwt:CLAIM`、`ip`，值缺失时使用客户端 IP。revision、分组值和固定后端顺序共同确定分组，同阶段不同副本选择一致。
 
 RGL 可覆盖正常流量选择；已锁定的回退优先于 RGL，无法继续强制发往坏候选后端。镜像保持独立，镜像故障不触发主流量回退。
+
+本地自动回滚保留时间窗口内最近最多 10000 条候选样本。错误比例达到阈值即回滚；`max_p95_ms` 使用毫秒值和 nearest-rank p95，严格超过阈值才回滚，恰好 5% 样本超时不会使 20 条样本的 p95 超标。实现增量维护错误数和超阈值数，不在每个请求完成时扫描、复制或排序整个窗口；容量淘汰、时间过期和阶段切换同步移除对应计数，副本报告在无新请求时也清除过期样本。
 
 Lease 领导者约每 5 秒检查阶段时长、健康样本、审批和外部指标。健康样本从各 Pod 的新鲜 Lease 报告汇总，不再要求 leader 本机收到候选流量。缺失、未就绪、陈旧或阶段不一致的报告会暂停推进。所有条件通过后持久化 `rgnix.io/rollout-state`，各副本由 watch 采用权重。最终阶段完成观察后标记 `promoted`。阶段状态、暂停及审批跨重启恢复；请求原始样本仍在各副本内存中，重启后重新累积。样本只包含该阶段完成的非 fallback 请求；额外业务指标仍通过外部 provider 查询。
 
@@ -114,6 +116,8 @@ Content-Type: application/json
 v0.4.0 提供 [Gateway 预检与准入](gateway-api.md#gateway-preflight-and-admission)、[多副本发布状态与等待门禁](publication.md)。
 
 模拟器的 `outbound` 展示最终 Service/后端、URI、脱敏转发头、当前灰度状态、镜像资格与确定性的样本选择；`io_executed:false` 表明未调用业务上游。它不模拟网络成功率或远端响应，也不改变真实轮询游标、限流计数与灰度样本。
+
+`POST /v1/simulate` 每进程最多同时处理两个请求，额度覆盖读取和执行阶段，耗尽时返回 429。JSON 请求体上限 1 MiB，读取总期限为 5 秒；持续慢传不会延长期限，超时返回 408 并释放额度。超大或不可用的请求体返回 413，无效 JSON 返回 400；身份角色与 namespace 范围检查照常执行。
 
 可选 Helm 准入配置：
 

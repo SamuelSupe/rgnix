@@ -12,6 +12,7 @@ use std::{
 
 const LIMIT: usize = 2048;
 const GAUGES: &[(&str, &str, &[&str])] = &[
+    ("rgnix_engine_info", "Selected HTTP engine", &["engine"]),
     (
         "rgnix_build_info",
         "Binary and runtime identity",
@@ -155,6 +156,21 @@ impl Collector for RuntimeCollector {
             metrics[name].with_label_values(labels).set(value);
         };
         let snapshot = shared.snapshot.load_full();
+        let hyper = {
+            #[cfg(feature = "hyper-experimental")]
+            {
+                shared.experimental_hyper
+            }
+            #[cfg(not(feature = "hyper-experimental"))]
+            {
+                false
+            }
+        };
+        set(
+            "rgnix_engine_info",
+            &[if hyper { "hyper" } else { "pingora" }],
+            1.0,
+        );
         set(
             "rgnix_build_info",
             &[
@@ -172,12 +188,15 @@ impl Collector for RuntimeCollector {
         set(
             "rgnix_healthy",
             &[],
-            u8::from(shared.telemetry.healthy.load(Ordering::Acquire)) as f64,
+            u8::from(
+                shared.telemetry.healthy.load(Ordering::Acquire)
+                    && shared.telemetry.runtime_healthy(),
+            ) as f64,
         );
         set(
             "rgnix_ready",
             &[],
-            u8::from(shared.telemetry.ready.load(Ordering::Acquire)) as f64,
+            u8::from(shared.telemetry.is_ready()) as f64,
         );
         for (kind, count) in [
             ("listeners", snapshot.listeners.len()),
@@ -200,11 +219,11 @@ impl Collector for RuntimeCollector {
         ] {
             set("rgnix_config_resources", &[kind], count as f64);
         }
-        for ((budget, semaphore), limit) in [
-            ("inflight", &shared.requests),
-            ("plugin", &shared.plugins),
-            ("mirror", &shared.mirrors),
-            ("simulation", &shared.simulations),
+        for ((budget, available), limit) in [
+            ("inflight", shared.requests.available_permits()),
+            ("plugin", shared.plugins.available_permits()),
+            ("mirror", shared.mirrors.available_permits()),
+            ("simulation", shared.simulations.available_permits()),
         ]
         .into_iter()
         .zip(self.limits)
@@ -212,7 +231,7 @@ impl Collector for RuntimeCollector {
             set(
                 "rgnix_budget_in_use",
                 &[budget],
-                limit.saturating_sub(semaphore.available_permits()) as f64,
+                limit.saturating_sub(available) as f64,
             );
             set("rgnix_budget_limit", &[budget], limit as f64);
         }

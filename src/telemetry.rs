@@ -1,6 +1,11 @@
 mod controller;
+#[cfg(feature = "hyper-experimental")]
+mod data_plane;
 mod request;
 mod runtime;
+pub mod sharded;
+#[cfg(feature = "hyper-experimental")]
+pub(crate) use request::BackendMetrics;
 pub(crate) use request::RouteMetrics;
 pub(crate) mod traffic;
 use anyhow::Result;
@@ -17,6 +22,8 @@ use std::{
 };
 
 pub struct Telemetry {
+    #[cfg(feature = "hyper-experimental")]
+    pub(crate) data_plane: Arc<data_plane::DataPlane>,
     pub traffic: traffic::Traffic,
     pub controller: controller::Controller,
     pub config_updated: prometheus::Gauge,
@@ -24,21 +31,22 @@ pub struct Telemetry {
     pub otlp: Option<crate::otlp::Exporter>,
     pub traces: Option<crate::otlp::Exporter>,
     pub trace_ratio: Option<f64>,
-    route_requests: IntCounterVec,
-    grpc_requests: IntCounterVec,
-    route_duration: HistogramVec,
-    backend_requests: IntCounterVec,
-    status_counts: Vec<std::sync::OnceLock<IntCounter>>,
+    route_requests: sharded::CounterVec,
+    grpc_requests: sharded::CounterVec,
+    route_duration: sharded::HistogramVec,
+    backend_requests: sharded::CounterVec,
+    status_counts: Vec<std::sync::OnceLock<sharded::Counter>>,
     unmatched: std::sync::OnceLock<RouteMetrics>,
     labels: std::sync::RwLock<
         std::collections::BTreeMap<&'static str, std::collections::BTreeSet<String>>,
     >,
     pub healthy: AtomicBool,
     pub ready: AtomicBool,
+    pub(crate) listeners_ready: AtomicBool,
     pub draining: IntGauge,
     pub registry: Registry,
-    pub requests: IntCounterVec,
-    pub duration: Histogram,
+    pub requests: sharded::CounterVec,
+    pub duration: sharded::Histogram,
     pub plugin_errors: IntCounter,
     pub plugin_calls: IntCounter,
     pub plugin_duration: Histogram,
@@ -66,7 +74,14 @@ pub struct Telemetry {
 }
 impl Telemetry {
     pub fn new(otlp: crate::otlp::Options) -> Result<Arc<Self>> {
+        Self::with_workers(otlp, 1)
+    }
+
+    pub fn with_workers(otlp: crate::otlp::Options, workers: usize) -> Result<Arc<Self>> {
+        let workers = workers.max(1);
         let registry = Registry::new();
+        #[cfg(feature = "hyper-experimental")]
+        let data_plane = data_plane::DataPlane::new(&registry)?;
         let draining = prometheus::register_int_gauge_with_registry!(
             "rgnix_draining",
             "Process has begun connection draining",
@@ -76,7 +91,7 @@ impl Telemetry {
         registry.register(Box::new(
             prometheus::process_collector::ProcessCollector::for_self(),
         ))?;
-        let traffic = traffic::Traffic::new(&registry)?;
+        let traffic = traffic::Traffic::with_workers(&registry, workers)?;
         let controller = controller::Controller::new(&registry)?;
         let config_updated = prometheus::register_gauge_with_registry!(
             "rgnix_config_last_success_timestamp_seconds",
@@ -128,34 +143,38 @@ impl Telemetry {
         let traces = crate::otlp::Exporter::start_traces(otlp.clone(), &registry)?;
         let trace_ratio = traces.as_ref().map(|_| otlp.trace_sample_ratio);
         let otlp = crate::otlp::Exporter::start(otlp, &registry)?;
-        let grpc_requests = IntCounterVec::new(
+        let grpc_requests = sharded::CounterVec::new(
             prometheus::Opts::new(
                 "rgnix_grpc_requests_total",
                 "Completed RPCs by route and gRPC status",
             ),
             &["route", "grpc_status"],
+            workers,
         )?;
         registry.register(Box::new(grpc_requests.clone()))?;
-        let route_requests = IntCounterVec::new(
+        let route_requests = sharded::CounterVec::new(
             prometheus::Opts::new(
                 "rgnix_route_requests_total",
                 "Completed requests by configured route",
             ),
             &["route", "status_class"],
+            workers,
         )?;
-        let route_duration = HistogramVec::new(
+        let route_duration = sharded::HistogramVec::new(
             prometheus::HistogramOpts::new(
                 "rgnix_route_request_seconds",
                 "Request duration by configured route",
             ),
             &["route"],
+            workers,
         )?;
-        let backend_requests = IntCounterVec::new(
+        let backend_requests = sharded::CounterVec::new(
             prometheus::Opts::new(
                 "rgnix_backend_requests_total",
                 "Completed requests by configured backend",
             ),
             &["backend", "result"],
+            workers,
         )?;
         registry.register(Box::new(route_requests.clone()))?;
         registry.register(Box::new(route_duration.clone()))?;
@@ -196,14 +215,15 @@ impl Telemetry {
         )?;
         registry.register(Box::new(config_info.clone()))?;
         registry.register(Box::new(rejected.clone()))?;
-        let requests = IntCounterVec::new(
+        let requests = sharded::CounterVec::new(
             prometheus::Opts::new("rgnix_requests_total", "Completed requests"),
             &["status"],
+            workers,
         )?;
-        let duration = Histogram::with_opts(prometheus::HistogramOpts::new(
-            "rgnix_request_seconds",
-            "Request duration",
-        ))?;
+        let duration = sharded::Histogram::with_opts(
+            prometheus::HistogramOpts::new("rgnix_request_seconds", "Request duration"),
+            workers,
+        )?;
         let plugin_errors = IntCounter::new(
             "rgnix_plugin_errors_total",
             "Plugin traps or invalid actions",
@@ -287,9 +307,12 @@ impl Telemetry {
             status_counts: (0..1000).map(|_| std::sync::OnceLock::new()).collect(),
             unmatched: Default::default(),
             labels: Default::default(),
+            #[cfg(feature = "hyper-experimental")]
+            data_plane,
             healthy: AtomicBool::new(true),
             draining,
             ready: AtomicBool::new(false),
+            listeners_ready: AtomicBool::new(true),
             registry,
             requests,
             duration,
@@ -371,6 +394,22 @@ impl Telemetry {
         failed: bool,
         grpc_status: Option<u16>,
     ) {
+        self.route_completed(route, status, seconds, grpc_status);
+        if let Some(backend) = backend {
+            let backend = self.label("backend", backend);
+            self.backend_requests
+                .with_label_values(&[backend, if failed { "error" } else { "ok" }])
+                .inc();
+        }
+    }
+
+    pub(crate) fn route_completed(
+        &self,
+        route: Option<&crate::model::Route>,
+        status: u16,
+        seconds: f64,
+        grpc_status: Option<u16>,
+    ) {
         let metrics = match route {
             Some(route) => route
                 .metrics
@@ -380,30 +419,39 @@ impl Telemetry {
                 .get_or_init(|| RouteMetrics::new(self, "_unmatched")),
         };
         metrics.completed(self, status, seconds, grpc_status);
-        if let Some(backend) = backend {
-            let backend = self.label("backend", backend);
-            self.backend_requests
-                .with_label_values(&[backend, if failed { "error" } else { "ok" }])
-                .inc();
+    }
+    pub(crate) fn runtime_healthy(&self) -> bool {
+        #[cfg(feature = "hyper-experimental")]
+        if !self.data_plane.healthy() {
+            return false;
         }
+        true
+    }
+    pub(crate) fn is_ready(&self) -> bool {
+        self.ready.load(Ordering::Acquire)
+            && self.listeners_ready.load(Ordering::Acquire)
+            && self.draining.get() == 0
+            && self.runtime_healthy()
     }
     pub fn render(&self, path: &str) -> (u16, Vec<u8>, &'static str) {
         match path {
             "/healthz" => {
-                if self.healthy.load(Ordering::Acquire) {
+                if self.healthy.load(Ordering::Acquire) && self.runtime_healthy() {
                     (200, b"ok\n".to_vec(), "text/plain")
                 } else {
                     (503, b"controller failed\n".to_vec(), "text/plain")
                 }
             }
             "/readyz" => {
-                if self.ready.load(Ordering::Acquire) && self.draining.get() == 0 {
+                if self.is_ready() {
                     (200, b"ready\n".to_vec(), "text/plain")
                 } else {
                     (503, b"not ready\n".to_vec(), "text/plain")
                 }
             }
             "/metrics" => {
+                #[cfg(feature = "hyper-experimental")]
+                self.data_plane.update_metrics();
                 let mut output = vec![];
                 match TextEncoder::new().encode(&self.registry.gather(), &mut output) {
                     Ok(()) => (200, output, "text/plain; version=0.0.4"),

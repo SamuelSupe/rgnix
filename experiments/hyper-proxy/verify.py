@@ -17,6 +17,8 @@ class Origin(BaseHTTPRequestHandler):
     stream_tail = threading.Event()
     stream_timed_out = False
     attempts = 0
+    idle_closed = threading.Event()
+    canceled = threading.Event()
 
     def log_message(self, *args):
         pass
@@ -51,6 +53,32 @@ class Origin(BaseHTTPRequestHandler):
             self.send_header("Transfer-Encoding", "chunked")
             self.end_headers()
             self.wfile.write(b"3\r\none\r\n3\r\ntwo\r\n0\r\n\r\n")
+        elif self.path == "/idle-close":
+            self.answer(b"closed while idle")
+            self.wfile.flush()
+            self.close_connection = True
+            self.connection.shutdown(socket.SHUT_WR)
+            self.idle_closed.set()
+        elif self.path == "/truncated":
+            self.send_response(200)
+            self.send_header("Content-Length", "4096")
+            self.end_headers()
+            self.wfile.write(b"partial")
+            self.wfile.flush()
+            self.close_connection = True
+            self.connection.shutdown(socket.SHUT_WR)
+        elif self.path == "/cancel":
+            self.send_response(200)
+            self.send_header("Content-Length", str(8 * 1024 * 1024))
+            self.end_headers()
+            try:
+                for _ in range(8192):
+                    self.wfile.write(b"x" * 1024)
+                    self.wfile.flush()
+                    time.sleep(0.001)
+            except (BrokenPipeError, ConnectionResetError):
+                self.canceled.set()
+                self.close_connection = True
         else:
             self.answer(json.dumps({"path": self.path, "headers": dict(self.headers)}).encode())
 
@@ -92,6 +120,7 @@ class Origin(BaseHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary")
+    parser.add_argument("--workers", type=int, default=1)
     args = parser.parse_args()
     with socket.socket() as reserve:
         reserve.bind(("127.0.0.1", 0))
@@ -99,7 +128,7 @@ def main():
     origin = ThreadingHTTPServer(("127.0.0.1", 0), Origin)
     threading.Thread(target=origin.serve_forever, daemon=True).start()
     process = subprocess.Popen([args.binary, "--listen", f"127.0.0.1:{port}", "--upstream",
-                                f"127.0.0.1:{origin.server_port}"])
+                                f"127.0.0.1:{origin.server_port}", "--workers", str(args.workers)])
     checks = []
     try:
         for attempt in range(100):
@@ -127,8 +156,10 @@ def main():
             assert echoed["path"] == "/raw%2Fpath?q=a%20b"
             headers = {name.lower(): value for name, value in echoed["headers"].items()}
             assert "x-private-one" not in headers and "x-private-two" not in headers
-        assert len(upstream_ports) == 1, upstream_ports
-        checks.append("10 keepalive requests reuse origin connection; raw URI, duplicate cookies and hop headers")
+        # A shared client can acquire another socket before the previous
+        # connection's background task has made it idle, especially across workers.
+        assert len(upstream_ports) < 10, upstream_ports
+        checks.append("persistent requests reuse origin connections; raw URI, duplicate cookies and hop headers")
 
         connection.request("HEAD", "/head")
         response = connection.getresponse()
@@ -163,6 +194,42 @@ def main():
         response = connection.getresponse()
         assert response.read() == b"onetwo"
         checks.append("response streams before origin finishes; chunked response decoded correctly")
+
+        connection.request("GET", "/idle-close")
+        response = connection.getresponse()
+        assert response.read() == b"closed while idle"
+        assert Origin.idle_closed.wait(1)
+        time.sleep(0.1)
+        connection.request("GET", "/after-idle-close")
+        response = connection.getresponse()
+        assert response.status == 200, "closed idle upstream was reused"
+        assert json.loads(response.read())["path"] == "/after-idle-close"
+        checks.append("upstream idle EOF is observed before a later downstream request")
+
+        connection.request("GET", "/truncated")
+        response = connection.getresponse()
+        assert response.status == 200
+        try:
+            response.read()
+            raise AssertionError("truncated upstream body was accepted")
+        except http.client.IncompleteRead:
+            pass
+        connection.close()
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", "/after-truncation")
+        response = connection.getresponse()
+        assert response.status == 200
+        response.read()
+        checks.append("truncated body fails the downstream stream and a later request succeeds")
+
+        canceled = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        canceled.request("GET", "/cancel")
+        response = canceled.getresponse()
+        assert response.read(1) == b"x"
+        response.close()
+        canceled.close()
+        assert Origin.canceled.wait(3), "downstream cancellation did not close upstream"
+        checks.append("downstream cancellation closes the unfinished upstream stream")
 
         connection.request("POST", "/drop", body=b"side-effect")
         response = connection.getresponse()

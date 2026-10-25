@@ -13,14 +13,9 @@ pub(crate) const DATE_VALUE_LENGTH: usize = 29;
 #[cfg(feature = "http1")]
 pub(crate) fn extend(dst: &mut Vec<u8>) {
     CACHED.with(|cache| {
-        dst.extend_from_slice(cache.borrow().buffer());
-    });
-}
-
-#[cfg(feature = "http1")]
-pub(crate) fn update() {
-    CACHED.with(|cache| {
-        cache.borrow_mut().check();
+        let mut cache = cache.borrow_mut();
+        cache.check();
+        dst.extend_from_slice(cache.buffer());
     });
 }
 

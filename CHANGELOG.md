@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+- Preserve generated 504 responses with a bounded error-delivery budget after Gateway operation deadlines expire; keep writable HTTP/2 sibling streams independent.
+- Apply original Gateway deadlines to HTTP/3 informational headers, and propagate CONNECT/WebSocket cancellation to blocked QUIC bridge writes so expired buffered data cannot resume.
+  See the [deadline-boundary validation](docs/validation-deadline-boundaries-2026-10-25.md) for socket regressions and frozen-binary failure controls.
+
+- Retain Gateway absolute deadlines through the final TCP/TLS flush; abort stalled connections, discard queued socket output and release pending request/backend permits on expiry.
+- Enforce the earlier Gateway request/backend deadline across ordinary HTTP/3 response delivery, including blocked QUIC writes; reset failed streams and preserve sibling streams.
+  See the [response-delivery validation](docs/validation-delivery-deadlines-2026-10-25.md) for regression coverage and cancellation scope.
+
+- Enforce Gateway absolute deadlines while HTTP/2 responses wait for downstream flow-control capacity, resetting only the expired stream and recording its timeout.
+- Bound authenticated simulation uploads by a 5-second total body deadline so slow uploads release the shared simulation slots; retain the 1 MiB limit and two-request concurrency cap.
+  See the [executed follow-up validation](docs/validation-review-followups-2026-10-25.md) for regressions and scope.
+
+- Reject conflicting absolute-form or HTTP/2/3 authority and Host values before routing, preventing Gateway forwarding from selecting a different upstream virtual host.
+- Preserve Gateway absolute request/backend deadlines after Hyper WebSocket upgrades; active traffic cannot renew them, and expiry releases tunnel resources.
+- Replace per-request rollout window scans and p95 sorting with incremental counts while preserving nearest-rank thresholds, expiry, capacity eviction and stage resets.
+  See the [executed review-fix validation](docs/validation-review-fixes-2026-10-25.md) for regression coverage and scope.
+
+- Assign distinct native metric producer slots across listeners, reclaim runtime-thread slots, use snapshot route positions without a request-time hash lookup and share final-header timestamps. Cache repeated HTTP/1 header names within a bounded connection cache; see the [follow-up record](docs/validation-hyper-instructions5-2026-10-24.md).
+
+- Construct ordinary Hyper upstream connection URIs only on pool misses and bypass percent decoding for literal paths. Matched user instructions fall a further 2.34% / 2.32% for 1 KiB / 16 KiB against the preceding optimized candidate; see the [instruction reduction record](docs/validation-hyper-instructions2-2026-10-24.md). Throughput and P99 were not requalified.
+- Drive eligible ordinary HTTP/1 upstream exchanges inline with Hyper's existing codec and bounded worker pools; reduce common Host/header setup and empty-body allocations. Matched single-worker instructions fall 9.13% for 1 KiB and 10.68% for 16 KiB against main `3a44af7`; capacity and P99 remain subject to the [complete execution-path validation](docs/validation-hyper-execution-2026-10-24.md).
+- Replace the nonwaiting process request semaphore with an exact atomic budget, and shard hot cumulative request metrics while preserving public labels, histogram observations and synchronous scrape aggregation.
+- Batch Hyper pool-key hashing and defer unused HTTP/3 metadata on ordinary HTTP requests. Matched user-space instructions fall 3.855%; throughput and P99 improvements remain unqualified. See the [execution-chain study](docs/validation-hyper-chain-2026-10-24.md).
+- Reuse HTTP/1 request-header timers on keepalive connections while resetting a fresh absolute deadline for every new request head.
+- Prioritize I/O and timer event checks on single-thread native reactors. The [focused tail-latency study](docs/validation-hyper-tail-2026-10-24.md) records the observed P99 reduction and unresolved throughput tradeoff.
+- Add a single-worker Cachegrind instruction harness with matched startup controls, per-function deltas and repeated A/A calibration.
+- Reuse the selected immutable prepared-route index through plain HTTP/1 forwarding and completion, removing three repeated map lookups without extra request-time Arc clones.
+- Add opt-in `--hyper-wakeup-probe` reactor/reference-thread wakeup histograms; the default heartbeat period remains 250 ms.
+- Remove the Redis coordinator, shared rate-limit CLI/Helm configuration, coordinator metrics and dependency. Route and namespace rates now use per-process token buckets; replicas have independent quotas. See [migration requirements](docs/shared-rate-limits.md).
+- Cache fixed single-endpoint selection state while preserving health checks, passive cooldowns and backend concurrency admission.
+- Record [matched-build performance comparisons](docs/validation-hyper-fixed-costs-2026-10-23.md). CPU and throughput calibration failed; no stable end-to-end gain is claimed.
+
 ## 0.5.0 — 2026-09-28 · Preview
 
 HTTP data-plane changes and reproducible performance diagnostics. See [release notes](docs/releases/v0.5.0.md) for Wasm compatibility, upgrade requirements and the unresolved performance qualification.

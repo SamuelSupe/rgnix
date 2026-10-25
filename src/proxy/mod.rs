@@ -4,6 +4,7 @@ mod completion;
 pub(crate) mod hyper;
 mod mirror;
 pub(crate) mod planning;
+mod policy;
 mod responses;
 mod static_files;
 use crate::{
@@ -45,7 +46,7 @@ pub struct Context {
     body_bytes: u64,
     started: Instant,
     status: u16,
-    request_permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    request_permit: Option<crate::runtime::RequestPermit>,
     plugin_permit: Option<tokio::sync::OwnedSemaphorePermit>,
     upstream_address: Option<SocketAddr>,
     upstream_lease: Option<crate::backend::Lease>,
@@ -69,23 +70,39 @@ fn error(status: u16, message: impl Into<String>) -> Box<pingora::Error> {
 }
 
 pub fn normalized_path(path: &str) -> anyhow::Result<String> {
+    normalized_path_view(path).map(std::borrow::Cow::into_owned)
+}
+
+fn normalized_path_view(path: &str) -> anyhow::Result<std::borrow::Cow<'_, str>> {
     anyhow::ensure!(path.len() <= 8192, "URI exceeds 8 KiB");
-    let bytes = path.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' {
-            anyhow::ensure!(
-                i + 2 < bytes.len()
-                    && bytes[i + 1].is_ascii_hexdigit()
-                    && bytes[i + 2].is_ascii_hexdigit(),
-                "invalid percent escape"
-            );
-            i += 2;
+    let decoded = if path.contains('%') {
+        let bytes = path.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'%' {
+                anyhow::ensure!(
+                    i + 2 < bytes.len()
+                        && bytes[i + 1].is_ascii_hexdigit()
+                        && bytes[i + 2].is_ascii_hexdigit(),
+                    "invalid percent escape"
+                );
+                i += 2;
+            }
+            i += 1;
         }
-        i += 1;
+        percent_encoding::percent_decode_str(path).decode_utf8()?
+    } else {
+        std::borrow::Cow::Borrowed(path)
+    };
+    anyhow::ensure!(
+        decoded.starts_with('/') && !decoded.contains(['\0', '\\', '\r', '\n']),
+        "invalid path"
+    );
+    if !decoded.contains("//") && !decoded.split('/').any(|c| matches!(c, "." | "..")) {
+        Ok(decoded)
+    } else {
+        normalize_decoded_path(&decoded).map(std::borrow::Cow::Owned)
     }
-    let decoded = percent_encoding::percent_decode_str(path).decode_utf8()?;
-    normalize_decoded_path(&decoded)
 }
 
 fn normalize_decoded_path(decoded: &str) -> anyhow::Result<String> {
@@ -118,6 +135,9 @@ fn normalize_decoded_path(decoded: &str) -> anyhow::Result<String> {
 #[async_trait]
 impl ProxyHttp for Proxy {
     type CTX = Context;
+    fn downstream_header_timeout(&self) -> Option<std::time::Duration> {
+        Some(self.shared.snapshot.load().header_timeout(self.listener))
+    }
     fn request_deadline(&self, session: &Session, ctx: &mut Context) -> Option<Instant> {
         let snapshot = self.shared.snapshot.load_full();
         ctx.snapshot = Some(snapshot.clone());
@@ -301,178 +321,8 @@ impl ProxyHttp for Proxy {
             .digest()
             .and_then(|d| d.ssl_digest.as_ref())
             .and_then(|d| d.extension.get::<crate::security::mtls::Peer>());
-        if !route.settings.security.mtls.authorize(client_certificate) {
-            return Err(error(
-                403,
-                "client certificate required or no longer trusted",
-            ));
-        }
-        let global_rate = self.shared.controls.active.load().global_rate.clone();
-        let rate_group = route
-            .tenant
-            .as_ref()
-            .map_or("standalone", |t| t.name.as_str());
-        let rate_capacity = route
-            .tenant
-            .as_ref()
-            .map_or(16384, |t| t.quota.load().max_limiter_keys);
-        if let Some(tenant) = &route.tenant {
-            ctx.tenant_request = Some(tenant.acquire(crate::tenancy::Resource::Request).map_err(
-                |s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&tenant.name, "request");
-                    error(s, "namespace request quota exhausted")
-                },
-            )?);
-            let quota = tenant.quota.load_full();
-            let policy = crate::traffic::global::policy(
-                global_rate.as_ref(),
-                rate_group,
-                "_namespace",
-                crate::traffic::Policy {
-                    rate: Some(crate::traffic::Rate {
-                        per_second: quota.requests_per_second,
-                        burst: quota.burst,
-                        key: crate::traffic::Key::Route,
-                    }),
-                    concurrency: None,
-                },
-                &ctx.request,
-                rate_capacity,
-                &self.shared.telemetry,
-            )
-            .await
-            .map_err(|s| {
-                self.shared
-                    .telemetry
-                    .namespace_rejected(&tenant.name, "rate");
-                error(s, "shared namespace rate quota unavailable or exhausted")
-            })?;
-            if policy.rate.is_some() {
-                tenant.rate(&ctx.request).map_err(|s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&tenant.name, "rate");
-                    error(s, "namespace rate quota exhausted")
-                })?;
-            }
-        }
-        let traffic = route
-            .tenant
-            .as_ref()
-            .map_or(&self.shared.traffic, |t| &t.traffic);
-        let pre_auth_policy = crate::traffic::global::policy(
-            global_rate.as_ref(),
-            rate_group,
-            &route.id,
-            route.settings.traffic.phase(true),
-            &ctx.request,
-            rate_capacity,
-            &self.shared.telemetry,
-        )
-        .await
-        .map_err(|s| {
-            self.shared
-                .telemetry
-                .rejected
-                .with_label_values(&["rate"])
-                .inc();
-            error(
-                s,
-                "shared pre-authentication rate quota unavailable or exhausted",
-            )
-        })?;
-        ctx.pre_auth_permit = traffic
-            .acquire(&route.id, &pre_auth_policy, &ctx.request, &ctx.claims)
-            .map_err(|status| {
-                self.shared
-                    .telemetry
-                    .rejected
-                    .with_label_values(&[if status == 429 {
-                        "rate"
-                    } else {
-                        "route_concurrency"
-                    }])
-                    .inc();
-                error(status, "pre-authentication traffic budget exhausted")
-            })?;
-        if let Some(jwt) = &route.settings.security.jwt {
-            let mut tokens = session.req_header().headers.get_all("authorization").iter();
-            let token = tokens
-                .next()
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.strip_prefix("Bearer "))
-                .filter(|_| tokens.next().is_none())
-                .ok_or_else(|| error(401, "bearer token required"))?;
-            ctx.claims = jwt
-                .verify(token)
-                .map_err(|_| error(401, "invalid bearer token"))?;
-            ctx.request.claims = ctx.claims.clone();
-        }
-        if let Some(auth) = &route.settings.security.external {
-            let _auth_budget = route
-                .tenant
-                .as_ref()
-                .map(|t| t.acquire(crate::tenancy::Resource::Auth))
-                .transpose()
-                .map_err(|s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&route.tenant.as_ref().unwrap().name, "auth");
-                    error(s, "namespace authentication quota exhausted")
-                })?;
-            for name in &auth.response_headers {
-                ctx.request.headers.remove(name);
-                ctx.edits.headers.insert(name.clone(), None);
-            }
-            let headers = auth
-                .authorize(
-                    &self.shared.auth_client,
-                    &ctx.request,
-                    &ctx.original_uri,
-                    ctx.trace.as_deref(),
-                    self.shared.telemetry.traces.as_ref(),
-                )
-                .await
-                .map_err(|status| error(status, "external authorization rejected"))?;
-            for (name, value) in headers {
-                ctx.request.headers.insert(name.clone(), value.clone());
-                ctx.edits.headers.insert(name, Some(value));
-            }
-        }
-        let post_auth_policy = crate::traffic::global::policy(
-            global_rate.as_ref(),
-            rate_group,
-            &route.id,
-            route.settings.traffic.phase(false),
-            &ctx.request,
-            rate_capacity,
-            &self.shared.telemetry,
-        )
-        .await
-        .map_err(|s| {
-            self.shared
-                .telemetry
-                .rejected
-                .with_label_values(&["rate"])
-                .inc();
-            error(s, "shared rate quota unavailable or exhausted")
-        })?;
-        ctx.traffic_permit = traffic
-            .acquire(&route.id, &post_auth_policy, &ctx.request, &ctx.claims)
-            .map_err(|status| {
-                self.shared
-                    .telemetry
-                    .rejected
-                    .with_label_values(&[if status == 429 {
-                        "rate"
-                    } else {
-                        "route_concurrency"
-                    }])
-                    .inc();
-                error(status, "route traffic budget exhausted")
-            })?;
+        self.authorize(&session.req_header().headers, client_certificate, ctx)
+            .await?;
         let keepalive = route.settings.keepalive;
         let keepalive_seconds = keepalive
             .as_secs()
@@ -484,8 +334,8 @@ impl ProxyHttp for Proxy {
                     .then_some(keepalive_seconds),
             );
         }
-        session.set_read_timeout(Some(route.settings.read_timeout));
-        session.set_write_timeout(Some(route.settings.write_timeout));
+        session.set_read_timeout(Some(route.settings.client_body_timeout));
+        session.set_write_timeout(Some(route.settings.send_timeout));
         if redirect {
             let query = if ctx.request.query.is_empty() {
                 String::new()
@@ -517,163 +367,24 @@ impl ProxyHttp for Proxy {
             return Err(error(413, "request body too large"));
         }
         ctx.rollout_stage = route.rollout.as_ref().map_or(0, |r| r.stage());
-        if let Some(plugin) = &route.script {
-            ctx.tenant_plugin = route
-                .tenant
-                .as_ref()
-                .map(|t| t.acquire(crate::tenancy::Resource::Plugin))
-                .transpose()
-                .map_err(|s| {
-                    self.shared
-                        .telemetry
-                        .namespace_rejected(&route.tenant.as_ref().unwrap().name, "plugin");
-                    error(s, "namespace plugin quota exhausted")
-                })?;
-            ctx.plugin_permit = Some(self.shared.plugins.clone().try_acquire_owned().map_err(
-                |_| {
-                    self.shared
-                        .telemetry
-                        .rejected
-                        .with_label_values(&["plugin"])
-                        .inc();
-                    error(503, "plugin instance budget exhausted")
-                },
-            )?);
+        if route.script.is_some() {
+            self.acquire_plugin(ctx)?;
             let started = Instant::now();
             let inspected =
                 body::inspect(session, route.settings.body_policy, route.settings.max_body).await;
-            if let Some(mode) = match route.settings.body_policy.inspection {
-                crate::body::Inspection::Off => None,
-                crate::body::Inspection::Full(_) => Some("full"),
-                crate::body::Inspection::Prefix(_) => Some("prefix"),
-            } {
-                let result = match &inspected {
-                    Ok(Some(view)) => {
-                        self.shared
-                            .telemetry
-                            .traffic
-                            .inspection_bytes
-                            .with_label_values(&[mode])
-                            .inc_by(view.bytes.len() as u64);
-                        if view.complete {
-                            "complete"
-                        } else {
-                            "truncated"
-                        }
-                    }
-                    Err(e) if e.etype() == &pingora::ErrorType::HTTPStatus(408) => "timeout",
-                    Err(e) if e.etype() == &pingora::ErrorType::HTTPStatus(413) => "too_large",
-                    _ => "error",
-                };
-                self.shared
-                    .telemetry
-                    .traffic
-                    .inspection
-                    .with_label_values(&[mode, result])
-                    .observe(started.elapsed().as_secs_f64());
-            }
+            self.observe_inspection(ctx, started, &inspected);
             let inspected = inspected?;
-            let mut plugin_request = std::mem::take(&mut ctx.request);
-            plugin_request.body = inspected;
-            let plugin_request = Arc::new(plugin_request);
-            self.shared.telemetry.plugin_calls.inc();
-            let result = {
-                let _timer = self.shared.telemetry.plugin_duration.start_timer();
-                plugin.request(plugin_request.clone())
-            };
-            let result = result.map(|(execution, outcome)| {
-                if plugin.has_response_hook {
-                    ctx.execution = Some(execution);
-                } else {
-                    drop(execution);
-                    ctx.plugin_permit.take();
-                    ctx.tenant_plugin.take();
-                }
-                outcome
-            });
-            // Request-only hooks release their instance before recovering the
-            // input, avoiding a deep copy. Response hooks retain an immutable
-            // view, and errors still restore the original metadata for logging.
-            ctx.request = Arc::unwrap_or_clone(plugin_request);
-            ctx.request.body = None;
-            match result {
-                Ok(outcome) => {
-                    ctx.edits.path = outcome.edits.path;
-                    ctx.edits.query = outcome.edits.query;
-                    ctx.edits.headers.extend(outcome.edits.headers);
-                    match outcome.decision {
-                        script::Decision::Pass => {}
-                        script::Decision::Proxy(name) => {
-                            let Some(key) = route.allowed_backends.get(&name) else {
-                                self.shared.telemetry.plugin_errors.inc();
-                                return Err(error(500, "plugin selected an undeclared backend"));
-                            };
-                            ctx.backend = Some(key.clone());
-                        }
-                        script::Decision::Reply(status, body) => {
-                            return self.reply(session, ctx, status, body, None).await;
-                        }
-                    }
-                }
-                Err(e) => {
-                    self.shared.telemetry.plugin_errors.inc();
-                    log::error!("plugin {}: {e:#}", route.id);
-                    return Err(error(500, "plugin execution failed"));
-                }
+            if let Some((status, body)) = self.request_plugin(ctx, inspected)? {
+                return self.reply(session, ctx, status, body, None).await;
             }
         }
-        if let Some(backend) = ctx.backend.take() {
-            ctx.backend = Some(
-                route
-                    .rollout
-                    .as_ref()
-                    .map_or_else(|| backend.clone(), |r| r.enforce(backend.clone())),
-            );
-            return Ok(false);
-        }
-        if let Some(policy) = &route.settings.gateway {
-            if let Some((status, location)) =
-                policy.location(&ctx.request, &route.matcher, self.tls)
-            {
-                return self
-                    .reply(session, ctx, status, String::new(), Some(location))
-                    .await;
+
+        match self.dispatch(ctx)? {
+            policy::Dispatch::Proxy => Ok(false),
+            policy::Dispatch::Reply(status, body, location) => {
+                self.reply(session, ctx, status, body, location).await
             }
-            ctx.backend = Some(
-                route
-                    .rollout
-                    .as_ref()
-                    .map_or_else(|| policy.select(), |r| Some(r.select(&ctx.request)))
-                    .ok_or_else(|| error(500, "Gateway backend reference is invalid or missing"))?,
-            );
-            return Ok(false);
-        }
-        match &route.action {
-            Action::Proxy { backend, uri } => {
-                ctx.backend = Some(
-                    route
-                        .rollout
-                        .as_ref()
-                        .map_or_else(|| backend.clone(), |r| r.select(&ctx.request)),
-                );
-                ctx.uri = uri.clone();
-                Ok(false)
-            }
-            Action::Return { status, text } => {
-                let text = expand(text, ctx, self.tls, "");
-                let redirect = (300..400).contains(status) && !text.is_empty();
-                let location = if redirect { Some(text.clone()) } else { None };
-                self.reply(
-                    session,
-                    ctx,
-                    *status,
-                    if redirect { String::new() } else { text },
-                    location,
-                )
-                .await
-            }
-            Action::Unavailable => Err(error(503, "backend unavailable")),
-            Action::Static => self.serve_file(session, ctx, &route).await,
+            policy::Dispatch::Static(route) => self.serve_file(session, ctx, &route).await,
         }
     }
     async fn upstream_peer(
@@ -681,55 +392,7 @@ impl ProxyHttp for Proxy {
         _session: &mut Session,
         ctx: &mut Context,
     ) -> Result<Box<HttpPeer>> {
-        let backend = ctx
-            .snapshot
-            .as_ref()
-            .and_then(|s| ctx.backend.as_ref().and_then(|key| s.backends.get(key)))
-            .ok_or_else(|| error(503, "backend unavailable"))?;
-        let key = match &backend.options.balance {
-            crate::backend::Balance::Hash(key) => key.value(&ctx.request, &ctx.claims),
-            crate::backend::Balance::Sticky(name) => {
-                let existing = ctx.request.headers.get("cookie").and_then(|v| {
-                    v.split(';')
-                        .filter_map(|v| v.trim().split_once('='))
-                        .find(|(k, v)| {
-                            k == name && v.len() == 32 && v.bytes().all(|b| b.is_ascii_hexdigit())
-                        })
-                        .map(|(_, v)| v.to_owned())
-                });
-                existing.unwrap_or_else(|| {
-                    let value = format!("{:032x}", rand::random::<u128>());
-                    ctx.affinity_cookie = Some(format!(
-                        "{name}={value}; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax{}",
-                        if ctx.scheme == "https" {
-                            "; Secure"
-                        } else {
-                            ""
-                        }
-                    ));
-                    value
-                })
-            }
-            _ => String::new(),
-        };
-        let lease = backend
-            .select(&key)
-            .ok_or_else(|| error(503, "no ready endpoint or backend budget exhausted"))?;
-        let address = lease.address;
-        if let Some(trace) = &mut ctx.trace {
-            trace.upstream = Some(trace.client(
-                &ctx.request.method,
-                ctx.backend.as_deref().unwrap_or("-"),
-                "proxy",
-            ));
-        }
-        ctx.upstream_lease = Some(lease);
-        ctx.upstream_address = Some(address);
-        ctx.upstream_started = Some(Instant::now());
-        ctx.upstream_label = ctx
-            .backend
-            .as_ref()
-            .map(|b| self.shared.telemetry.label("backend", b).to_owned());
+        let backend = self.select_endpoint(ctx)?;
         let settings = &ctx.route.as_ref().unwrap().settings;
         let transport = if settings.gateway.is_some() {
             &backend.profile
@@ -737,7 +400,7 @@ impl ProxyHttp for Proxy {
             &settings.upstream
         };
         let mut peer = HttpPeer::new(
-            address,
+            ctx.upstream_address.unwrap(),
             backend.tls,
             transport
                 .server_name
@@ -814,93 +477,7 @@ impl ProxyHttp for Proxy {
         request: &mut RequestHeader,
         ctx: &mut Context,
     ) -> Result<()> {
-        let snapshot = ctx.snapshot.as_ref().unwrap();
-        let backend = &snapshot.backends[ctx.backend.as_ref().unwrap()];
-        let route = ctx.route.as_ref().unwrap();
-        let mut edits = ctx.edits.clone();
-        if edits.path.is_none()
-            && let Some(rewrite) = route
-                .settings
-                .gateway
-                .as_ref()
-                .and_then(|p| p.rewrite.as_ref())
-            && let Some(path) = &rewrite.path
-        {
-            edits.path = Some(path.apply(&ctx.request.path, &route.matcher));
-        }
-        if edits.path.is_some()
-            || edits.query.is_some()
-            || ctx.uri.is_some()
-            || request.uri.scheme().is_some()
-            || request.uri.authority().is_some()
-        {
-            let target = planning::outbound_uri(
-                &ctx.original_uri,
-                &ctx.request,
-                &edits,
-                &route.matcher,
-                ctx.uri.as_deref(),
-            );
-            let target: http::Uri = target
-                .parse()
-                .map_err(|_| error(500, "invalid rewritten URI"))?;
-            request.set_uri(target);
-        }
-        strip_hop_headers(request);
-        if ctx.request.headers.get("te").is_some_and(|v| {
-            v.split(',')
-                .any(|v| v.trim().eq_ignore_ascii_case("trailers"))
-        }) {
-            request.insert_header("TE", "trailers")?;
-        }
-        if let Some(policy) = &route.settings.gateway {
-            if let Some(host) = policy.rewrite.as_ref().and_then(|r| r.hostname.as_deref()) {
-                request.insert_header("Host", host)?;
-            } else if let Some(host) = ctx.request.headers.get("host") {
-                request.insert_header("Host", host)?;
-            } else {
-                request.insert_header("Host", ctx.request.host.as_str())?;
-            }
-            policy.request_headers.request(request)?;
-        } else {
-            request.insert_header("Host", backend.host_header.as_str())?;
-        }
-        for (name, value) in &route.settings.request_headers {
-            let value = expand(value, ctx, self.tls, &backend.host_header);
-            if value.is_empty() {
-                request.remove_header(name);
-            } else {
-                request.insert_header(name.clone(), value)?;
-            }
-        }
-        for (name, value) in &ctx.edits.headers {
-            if let Some(value) = value {
-                request.insert_header(name.clone(), value.as_str())?;
-            } else {
-                request.remove_header(name);
-            }
-        }
-        if let Some(trace) = &ctx.trace
-            && trace.enabled
-            && let Some(span) = &trace.upstream
-        {
-            let mut headers = http::HeaderMap::new();
-            span.inject(&mut headers);
-            request.remove_header("tracestate");
-            for (name, value) in &headers {
-                request.insert_header(name.clone(), value.clone())?;
-            }
-        }
-        // Upgrade headers are transport state and cannot be manufactured by a script.
-        if ctx
-            .request
-            .headers
-            .get("upgrade")
-            .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
-        {
-            request.insert_header("Upgrade", "websocket")?;
-            request.insert_header("Connection", "upgrade")?;
-        }
+        self.upstream_headers(request, ctx)?;
         self.prepare_mirror(session, request, ctx);
         Ok(())
     }
@@ -1050,7 +627,7 @@ impl ProxyHttp for Proxy {
 
 fn validate_connection_header(headers: &http::HeaderMap) -> Result<()> {
     if headers
-        .get_all("connection")
+        .get_all(http::header::CONNECTION)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|s| s.split(','))
@@ -1070,25 +647,49 @@ fn validate_connection_header(headers: &http::HeaderMap) -> Result<()> {
 
 fn request_host(request: &RequestHeader) -> Result<String> {
     request_host_parts(&request.headers, &request.uri, request.version)
+        .map(std::borrow::Cow::into_owned)
 }
 
-fn request_host_parts(
-    headers: &http::HeaderMap,
-    uri: &http::Uri,
+fn request_host_parts<'a>(
+    headers: &'a http::HeaderMap,
+    uri: &'a http::Uri,
     version: http::Version,
-) -> Result<String> {
-    let parse = |value: &str| -> Result<String> {
+) -> Result<std::borrow::Cow<'a, str>> {
+    fn parse(value: &str) -> Result<std::borrow::Cow<'_, str>> {
+        // Only a strict reg-name/decimal-port subset bypasses Authority's owning
+        // parser. IPv6, escapes and unusual syntax retain its validation rules.
+        let host = match value.rsplit_once(':') {
+            Some((host, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => {
+                host
+            }
+            None => value,
+            _ => "",
+        };
+        if !host.is_empty()
+            && value.len() <= 1024
+            && host
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-'))
+        {
+            return Ok(if host.bytes().any(|b| b.is_ascii_uppercase()) {
+                std::borrow::Cow::Owned(host.to_ascii_lowercase())
+            } else {
+                std::borrow::Cow::Borrowed(host)
+            });
+        }
         let authority = value
             .parse::<http::uri::Authority>()
             .map_err(|_| error(400, "invalid request authority"))?;
         if authority.host().is_empty() || value.contains('@') {
             return Err(error(400, "invalid request authority"));
         }
-        Ok(authority.host().to_ascii_lowercase())
-    };
-    let mut fields = headers.get_all("host").iter();
-    let host = fields
-        .next()
+        Ok(std::borrow::Cow::Owned(
+            authority.host().to_ascii_lowercase(),
+        ))
+    }
+    let mut fields = headers.get_all(http::header::HOST).iter();
+    let field = fields.next();
+    let host = field
         .map(|value| {
             let value = value
                 .to_str()
@@ -1098,6 +699,18 @@ fn request_host_parts(
         .transpose()?;
     if fields.next().is_some() || (version == http::Version::HTTP_11 && host.is_none()) {
         return Err(error(400, "HTTP/1.1 requires exactly one Host header"));
+    }
+    if let (Some(authority), Some(field)) = (uri.authority(), field)
+        && uri.scheme().is_some()
+    {
+        // Routing and Gateway forwarding must agree on the authority, including
+        // its port. Raw CONNECT forwards opaque TCP and has no HTTP Host egress.
+        if !field
+            .as_bytes()
+            .eq_ignore_ascii_case(authority.as_str().as_bytes())
+        {
+            return Err(error(400, "Host header differs from request authority"));
+        }
     }
     // HTTP/2 may supply :authority without an HTTP/1 Host header.
     Ok(uri
@@ -1135,7 +748,7 @@ pub(crate) fn encode_path(path: &str) -> String {
 fn strip_hop_headers(request: &mut RequestHeader) {
     let connection: Vec<String> = request
         .headers
-        .get_all("connection")
+        .get_all(http::header::CONNECTION)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|s| s.split(',').map(|s| s.trim().to_ascii_lowercase()))
@@ -1185,4 +798,117 @@ pub(crate) fn https_redirect(host: &str, uri: &str, port: u16) -> String {
         .and_then(|u| u.path_and_query().map(|p| p.as_str().to_owned()))
         .unwrap_or_else(|| "/".into());
     format!("https://{host}{port}{path}")
+}
+
+#[cfg(test)]
+mod request_validation_tests {
+    use super::*;
+
+    #[test]
+    fn routing_rejects_conflicting_hosts_and_ports_before_forwarding() {
+        for version in [
+            http::Version::HTTP_11,
+            http::Version::HTTP_2,
+            http::Version::HTTP_3,
+        ] {
+            for (target, host, accepted) in [
+                ("http://public.test/", "private.test", false),
+                ("http://public.test:8080/", "public.test:8081", false),
+                ("http://public.test:8080/", "public.test", false),
+                ("http://Public.test:8080/", "PUBLIC.test:8080", true),
+                ("https://[2001:db8::1]:8443/", "[2001:DB8::1]:8443", true),
+                ("https://[2001:db8::1]:8443/", "[2001:db8::2]:8443", false),
+            ] {
+                let uri = target.parse().unwrap();
+                let mut headers = http::HeaderMap::new();
+                headers.insert(http::header::HOST, host.parse().unwrap());
+                assert_eq!(
+                    request_host_parts(&headers, &uri, version).is_ok(),
+                    accepted,
+                    "{version:?} {target} {host}"
+                );
+            }
+            let uri = "https://public.test/path".parse().unwrap();
+            assert_eq!(
+                request_host_parts(&http::HeaderMap::new(), &uri, version).is_ok(),
+                version != http::Version::HTTP_11
+            );
+        }
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::HOST, "proxy.test".parse().unwrap());
+        assert_eq!(
+            request_host_parts(
+                &headers,
+                &"public.test:443".parse().unwrap(),
+                http::Version::HTTP_11
+            )
+            .unwrap(),
+            "public.test"
+        );
+    }
+
+    #[test]
+    fn plain_and_encoded_paths_keep_normalization_and_rejection_boundaries() {
+        for (input, expected) in [
+            ("/", "/"),
+            ("/a/b", "/a/b"),
+            ("/中", "/中"),
+            ("/%E4%B8%AD", "/中"),
+            ("/a//b/../c", "/a/c"),
+            ("/a/%2e%2e/c", "/c"),
+        ] {
+            assert_eq!(normalized_path_view(input).unwrap(), expected);
+        }
+        for input in [
+            "relative", "/%", "/%0", "/%GG", "/%FF", "/%00", "/%5C", "/\\", "/\0", "/\r", "/\n",
+        ] {
+            assert!(normalized_path_view(input).is_err(), "{input:?}");
+        }
+        assert!(normalized_path_view(&"/".repeat(8193)).is_err());
+    }
+
+    #[test]
+    fn borrowed_hosts_preserve_authority_validation_and_header_cardinality() {
+        let uri: http::Uri = "/".parse().unwrap();
+        let base = b"Example.test:8080";
+        let mut cases = vec![
+            b"[2001:DB8::A]:443".to_vec(),
+            b"test:999999999".to_vec(),
+            b"".to_vec(),
+            b"user@host".to_vec(),
+            b"test:".to_vec(),
+            vec![b'a'; 1100],
+        ];
+        for position in 0..base.len() {
+            for byte in 0..=127 {
+                let mut value = base.to_vec();
+                value[position] = byte;
+                cases.push(value);
+            }
+        }
+        for value in cases {
+            let Ok(value) = http::HeaderValue::from_bytes(&value) else {
+                continue;
+            };
+            let expected = value.to_str().ok().and_then(|text| {
+                let a = text.parse::<http::uri::Authority>().ok()?;
+                (!a.host().is_empty() && !text.contains('@')).then(|| a.host().to_ascii_lowercase())
+            });
+            let mut headers = http::HeaderMap::new();
+            headers.insert(http::header::HOST, value);
+            let actual = request_host_parts(&headers, &uri, http::Version::HTTP_11);
+            assert_eq!(actual.ok().map(|v| v.into_owned()), expected, "{headers:?}");
+        }
+        let mut headers = http::HeaderMap::new();
+        assert!(request_host_parts(&headers, &uri, http::Version::HTTP_11).is_err());
+        headers.append(
+            http::header::HOST,
+            http::HeaderValue::from_static("one.test"),
+        );
+        headers.append(
+            http::header::HOST,
+            http::HeaderValue::from_static("two.test"),
+        );
+        assert!(request_host_parts(&headers, &uri, http::Version::HTTP_11).is_err());
+    }
 }

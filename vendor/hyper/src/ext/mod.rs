@@ -35,6 +35,52 @@
 //!
 //! See the documentation on each item for details about its usage and requirements.
 
+#[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+pub(crate) mod send_informational;
+#[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+pub use send_informational::{Receiver as InformationalReceiver, SendInformational};
+#[cfg(all(feature = "http1", feature = "rgnix-extensions", target_os = "linux"))]
+mod send_file;
+#[cfg(all(feature = "http1", feature = "rgnix-extensions", target_os = "linux"))]
+pub use send_file::SendFile;
+
+#[cfg(all(feature = "http2", feature = "rgnix-extensions"))]
+/// Per-stream HTTP/2 idle limits. Read covers response headers and is extended
+/// only by this stream's upload progress; write covers blocked flow control.
+#[derive(Clone, Copy, Debug)]
+pub struct H2Timeouts {
+    /// Upstream response header idle timeout.
+    pub read: std::time::Duration,
+    /// Outgoing DATA flow-control idle timeout.
+    pub write: std::time::Duration,
+}
+
+#[cfg(all(feature = "http2", feature = "rgnix-extensions"))]
+/// Absolute HTTP/2 response-body deadline, including blocked flow control.
+/// Expiry resets only this stream. Clones observe whether the deadline fired,
+/// so response completion can distinguish a reset from successful delivery.
+#[derive(Clone, Debug)]
+pub struct H2Deadline {
+    pub(crate) at: std::time::Instant,
+    pub(crate) expired: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+#[cfg(all(feature = "http2", feature = "rgnix-extensions"))]
+impl H2Deadline {
+    /// End the response body at `at`; body or send-window progress cannot extend it.
+    pub fn new(at: std::time::Instant) -> Self {
+        Self {
+            at,
+            expired: std::sync::Arc::default(),
+        }
+    }
+
+    /// Whether Hyper reset this stream after its absolute deadline elapsed.
+    pub fn is_expired(&self) -> bool {
+        self.expired.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use bytes::Bytes;
 #[cfg(any(

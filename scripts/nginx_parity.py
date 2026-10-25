@@ -103,6 +103,8 @@ http {{
                      ("/api?x=1", {}), ("/redirect", {}), ("/", {"Host": "a.b.wild.test"}),
                      ("/a%23b?x=%23", {}), ("/a%3Fb?x=1", {}), ("/a%20b", {}),
                      ("/a%25b", {}), ("/a%252Fb", {}), ("/%E4%B8%AD%E6%96%87", {}), ("/proxy%23b?x=%3F", {}),
+                     ("/", {"Host": "EXAMPLE.TEST"}), ("/", {"Host": "example.test."}),
+                     ("/", {"Host": "A.B.WILD.TEST."}),
                      ("/", {"Host": "unknown.test"}), ("/", {"Host": "closed.test"}),
                      ("/", {"Host": "duplicate.test"}), ("/error", {}), ("/timeout/", {}), ("/denied", {}), ("/denied-late", {})]
             for path, headers in cases:
@@ -111,7 +113,8 @@ http {{
                 for status, response_headers, body in results:
                     if response_headers.get("content-type") == "application/json":
                         value = json.loads(body)
-                        body = (value["path"], value["headers"].get("Host"))
+                        forwarded_headers = {name.lower(): value for name, value in value["headers"].items()}
+                        body = (value["path"], forwarded_headers.get("host"))
                     if status in (301, 302):
                         location = urlsplit(response_headers.get("location", ""))
                         body = (location.path, location.query, location.fragment)
@@ -158,7 +161,8 @@ http {{
                     response = http.client.HTTPResponse(connection)
                     response.begin()
                     assert response.status == 200
-                    assert json.loads(response.read())["headers"].get("Host") == "example.test"
+                    forwarded_headers = {name.lower(): value for name, value in json.loads(response.read())["headers"].items()}
+                    assert forwarded_headers.get("host") == "example.test"
             passed.append("hostless HTTP/1.0 uses the selected server name for $host")
             for port in ports:
                 connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)

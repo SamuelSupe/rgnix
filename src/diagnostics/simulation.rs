@@ -312,6 +312,5 @@ pub async fn simulate(
         json!({"results":results,"repeat":input.repeat,"hold_permits":input.hold_permits})
     };
     output["rate_limit_scope"] = json!("isolated_simulation");
-    output["shared_quota_checked"] = json!(false);
     Ok(output)
 }

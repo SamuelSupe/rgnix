@@ -1,0 +1,803 @@
+{
+  "date": "2026-10-25",
+  "environment": {
+    "runtime": "OrbStack Ubuntu arm64",
+    "rust": "1.90.0",
+    "features": [
+      "http3",
+      "jemalloc"
+    ],
+    "profile": "dev opt-level=1",
+    "locked": true
+  },
+  "base": {
+    "branch": "experiment/replace-pingora",
+    "head": "1bd974f",
+    "includes_existing_uncommitted_changes": true
+  },
+  "fixes": [
+    "Absolute HTTP/2 response deadlines remain active through zero and partial flow-control capacity; stream-specific timeout completion and resource release",
+    "Authenticated simulation JSON reading uses existing 5-second total deadline, 1-MiB bound and two-request concurrency cap"
+  ],
+  "checks": {
+    "check_script": {
+      "exit_code": 0,
+      "rust_passed": 38,
+      "rust_ignored": 1,
+      "http": 107,
+      "ingress_recovery": 57,
+      "otlp": 32,
+      "log_rotation": 20,
+      "product_features": 119,
+      "migration": 10
+    },
+    "vendor_hyper": {
+      "passed": 124,
+      "ignored": 6,
+      "features": "client,server,http1,http2,rgnix-full-body,rgnix-reuse-buffer,rgnix-extensions"
+    },
+    "hyper_integration": 84,
+    "extended_protocols_including_http3": 76,
+    "pingora_http": 107,
+    "clippy_all_targets_deny_warnings": "passed",
+    "python_and_embedded_probe_syntax": "passed",
+    "h2_deadline": {
+      "cases": 40,
+      "repetitions_per_case": 2,
+      "unique_cases": 20,
+      "reset_min_seconds": 0.15142803703201935,
+      "reset_max_seconds": 0.1562328560394235,
+      "all_permits_released_while_connection_open": true,
+      "all_siblings_completed": true,
+      "all_timed_out_completions_recorded": true,
+      "details": [
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15333906502928585,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1523060500039719,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15346765000140294,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1521164639852941,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15142803703201935,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15441120497416705,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15257834602380171,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1538261969690211,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15343827498145401,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15150970598915592,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15234817599412054,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1530510190059431,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1516673740115948,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15428495401283726,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15476212702924386,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1562328560394235,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15182108501903713,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15249359497101977,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1532525640213862,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15148720500292256,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1541339930263348,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15248926100321114,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15224304900038987,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15306397702079266,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1515856640180573,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15329593897331506,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15238671796396375,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15469987597316504,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15221163199748844,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1522360909730196,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        }
+      ]
+    },
+    "previous_gateway_transport_regressions": [
+      {
+        "mode": "request",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.155080798023846
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.1654755300260149
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15460804098984227
+          }
+        ],
+        "request_and_backend_permits_released": true
+      },
+      {
+        "mode": "backend",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15817134198732674
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15694436599733308
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.1607742959749885
+          }
+        ],
+        "request_and_backend_permits_released": true
+      },
+      {
+        "mode": "earlier_backend",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15535492700291798
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.158916144981049
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.158406887028832
+          }
+        ],
+        "request_and_backend_permits_released": true
+      },
+      {
+        "mode": "disabled",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": false,
+            "echoes": 19,
+            "seconds": 0.605219601013232
+          },
+          {
+            "closed": false,
+            "echoes": 19,
+            "seconds": 0.616578555025626
+          },
+          {
+            "closed": false,
+            "echoes": 19,
+            "seconds": 0.6014752140035853
+          }
+        ],
+        "request_and_backend_permits_released": true
+      }
+    ]
+  },
+  "regression_before": {
+    "h2": [
+      {
+        "mode": "request",
+        "path": "/flow-small",
+        "repeat": 0,
+        "passed": false,
+        "error": "Traceback (most recent call last):\n  File \"<string>\", line 34, in <module>\n    assert reset is not None and reset<0.6 and reset_code==8,(reset,reset_code)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (None, None)\n"
+      }
+    ],
+    "simulation": "Frozen pre-fix binary failed new slow-upload test with TimeoutError waiting for response after 5.5 seconds of trickling; full log retained"
+  },
+  "existing_out_of_scope_failure": {
+    "check": "Vendor hyper without rgnix-extensions; client,server,http1,http2",
+    "before_exit_code": 101,
+    "after_exit_code": 101,
+    "reason": "Existing unguarded send_informational types in proto/h2/server.rs",
+    "product_configuration_uses_extensions": true
+  },
+  "preservation": {
+    "baseline_files": 1074,
+    "changed_related_files": [
+      "CHANGELOG.md",
+      "docs/gateway-api.md",
+      "docs/governance.md",
+      "scripts/gateway_e2e.py",
+      "scripts/product_features.py",
+      "src/diagnostics.rs",
+      "src/proxy/hyper/body.rs",
+      "src/proxy/hyper/request.rs",
+      "vendor/hyper/RGNIX.md",
+      "vendor/hyper/src/ext/mod.rs",
+      "vendor/hyper/src/proto/h2/mod.rs",
+      "vendor/hyper/src/proto/h2/server.rs",
+      "vendor/hyper/src/proto/h2/timeout.rs"
+    ],
+    "unchanged_files": 1061,
+    "missing_baseline_files": [],
+    "new_files": [
+      "docs/validation-review-followups-2026-10-25.md",
+      "docs/validation/review-followups-2026-10-25.json"
+    ],
+    "existing_deletions_preserved": [
+      "scripts/global_rate_limit.py",
+      "src/traffic/global.rs"
+    ],
+    "staged_committed_reset_or_stashed": false,
+    "baseline_manifest_sha256": "2a72e6445fb7e5a2f3d142b0df20d0b860c37c502eda9ea46b743ee11786d19c",
+    "changed_file_hashes": {
+      "CHANGELOG.md": {
+        "before": "a2052df73cb4335ec010373bfa46aeb367ec29a18371144bae8826c451b53221",
+        "after": "95dba750109191365c212740c248eb9d2b4e829dbf8131b3248a36468e7e69c0"
+      },
+      "docs/gateway-api.md": {
+        "before": "9a923344f36b5396cc34b2104ae8725ee6ed3228898a9c499e77efabeb36b97e",
+        "after": "0b468cc38124569aaec4f78268bcd2e4565a881232790027a8e8f69713371527"
+      },
+      "docs/governance.md": {
+        "before": "86f742476e67cd89151b7ab3be982b00f106e8c7e4ba71372c27481ed9262641",
+        "after": "6b19c1e1dbc9f5c33a8f4c77d0478aac649c5cf63d7ea891a922f965d9f25905"
+      },
+      "scripts/gateway_e2e.py": {
+        "before": "40469732722ea22d60bd02ba8d76f39621a01a4aa60d4e9df8323ffef9b59287",
+        "after": "b0444dc4dd9822a43980175fd573f23eda319681f4d866530a965deaea345948"
+      },
+      "scripts/product_features.py": {
+        "before": "8053579ee2c6f2266d595b121ff8342e8799cfb052ac974ea0722919b1dfaac6",
+        "after": "948e7c409a7014089f88d9c9ad2fdd0d17cf2456281890ce8102ffd12bbaa050"
+      },
+      "src/diagnostics.rs": {
+        "before": "1abb1a38878cce1072cc87cd9520e28de242d456a5505e29d169e52bc411e88e",
+        "after": "13f3864b99f41e9fdc7b4466c0ccdc8af06be698e77be39b4822574ed20d3c99"
+      },
+      "src/proxy/hyper/body.rs": {
+        "before": "3b1233f32a0cb7eb765bb878a706272fa282c25bb44f4c7083b4d85b2d88dc4e",
+        "after": "e0a14a868c3283c655dcc779537d2a5d8dd5efd94e31d9d8603a0b820a611549"
+      },
+      "src/proxy/hyper/request.rs": {
+        "before": "c7463ffadae6c32bb97661defd834467c047f745d4b9efd0d3ac294b71002d10",
+        "after": "61ad2d86cd8a6edc85fd600dfa7c2d2c3d1da9483950e1977a86b7cb9d1a462b"
+      },
+      "vendor/hyper/RGNIX.md": {
+        "before": "87202a811ef3fe8775b1787ff51b72bebe176bc85e18d51eacf1bda9b9a711fe",
+        "after": "cfba452e57089ec51c1ae0a1dd4d26e79272bd2e338f7a7ce79924f05643cd5d"
+      },
+      "vendor/hyper/src/ext/mod.rs": {
+        "before": "d18e3254d5bcf0547589dce5e3ce9ab82d04fca5a1740f86cbdb5fbc19c4673a",
+        "after": "42abea49c3f1886a298ce0afc087f16b0a9cbdca4ec39465fc3a7a969773f4aa"
+      },
+      "vendor/hyper/src/proto/h2/mod.rs": {
+        "before": "741f6778df7c29ef38dcafa376a792337a4c9c15a88a82abc3e7aec8a3511c49",
+        "after": "a4737923193b543f5bddb37002c02970e30bb1943b0fb798a7beed0efd8e9bc6"
+      },
+      "vendor/hyper/src/proto/h2/server.rs": {
+        "before": "b60780207afcd602dd842e37255a2918ea6841f87878e8157d66b238b11d1c85",
+        "after": "cf21684b60b74349a49c934d3594d1697c2a018fa4cb43ddbd51f02f062639b7"
+      },
+      "vendor/hyper/src/proto/h2/timeout.rs": {
+        "before": "65dd33f69307d8bb5c753f579c4290bb7e0b36b5a976aaaffcce4e3ae372caa7",
+        "after": "2766f91f50bc5b5714713f71180007d50a7faec137dfb64921d32007a174e0f3"
+      }
+    }
+  },
+  "binaries_sha256": {
+    "rgnix-before": "9d22ec22a183a33d3be6acbd1f1ec1ed871eaf51a2a8c16081bc5f1c9231b330",
+    "rgnix-after": "8206cd9483c52bfde4b827cd3dfcb65c58f8b0739f63036a4b6440a54ba2d9a7",
+    "probe-before": "c329159425b8abe47aab6d6760962bf5c66e5d4c501f2d8ccd37a98ae63d83c5",
+    "probe-after": "58a94e07b4dfc1d01ecdb95c22efd88c51aa136b8a3ded2443e098c83b7b1259"
+  },
+  "logs": {
+    "check-final.log": {
+      "local_path": ".local/rereview-fixes-20261025/check-final.log",
+      "sha256": "4886ece9a0233424f77a70f16e642fd8c7cb166302822c73955f160e3c0fe4ff"
+    },
+    "vendor-tests-final.log": {
+      "local_path": ".local/rereview-fixes-20261025/vendor-tests-final.log",
+      "sha256": "df71ddf46d0814b0241d60195de5491fb035390c1fe769f250cbf4a8239cbb55"
+    },
+    "clippy.log": {
+      "local_path": ".local/rereview-fixes-20261025/clippy.log",
+      "sha256": "ae0eb5fe96c0a60330d3ebf0e6ea4fc109c8754a017f23b8f7e8b0e522242a83"
+    },
+    "hyper-integration.log": {
+      "local_path": ".local/rereview-fixes-20261025/hyper-integration.log",
+      "sha256": "0a042f21af4b4d8252bf2a90e18cdb330e2443d7f61ebff9d3fd857721ad3290"
+    },
+    "protocols.log": {
+      "local_path": ".local/rereview-fixes-20261025/protocols.log",
+      "sha256": "ab50b3cbe7bacdd53b63962162faae00caf6b2a4086bcc3c62c93a4e0ce36eaa"
+    },
+    "pingora-integration.log": {
+      "local_path": ".local/rereview-fixes-20261025/pingora-integration.log",
+      "sha256": "154e5b78c3c46d4d1b4003c4f7b2fe9949679ab406c10031e8fbf32a94b4def2"
+    },
+    "transport.log": {
+      "local_path": ".local/rereview-fixes-20261025/transport.log",
+      "sha256": "487e1abf2d2befb6020b590985072e2ac6c89bd8721e99e3327ea46218aeb091"
+    },
+    "h2-final-result.log": {
+      "local_path": ".local/rereview-fixes-20261025/h2-final-result.log",
+      "sha256": "11b08d1ea2bf55fe8c93a2d7a8eaf1e0166e1ff95724d776d5080d62fe5005ae"
+    },
+    "product-before.log": {
+      "local_path": ".local/rereview-fixes-20261025/product-before.log",
+      "sha256": "ecee613d43cfefb9594a40c6f107d18af9c2f72031492a19c53b3649d35cc88a"
+    },
+    "h2-before-result.log": {
+      "local_path": ".local/rereview-fixes-20261025/h2-before-result.log",
+      "sha256": "bb14203bfaa3de9736fa2f1e1c0875f462a8a626cb7aed4f9c821e05de6ecd3f"
+    },
+    "vendor-no-extensions.log": {
+      "local_path": ".local/rereview-fixes-20261025/vendor-no-extensions.log",
+      "sha256": "86f4b20f7aa4327f06fe74b283376c4882c20c57970553ed337f2068f071c4b4"
+    },
+    "vendor-no-extensions-before.log": {
+      "local_path": ".local/rereview-fixes-20261025/vendor-no-extensions-before.log",
+      "sha256": "bdffc8e69e8214fdbfda8f479baff51c8d9ab30c04fd17a0b46c52724bc22009"
+    }
+  },
+  "not_executed": [
+    "Full live Kubernetes Gateway/watch/multi-replica suite",
+    "amd64",
+    "release build",
+    "long-duration soak",
+    "XDP acceptance",
+    "production deployment",
+    "throughput/performance qualification"
+  ]
+}

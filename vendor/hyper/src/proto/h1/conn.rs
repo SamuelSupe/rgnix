@@ -53,6 +53,8 @@ where
             state: State {
                 allow_half_close: false,
                 cached_headers: None,
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: Default::default(),
                 error: None,
                 keep_alive: KA::Busy,
                 method: None,
@@ -238,6 +240,8 @@ where
             cx,
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: &mut self.state.header_names,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
                 h1_max_headers: self.state.h1_max_headers,
@@ -273,7 +277,8 @@ where
         #[cfg(feature = "server")]
         {
             self.state.h1_header_read_timeout_running = false;
-            self.state.h1_header_read_timeout_fut = None;
+            // Reuse the timer allocation on keep-alive requests. Only the
+            // running flag enables timeout checks; the next head resets it.
         }
 
         // Note: don't deconstruct `msg` into local variables, it appears
@@ -455,6 +460,11 @@ where
     pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
+        #[cfg(feature = "rgnix-extensions")]
+        if T::is_client() {
+            self.io.set_read_idle(cx, !self.is_mid_message());
+        }
+
         if self.is_read_closed() {
             Poll::Pending
         } else if self.is_mid_message() {
@@ -471,6 +481,11 @@ where
         )
     }
 
+    #[cfg(all(feature = "client", feature = "rgnix-extensions"))]
+    pub(super) fn can_poll_idle(&self) -> bool {
+        !self.is_read_closed() && !self.is_mid_message() && !self.has_buffered_write()
+    }
+
     // This will check to make sure the io object read is empty.
     //
     // This should only be called for Clients wanting to enter the idle
@@ -485,6 +500,12 @@ where
             return Poll::Ready(Err(crate::Error::new_unexpected_message()));
         }
 
+        #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
+        let num_read = ready!(self.io.poll_read_idle(cx)).map_err(|error| {
+            self.state.close();
+            crate::Error::new_io(error)
+        })?;
+        #[cfg(not(all(feature = "client", feature = "rgnix-reuse-buffer")))]
         let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
 
         if num_read == 0 {
@@ -558,7 +579,15 @@ where
 
         if !self.io.is_read_blocked() {
             if self.io.read_buf().is_empty() {
-                match self.io.poll_read_from_io(cx) {
+                #[cfg(all(feature = "client", feature = "rgnix-reuse-buffer"))]
+                let reading = if T::is_client() && self.state.is_idle() {
+                    self.io.poll_read_idle(cx)
+                } else {
+                    self.io.poll_read_from_io(cx)
+                };
+                #[cfg(not(all(feature = "client", feature = "rgnix-reuse-buffer")))]
+                let reading = self.io.poll_read_from_io(cx);
+                match reading {
                     Poll::Ready(Ok(n)) => {
                         if n == 0 {
                             trace!("maybe_notify; read eof");
@@ -608,6 +637,30 @@ where
         }
     }
 
+    #[cfg(all(feature = "server", feature = "rgnix-extensions"))]
+    pub(crate) fn write_informational(&mut self, response: http::Response<()>) {
+        debug_assert!(T::should_read_first() && self.can_write_head());
+        let buf = self.io.headers_buf();
+        buf.extend_from_slice(b"HTTP/1.1 ");
+        buf.extend_from_slice(response.status().as_str().as_bytes());
+        buf.extend_from_slice(b" ");
+        buf.extend_from_slice(
+            response
+                .status()
+                .canonical_reason()
+                .unwrap_or("")
+                .as_bytes(),
+        );
+        buf.extend_from_slice(b"\r\n");
+        for (name, value) in response.headers() {
+            buf.extend_from_slice(name.as_str().as_bytes());
+            buf.extend_from_slice(b": ");
+            buf.extend_from_slice(value.as_bytes());
+            buf.extend_from_slice(b"\r\n");
+        }
+        buf.extend_from_slice(b"\r\n");
+    }
+
     pub(crate) fn can_buffer_body(&self) -> bool {
         self.io.can_buffer()
     }
@@ -626,6 +679,15 @@ where
             } else {
                 Writing::KeepAlive
             };
+        }
+    }
+
+    #[cfg(all(feature = "rgnix-extensions", target_os = "linux"))]
+    pub(crate) fn write_file(&mut self, file: crate::ext::SendFile) {
+        if let Writing::Body(encoder) = &self.state.writing {
+            let last = encoder.is_last();
+            self.io.send_file(file);
+            self.state.writing = if last { Writing::Closed } else { Writing::KeepAlive };
         }
     }
 
@@ -673,7 +735,7 @@ where
                 #[cfg(feature = "client")]
                 {
                     self.state.on_informational =
-                        head.extensions.remove::<crate::ext::OnInformational>();
+                        crate::ext::OnInformational::take(&mut head.extensions);
                 }
 
                 Some(encoder)
@@ -862,6 +924,12 @@ where
     pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
         self.try_keep_alive(cx);
+        #[cfg(feature = "rgnix-extensions")]
+        if T::is_client() {
+            // Flushing a new request must register a response timer even when
+            // the earlier idle probe is still blocked on socket readiness.
+            self.io.set_read_idle(cx, !self.is_mid_message());
+        }
         trace!("flushed({}): {:?}", T::LOG, self.state);
         Poll::Ready(Ok(()))
     }
@@ -947,6 +1015,8 @@ struct State {
     allow_half_close: bool,
     /// Re-usable `HeaderMap` to reduce allocating new ones.
     cached_headers: Option<HeaderMap>,
+    #[cfg(feature = "rgnix-extensions")]
+    header_names: super::role::HeaderNameCache,
     /// If an error occurs when there wasn't a direct way to return it
     /// back to the user, this is set.
     error: Option<crate::Error>,
@@ -1403,6 +1473,29 @@ mod tests {
             .expect("response")
             .expect("valid response");
         assert_eq!(body, DecodedLength::ZERO);
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn client_rejects_unsolicited_idle_data() {
+        for delayed in [false, true] {
+            tokio_test::task::spawn(()).enter(|cx, _| {
+                let (io, mut handle) = tokio_test::io::Builder::new().build_with_handle();
+                let mut conn = Conn::<_, Bytes, ClientTransaction>::new(Compat::new(io));
+                conn.state.idle::<ClientTransaction>();
+                if delayed {
+                    assert!(conn.poll_read_keep_alive(cx).is_pending());
+                }
+                handle.read(b"H");
+                conn.maybe_notify(cx);
+                let error = ready(conn.poll_read_keep_alive(cx))
+                    .expect_err("an unsolicited response must not be reused");
+                assert!(matches!(
+                    error.kind(),
+                    crate::error::Kind::UnexpectedMessage
+                ));
+            });
+        }
     }
 
     #[cfg(feature = "server")]

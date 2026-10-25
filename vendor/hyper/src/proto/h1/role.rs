@@ -33,7 +33,66 @@ const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 #[cfg(feature = "server")]
 const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
 
+/// Retains only validated names, never header values or a complete message.
+/// Positional matching avoids hashing or searching the table on each field.
+#[cfg(feature = "rgnix-extensions")]
+#[derive(Debug)]
+pub(super) struct HeaderNameCache {
+    entries: Vec<Option<(Bytes, HeaderName)>>,
+    mismatches: u8,
+}
+
+#[cfg(feature = "rgnix-extensions")]
+impl Default for HeaderNameCache {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            mismatches: 64,
+        }
+    }
+}
+
+#[cfg(feature = "rgnix-extensions")]
+impl HeaderNameCache {
+    #[inline(always)]
+    fn parse(
+        &mut self,
+        index: usize,
+        bytes: &[u8],
+    ) -> Result<HeaderName, http::header::InvalidHeaderName> {
+        if self.mismatches == 0 || index >= 64 {
+            return HeaderName::from_bytes(bytes);
+        }
+        if let Some(Some((wire, name))) = self.entries.get(index) {
+            if wire.as_ref() == bytes {
+                return Ok(name.clone());
+            }
+            self.mismatches -= 1;
+            if self.mismatches == 0 {
+                // ponytail: stop caching after repeated changes; a general-purpose
+                // adaptive cache is unwarranted unless changing names benefit too.
+                self.entries.clear();
+                return HeaderName::from_bytes(bytes);
+            }
+        }
+        let name = HeaderName::from_bytes(bytes)?;
+        if bytes.len() <= 64 {
+            if self.entries.len() <= index {
+                self.entries.resize_with(index + 1, || None);
+            }
+            self.entries[index] = Some((Bytes::copy_from_slice(bytes), name.clone()));
+        }
+        Ok(name)
+    }
+}
+
 macro_rules! header_name {
+    ($bytes:expr, $cache:expr, $index:expr) => {{
+        match $cache.parse($index, $bytes) {
+            Ok(name) => name,
+            Err(e) => maybe_panic!(e),
+        }
+    }};
     ($bytes:expr) => {{
         {
             match HeaderName::from_bytes($bytes) {
@@ -144,239 +203,265 @@ impl Http1Transaction for Server {
     const LOG: &'static str = "{role=server}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<RequestLine> {
-        debug_assert!(!buf.is_empty(), "parse called with empty buf");
+        fn parse_inner<const CACHED: bool>(
+            buf: &mut BytesMut,
+            ctx: ParseContext<'_>,
+        ) -> ParseResult<RequestLine> {
+            debug_assert!(!buf.is_empty(), "parse called with empty buf");
 
-        let mut keep_alive;
-        let is_http_11;
-        let subject;
-        let version;
-        let len;
-        let headers_len;
-        let method;
-        let path_range;
+            let mut keep_alive;
+            let is_http_11;
+            let subject;
+            let version;
+            let len;
+            let headers_len;
+            let method;
+            let path_range;
 
-        // Both headers_indices and headers are using uninitialized memory,
-        // but we *never* read any of it until after httparse has assigned
-        // values into it. By not zeroing out the stack memory, this saves
-        // a good ~5% on pipeline benchmarks.
-        let mut headers_indices: SmallVec<[MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS]> =
-            match ctx.h1_max_headers {
-                Some(cap) => smallvec![MaybeUninit::uninit(); cap],
-                None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
-            };
-        {
-            let mut headers: SmallVec<[MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS]> =
+            // Both headers_indices and headers are using uninitialized memory,
+            // but we *never* read any of it until after httparse has assigned
+            // values into it. By not zeroing out the stack memory, this saves
+            // a good ~5% on pipeline benchmarks.
+            let mut headers_indices: SmallVec<[MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS]> =
                 match ctx.h1_max_headers {
                     Some(cap) => smallvec![MaybeUninit::uninit(); cap],
                     None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
                 };
-            trace!(bytes = buf.len(), "Request.parse");
-            let mut req = httparse::Request::new(&mut []);
-            let bytes = buf.as_ref();
-            match ctx.h1_parser_config.parse_request_with_uninit_headers(
-                &mut req,
-                bytes,
-                &mut headers,
-            ) {
-                Ok(httparse::Status::Complete(parsed_len)) => {
-                    trace!("Request.parse Complete({})", parsed_len);
-                    len = parsed_len;
-                    let uri = req.path.expect("httparse completed");
-                    if uri.len() > MAX_URI_LEN {
-                        return Err(Parse::UriTooLong);
-                    }
-                    method =
-                        Method::from_bytes(req.method.expect("httparse completed").as_bytes())?;
-                    path_range = Server::record_path_range(bytes, uri);
-                    version = if req.version.expect("httparse completed") == 1 {
-                        keep_alive = true;
-                        is_http_11 = true;
-                        Version::HTTP_11
-                    } else {
-                        keep_alive = false;
-                        is_http_11 = false;
-                        Version::HTTP_10
-                    };
-
-                    record_header_indices(bytes, req.headers, &mut headers_indices)?;
-                    headers_len = req.headers.len();
-                }
-                Ok(httparse::Status::Partial) => return Ok(None),
-                // if invalid Token, try to determine if for method or path
-                Err(httparse::Error::Token) => {
-                    return Err({
-                        if req.method.is_none() {
-                            Parse::Method
+            {
+                let mut headers: SmallVec<
+                    [MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS],
+                > = match ctx.h1_max_headers {
+                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                };
+                trace!(bytes = buf.len(), "Request.parse");
+                let mut req = httparse::Request::new(&mut []);
+                let bytes = buf.as_ref();
+                match ctx.h1_parser_config.parse_request_with_uninit_headers(
+                    &mut req,
+                    bytes,
+                    &mut headers,
+                ) {
+                    Ok(httparse::Status::Complete(parsed_len)) => {
+                        trace!("Request.parse Complete({})", parsed_len);
+                        len = parsed_len;
+                        let uri = req.path.expect("httparse completed");
+                        if uri.len() > MAX_URI_LEN {
+                            return Err(Parse::UriTooLong);
+                        }
+                        method =
+                            Method::from_bytes(req.method.expect("httparse completed").as_bytes())?;
+                        path_range = Server::record_path_range(bytes, uri);
+                        version = if req.version.expect("httparse completed") == 1 {
+                            keep_alive = true;
+                            is_http_11 = true;
+                            Version::HTTP_11
                         } else {
-                            debug_assert!(req.path.is_none());
-                            Parse::Uri
+                            keep_alive = false;
+                            is_http_11 = false;
+                            Version::HTTP_10
+                        };
+
+                        record_header_indices(bytes, req.headers, &mut headers_indices)?;
+                        headers_len = req.headers.len();
+                    }
+                    Ok(httparse::Status::Partial) => return Ok(None),
+                    // if invalid Token, try to determine if for method or path
+                    Err(httparse::Error::Token) => {
+                        return Err({
+                            if req.method.is_none() {
+                                Parse::Method
+                            } else {
+                                debug_assert!(req.path.is_none());
+                                Parse::Uri
+                            }
+                        })
+                    }
+                    Err(err) => return Err(err.into()),
+                }
+            };
+
+            let slice = buf.split_to(len).freeze();
+            let uri = {
+                let uri_bytes = slice.slice_ref(&slice[path_range]);
+                // TODO(lucab): switch to `Uri::from_shared()` once public.
+                http::Uri::from_maybe_shared(uri_bytes)?
+            };
+            subject = RequestLine(method, uri);
+
+            // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
+            // 1. (irrelevant to Request)
+            // 2. (irrelevant to Request)
+            // 3. Transfer-Encoding: chunked has a chunked body.
+            // 4. If multiple differing Content-Length headers or invalid, close connection.
+            // 5. Content-Length header has a sized body.
+            // 6. Length 0.
+            // 7. (irrelevant to Request)
+
+            let mut decoder = DecodedLength::ZERO;
+            let mut expect_continue = false;
+            let mut con_len = None;
+            let mut is_cl = false;
+            let mut is_te = false;
+            let mut is_te_chunked = false;
+            let mut wants_upgrade = subject.0 == Method::CONNECT;
+
+            let mut header_case_map = if ctx.preserve_header_case {
+                Some(HeaderCaseMap::default())
+            } else {
+                None
+            };
+
+            #[cfg(feature = "ffi")]
+            let mut header_order = if ctx.preserve_header_order {
+                Some(OriginalHeaderOrder::default())
+            } else {
+                None
+            };
+
+            let mut headers = ctx.cached_headers.take().unwrap_or_default();
+
+            headers.reserve(headers_len);
+
+            for (_index, header) in headers_indices[..headers_len].iter().enumerate() {
+                // SAFETY: array is valid up to `headers_len`
+                let header = unsafe { header.assume_init_ref() };
+                #[cfg(feature = "rgnix-extensions")]
+                let name = if CACHED {
+                    header_name!(
+                        &slice[header.name.0..header.name.1],
+                        ctx.header_names,
+                        _index
+                    )
+                } else {
+                    header_name!(&slice[header.name.0..header.name.1])
+                };
+                #[cfg(not(feature = "rgnix-extensions"))]
+                let name = header_name!(&slice[header.name.0..header.name.1]);
+                let value = header_value!(slice.slice(header.value.0..header.value.1));
+
+                match name {
+                    header::TRANSFER_ENCODING => {
+                        // https://tools.ietf.org/html/rfc7230#section-3.3.3
+                        // If Transfer-Encoding header is present, and 'chunked' is
+                        // not the final encoding, and this is a Request, then it is
+                        // malformed. A server should respond with 400 Bad Request.
+                        if !is_http_11 {
+                            debug!("HTTP/1.0 cannot have Transfer-Encoding header");
+                            return Err(Parse::transfer_encoding_unexpected());
                         }
-                    })
-                }
-                Err(err) => return Err(err.into()),
-            }
-        };
-
-        let slice = buf.split_to(len).freeze();
-        let uri = {
-            let uri_bytes = slice.slice_ref(&slice[path_range]);
-            // TODO(lucab): switch to `Uri::from_shared()` once public.
-            http::Uri::from_maybe_shared(uri_bytes)?
-        };
-        subject = RequestLine(method, uri);
-
-        // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
-        // 1. (irrelevant to Request)
-        // 2. (irrelevant to Request)
-        // 3. Transfer-Encoding: chunked has a chunked body.
-        // 4. If multiple differing Content-Length headers or invalid, close connection.
-        // 5. Content-Length header has a sized body.
-        // 6. Length 0.
-        // 7. (irrelevant to Request)
-
-        let mut decoder = DecodedLength::ZERO;
-        let mut expect_continue = false;
-        let mut con_len = None;
-        let mut is_cl = false;
-        let mut is_te = false;
-        let mut is_te_chunked = false;
-        let mut wants_upgrade = subject.0 == Method::CONNECT;
-
-        let mut header_case_map = if ctx.preserve_header_case {
-            Some(HeaderCaseMap::default())
-        } else {
-            None
-        };
-
-        #[cfg(feature = "ffi")]
-        let mut header_order = if ctx.preserve_header_order {
-            Some(OriginalHeaderOrder::default())
-        } else {
-            None
-        };
-
-        let mut headers = ctx.cached_headers.take().unwrap_or_default();
-
-        headers.reserve(headers_len);
-
-        for header in &headers_indices[..headers_len] {
-            // SAFETY: array is valid up to `headers_len`
-            let header = unsafe { header.assume_init_ref() };
-            let name = header_name!(&slice[header.name.0..header.name.1]);
-            let value = header_value!(slice.slice(header.value.0..header.value.1));
-
-            match name {
-                header::TRANSFER_ENCODING => {
-                    // https://tools.ietf.org/html/rfc7230#section-3.3.3
-                    // If Transfer-Encoding header is present, and 'chunked' is
-                    // not the final encoding, and this is a Request, then it is
-                    // malformed. A server should respond with 400 Bad Request.
-                    if !is_http_11 {
-                        debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                        return Err(Parse::transfer_encoding_unexpected());
-                    }
-                    is_te = true;
-                    if is_cl && con_len.take().is_some() {
-                        headers.remove(header::CONTENT_LENGTH);
-                    }
-                    if headers::is_chunked_(&value) {
-                        is_te_chunked = true;
-                        decoder = DecodedLength::CHUNKED;
-                    } else {
-                        is_te_chunked = false;
-                    }
-                }
-                header::CONTENT_LENGTH => {
-                    is_cl = true;
-                    if is_te {
-                        continue;
-                    }
-                    let len = headers::content_length_parse(&value)
-                        .ok_or_else(Parse::content_length_invalid)?;
-                    if let Some(prev) = con_len {
-                        if prev != len {
-                            debug!(
-                                "multiple Content-Length headers with different values: [{}, {}]",
-                                prev, len,
-                            );
-                            return Err(Parse::content_length_invalid());
+                        is_te = true;
+                        if is_cl && con_len.take().is_some() {
+                            headers.remove(header::CONTENT_LENGTH);
                         }
-                        // we don't need to append this secondary length
-                        continue;
+                        if headers::is_chunked_(&value) {
+                            is_te_chunked = true;
+                            decoder = DecodedLength::CHUNKED;
+                        } else {
+                            is_te_chunked = false;
+                        }
                     }
-                    decoder = DecodedLength::checked_new(len)?;
-                    con_len = Some(len);
-                }
-                header::CONNECTION => {
-                    // keep_alive was previously set to default for Version
-                    if keep_alive {
-                        // HTTP/1.1
-                        keep_alive = !headers::connection_close(&value);
-                    } else {
-                        // HTTP/1.0
-                        keep_alive = headers::connection_keep_alive(&value);
+                    header::CONTENT_LENGTH => {
+                        is_cl = true;
+                        if is_te {
+                            continue;
+                        }
+                        let len = headers::content_length_parse(&value)
+                            .ok_or_else(Parse::content_length_invalid)?;
+                        if let Some(prev) = con_len {
+                            if prev != len {
+                                debug!(
+                                    "multiple Content-Length headers with different values: [{}, {}]",
+                                    prev, len,
+                                );
+                                return Err(Parse::content_length_invalid());
+                            }
+                            // we don't need to append this secondary length
+                            continue;
+                        }
+                        decoder = DecodedLength::checked_new(len)?;
+                        con_len = Some(len);
                     }
-                }
-                header::EXPECT => {
-                    // According to https://datatracker.ietf.org/doc/html/rfc2616#section-14.20
-                    // Comparison of expectation values is case-insensitive for unquoted tokens
-                    // (including the 100-continue token)
-                    expect_continue = value.as_bytes().eq_ignore_ascii_case(b"100-continue");
-                }
-                header::UPGRADE => {
-                    // Upgrades are only allowed with HTTP/1.1
-                    wants_upgrade = is_http_11;
+                    header::CONNECTION => {
+                        // keep_alive was previously set to default for Version
+                        if keep_alive {
+                            // HTTP/1.1
+                            keep_alive = !headers::connection_close(&value);
+                        } else {
+                            // HTTP/1.0
+                            keep_alive = headers::connection_keep_alive(&value);
+                        }
+                    }
+                    header::EXPECT => {
+                        // According to https://datatracker.ietf.org/doc/html/rfc2616#section-14.20
+                        // Comparison of expectation values is case-insensitive for unquoted tokens
+                        // (including the 100-continue token)
+                        expect_continue = value.as_bytes().eq_ignore_ascii_case(b"100-continue");
+                    }
+                    header::UPGRADE => {
+                        // Upgrades are only allowed with HTTP/1.1
+                        wants_upgrade = is_http_11;
+                    }
+
+                    _ => (),
                 }
 
-                _ => (),
+                if let Some(header_case_map) = &mut header_case_map {
+                    header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                }
+
+                #[cfg(feature = "ffi")]
+                if let Some(header_order) = &mut header_order {
+                    header_order.append(&name);
+                }
+
+                headers.append(name, value);
             }
 
-            if let Some(header_case_map) = &mut header_case_map {
-                header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+            if is_te && !is_te_chunked {
+                debug!("request with transfer-encoding header, but not chunked, bad request");
+                return Err(Parse::transfer_encoding_invalid());
+            }
+
+            if is_te && is_cl {
+                keep_alive = false;
+            }
+
+            let mut extensions = http::Extensions::default();
+
+            if let Some(header_case_map) = header_case_map {
+                extensions.insert(header_case_map);
             }
 
             #[cfg(feature = "ffi")]
-            if let Some(header_order) = &mut header_order {
-                header_order.append(&name);
+            if let Some(header_order) = header_order {
+                extensions.insert(header_order);
             }
 
-            headers.append(name, value);
+            *ctx.req_method = Some(subject.0.clone());
+
+            Ok(Some(ParsedMessage {
+                head: MessageHead {
+                    version,
+                    subject,
+                    headers,
+                    extensions,
+                },
+                decode: decoder,
+                expect_continue,
+                keep_alive,
+                wants_upgrade,
+            }))
         }
-
-        if is_te && !is_te_chunked {
-            debug!("request with transfer-encoding header, but not chunked, bad request");
-            return Err(Parse::transfer_encoding_invalid());
+        #[cfg(feature = "rgnix-extensions")]
+        let cached = ctx.header_names.mismatches > 0;
+        #[cfg(not(feature = "rgnix-extensions"))]
+        let cached = false;
+        if cached {
+            parse_inner::<true>(buf, ctx)
+        } else {
+            parse_inner::<false>(buf, ctx)
         }
-
-        if is_te && is_cl {
-            keep_alive = false;
-        }
-
-        let mut extensions = http::Extensions::default();
-
-        if let Some(header_case_map) = header_case_map {
-            extensions.insert(header_case_map);
-        }
-
-        #[cfg(feature = "ffi")]
-        if let Some(header_order) = header_order {
-            extensions.insert(header_order);
-        }
-
-        *ctx.req_method = Some(subject.0.clone());
-
-        Ok(Some(ParsedMessage {
-            head: MessageHead {
-                version,
-                subject,
-                headers,
-                extensions,
-            },
-            decode: decoder,
-            expect_continue,
-            keep_alive,
-            wants_upgrade,
-        }))
     }
 
     fn encode(mut msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
@@ -503,10 +588,6 @@ impl Http1Transaction for Server {
 
     fn is_server() -> bool {
         true
-    }
-
-    fn update_date() {
-        date::update();
     }
 }
 
@@ -1026,172 +1107,199 @@ impl Http1Transaction for Client {
     const LOG: &'static str = "{role=client}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<StatusCode> {
-        debug_assert!(!buf.is_empty(), "parse called with empty buf");
+        fn parse_inner<const CACHED: bool>(
+            buf: &mut BytesMut,
+            ctx: ParseContext<'_>,
+        ) -> ParseResult<StatusCode> {
+            debug_assert!(!buf.is_empty(), "parse called with empty buf");
 
-        // Loop to skip information status code headers (100 Continue, etc).
-        loop {
-            let mut headers_indices: SmallVec<[MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS]> =
-                match ctx.h1_max_headers {
-                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
-                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
-                };
-            let (len, status, reason, version, headers_len) = {
-                let mut headers: SmallVec<
-                    [MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS],
+            // Loop to skip information status code headers (100 Continue, etc).
+            loop {
+                let mut headers_indices: SmallVec<
+                    [MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS],
                 > = match ctx.h1_max_headers {
                     Some(cap) => smallvec![MaybeUninit::uninit(); cap],
                     None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
                 };
-                trace!(bytes = buf.len(), "Response.parse");
-                let mut res = httparse::Response::new(&mut []);
-                let bytes = buf.as_ref();
-                match ctx.h1_parser_config.parse_response_with_uninit_headers(
-                    &mut res,
-                    bytes,
-                    &mut headers,
-                ) {
-                    Ok(httparse::Status::Complete(len)) => {
-                        trace!("Response.parse Complete({})", len);
-                        let status = StatusCode::from_u16(res.code.expect("httparse completed"))?;
+                let (len, status, reason, version, headers_len) = {
+                    let mut headers: SmallVec<
+                        [MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS],
+                    > = match ctx.h1_max_headers {
+                        Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                        None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                    };
+                    trace!(bytes = buf.len(), "Response.parse");
+                    let mut res = httparse::Response::new(&mut []);
+                    let bytes = buf.as_ref();
+                    match ctx.h1_parser_config.parse_response_with_uninit_headers(
+                        &mut res,
+                        bytes,
+                        &mut headers,
+                    ) {
+                        Ok(httparse::Status::Complete(len)) => {
+                            trace!("Response.parse Complete({})", len);
+                            let status =
+                                StatusCode::from_u16(res.code.expect("httparse completed"))?;
 
-                        let reason = {
-                            let reason = res.reason.expect("httparse completed");
-                            // Only save the reason phrase if it isn't the canonical reason
-                            if Some(reason) != status.canonical_reason() {
-                                Some(Bytes::copy_from_slice(reason.as_bytes()))
+                            let reason = {
+                                let reason = res.reason.expect("httparse completed");
+                                // Only save the reason phrase if it isn't the canonical reason
+                                if Some(reason) != status.canonical_reason() {
+                                    Some(Bytes::copy_from_slice(reason.as_bytes()))
+                                } else {
+                                    None
+                                }
+                            };
+
+                            let version = if res.version.expect("httparse completed") == 1 {
+                                Version::HTTP_11
                             } else {
-                                None
-                            }
-                        };
+                                Version::HTTP_10
+                            };
+                            record_header_indices(bytes, res.headers, &mut headers_indices)?;
+                            let headers_len = res.headers.len();
+                            (len, status, reason, version, headers_len)
+                        }
+                        Ok(httparse::Status::Partial) => return Ok(None),
+                        Err(httparse::Error::Version) if ctx.h09_responses => {
+                            trace!("Response.parse accepted HTTP/0.9 response");
 
-                        let version = if res.version.expect("httparse completed") == 1 {
-                            Version::HTTP_11
-                        } else {
-                            Version::HTTP_10
-                        };
-                        record_header_indices(bytes, res.headers, &mut headers_indices)?;
-                        let headers_len = res.headers.len();
-                        (len, status, reason, version, headers_len)
+                            (0, StatusCode::OK, None, Version::HTTP_09, 0)
+                        }
+                        Err(e) => return Err(e.into()),
                     }
-                    Ok(httparse::Status::Partial) => return Ok(None),
-                    Err(httparse::Error::Version) if ctx.h09_responses => {
-                        trace!("Response.parse accepted HTTP/0.9 response");
+                };
 
-                        (0, StatusCode::OK, None, Version::HTTP_09, 0)
+                let mut slice = buf.split_to(len);
+
+                if ctx
+                    .h1_parser_config
+                    .obsolete_multiline_headers_in_responses_are_allowed()
+                {
+                    for header in &mut headers_indices[..headers_len] {
+                        // SAFETY: array is valid up to `headers_len`
+                        let header = unsafe { header.assume_init_mut() };
+                        Client::obs_fold_line(&mut slice, header);
                     }
-                    Err(e) => return Err(e.into()),
                 }
-            };
 
-            let mut slice = buf.split_to(len);
+                let slice = slice.freeze();
 
-            if ctx
-                .h1_parser_config
-                .obsolete_multiline_headers_in_responses_are_allowed()
-            {
-                for header in &mut headers_indices[..headers_len] {
+                let mut headers = ctx.cached_headers.take().unwrap_or_default();
+
+                let mut keep_alive = version == Version::HTTP_11;
+
+                let mut header_case_map = if ctx.preserve_header_case {
+                    Some(HeaderCaseMap::default())
+                } else {
+                    None
+                };
+
+                #[cfg(feature = "ffi")]
+                let mut header_order = if ctx.preserve_header_order {
+                    Some(OriginalHeaderOrder::default())
+                } else {
+                    None
+                };
+
+                headers.reserve(headers_len);
+                for (_index, header) in headers_indices[..headers_len].iter().enumerate() {
                     // SAFETY: array is valid up to `headers_len`
-                    let header = unsafe { header.assume_init_mut() };
-                    Client::obs_fold_line(&mut slice, header);
-                }
-            }
-
-            let slice = slice.freeze();
-
-            let mut headers = ctx.cached_headers.take().unwrap_or_default();
-
-            let mut keep_alive = version == Version::HTTP_11;
-
-            let mut header_case_map = if ctx.preserve_header_case {
-                Some(HeaderCaseMap::default())
-            } else {
-                None
-            };
-
-            #[cfg(feature = "ffi")]
-            let mut header_order = if ctx.preserve_header_order {
-                Some(OriginalHeaderOrder::default())
-            } else {
-                None
-            };
-
-            headers.reserve(headers_len);
-            for header in &headers_indices[..headers_len] {
-                // SAFETY: array is valid up to `headers_len`
-                let header = unsafe { header.assume_init_ref() };
-                let name = header_name!(&slice[header.name.0..header.name.1]);
-                let value = header_value!(slice.slice(header.value.0..header.value.1));
-
-                if let header::CONNECTION = name {
-                    // keep_alive was previously set to default for Version
-                    if keep_alive {
-                        // HTTP/1.1
-                        keep_alive = !headers::connection_close(&value);
+                    let header = unsafe { header.assume_init_ref() };
+                    #[cfg(feature = "rgnix-extensions")]
+                    let name = if CACHED {
+                        header_name!(
+                            &slice[header.name.0..header.name.1],
+                            ctx.header_names,
+                            _index
+                        )
                     } else {
-                        // HTTP/1.0
-                        keep_alive = headers::connection_keep_alive(&value);
+                        header_name!(&slice[header.name.0..header.name.1])
+                    };
+                    #[cfg(not(feature = "rgnix-extensions"))]
+                    let name = header_name!(&slice[header.name.0..header.name.1]);
+                    let value = header_value!(slice.slice(header.value.0..header.value.1));
+
+                    if let header::CONNECTION = name {
+                        // keep_alive was previously set to default for Version
+                        if keep_alive {
+                            // HTTP/1.1
+                            keep_alive = !headers::connection_close(&value);
+                        } else {
+                            // HTTP/1.0
+                            keep_alive = headers::connection_keep_alive(&value);
+                        }
                     }
+
+                    if let Some(header_case_map) = &mut header_case_map {
+                        header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                    }
+
+                    #[cfg(feature = "ffi")]
+                    if let Some(header_order) = &mut header_order {
+                        header_order.append(&name);
+                    }
+
+                    headers.append(name, value);
                 }
 
-                if let Some(header_case_map) = &mut header_case_map {
-                    header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                let mut extensions = http::Extensions::default();
+
+                if let Some(header_case_map) = header_case_map {
+                    extensions.insert(header_case_map);
                 }
 
                 #[cfg(feature = "ffi")]
-                if let Some(header_order) = &mut header_order {
-                    header_order.append(&name);
+                if let Some(header_order) = header_order {
+                    extensions.insert(header_order);
                 }
 
-                headers.append(name, value);
-            }
+                if let Some(reason) = reason {
+                    // Safety: httparse ensures that only valid reason phrase bytes are present in this
+                    // field.
+                    let reason = crate::ext::ReasonPhrase::from_bytes_unchecked(reason);
+                    extensions.insert(reason);
+                }
 
-            let mut extensions = http::Extensions::default();
+                let head = MessageHead {
+                    version,
+                    subject: status,
+                    headers,
+                    extensions,
+                };
+                if let Some((decode, is_upgrade)) = Client::decoder(&head, ctx.req_method)? {
+                    return Ok(Some(ParsedMessage {
+                        head,
+                        decode,
+                        expect_continue: false,
+                        // a client upgrade means the connection can't be used
+                        // again, as it is definitely upgrading.
+                        keep_alive: keep_alive && !is_upgrade,
+                        wants_upgrade: is_upgrade,
+                    }));
+                }
 
-            if let Some(header_case_map) = header_case_map {
-                extensions.insert(header_case_map);
-            }
+                if head.subject.is_informational() {
+                    if let Some(callback) = ctx.on_informational {
+                        callback.call(head.into_response(()));
+                    }
+                }
 
-            #[cfg(feature = "ffi")]
-            if let Some(header_order) = header_order {
-                extensions.insert(header_order);
-            }
-
-            if let Some(reason) = reason {
-                // Safety: httparse ensures that only valid reason phrase bytes are present in this
-                // field.
-                let reason = crate::ext::ReasonPhrase::from_bytes_unchecked(reason);
-                extensions.insert(reason);
-            }
-
-            let head = MessageHead {
-                version,
-                subject: status,
-                headers,
-                extensions,
-            };
-            if let Some((decode, is_upgrade)) = Client::decoder(&head, ctx.req_method)? {
-                return Ok(Some(ParsedMessage {
-                    head,
-                    decode,
-                    expect_continue: false,
-                    // a client upgrade means the connection can't be used
-                    // again, as it is definitely upgrading.
-                    keep_alive: keep_alive && !is_upgrade,
-                    wants_upgrade: is_upgrade,
-                }));
-            }
-
-            if head.subject.is_informational() {
-                if let Some(callback) = ctx.on_informational {
-                    callback.call(head.into_response(()));
+                // Parsing a 1xx response could have consumed the buffer, check if
+                // it is empty now...
+                if buf.is_empty() {
+                    return Ok(None);
                 }
             }
-
-            // Parsing a 1xx response could have consumed the buffer, check if
-            // it is empty now...
-            if buf.is_empty() {
-                return Ok(None);
-            }
+        }
+        #[cfg(feature = "rgnix-extensions")]
+        let cached = ctx.header_names.mismatches > 0;
+        #[cfg(not(feature = "rgnix-extensions"))]
+        let cached = false;
+        if cached {
+            parse_inner::<true>(buf, ctx)
+        } else {
+            parse_inner::<false>(buf, ctx)
         }
     }
 
@@ -1679,6 +1787,86 @@ mod tests {
 
     use super::*;
 
+    #[cfg(all(feature = "server", feature = "client", feature = "rgnix-extensions"))]
+    #[test]
+    fn persistent_names_preserve_order_values_framing_and_bounds() {
+        fn parse(
+            server: bool,
+            headers: &str,
+            cache: &mut HeaderNameCache,
+        ) -> Result<HeaderMap, Parse> {
+            let prefix = if server {
+                "GET / HTTP/1.1"
+            } else {
+                "HTTP/1.1 200 OK"
+            };
+            let mut raw = BytesMut::from(format!("{prefix}\r\n{headers}\r\n").as_bytes());
+            let ctx = ParseContext {
+                cached_headers: &mut None,
+                header_names: cache,
+                req_method: &mut Some(Method::GET),
+                h1_parser_config: Default::default(),
+                h1_max_headers: None,
+                preserve_header_case: true,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
+                h09_responses: false,
+                on_informational: &mut None,
+            };
+            if server {
+                Server::parse(&mut raw, ctx).map(|m| m.unwrap().head.headers)
+            } else {
+                Client::parse(&mut raw, ctx).map(|m| m.unwrap().head.headers)
+            }
+        }
+        for server in [true, false] {
+            let mut cache = HeaderNameCache::default();
+            let first = parse(server, "X-One: a\r\nX-Two: b\r\n", &mut cache).unwrap();
+            let second = parse(server, "x-oNE: c\r\nX-TWO: d\r\n", &mut cache).unwrap();
+            assert_eq!(first["x-one"], "a");
+            assert_eq!(second["x-one"], "c");
+            assert_eq!(second["x-two"], "d");
+            let reordered = parse(server, "X-Two: e\r\nX-One: f\r\n", &mut cache).unwrap();
+            assert_eq!(reordered["x-one"], "f");
+            let repeated = parse(server, "X-One: g\r\nX-One: h\r\n", &mut cache).unwrap();
+            assert_eq!(
+                repeated
+                    .get_all("x-one")
+                    .iter()
+                    .map(|v| v.as_bytes())
+                    .collect::<Vec<_>>(),
+                vec![b"g", b"h"]
+            );
+            assert!(parse(
+                server,
+                "Content-Length: 1\r\nContent-Length: 2\r\n",
+                &mut cache
+            )
+            .is_err());
+            assert!(parse(server, "X Invalid: nope\r\n", &mut cache).is_err());
+            let mut wide = String::new();
+            for i in 0..70 {
+                wide.push_str(&format!("X-{i}: {i}\r\n"));
+            }
+            let result = parse(server, &wide, &mut cache).unwrap();
+            assert_eq!(result["x-69"], "69");
+            let long = format!("x-{}", "a".repeat(70));
+            let result = parse(server, &format!("{long}: long\r\n"), &mut cache).unwrap();
+            assert_eq!(result[long.as_str()], "long");
+            assert!(cache.entries.len() <= 64);
+            assert!(cache
+                .entries
+                .iter()
+                .flatten()
+                .all(|(wire, name)| wire.len() <= 64 && name.as_str().len() <= 64));
+            for i in 0..100 {
+                let name = format!("x-changing-{i}");
+                let result = parse(server, &format!("{name}: {i}\r\n"), &mut cache).unwrap();
+                assert_eq!(result[name.as_str()], i.to_string());
+            }
+        }
+    }
+
     #[cfg(feature = "server")]
     #[test]
     fn test_parse_request() {
@@ -1688,6 +1876,8 @@ mod tests {
         let msg = Server::parse(
             &mut raw,
             ParseContext {
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: &mut Default::default(),
                 cached_headers: &mut None,
                 req_method: &mut method,
                 h1_parser_config: Default::default(),
@@ -1716,6 +1906,8 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
@@ -1740,6 +1932,8 @@ mod tests {
     fn test_parse_request_errors() {
         let mut raw = BytesMut::from("GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
@@ -1761,6 +1955,8 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(H09_RESPONSE);
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
@@ -1784,6 +1980,8 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(H09_RESPONSE);
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
@@ -1811,6 +2009,8 @@ mod tests {
         let mut h1_parser_config = ParserConfig::default();
         h1_parser_config.allow_spaces_after_header_name_in_responses(true);
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config,
@@ -1835,6 +2035,8 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON);
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
@@ -1863,6 +2065,8 @@ mod tests {
         h1_parser_config.allow_multiple_spaces_in_request_line_delimiters(true);
         let mut method = None;
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut method,
             h1_parser_config,
@@ -1890,6 +2094,8 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(REQUEST_WITH_MULTIPLE_SPACES_IN_REQUEST_LINE);
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
@@ -1910,6 +2116,8 @@ mod tests {
         let mut raw =
             BytesMut::from("GET / HTTP/1.1\r\nHost: hyper.rs\r\nX-BREAD: baguette\r\n\r\n");
         let ctx = ParseContext {
+            #[cfg(feature = "rgnix-extensions")]
+            header_names: &mut Default::default(),
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
@@ -1949,6 +2157,8 @@ mod tests {
             Server::parse(
                 &mut bytes,
                 ParseContext {
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: &mut Default::default(),
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
@@ -1970,6 +2180,8 @@ mod tests {
             Server::parse(
                 &mut bytes,
                 ParseContext {
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: &mut Default::default(),
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
@@ -2210,6 +2422,8 @@ mod tests {
             assert!(Client::parse(
                 &mut bytes,
                 ParseContext {
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: &mut Default::default(),
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
@@ -2231,6 +2445,8 @@ mod tests {
             Client::parse(
                 &mut bytes,
                 ParseContext {
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: &mut Default::default(),
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
                     h1_parser_config: Default::default(),
@@ -2252,6 +2468,8 @@ mod tests {
             Client::parse(
                 &mut bytes,
                 ParseContext {
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: &mut Default::default(),
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
@@ -2822,6 +3040,8 @@ mod tests {
         let parsed = Client::parse(
             &mut bytes,
             ParseContext {
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: &mut Default::default(),
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
                 h1_parser_config: Default::default(),
@@ -2866,6 +3086,8 @@ mod tests {
                 let result = Server::parse(
                     &mut bytes,
                     ParseContext {
+                        #[cfg(feature = "rgnix-extensions")]
+                        header_names: &mut Default::default(),
                         cached_headers: &mut None,
                         req_method: &mut None,
                         h1_parser_config: Default::default(),
@@ -2890,6 +3112,8 @@ mod tests {
                 let result = Client::parse(
                     &mut bytes,
                     ParseContext {
+                        #[cfg(feature = "rgnix-extensions")]
+                        header_names: &mut Default::default(),
                         cached_headers: &mut None,
                         req_method: &mut None,
                         h1_parser_config: Default::default(),
@@ -3010,6 +3234,8 @@ mod tests {
         Server::parse(
             &mut bytes,
             ParseContext {
+                #[cfg(feature = "rgnix-extensions")]
+                header_names: &mut Default::default(),
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
@@ -3093,6 +3319,8 @@ mod tests {
             let mut msg = Server::parse(
                 &mut raw,
                 ParseContext {
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: &mut Default::default(),
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
@@ -3138,6 +3366,8 @@ mod tests {
             let mut msg = Server::parse(
                 &mut raw,
                 ParseContext {
+                    #[cfg(feature = "rgnix-extensions")]
+                    header_names: &mut Default::default(),
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),

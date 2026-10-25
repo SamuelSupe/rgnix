@@ -20,7 +20,7 @@
 
 请求匹配使用 UTF-8、百分号解码、合并重复 `/`、消除 `.` 和 `..` 后的路径；无效编码、NUL、反斜线及逃逸根的路径返回 400。v0.1 不支持 NGINX 接受的任意非 UTF-8 路径字节。
 
-HTTP/1.1 必须有且仅有一个合法、非空的 Host；缺失、重复或非法值在路由前返回 400，绝对 URI 请求也会校验 Host。HTTP/2 支持 `:authority`，HTTP/1.0 可以省略 Host。合法但未配置的主机名仍使用默认虚拟主机。Pingora 会拒绝 Host 与请求目标 authority 不一致的请求；NGINX 对绝对 URI 使用目标主机并忽略不同的 Host，此处保留 Pingora 更严格的校验。
+HTTP/1.1 必须有且仅有一个合法、非空的 Host；缺失、重复或非法值在路由前返回 400，绝对 URI 请求也会校验 Host。HTTP/2 和 HTTP/3 支持 `:authority`，HTTP/1.0 可以省略 Host。合法但未配置的主机名仍使用默认虚拟主机。两种内核均在路由前拒绝绝对 URI 或 `:authority` 与 Host 的主机名/端口冲突，避免路由、认证与上游 Host 使用不同身份。Hyper 的 HTTP/1/2 校验忽略 ASCII 大小写，端口表示必须一致，冲突返回 400；HTTP/3 的矛盾字段由协议层以 `H3_MESSAGE_ERROR` 拒绝。NGINX 对绝对 URI 使用目标主机并忽略不同的 Host，此处采用更严格的校验。原始 CONNECT 的目标仍按已配置后端校验，其 Host 不作为上游 HTTP 头转发。
 
 ## 代理
 
@@ -29,8 +29,13 @@ HTTP/1.1 必须有且仅有一个合法、非空的 Host；缺失、重复或非
 | `proxy_pass URL` | L，1 个固定 http/https URL | 支持命名 upstream 与地址；URI 可选；拒绝变量、用户名密码、fragment 和 URL query；查询修改用 RGL `req.set_query` |
 | `proxy_set_header NAME VALUE` | H/S/L，2 参数 | 当前层出现任意一条则替换整组继承；空值删除。默认 Host 为上游 authority；Pingora 自动连接复用，与 NGINX 默认 `Connection: close` 不同 |
 | `proxy_connect_timeout TIME` | H/S/L，1 参数 | 60s，继承 |
-| `proxy_read_timeout TIME` | H/S/L，1 参数 | 60s，继承；也用作已匹配请求的下游读超时 |
-| `proxy_send_timeout TIME` | H/S/L，1 参数 | 60s，继承；也用作下游写超时 |
+| `proxy_read_timeout TIME` | H/S/L，1 参数 | 60s，继承；上游读空闲期限 |
+| `proxy_send_timeout TIME` | H/S/L，1 参数 | 60s，继承；上游写空闲期限 |
+| `client_header_timeout TIME` | H/S，1 参数 | 60s，继承；路由前采用监听默认虚拟主机值。Hyper H1 总期限；H2 前言、分片 frame header 和 HEADERS/CONTINUATION 使用总期限，超时关闭连接；H3 按请求解析首部总期限。Pingora H1 使用读空闲期限 |
+| `client_body_timeout TIME` | H/S/L，1 参数 | 60s，继承；下游请求体读空闲期限，独立于上游超时 |
+| `send_timeout TIME` | H/S/L，1 参数 | 60s，继承；下游响应写空闲期限 |
+| `rgnix_connect on/off` | H/S/L，1 参数 | 默认 off，继承；仅 Hyper，允许 CONNECT 到已选配置后端/端点，目标不匹配返回 403 |
+| `http3 on/off` | H/S，1 参数 | 默认 off，继承；需 http3 构建特性和 Hyper 运行模式；开启对应 TLS 监听的同端口 UDP；细节见 Hyper 文档 |
 | `proxy_http_version 1.1\|2\|auto` | H/S/L，1 参数 | 默认 1.1；2 支持 TLS ALPN H2 和明文 prior-knowledge h2c；auto 仅 TLS 协商 H2/H1 |
 | `proxy_ssl_name NAME` | H/S/L，1 参数 | 固定 SNI/验证名；默认 URL 主机或 upstream 名，无变量 |
 | `proxy_ssl_trusted_certificate FILE` | H/S/L，1 参数 | 自定义 PEM CA，继承；默认系统信任根；连接池按 CA 和协议隔离 |
@@ -54,7 +59,7 @@ URI 示例（location `/api/`，请求 `/api/a%20b?x=1`）：
 
 以 `/` 结尾的代理 location 对对应无尾斜杠路径返回 301，并使用该 location 的响应头及 keepalive 配置；精确 location 可覆盖该行为。相对 Location、重定向响应体、Server 头与 NGINX 不要求逐字节相同。差分验收比较状态、Location 的路径/query、正文及相关头。
 
-请求/响应流式转发，无磁盘缓冲或响应缓存。WebSocket 保留升级所需头；SSE 无整包聚合。客户端 TLS ALPN 支持 HTTP/2，上游可用 H1/H2/h2c，支持 gRPC 双向流和 trailers；无 HTTP/3。默认加权轮询，也支持最少活动请求、哈希、黏性 Cookie、主动 HTTP 健康检查及被动故障隔离。失败请求最多尝试一个上游；已发送的部分流无法回滚。
+请求/响应流式转发，无磁盘缓冲或响应缓存。WebSocket 保留升级所需头；SSE 无整包聚合。客户端 TLS ALPN 支持 HTTP/2，上游可用 H1/H2/h2c，支持 gRPC 双向流和 trailers。可选 Hyper 构建支持 HTTP/3 下游及 H2 WebSocket/h2c Upgrade/受限 CONNECT；默认 Pingora 不支持这些扩展，见 [Hyper 范围](hyper-experimental.md)。默认加权轮询，也支持最少活动请求、哈希、黏性 Cookie、主动 HTTP 健康检查及被动故障隔离。失败请求最多尝试一个上游；已发送的部分流无法回滚。
 
 HTTP/1.1 请求同时带 Transfer-Encoding 和 Content-Length 时，沿用 Pingora 的分帧校验和连接关闭决定：接受的 chunked 请求移除冲突 Content-Length，响应后关闭连接。正常 chunked 请求可继续复用；HTTP/1.0 未显式请求 keep-alive 时关闭连接。
 

@@ -1,0 +1,293 @@
+{
+  "date": "2026-10-25",
+  "head": "1bd974f0f302b39268b4128e8e5a7785593a7176",
+  "branch": "experiment/replace-pingora",
+  "scope": "Current working tree including pre-existing uncommitted changes; no live Kubernetes cluster test or release qualification in this run",
+  "environment": {
+    "runtime": "OrbStack Ubuntu",
+    "architecture": "aarch64",
+    "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535",
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+    "features": "http3,jemalloc",
+    "profile": "dev, opt-level=1"
+  },
+  "checks": {
+    "check.sh": {
+      "exit_code": 0,
+      "rust_passed": 38,
+      "rust_ignored": 1,
+      "http_hyper": 107,
+      "ingress_mock_api": 57,
+      "otlp": 32,
+      "log_rotation": 20,
+      "product_features": 115,
+      "migration": 10
+    },
+    "clippy_all_targets": {
+      "exit_code": 0,
+      "warnings_denied": true
+    },
+    "http_pingora": 107,
+    "hyper_integration": 84,
+    "protocols_including_http3": 76,
+    "python_compile": true,
+    "git_diff_check": true
+  },
+  "gateway_fixture": "The permanent websocket_deadline_probe and origin from scripts/gateway_e2e.py were run against runtime::serve with synthetic Gateway policies in an isolated local fixture, three repetitions per mode. This does not exercise Kubernetes reconciliation.",
+  "gateway_transport": [
+    {
+      "mode": "request",
+      "authority_conflict_status": 400,
+      "private_status": 403,
+      "matching_status": 200,
+      "websocket": [
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.16185813199263066
+        },
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15950891800457612
+        },
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15662824403261766
+        }
+      ],
+      "request_and_backend_permits_released": true
+    },
+    {
+      "mode": "backend",
+      "authority_conflict_status": 400,
+      "private_status": 403,
+      "matching_status": 200,
+      "websocket": [
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15738795400829986
+        },
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15773782902397215
+        },
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15648728498490527
+        }
+      ],
+      "request_and_backend_permits_released": true
+    },
+    {
+      "mode": "earlier_backend",
+      "authority_conflict_status": 400,
+      "private_status": 403,
+      "matching_status": 200,
+      "websocket": [
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15790162194753066
+        },
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15840674797073007
+        },
+        {
+          "closed": true,
+          "echoes": 5,
+          "seconds": 0.15669599297689274
+        }
+      ],
+      "request_and_backend_permits_released": true
+    },
+    {
+      "mode": "disabled",
+      "authority_conflict_status": 400,
+      "private_status": 403,
+      "matching_status": 200,
+      "websocket": [
+        {
+          "closed": false,
+          "echoes": 20,
+          "seconds": 0.6264007650315762
+        },
+        {
+          "closed": false,
+          "echoes": 19,
+          "seconds": 0.6065548799815588
+        },
+        {
+          "closed": false,
+          "echoes": 20,
+          "seconds": 0.6233337570447475
+        }
+      ],
+      "request_and_backend_permits_released": true
+    }
+  ],
+  "rollout_callback_measurement": {
+    "profile": "Rust 1.90.0, opt-level=1, http3,jemalloc; local callback microbenchmark; not gateway throughput",
+    "binary_sha256": {
+      "before": "871cbb162024e107b560bf9baad09fdb1f7feb170cf1704e4c1c77d9efad8e29",
+      "after": "c329159425b8abe47aab6d6760962bf5c66e5d4c501f2d8ccd37a98ae63d83c5"
+    },
+    "records": [
+      {
+        "round": 1,
+        "variant": "before",
+        "p95": false,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 3.237
+      },
+      {
+        "round": 1,
+        "variant": "before",
+        "p95": true,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 145.227
+      },
+      {
+        "round": 1,
+        "variant": "after",
+        "p95": false,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 0.045
+      },
+      {
+        "round": 1,
+        "variant": "after",
+        "p95": true,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 0.048
+      },
+      {
+        "round": 2,
+        "variant": "after",
+        "p95": false,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 0.047
+      },
+      {
+        "round": 2,
+        "variant": "after",
+        "p95": true,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 0.055
+      },
+      {
+        "round": 2,
+        "variant": "before",
+        "p95": false,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 3.504
+      },
+      {
+        "round": 2,
+        "variant": "before",
+        "p95": true,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 138.637
+      },
+      {
+        "round": 3,
+        "variant": "before",
+        "p95": false,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 3.132
+      },
+      {
+        "round": 3,
+        "variant": "before",
+        "p95": true,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 120.112
+      },
+      {
+        "round": 3,
+        "variant": "after",
+        "p95": false,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 0.036
+      },
+      {
+        "round": 3,
+        "variant": "after",
+        "p95": true,
+        "calls": 1000,
+        "window_samples": 10000,
+        "elapsed_ms": 0.038
+      }
+    ],
+    "median_ms_per_1000_calls": {
+      "before": {
+        "false": 3.237,
+        "true": 138.637
+      },
+      "after": {
+        "false": 0.045,
+        "true": 0.048
+      }
+    }
+  },
+  "preservation": {
+    "baseline_files": 1071,
+    "unchanged_existing_files": 1058,
+    "edited_existing_files": [
+      "CHANGELOG.md",
+      "docs/compatibility.md",
+      "docs/gateway-api.md",
+      "docs/governance.md",
+      "scripts/gateway_e2e.py",
+      "scripts/hyper_integration.py",
+      "scripts/hyper_protocols.py",
+      "scripts/integration.py",
+      "src/proxy/hyper/body.rs",
+      "src/proxy/hyper/tunnel.rs",
+      "src/proxy/mod.rs",
+      "src/rollout.rs",
+      "src/rollout/progress.rs"
+    ],
+    "pre_existing_deletions_retained": [
+      "scripts/global_rate_limit.py",
+      "src/traffic/global.rs"
+    ]
+  },
+  "source_sha256": {
+    "src/proxy/hyper/body.rs": "3b1233f32a0cb7eb765bb878a706272fa282c25bb44f4c7083b4d85b2d88dc4e",
+    "src/proxy/hyper/tunnel.rs": "3d1ed29fda314ff9459910909d198f7ec6826956ccfbfcb79a1e861ee77c7f9c",
+    "src/proxy/mod.rs": "2fe80e766c2ea946dabaae590e4c194b6acadd1d8b42d7367e31804da8d72d18",
+    "src/rollout.rs": "e0200429db1dd6789f8ef2f0a772e96bbcff5032db5f5a87b5fade3fb8127688",
+    "src/rollout/progress.rs": "48677024bd9287dd0a35226f4a988dfadcde8e01643e4a02518b53a73d78ce06"
+  },
+  "tested_executable_sha256": "9d22ec22a183a33d3be6acbd1f1ec1ed871eaf51a2a8c16081bc5f1c9231b330",
+  "log_sha256": {
+    "check.log": "0b31394eae5ea48d57c04203e24b45eed4642c7ce5a0d54742d529063506e5d5",
+    "clippy.log": "f6358855db69673159d4871bc661218ed16f6000e0caf55682145e9ece342428",
+    "integration-pingora.log": "a522184c68256b01946c5825728cfa8518ddf79cd6fa68dec540b1d225ad8a11",
+    "hyper-integration-final.log": "0a042f21af4b4d8252bf2a90e18cdb330e2443d7f61ebff9d3fd857721ad3290",
+    "protocols-final.log": "ab50b3cbe7bacdd53b63962162faae00caf6b2a4086bcc3c62c93a4e0ce36eaa",
+    "gateway-transport.log": "16076197209c9cbcd6c1c432349fdae8dc3e3d8fcae8cc7c4eb47467e15098ba"
+  },
+  "fixture_adjustments": [
+    "HTTP/1 absolute-form success fixture now sends the same explicit port in Host; a separate conflict case must receive 400.",
+    "The HTTP/3 client fixture observes H3_MESSAGE_ERROR stream reset for contradictory authority fields; it must not wait for an HTTP response."
+  ]
+}

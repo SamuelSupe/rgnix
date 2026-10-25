@@ -2,68 +2,124 @@ use anyhow::Result;
 use prometheus::{HistogramVec, IntCounter, IntCounterVec, Registry};
 
 pub struct Traffic {
-    pub request_bytes: IntCounter,
-    pub response_bytes: IntCounter,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_connections: prometheus::IntGauge,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_pending: prometheus::IntGauge,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_admission_rejected: IntCounterVec,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_accept_errors: IntCounterVec,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_rejected: IntCounter,
+    #[cfg(feature = "hyper-experimental")]
+    pub hyper_handshake_errors: IntCounter,
+    pub request_bytes: super::sharded::Counter,
+    pub response_bytes: super::sharded::Counter,
     pub failures: IntCounterVec,
-    pub upstream_connect: HistogramVec,
-    pub upstream_headers: HistogramVec,
-    pub upstream_duration: HistogramVec,
+    pub upstream_connect: super::sharded::HistogramVec,
+    pub upstream_headers: super::sharded::HistogramVec,
+    pub upstream_duration: super::sharded::HistogramVec,
     pub inspection: HistogramVec,
     pub inspection_bytes: IntCounterVec,
-    pub shared_limit: IntCounterVec,
-    pub shared_limit_seconds: HistogramVec,
 }
 
 impl Traffic {
     pub fn new(registry: &Registry) -> Result<Self> {
+        Self::with_workers(registry, 1)
+    }
+
+    pub fn with_workers(registry: &Registry, workers: usize) -> Result<Self> {
         use prometheus::*;
+        let request_bytes = super::sharded::Counter::new(
+            "rgnix_request_body_bytes_total",
+            "Downstream body bytes read, accounted when a request finishes",
+            workers,
+        )?;
+        registry.register(Box::new(request_bytes.clone()))?;
+        let response_bytes = super::sharded::Counter::new(
+            "rgnix_response_body_bytes_total",
+            "Downstream body bytes sent, accounted when a request finishes",
+            workers,
+        )?;
+        registry.register(Box::new(response_bytes.clone()))?;
+        let upstream_connect = super::sharded::HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rgnix_upstream_connect_seconds",
+                "Successful upstream connection acquisition, including TLS or pool reuse",
+            ),
+            &["backend", "reused"],
+            workers,
+        )?;
+        registry.register(Box::new(upstream_connect.clone()))?;
+        let upstream_headers = super::sharded::HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rgnix_upstream_header_seconds",
+                "Time from upstream selection to response headers, including request upload",
+            ),
+            &["backend"],
+            workers,
+        )?;
+        registry.register(Box::new(upstream_headers.clone()))?;
+        let upstream_duration = super::sharded::HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rgnix_upstream_request_seconds",
+                "Time from upstream selection to request completion",
+            ),
+            &["backend"],
+            workers,
+        )?;
+        registry.register(Box::new(upstream_duration.clone()))?;
         Ok(Self {
-            shared_limit: register_int_counter_vec_with_registry!(
-                "rgnix_global_rate_limit_total",
-                "Shared admission decisions and dependency fallbacks",
-                &["result"],
+            #[cfg(feature = "hyper-experimental")]
+            hyper_connections: register_int_gauge_with_registry!(
+                "rgnix_hyper_connections",
+                "Accepted Hyper connections including handshakes and tunnels",
                 registry
             )?,
-            shared_limit_seconds: register_histogram_vec_with_registry!(
-                "rgnix_global_rate_limit_seconds",
-                "Shared admission time including coordinator access",
-                &["result"],
+            #[cfg(feature = "hyper-experimental")]
+            hyper_pending: register_int_gauge_with_registry!(
+                "rgnix_hyper_pending_connections",
+                "Connections waiting for handshake or initial request headers",
                 registry
             )?,
-            request_bytes: register_int_counter_with_registry!(
-                "rgnix_request_body_bytes_total",
-                "Downstream body bytes read, accounted when a request finishes",
+            #[cfg(feature = "hyper-experimental")]
+            hyper_admission_rejected: register_int_counter_vec_with_registry!(
+                "rgnix_hyper_admission_rejections_total",
+                "Rejected connection admission by bounded policy reason",
+                &["reason"],
                 registry
             )?,
-            response_bytes: register_int_counter_with_registry!(
-                "rgnix_response_body_bytes_total",
-                "Downstream body bytes sent, accounted when a request finishes",
+            #[cfg(feature = "hyper-experimental")]
+            hyper_accept_errors: register_int_counter_vec_with_registry!(
+                "rgnix_hyper_accept_errors_total",
+                "Listener accept failures by recovery class",
+                &["reason"],
                 registry
             )?,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_rejected: register_int_counter_with_registry!(
+                "rgnix_hyper_connection_rejections_total",
+                "Hyper connections rejected by the process connection budget",
+                registry
+            )?,
+            #[cfg(feature = "hyper-experimental")]
+            hyper_handshake_errors: register_int_counter_with_registry!(
+                "rgnix_hyper_tls_handshake_errors_total",
+                "Failed downstream TLS handshakes",
+                registry
+            )?,
+            request_bytes,
+            response_bytes,
             failures: register_int_counter_vec_with_registry!(
                 "rgnix_request_failures_total",
                 "Requests ending with a proxy error, including failures after response headers",
                 &["source", "reason"],
                 registry
             )?,
-            upstream_connect: register_histogram_vec_with_registry!(
-                "rgnix_upstream_connect_seconds",
-                "Successful upstream connection acquisition, including TLS or pool reuse",
-                &["backend", "reused"],
-                registry
-            )?,
-            upstream_headers: register_histogram_vec_with_registry!(
-                "rgnix_upstream_header_seconds",
-                "Time from upstream selection to response headers, including request upload",
-                &["backend"],
-                registry
-            )?,
-            upstream_duration: register_histogram_vec_with_registry!(
-                "rgnix_upstream_request_seconds",
-                "Time from upstream selection to request completion",
-                &["backend"],
-                registry
-            )?,
+            upstream_connect,
+            upstream_headers,
+            upstream_duration,
             inspection: register_histogram_vec_with_registry!(
                 "rgnix_body_inspection_seconds",
                 "Request body inspection duration and outcome",

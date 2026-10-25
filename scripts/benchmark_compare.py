@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import resource
 import signal
 import ssl
@@ -47,7 +48,7 @@ def command_output(command, accepted=(0,)):
 def tree_stats(pid):
     """Count master and workers; PSS avoids counting shared pages once per worker."""
     pending, seen = [pid], set()
-    cpu, rss, pss = 0, 0, 0
+    user, system, rss, pss = 0, 0, 0, 0
     while pending:
         current = pending.pop()
         if current in seen:
@@ -55,13 +56,17 @@ def tree_stats(pid):
         seen.add(current)
         base = Path(f"/proc/{current}")
         stat = (base / "stat").read_text().rsplit(")", 1)[1].split()
-        cpu += int(stat[11]) + int(stat[12])
+        user += int(stat[11])
+        system += int(stat[12])
         memory = dict(line.split(":", 1) for line in (base / "smaps_rollup").read_text().splitlines()[1:])
         rss += int(memory["Rss"].split()[0])
         pss += int(memory["Pss"].split()[0])
         # NGINX forks workers from its main thread; rgnix has no subprocesses.
         pending.extend(int(child) for child in (base / f"task/{current}/children").read_text().split())
-    return {"cpu_seconds": cpu / os.sysconf("SC_CLK_TCK"), "rss_kib": rss, "pss_kib": pss, "pids": sorted(seen)}
+    frequency = os.sysconf("SC_CLK_TCK")
+    return {"cpu_seconds": (user + system) / frequency,
+            "user_cpu_seconds": user / frequency, "system_cpu_seconds": system / frequency,
+            "rss_kib": rss, "pss_kib": pss, "pids": sorted(seen)}
 
 
 def cpu_snapshot():
@@ -85,11 +90,14 @@ def thread_stats(pids):
     return result
 
 
-def start(command, log_path):
+def start(command, log_path, transport=None):
     environment = os.environ.copy()
     for key in ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]:
         environment.pop(key, None)
     environment["RUST_LOG"] = "warn"
+    if transport:
+        environment["RGNIX_ENGINE"] = transport
+        environment["RGNIX_EXPERIMENTAL_HYPER"] = str(transport == "hyper").lower()
     with log_path.open("w") as log:
         return subprocess.Popen(command, stdout=log, stderr=log, start_new_session=True, env=environment)
 
@@ -105,12 +113,24 @@ def stop(process):
             raise RuntimeError(f"benchmark process {process.pid} failed to terminate gracefully")
 
 
-def measure(args, url, script, concurrency, seconds, server, origin):
+def connection_counts(port):
+    status, _, body = request(port, "/metrics")
+    if status != 200:
+        raise RuntimeError("benchmark metrics endpoint failed")
+    counts = {"new": 0.0, "reused": 0.0}
+    for labels, value in re.findall(r'^rgnix_upstream_connect_seconds_count\{([^}]+)\} ([0-9.eE+-]+)$', body.decode(), re.MULTILINE):
+        kind = "reused" if 'reused="true"' in labels else "new"
+        counts[kind] += float(value)
+    return counts
+
+
+def measure(args, url, script, concurrency, seconds, server, origin, metrics_port=None):
     command = [*affinity(args.client_cpus), args.wrk, "-t", str(args.client_threads), "-c", str(concurrency),
                "-d", f"{seconds}s", "--timeout", "5s", "--latency", "-s", str(script), "-H", "Host: localhost"]
     if args.connection_close:
         command.extend(["-H", "Connection: close"])
     command.append(url)
+    connections_before = connection_counts(metrics_port) if metrics_port else None
     before = tree_stats(server.pid)
     threads_before = thread_stats(before["pids"])
     origin_before = tree_stats(origin.pid)
@@ -152,6 +172,8 @@ def measure(args, url, script, concurrency, seconds, server, origin):
     server_seconds = after["cpu_seconds"] - before["cpu_seconds"]
     result.update(server_cpu_cores=server_seconds / result["seconds"],
                   server_cpu_us_per_request=server_seconds * 1e6 / max(1, result["requests"]),
+                  server_user_cpu_us_per_request=(after["user_cpu_seconds"] - before["user_cpu_seconds"]) * 1e6 / max(1, result["requests"]),
+                  server_system_cpu_us_per_request=(after["system_cpu_seconds"] - before["system_cpu_seconds"]) * 1e6 / max(1, result["requests"]),
                   origin_cpu_cores=(origin_after["cpu_seconds"] - origin_before["cpu_seconds"]) / result["seconds"],
                   client_cpu_cores=(usage_after.ru_utime + usage_after.ru_stime - usage_before.ru_utime - usage_before.ru_stime) / result["seconds"],
                   peak_pss_kib=peak_pss, peak_rss_kib=peak_rss, server_pids=after["pids"],
@@ -160,6 +182,9 @@ def measure(args, url, script, concurrency, seconds, server, origin):
                                   for tid, value in threads_after.items()},
                   load_before=load_before, load_after=Path("/proc/loadavg").read_text().strip(),
                   command=command, wrk_output=stdout)
+    if connections_before is not None:
+        connections_after = connection_counts(metrics_port)
+        result["upstream_checkouts"] = {key: connections_after[key] - value for key, value in connections_before.items()}
     return result
 
 
@@ -230,14 +255,14 @@ ngx.print(string.rep("x", 1024))
     origin_dir.mkdir()
     origin_conf = nginx_prelude(origin_dir, args.origin_workers)
     for name in ["primary", "canary"]:
+        body_location = f"  location = /route-body {{ content_by_lua_file {directory}/origin.lua; }}\n" if "body" in args.cases else ""
         origin_conf += f'''server {{
   listen 127.0.0.1:{ports[name]};
   root {data};
   add_header X-Origin {name} always;
   add_header X-Observed-Selected $http_x_selected always;
   location = /route-header {{ return 200 "{'x' * 1024}"; }}
-  location = /route-body {{ content_by_lua_file {directory}/origin.lua; }}
-}}
+{body_location}}}
 '''
     (origin_dir / "nginx.conf").write_text(origin_conf + "}\n")
 
@@ -263,12 +288,15 @@ proxy_next_upstream off;
             config += f"upstream {name} {{ server 127.0.0.1:{ports[name]}; {keepalive} }}\n"
         if engine == "nginx":
             config += "map $http_x_canary $selected_upstream { default primary; 1 canary; }\n"
+        # Match rgnix's per-worker HTTP listeners so a persistent client cohort
+        # cannot be accepted entirely by one shared-socket NGINX worker.
+        reuseport = " reuseport" if engine != "rgnix" and args.workers > 1 else ""
         tls_listener = "" if args.plain_proxy else f'''listen 127.0.0.1:{ports['tls']} ssl;
 ssl_certificate {directory}/cert.pem;
 ssl_certificate_key {directory}/key.pem;
 '''
         config += f'''server {{
-listen 127.0.0.1:{ports['http']};
+listen 127.0.0.1:{ports['http']}{reuseport};
 {tls_listener}server_name localhost;
 root {data};
 location = /return {{ return 200 ok; }}
@@ -315,9 +343,9 @@ end
         (directory / f"wrk-{case}.lua").write_text(setup + REPORT_LUA)
 
 
-def preflight(engine, ports, plain_proxy=False):
+def preflight(engine, ports, plain_proxy=False, cases=CASES):
     results = []
-    for case in CASES:
+    for case in cases:
         if (engine in MINIMAL_ENGINES or plain_proxy) and case not in ["proxy-1k", "proxy-16k"]:
             continue
         if engine == "nginx" and case == "body":
@@ -338,7 +366,7 @@ def preflight(engine, ports, plain_proxy=False):
             expected = b"ok" if case == "return" else b"x" * (16384 if case in ["static", "proxy-16k"] else 1024)
             assert status == 200 and payload == expected, (engine, case, status, payload[:100])
             results.append(f"{case}:200 and exact payload")
-    if engine in MINIMAL_ENGINES or plain_proxy:
+    if engine in MINIMAL_ENGINES or plain_proxy or "tls" not in cases:
         return results
     import socket
     with socket.create_connection(("127.0.0.1", ports["tls"])) as raw:
@@ -399,8 +427,6 @@ def main():
     args = parser.parse_args()
     if args.plain_proxy and any(case not in ["proxy-1k", "proxy-16k"] for case in args.cases):
         parser.error("--plain-proxy requires --cases proxy-1k and/or proxy-16k")
-    if "hyper" in [args.rgnix_transport, args.candidate_transport] and not args.plain_proxy:
-        parser.error("product Hyper transport requires --plain-proxy")
     if args.engines and "candidate" in args.engines and not args.candidate:
         parser.error("--engines candidate requires --candidate")
     if args.engines and "pingora" in args.engines and not args.pingora:
@@ -430,6 +456,8 @@ def main():
     binaries = {name: str(getattr(args, name).resolve()) for name in ["rgnix", "nginx", "openresty"]}
     if args.candidate:
         binaries["candidate"] = str(args.candidate.resolve())
+    product_help = {name: command_output([binary, "serve", "--help"])
+                    for name, binary in binaries.items() if name in ("rgnix", "candidate")}
     for name in sorted(MINIMAL_ENGINES):
         binary = getattr(args, name.replace("-", "_"))
         if binary:
@@ -451,7 +479,9 @@ def main():
     try:
         wait_for(lambda: request(ports["primary"], "/proxy-1k")[0], 200)
         # Establish upstream headroom separately; body baseline includes the same 64 KiB upload.
-        for case in (args.cases if args.plain_proxy else ["proxy-1k", "proxy-16k", "header", "body"]):
+        origin_cases = list(dict.fromkeys("proxy-1k" if case == "tls" else case for case in args.cases
+                                         if case in ["proxy-1k", "proxy-16k", "header", "body", "tls"]))
+        for case in origin_cases:
             url = f"http://127.0.0.1:{ports['primary']}{PATHS[case]}"
             script = directory / f"wrk-{case}.lua"
             measure(args, url, script, max(args.concurrency), args.warmup, origin, origin)
@@ -485,22 +515,29 @@ def main():
                                "--shutdown-grace-seconds", "0", "--shutdown-timeout-seconds", "5"]
                     if getattr(args, f"{engine}_transport") == "hyper":
                         command.append("--experimental-hyper")
+                        if "--hyper-max-handshakes-per-ip" in product_help[engine]:
+                            # The benchmark intentionally originates all traffic from one trusted IP.
+                            command += ["--hyper-max-handshakes", "4096", "--hyper-max-handshakes-per-ip", "4096",
+                                        "--hyper-max-connections-per-ip", "16384"]
                 elif engine in MINIMAL_ENGINES:
                     command = [binaries[engine], "--listen", f"127.0.0.1:{ports['http']}",
                                "--upstream", f"127.0.0.1:{ports['primary']}", "--workers", str(args.workers)]
                 else:
                     command = [binaries[engine], "-p", str(engine_dir), "-c", str(config), "-g", "daemon off;"]
                 suffix = f"-batch{batch_index + 1}" if args.interleave else ""
-                frontend = start([*affinity(args.server_cpus), *command], engine_dir / f"{engine}-process-{round_index + 1}{suffix}.log")
+                output.setdefault("commands", {})[engine] = command
+                transport = args.rgnix_transport if engine == "rgnix" else args.candidate_transport if engine == "candidate" else None
+                frontend = start([*affinity(args.server_cpus), *command], engine_dir / f"{engine}-process-{round_index + 1}{suffix}.log", transport)
                 ready_path = "/readyz" if is_rgnix else "/proxy-1k" if engine in MINIMAL_ENGINES or args.plain_proxy else "/return"
                 wait_for(lambda: request(ports["admin"] if is_rgnix else ports["http"], ready_path)[0], 200, timeout=30)
-                output["preflight"][f"{engine}/round{round_index + 1}{suffix}"] = preflight(engine, ports, args.plain_proxy)
+                output["preflight"][f"{engine}/round{round_index + 1}{suffix}"] = preflight(engine, ports, args.plain_proxy, args.cases)
                 for concurrency, case in batch:
                     url = f"{'https' if case == 'tls' else 'http'}://127.0.0.1:{ports['tls' if case == 'tls' else 'http']}{PATHS[case]}"
                     script = directory / f"wrk-{case}.lua"
-                    warmup = measure(args, url, script, concurrency, args.warmup, frontend, origin)
+                    metrics_port = ports["admin"] if is_rgnix else None
+                    warmup = measure(args, url, script, concurrency, args.warmup, frontend, origin, metrics_port)
                     assert not warmup["errors"] and warmup["requests"], warmup
-                    run = measure(args, url, script, concurrency, args.seconds, frontend, origin)
+                    run = measure(args, url, script, concurrency, args.seconds, frontend, origin, metrics_port)
                     run.update(engine=engine, case=case, concurrency=concurrency, round=round_index + 1)
                     output["runs"].append(run)
                     save_results(output, args.output)

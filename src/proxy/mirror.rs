@@ -2,6 +2,9 @@ use super::*;
 use bytes::BytesMut;
 
 pub(super) struct MirrorRequest {
+    route: Arc<Route>,
+    snapshot: Arc<RuntimeSnapshot>,
+    telemetry: Arc<crate::telemetry::Telemetry>,
     backend: String,
     timeout: std::time::Duration,
     preserve_host: bool,
@@ -18,6 +21,15 @@ impl Proxy {
         session: &mut Session,
         header: &RequestHeader,
         ctx: &mut Context,
+    ) {
+        self.prepare_mirror_headers(header, ctx, session.was_upgraded(), session.is_body_empty());
+    }
+    pub(super) fn prepare_mirror_headers(
+        &self,
+        header: &RequestHeader,
+        ctx: &mut Context,
+        upgraded: bool,
+        empty: bool,
     ) {
         let Some(route) = &ctx.route else {
             return;
@@ -62,7 +74,7 @@ impl Proxy {
         if rand::thread_rng().gen_range(0..denominator) >= numerator {
             return;
         }
-        let skip = session.was_upgraded()
+        let skip = upgraded
             || header.headers.contains_key("upgrade")
             || ctx
                 .request
@@ -97,6 +109,9 @@ impl Proxy {
             return;
         }
         ctx.mirror = Some(Box::new(MirrorRequest {
+            route: route.clone(),
+            snapshot: ctx.snapshot.as_ref().unwrap().clone(),
+            telemetry: self.shared.telemetry.clone(),
             backend: backend.clone(),
             timeout,
             preserve_host,
@@ -110,37 +125,46 @@ impl Proxy {
             _global: global.unwrap(),
             _tenant: tenant.unwrap(),
         }));
-        if session.is_body_empty() {
+        if empty {
             self.send_mirror(ctx);
         }
     }
     pub(super) fn mirror_body(&self, body: &Option<Bytes>, end: bool, ctx: &mut Context) {
-        let Some(mirror) = &mut ctx.mirror else {
-            return;
-        };
-        if let Some(bytes) = body {
-            if mirror.body.len() + bytes.len() > mirror.limit {
-                ctx.mirror = None;
-                self.shared
-                    .telemetry
-                    .mirror_results
-                    .with_label_values(&["skipped"])
-                    .inc();
-                return;
-            }
-            mirror.body.extend_from_slice(bytes);
-        }
-        if end {
-            self.send_mirror(ctx);
-        }
+        feed(&mut ctx.mirror, body.as_ref(), end);
     }
     fn send_mirror(&self, ctx: &mut Context) {
-        let Some(mut mirror) = ctx.mirror.take() else {
+        if let Some(mirror) = ctx.mirror.take() {
+            mirror.send();
+        }
+    }
+}
+
+pub(super) fn feed(mirror: &mut Option<Box<MirrorRequest>>, body: Option<&Bytes>, end: bool) {
+    let Some(active) = mirror else {
+        return;
+    };
+    if let Some(bytes) = body {
+        if active.body.len() + bytes.len() > active.limit {
+            active
+                .telemetry
+                .mirror_results
+                .with_label_values(&["skipped"])
+                .inc();
+            *mirror = None;
             return;
-        };
-        let route = ctx.route.as_ref().unwrap().clone();
-        let snapshot = ctx.snapshot.as_ref().unwrap().clone();
-        let telemetry = self.shared.telemetry.clone();
+        }
+        active.body.extend_from_slice(bytes);
+    }
+    if end && let Some(mirror) = mirror.take() {
+        mirror.send();
+    }
+}
+impl MirrorRequest {
+    fn send(self: Box<Self>) {
+        let route = self.route.clone();
+        let snapshot = self.snapshot.clone();
+        let telemetry = self.telemetry.clone();
+        let mut mirror = self;
         tokio::spawn(async move {
             let result = async {
                 let backend = snapshot

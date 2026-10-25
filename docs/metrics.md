@@ -63,6 +63,7 @@ Counter 在进程重启时清零，使用 `rate()` 或 `increase()`；Gauge 是�
 | 副本发布（v0.4.0） | `rgnix_fleet_reporting_active`、`rgnix_fleet_converged`、`rgnix_fleet_observation_healthy`、`rgnix_fleet_observed_timestamp_seconds`、`rgnix_fleet_errors_total` | 启用 reportReplicas 或存在分阶段发布时自动上报；结合 reporting_active 与时间判断观测故障和陈旧数据 |
 | 副本分布（v0.4.0） | `rgnix_fleet_replicas{state}` | converged/drifted/rejected/reconciling/unready/stale/missing，固定七种状态，不含 Pod 名、原始路径或配置摘要标签 |
 | 实例 | `rgnix_build_info{version,mode,arch,os}` | 恒为 1；`mode` 为 standalone/ingress/gateway |
+| 运行内核 | `rgnix_engine_info{engine}` | 实际运行内核 hyper/pingora，恒为 1；用于核对切换与回退 |
 | 可用性 | `rgnix_healthy`、`rgnix_ready` | 与 `/healthz`、`/readyz` 对应，1 正常/就绪；目标无法抓取请使用 Prometheus 的 `up` |
 | 流量 | `rgnix_requests_total{status}`、`rgnix_request_seconds` | 完成请求数、完整请求耗时 |
 | 路由 | `rgnix_route_requests_total{route,status_class}`、`rgnix_route_request_seconds{route}` | 按配置路由统计；不使用客户端原始路径 |
@@ -80,7 +81,6 @@ Counter 在进程重启时清零，使用 `rate()` 或 `increase()`；Gauge 是�
 | 进程预算 | `rgnix_budget_in_use{budget}`、`rgnix_budget_limit{budget}` | 当前占用和容量，`budget=inflight/plugin/mirror/simulation`；请求槽不等于 TCP 连接数 |
 | 拒绝 | `rgnix_rejected_requests_total{budget}` | 请求、插件、路由速率/并发限制导致的拒绝 |
 | 租户预算 | `rgnix_namespace_budget_in_use{tenant_namespace,resource}`、`rgnix_namespace_budget_limit{tenant_namespace,resource}` | 命名空间 request/plugin/auth/mirror 占用及配额，按进程计数，包含仍被运行快照保留的租户状态 |
-| 共享限流 | `rgnix_global_rate_limit_total{result}`、`rgnix_global_rate_limit_seconds{result}` | 共享准入、429、容量 503 及三种故障降级结果；固定标签，详见[跨副本限流](shared-rate-limits.md) |
 | 租户拒绝 | `rgnix_namespace_rejections_total{namespace,resource}` | 命名空间 request/rate/plugin/auth/mirror 配额拒绝；保持原有 namespace 标签，遇抓取目标同名标签时由 Prometheus 改为 exported_namespace |
 | 限流器 | `rgnix_limiter_entries{tenant_namespace}`、`rgnix_limiter_capacity{tenant_namespace}` | 已分配的速率/并发限流键数与容量；独立模式为 `_standalone` |
 | 插件 | `rgnix_plugin_calls_total`、`rgnix_plugin_errors_total`、`rgnix_plugin_seconds` | 钩子执行次数、trap/非法决策数、执行耗时；请求阶段含实例化 |
@@ -151,3 +151,36 @@ curl -fsS http://127.0.0.1:9090/metrics | promtool check metrics
 # Admission and drain lifecycle metrics
 
 Admission TLS exposes `rgnix_admission_certificate_expiry_timestamp_seconds`, `rgnix_admission_certificate_valid`, and `rgnix_admission_certificate_reload_errors_total`. Use these for certificate expiry and rejected-update alerts. `rgnix_draining` becomes 1 when irreversible connection draining begins. `rgnix_fleet_reporting_active` is 1 when reporting is requested or required by staged rollouts; use it to gate replica-observation alerts when reporting is disabled.
+
+### 实验性 Hyper 连接预算
+
+启用 `hyper-experimental` 构建后注册以下指标。仅 Hyper 业务监听器产生连接观测，管理端口不计入其预算；原生宿主服务心跳仅在启用 Hyper 运行模式后产生。
+
+| 指标 | 含义 |
+|---|---|
+| `rgnix_hyper_connections` | 当前连接数，包括握手、空闲持久连接和 WebSocket |
+| `rgnix_hyper_connection_rejections_total` | 任意连接准入限额导致关闭的新连接总数 |
+| `rgnix_hyper_pending_connections` | 正在握手或等待第一份 TCP 请求首部的连接数 |
+| `rgnix_hyper_admission_rejections_total{reason}` | 固定原因 `process/ip/listener/handshake/handshake_ip` 的准入拒绝数 |
+| `rgnix_hyper_accept_errors_total{reason}` | TCP accept 错误；`resources/transient` 退避重试，`fatal` 触发宿主退出 |
+| `rgnix_hyper_tls_handshake_errors_total` | 下游 TLS 握手失败次数 |
+| `rgnix_runtime_service_healthy{service}` | 原生服务 reactor 心跳是否在配置期限内更新；所有已注册服务正常才能通过健康/就绪检查 |
+| `rgnix_runtime_service_heartbeat_age_seconds{service}` | 各原生服务最后心跳的年龄，服务名称由启动配置限定 |
+| `rgnix_runtime_wakeup_lag_seconds{service}` | 仅在 Hyper 启用 `--hyper-wakeup-probe` 后采样的唤醒延迟直方图；`reference` 为独立线程，其余为已注册原生服务。1 ms 诊断采样会增加开销，不代表请求耗时或宿主暂停的直接证据 |
+
+上游连接获取仍使用 `rgnix_upstream_connect_seconds{backend,reused}`，包含真实池复用标记。详见 [Hyper 数据面](hyper-experimental.md)。
+
+
+请求、路由和上游的热 counter/histogram 使用有界 producer 分片。Hyper
+按所有 H1/H2 监听器的 worker 数量分配独立编号；HTTP/3 运行时另有专用
+范围，线程退出时归还编号，以便阻塞线程回收后重新启动仍不碰撞。控制服务
+不写这些业务指标，因此不额外占用业务分片。每个监听器仍受 1–256 worker 限制，总分片数不再截断为 256。
+Pingora 保留按配置 worker 数量的自动映射。分片内仍用原子操作，抓取时
+合并相同标签的 counter、histogram count/sum 和累计 buckets，不增加 worker
+标签、不延迟 flush、不删除全局或路由耗时，也保留复用连接的 acquisition
+分布。抓取跨指标本来就不是全局原子快照；分片会增加随监听器和运行时线程
+数量增长的内部存储和抓取工作，尚无硬件 HITM 或稳定吞吐收益结论。
+
+普通 Hyper H1 在取得最终响应头时记录接收时间，同时用于响应头耗时与
+已完成连接的闲置过期计算；响应头耗时不再包含随后归还连接池的工作。
+流式响应仍以实际 body 完成时刻开始计算闲置过期，所有精确超时保持原规则。

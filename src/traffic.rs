@@ -1,4 +1,3 @@
-pub(crate) mod global;
 use crate::script::RequestData;
 use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};

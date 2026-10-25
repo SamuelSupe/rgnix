@@ -52,8 +52,6 @@ pub(crate) trait Http1Transaction {
     fn should_read_first() -> bool {
         Self::is_server()
     }
-
-    fn update_date() {}
 }
 
 /// Result newtype for `Http1Transaction::parse`.
@@ -70,6 +68,8 @@ pub(crate) struct ParsedMessage<T> {
 
 pub(crate) struct ParseContext<'a> {
     cached_headers: &'a mut Option<HeaderMap>,
+    #[cfg(feature = "rgnix-extensions")]
+    header_names: &'a mut role::HeaderNameCache,
     req_method: &'a mut Option<Method>,
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,

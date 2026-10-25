@@ -1,3 +1,7 @@
+#[cfg(feature = "rgnix-extensions")]
+type InformationalCallback = crate::ext::OnInformational;
+#[cfg(not(feature = "rgnix-extensions"))]
+type InformationalCallback = ();
 use std::{
     convert::Infallible,
     future::Future,
@@ -418,6 +422,9 @@ where
     body_tx: SendStream<SendBuf<B::Data>>,
     body: B,
     cb: Callback<Request<B>, Response<IncomingBody>>,
+    informational: Option<InformationalCallback>,
+    header_timeout: Option<super::HeaderTimeout>,
+    body_timeout: Option<super::BodyTimeout>,
 }
 
 impl<B: Body> Unpin for FutCtx<B> {}
@@ -533,6 +540,10 @@ where
         let send_stream = if !f.is_connect {
             if !f.eos {
                 let mut pipe = PipeToSendStream::new(f.body, f.body_tx);
+                #[cfg(feature = "rgnix-extensions")]
+                {
+                    pipe = pipe.with_timeout(f.body_timeout);
+                }
 
                 // eagerly see if the body pipe is ready and
                 // can thus skip allocating in the executor
@@ -571,6 +582,8 @@ where
                     send_stream: Some(send_stream),
                     exec: self.executor.clone(),
                     cancel_tx: Some(cancel_tx),
+                    informational: f.informational,
+                    header_timeout: f.header_timeout,
                 },
                 call_back: Some(f.cb),
             },
@@ -591,6 +604,8 @@ pin_project! {
         send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
         exec: E,
         cancel_tx: Option<oneshot::Sender<()>>,
+        informational: Option<InformationalCallback>,
+        header_timeout: Option<super::HeaderTimeout>,
     }
 }
 
@@ -613,7 +628,35 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut().project();
 
-        let result = ready!(this.fut.poll(cx));
+        #[cfg(feature = "rgnix-extensions")]
+        if let Some(callback) = this.informational {
+            while let Poll::Ready(Some(response)) =
+                this.fut.as_mut().get_mut().poll_informational(cx)
+            {
+                match response {
+                    Ok(response) => callback.call(response),
+                    // The final response future carries the same stream error.
+                    // Check our timeout cause before returning a peer reset.
+                    Err(_) => break,
+                }
+            }
+        }
+        let response = this.fut.poll(cx);
+        #[cfg(feature = "rgnix-extensions")]
+        if this
+            .header_timeout
+            .as_mut()
+            .is_some_and(|t| t.failed() || (response.is_pending() && t.expired(cx)))
+        {
+            if let Some(cancel) = this.cancel_tx.take() {
+                let _ = cancel.send(());
+            }
+            return Poll::Ready(Err((
+                crate::Error::new_io(std::io::Error::from(std::io::ErrorKind::TimedOut)),
+                None,
+            )));
+        }
+        let result = ready!(response);
 
         let ping = this.ping.take().expect("Future polled twice");
         let send_stream = this.send_stream.take().expect("Future polled twice");
@@ -732,6 +775,21 @@ where
                         req.extensions_mut().insert(protocol.into_inner());
                     }
 
+                    #[cfg(feature = "rgnix-extensions")]
+                    let informational =
+                        req.extensions_mut().remove::<crate::ext::OnInformational>();
+                    #[cfg(not(feature = "rgnix-extensions"))]
+                    let informational = None;
+                    #[cfg(feature = "rgnix-extensions")]
+                    let (header_timeout, body_timeout) = req
+                        .extensions_mut()
+                        .remove::<crate::ext::H2Timeouts>()
+                        .map_or((None, None), |policy| {
+                            let (header, body) = super::HeaderTimeout::pair(policy);
+                            (Some(header), Some(body))
+                        });
+                    #[cfg(not(feature = "rgnix-extensions"))]
+                    let (header_timeout, body_timeout) = (None, None);
                     let (fut, body_tx) = match self.h2_tx.send_request(req, !is_connect && eos) {
                         Ok(ok) => ok,
                         Err(err) => {
@@ -751,6 +809,9 @@ where
                         body_tx,
                         body,
                         cb,
+                        informational,
+                        header_timeout,
+                        body_timeout,
                     };
 
                     // Check poll_ready() again.

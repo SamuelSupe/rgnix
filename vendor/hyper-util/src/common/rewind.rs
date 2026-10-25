@@ -56,6 +56,16 @@ impl<T> Write for Rewind<T>
 where
     T: Write + Unpin,
 {
+    #[cfg(all(feature = "rgnix-sendfile", target_os = "linux"))]
+    fn poll_sendfile(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+        file: &std::fs::File,
+        offset: u64,
+        length: usize,
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_sendfile(cx, file, offset, length)
+    }
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,

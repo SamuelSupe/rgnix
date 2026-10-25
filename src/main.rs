@@ -8,6 +8,10 @@ use rgnix::{
 };
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
+#[cfg(all(feature = "jemalloc", target_os = "linux", target_env = "gnu"))]
+#[global_allocator]
+static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[derive(Parser)]
 #[command(
     name = "rgnix",
@@ -76,6 +80,8 @@ enum Command {
     Check {
         #[arg(short = 'c', long)]
         config: PathBuf,
+        #[command(flatten)]
+        engine: runtime::EngineOptions,
     },
     Diff {
         #[arg(short = 'c', long)]
@@ -283,14 +289,19 @@ fn main() -> Result<()> {
             );
             Ok(())
         }
-        Command::Check { config: path } => {
+        Command::Check {
+            config: path,
+            engine,
+        } => {
             let compiler = Compiler::new()?;
             let snapshot = config::load(&path, &compiler, 1)?;
+            let engine = runtime::check(&snapshot, &engine)?;
             println!(
-                "configuration valid: {} listeners, {} virtual hosts, {} backends",
+                "configuration valid: {} listeners, {} virtual hosts, {} backends, engine={}",
                 snapshot.listeners.len(),
                 snapshot.hosts.len(),
-                snapshot.backends.len()
+                snapshot.backends.len(),
+                engine.name()
             );
             Ok(())
         }

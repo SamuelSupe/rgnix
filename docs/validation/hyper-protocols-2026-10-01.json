@@ -1,0 +1,145 @@
+{
+  "date": "2026-10-01",
+  "environment": "OrbStack Ubuntu Linux aarch64; rustc 1.90.0",
+  "features": [
+    "http3",
+    "jemalloc"
+  ],
+  "profile": "dev",
+  "binary_sha256": "2665edd0d6cd81fcd4bfa70950355c9d632b1de294ff5533b5c2329c37c159b1",
+  "source_manifest_sha256": "1d1f5721d75a8c8802d521953e8990df20d1eb9d959c19e22bc09563d7e313a2",
+  "protocols": {
+    "passed": 69,
+    "checks": [
+      "Hyper runs without the Pingora process host",
+      "HTTP/1 CONNECT reaches only the configured endpoint",
+      "CONNECT forwards both directions",
+      "CONNECT rejects arbitrary destinations",
+      "HTTP/2 opens simultaneous WebSocket tunnels",
+      "HTTP/2 WebSocket streams remain isolated",
+      "WebSocket supports HTTP/2 upstreams",
+      "h2c upgrade delivers the original request exactly once",
+      "h2c upgrade accepts subsequent HTTP/2 requests",
+      "h2c consumes and forwards its initial POST body",
+      "h2c initial request applies RGL body routing",
+      "h2c caps its negotiation body",
+      "HTTP/1 WebSocket negotiates /ws-h2",
+      "HTTP/1 WebSocket transfers /ws-h2",
+      "HTTP/1 WebSocket negotiates /ws-auto",
+      "HTTP/1 WebSocket transfers /ws-auto",
+      "HTTP/2 supports configured TCP CONNECT",
+      "HTTP/2 CONNECT carries opaque bytes",
+      "fragmented HTTP/2 headers complete alongside an active tunnel",
+      "HTTP/2 incomplete header total deadline survives active tunnels",
+      "fragmented HTTP/2 headers complete alongside an active tunnel after h2c",
+      "HTTP/2 incomplete header total deadline survives active tunnels after h2c",
+      "quiet active HTTP/2 streams outlive connection idle deadlines",
+      "client_body_timeout returns a bounded HTTP error",
+      "client_header_timeout closes incomplete headers",
+      "sendfile sends a complete file with correct framing",
+      "sendfile preserves a bounded range",
+      "sendfile preserves HEAD semantics",
+      "sendfile preserves pipelined response order",
+      "sendfile truncation closes an incomplete response",
+      "sendfile failure leaves the listener available",
+      "TLS resumes within the active certificate generation",
+      "TLS publication invalidates old sessions",
+      "TLS 1.3 resumes within the current generation",
+      "mTLS issues no resumption tickets or reusable sessions",
+      "invalid QUIC Initial cannot stop the server",
+      "HTTP/3 negotiates TLS and serves the shared route",
+      "HTTP/3 forwards interim responses before the final response",
+      "HTTP/3 rejects truncated uploads",
+      "HTTP/3 uses compiled RGL prefix body inspection",
+      "HTTP/3 multiplexes streamed uploads without truncation",
+      "HTTP/3 CONNECT forwards opaque bytes and half-close",
+      "HTTP/3 tunnels stream beyond the bridge buffer without truncation",
+      "HTTP/3 upstream half-close preserves the client upload direction",
+      "HTTP/3 CONNECT rejects arbitrary destinations",
+      "HTTP/3 CONNECT refuses HTTP body framing",
+      "HTTP/3 WebSocket forwards through /ws",
+      "HTTP/3 WebSocket forwards through /ws-h2",
+      "HTTP/3 WebSocket forwards through /ws-auto",
+      "HTTP/3 WebSocket enforces route access rules",
+      "HTTP/3 WebSocket executes RGL before opening the upstream",
+      "HTTP/3 active tunnels retain their route concurrency lease",
+      "HTTP/3 cancellation releases the tunnel concurrency lease",
+      "HTTP/3 idle tunnel failures reset their stream instead of sending a successful FIN",
+      "HTTP/3 unknown CONNECT protocol returns 501",
+      "HTTP/3 rejected tunnels do not disrupt sibling requests",
+      "HTTP/3 issues bounded session resumption tickets",
+      "HTTP/3 resumption tickets do not authorize early data",
+      "HTTP/3 resumes within its current TLS generation without early data",
+      "HTTP/3 publication invalidates previous TLS tickets",
+      "HTTP/3 shared SNI listener serves its public host",
+      "HTTP/3 resumed public sessions cannot access the mTLS sibling host",
+      "HTTP/3 adding client credentials cannot upgrade an anonymous resumption ticket",
+      "HTTP/3 fresh authenticated handshakes reach the mTLS sibling host",
+      "HTTP/3 mTLS accepts the configured client CA",
+      "HTTP/3 authenticated sessions receive resumption tickets",
+      "HTTP/3 mTLS resumes with the original peer identity",
+      "HTTP/3 CA rotation revokes clients on an existing connection",
+      "native host exits within its drain deadline"
+    ],
+    "log": "protocols-final-complete.log"
+  },
+  "hyper_integration": {
+    "result": "PASS",
+    "passed": 57,
+    "log": "hyper-complete.log"
+  },
+  "shared_checks": {
+    "result": "PASS",
+    "core_integration": 101,
+    "product_features": 115,
+    "otlp": 32,
+    "log_rotation": 20,
+    "migration": 10,
+    "shared_rate_limit": 12,
+    "scope": "real local sockets and simulated Kubernetes API; not a cluster qualification",
+    "log": "shared-checks-accepted.log"
+  },
+  "unit": {
+    "result": "PASS",
+    "passed": 25,
+    "ignored": 1
+  },
+  "clippy": {
+    "result": "PASS",
+    "dependency_warnings": 9,
+    "log": "clippy-complete.log"
+  },
+  "nginx_parity": {
+    "result": "PASS",
+    "passed": 49,
+    "nginx_version": "1.28.0",
+    "log": "nginx-parity-complete.log"
+  },
+  "not_run": [
+    "new performance comparison",
+    "Kubernetes deployment with this binary",
+    "native amd64",
+    "cross physical host",
+    "browser HTTP/3",
+    "long soak",
+    "official Gateway conformance"
+  ],
+  "default_pingora_checks": {
+    "result": "PASS",
+    "features": [],
+    "log": "default-checks.log",
+    "scope": "default build and complete regression; ran before the final HTTP/3-only Alt-Svc guard"
+  },
+  "hyper_without_http3": {
+    "result": "COMPILE PASS",
+    "features": [
+      "hyper-experimental"
+    ],
+    "log": "hyper-only-check.log"
+  },
+  "informational_queue_unit": {
+    "result": "PASS",
+    "passed": 1,
+    "log": "hints-unit.log"
+  }
+}

@@ -26,6 +26,12 @@ Changes in `src/client/legacy/client.rs`:
   connection future; a miss retains its registered waiter and runs the original
   checkout/connect race in a boxed future. Expiration, poisoned connections,
   cancellation cleanup and retry policy still use the original pool logic.
+- Hash the private pool key's ASCII-folded authority in bounded batches. The
+  default randomized map hasher remains in use; scheme, literal port and the
+  authority's case-insensitive equality are unchanged. This avoids one hasher
+  update per authority byte without allocating a normalized key. No hashes are
+  persisted or transferred between pools. Keep mixed-case, IPv6, long-authority
+  and scheme/port-isolation checks when updating this patch.
 
 The request box adds one allocation; the cold connection path adds one more.
 The client state has one shared allocation per client, instead of repeated
@@ -34,3 +40,11 @@ copy, allocation and behavioral evidence; the product transport disables retries
 See `docs/validation-hyper-prepared-2026-09-28.md` and
 `docs/validation-hyper-pool-2026-09-28.md` in the root repository. Fewer counted
 operations do not by themselves establish a throughput or tail-latency gain.
+
+
+`src/client/legacy/pool.rs` exposes the existing shared idle-budget reservation
+as an RAII permit. The product's inline HTTP/1 pool uses the same counter as
+legacy H1/H2 clients, listeners and retained configuration generations. Every
+cached connection must own a permit; checkout/eviction releases it. A full
+budget first evicts this client's oldest idle entry, matching legacy policy,
+and must never disable the hard process-wide bound.

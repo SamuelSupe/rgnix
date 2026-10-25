@@ -1,0 +1,787 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "kubectl.kubernetes.io/restartedAt": "2026-10-25T14:31:48+08:00"
+        },
+        "creationTimestamp": "2026-10-25T06:31:48Z",
+        "generateName": "capacity-544bbb4cf7-",
+        "generation": 1,
+        "labels": {
+          "app.kubernetes.io/instance": "capacity",
+          "app.kubernetes.io/name": "rgnix",
+          "pod-template-hash": "544bbb4cf7"
+        },
+        "name": "capacity-544bbb4cf7-l58mk",
+        "namespace": "rgnix-capacity-qa",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "capacity-544bbb4cf7",
+            "uid": "51469df2-30f4-424d-b48b-ba84f1a010bb"
+          }
+        ],
+        "resourceVersion": "20278",
+        "uid": "6143001c-825f-4439-9433-2b79e0067496"
+      },
+      "spec": {
+        "containers": [
+          {
+            "args": [
+              "gateway",
+              "--gateway=rgnix-capacity-qa/gateway",
+              "--http-port=80",
+              "--https-port=443",
+              "--watch-namespace=rgnix-capacity-qa",
+              "--publish-service=rgnix-capacity-qa/capacity",
+              "--threads=2",
+              "--engine=hyper",
+              "--experimental-hyper",
+              "--hyper-max-connections=16384",
+              "--hyper-max-connections-per-ip=16384",
+              "--hyper-max-connections-per-listener=0",
+              "--hyper-max-handshakes=4096",
+              "--hyper-max-handshakes-per-ip=4096",
+              "--hyper-worker-stall-timeout-seconds=5",
+              "--upstream-keepalive-pool-size=128",
+              "--drain-file=/var/run/rgnix/drain",
+              "--shutdown-grace-seconds=5",
+              "--shutdown-timeout-seconds=25",
+              "--report-replicas",
+              "--max-inflight=4096",
+              "--max-plugin-instances=32",
+              "--upstream-max-fails=0",
+              "--upstream-fail-timeout-secs=10",
+              "--real-ip-header=x-forwarded-for"
+            ],
+            "env": [
+              {
+                "name": "RGNIX_ENGINE",
+                "value": "hyper"
+              },
+              {
+                "name": "RGNIX_EXPERIMENTAL_HYPER",
+                "value": "true"
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              }
+            ],
+            "image": "rgnix:production-qa-20261025",
+            "imagePullPolicy": "IfNotPresent",
+            "lifecycle": {
+              "preStop": {
+                "exec": {
+                  "command": [
+                    "/bin/sh",
+                    "-c",
+                    "touch /var/run/rgnix/drain; sleep 10"
+                  ]
+                }
+              }
+            },
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/healthz",
+                "port": "admin",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "rgnix",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              },
+              {
+                "containerPort": 8443,
+                "name": "https",
+                "protocol": "TCP"
+              },
+              {
+                "containerPort": 9090,
+                "name": "admin",
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/readyz",
+                "port": "admin",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 2,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "2",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "startupProbe": {
+              "failureThreshold": 60,
+              "httpGet": {
+                "path": "/healthz",
+                "port": "admin",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 2,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/rgnix",
+                "name": "drain"
+              },
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-tz29x",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "rgnix-qa-20261025-worker",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+          "runAsGroup": 10101,
+          "runAsNonRoot": true,
+          "runAsUser": 10101,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "serviceAccount": "capacity",
+        "serviceAccountName": "capacity",
+        "terminationGracePeriodSeconds": 60,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "topologySpreadConstraints": [
+          {
+            "labelSelector": {
+              "matchExpressions": [
+                {
+                  "key": "pod-template-hash",
+                  "operator": "In",
+                  "values": [
+                    "544bbb4cf7"
+                  ]
+                }
+              ],
+              "matchLabels": {
+                "app.kubernetes.io/instance": "capacity",
+                "app.kubernetes.io/name": "rgnix"
+              }
+            },
+            "matchLabelKeys": [
+              "pod-template-hash"
+            ],
+            "maxSkew": 1,
+            "minDomains": 2,
+            "nodeTaintsPolicy": "Honor",
+            "topologyKey": "kubernetes.io/hostname",
+            "whenUnsatisfiable": "DoNotSchedule"
+          }
+        ],
+        "volumes": [
+          {
+            "emptyDir": {},
+            "name": "drain"
+          },
+          {
+            "name": "kube-api-access-tz29x",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:48Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:48Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:50Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:50Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:48Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://b6941818f91439b827c592e816773978b30cc46f9dfbf6dec72821a52136e149",
+            "image": "docker.io/library/rgnix:production-qa-20261025",
+            "imageID": "sha256:8ff9c8406b342bdaa67ba1e3e18c638f628c93ba77744907f62601c2f3521fc0",
+            "lastState": {},
+            "name": "rgnix",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "2",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-25T06:31:48Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 10101,
+                "supplementalGroups": [
+                  10101
+                ],
+                "uid": 10101
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/rgnix",
+                "name": "drain"
+              },
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-tz29x",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "192.168.107.3",
+        "hostIPs": [
+          {
+            "ip": "192.168.107.3"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.2.24",
+        "podIPs": [
+          {
+            "ip": "10.244.2.24"
+          }
+        ],
+        "qosClass": "Burstable",
+        "startTime": "2026-10-25T06:31:48Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "kubectl.kubernetes.io/restartedAt": "2026-10-25T14:31:48+08:00"
+        },
+        "creationTimestamp": "2026-10-25T06:31:52Z",
+        "generateName": "capacity-544bbb4cf7-",
+        "generation": 1,
+        "labels": {
+          "app.kubernetes.io/instance": "capacity",
+          "app.kubernetes.io/name": "rgnix",
+          "pod-template-hash": "544bbb4cf7"
+        },
+        "name": "capacity-544bbb4cf7-w8xtj",
+        "namespace": "rgnix-capacity-qa",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "capacity-544bbb4cf7",
+            "uid": "51469df2-30f4-424d-b48b-ba84f1a010bb"
+          }
+        ],
+        "resourceVersion": "20333",
+        "uid": "4a3e97a6-1ac1-4272-8360-10a33225dae7"
+      },
+      "spec": {
+        "containers": [
+          {
+            "args": [
+              "gateway",
+              "--gateway=rgnix-capacity-qa/gateway",
+              "--http-port=80",
+              "--https-port=443",
+              "--watch-namespace=rgnix-capacity-qa",
+              "--publish-service=rgnix-capacity-qa/capacity",
+              "--threads=2",
+              "--engine=hyper",
+              "--experimental-hyper",
+              "--hyper-max-connections=16384",
+              "--hyper-max-connections-per-ip=16384",
+              "--hyper-max-connections-per-listener=0",
+              "--hyper-max-handshakes=4096",
+              "--hyper-max-handshakes-per-ip=4096",
+              "--hyper-worker-stall-timeout-seconds=5",
+              "--upstream-keepalive-pool-size=128",
+              "--drain-file=/var/run/rgnix/drain",
+              "--shutdown-grace-seconds=5",
+              "--shutdown-timeout-seconds=25",
+              "--report-replicas",
+              "--max-inflight=4096",
+              "--max-plugin-instances=32",
+              "--upstream-max-fails=0",
+              "--upstream-fail-timeout-secs=10",
+              "--real-ip-header=x-forwarded-for"
+            ],
+            "env": [
+              {
+                "name": "RGNIX_ENGINE",
+                "value": "hyper"
+              },
+              {
+                "name": "RGNIX_EXPERIMENTAL_HYPER",
+                "value": "true"
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              }
+            ],
+            "image": "rgnix:production-qa-20261025",
+            "imagePullPolicy": "IfNotPresent",
+            "lifecycle": {
+              "preStop": {
+                "exec": {
+                  "command": [
+                    "/bin/sh",
+                    "-c",
+                    "touch /var/run/rgnix/drain; sleep 10"
+                  ]
+                }
+              }
+            },
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/healthz",
+                "port": "admin",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "rgnix",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              },
+              {
+                "containerPort": 8443,
+                "name": "https",
+                "protocol": "TCP"
+              },
+              {
+                "containerPort": 9090,
+                "name": "admin",
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/readyz",
+                "port": "admin",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 2,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "2",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "startupProbe": {
+              "failureThreshold": 60,
+              "httpGet": {
+                "path": "/healthz",
+                "port": "admin",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 2,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/rgnix",
+                "name": "drain"
+              },
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-qszt8",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "rgnix-qa-20261025-worker2",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+          "runAsGroup": 10101,
+          "runAsNonRoot": true,
+          "runAsUser": 10101,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "serviceAccount": "capacity",
+        "serviceAccountName": "capacity",
+        "terminationGracePeriodSeconds": 60,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "topologySpreadConstraints": [
+          {
+            "labelSelector": {
+              "matchExpressions": [
+                {
+                  "key": "pod-template-hash",
+                  "operator": "In",
+                  "values": [
+                    "544bbb4cf7"
+                  ]
+                }
+              ],
+              "matchLabels": {
+                "app.kubernetes.io/instance": "capacity",
+                "app.kubernetes.io/name": "rgnix"
+              }
+            },
+            "matchLabelKeys": [
+              "pod-template-hash"
+            ],
+            "maxSkew": 1,
+            "minDomains": 2,
+            "nodeTaintsPolicy": "Honor",
+            "topologyKey": "kubernetes.io/hostname",
+            "whenUnsatisfiable": "DoNotSchedule"
+          }
+        ],
+        "volumes": [
+          {
+            "emptyDir": {},
+            "name": "drain"
+          },
+          {
+            "name": "kube-api-access-qszt8",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:53Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:52Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:54Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:54Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-25T06:31:52Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://defa6e70661ce0892bd80d62c39c09d063399321b971badfdd56718eae24afe3",
+            "image": "docker.io/library/rgnix:production-qa-20261025",
+            "imageID": "sha256:8ff9c8406b342bdaa67ba1e3e18c638f628c93ba77744907f62601c2f3521fc0",
+            "lastState": {},
+            "name": "rgnix",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "2",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-25T06:31:52Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 10101,
+                "supplementalGroups": [
+                  10101
+                ],
+                "uid": 10101
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/rgnix",
+                "name": "drain"
+              },
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-qszt8",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "192.168.107.4",
+        "hostIPs": [
+          {
+            "ip": "192.168.107.4"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.1.26",
+        "podIPs": [
+          {
+            "ip": "10.244.1.26"
+          }
+        ],
+        "qosClass": "Burstable",
+        "startTime": "2026-10-25T06:31:52Z"
+      }
+    }
+  ],
+  "kind": "List",
+  "metadata": {
+    "resourceVersion": ""
+  }
+}

@@ -9,7 +9,10 @@ repository = "https://github.com/SamuelSupe/rgnix"
 readme = "README.md"
 
 [features]
-hyper-experimental = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:tower-service"]
+default = ["hyper-experimental"]
+hyper-experimental = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:tower-service", "dep:tokio-openssl", "dep:socket2"]
+http3 = ["hyper-experimental", "dep:h3", "dep:h3-quinn", "dep:quinn", "dep:rustls"]
+jemalloc = ["dep:tikv-jemallocator"]
 
 [dependencies]
 anyhow = "1"
@@ -26,8 +29,13 @@ glob = "0.3"
 http = "1"
 httpdate = "1"
 http-body-util = { version = "0.1.5", optional = true }
-hyper = { path = "vendor/hyper", version = "1.11.1", features = ["server", "client", "http1", "rgnix-full-body"], optional = true }
-hyper-util = { path = "vendor/hyper-util", version = "0.1.20", features = ["client-legacy", "http1", "tokio"], optional = true }
+hyper = { path = "vendor/hyper", version = "1.11.1", features = ["server", "client", "http1", "http2", "rgnix-full-body", "rgnix-reuse-buffer", "rgnix-extensions"], optional = true }
+hyper-util = { path = "vendor/hyper-util", version = "0.1.20", features = ["client-legacy", "server-auto", "http1", "http2", "tokio", "rgnix-sendfile"], optional = true }
+h3 = { version = "0.0.8", path = "vendor/h3", optional = true }
+h3-quinn = { version = "0.0.10", optional = true }
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"], optional = true }
+tokio-openssl = { version = "0.6", optional = true }
 tower-service = { version = "0.3", optional = true }
 ipnet = { version = "2", features = ["serde"] }
 hickory-resolver = "0.25"
@@ -45,7 +53,6 @@ pingora = { version = "0.9", features = ["proxy", "openssl"] }
 prometheus = { version = "0.14", features = ["process"] }
 prost = "0.14"
 rand = "0.8"
-redis = { version = "1.7", default-features = false, features = ["tokio-native-tls-comp"] }
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "blocking", "http2"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
@@ -61,11 +68,20 @@ wasmtime = { version = "38", default-features = false, features = ["cranelift", 
 
 [target.'cfg(target_os = "linux")'.dependencies]
 aya = "0.14.0"
+socket2 = { version = "0.6", features = ["all"], optional = true }
+
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+tikv-jemallocator = { version = "0.6.1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }
 
+[[example]]
+name = "gateway_deadlines"
+required-features = ["hyper-experimental"]
+
 [patch.crates-io]
+h3 = { path = "vendor/h3" }
 pingora-core = { path = "vendor/pingora-core" }
 pingora-proxy = { path = "vendor/pingora-proxy" }
 pingora-timeout = { path = "vendor/pingora-timeout" }

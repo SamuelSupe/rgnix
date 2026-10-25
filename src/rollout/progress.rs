@@ -57,21 +57,12 @@ impl State {
     pub(crate) fn sample_report(&self) -> (String, Samples) {
         let progress = self.progress.lock().unwrap_or_else(|e| e.into_inner());
         let key = self.sample_key_at(&progress);
-        let mut result = Samples::default();
         let Some(rule) = &self.policy.rollback else {
-            return (key, result);
+            return (key, Samples::default());
         };
-        let window = self.window.lock().unwrap_or_else(|e| e.into_inner());
-        for (_, failed, elapsed) in window
-            .samples
-            .iter()
-            .filter(|s| s.0.elapsed().as_secs() <= rule.window_seconds)
-        {
-            result.count += 1;
-            result.errors += u64::from(*failed);
-            result.slow += u64::from(rule.max_p95_ms.is_some_and(|limit| *elapsed > limit));
-        }
-        (key, result)
+        let mut window = self.window.lock().unwrap_or_else(|e| e.into_inner());
+        window.prune(Instant::now(), rule);
+        (key, window.totals)
     }
     pub fn policy_hash(&self) -> String {
         use sha2::{Digest, Sha256};
@@ -113,11 +104,9 @@ impl State {
         let changed = current.stage != progress.stage || current.started_at != progress.started_at;
         *current = progress;
         if changed {
-            self.window
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .samples
-                .clear();
+            let mut window = self.window.lock().unwrap_or_else(|e| e.into_inner());
+            window.samples.clear();
+            window.totals = Samples::default();
         }
         Ok(())
     }

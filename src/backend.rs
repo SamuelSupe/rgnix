@@ -84,6 +84,7 @@ pub struct Backend {
     active: AtomicUsize,
     health_revision: AtomicU64,
     pool: Mutex<Pool>,
+    fixed_endpoint: OnceLock<Option<(Endpoint, Arc<State>)>>,
     http_probe_client: OnceLock<reqwest::Client>,
 }
 #[derive(Debug)]
@@ -212,6 +213,7 @@ impl Backend {
             active: AtomicUsize::new(0),
             health_revision: AtomicU64::new(0),
             pool: Mutex::new(pool),
+            fixed_endpoint: OnceLock::new(),
             http_probe_client: OnceLock::new(),
         }
     }

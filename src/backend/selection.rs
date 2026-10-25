@@ -31,6 +31,30 @@ impl Selection {
 
 impl Backend {
     pub fn select(self: &Arc<Self>, key: &str) -> Option<Lease> {
+        let fixed = self.fixed_endpoint.get_or_init(|| {
+            // Numeric origins never change membership. Reuse the pool's health
+            // state so active checks, passive cooldowns and leases stay shared.
+            if self.endpoints.len() != 1
+                || self
+                    .origins
+                    .iter()
+                    .any(|origin| origin.host.parse::<std::net::IpAddr>().is_err())
+            {
+                return None;
+            }
+            self.pool
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .endpoints
+                .first()
+                .cloned()
+        });
+        if let Some(entry) = fixed {
+            if !self.ready(entry, &mut None) {
+                return None;
+            }
+            return self.lease(entry);
+        }
         let mut pool = self.pool.lock().unwrap_or_else(|e| e.into_inner());
         if self.options.max_inflight > 0
             && self.active.load(Ordering::Relaxed) >= self.options.max_inflight
