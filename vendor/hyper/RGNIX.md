@@ -32,6 +32,16 @@ once, but cannot expire that body or renew a partially received header's
 deadline. Keep incomplete/trickling header and persistent-connection checks
 when upgrading this patch.
 
+For HTTP/2 responses, `rgnix-extensions` provides `H2Deadline` alongside the
+existing idle `H2Timeouts`. Its absolute timer is polled by the body send pipe,
+including while a previously-read chunk waits for flow-control capacity. A
+deadline-bound response sends only the portion covered by available capacity,
+retaining its remainder in the pipe instead of h2's unmonitored DATA queue. Expiry
+resets only that stream with CANCEL. Clones share an expiry flag so rgnix can
+record failed completion even when the entire body was buffered before the
+reset. The idle write timer still runs only while DATA waits for capacity;
+waiting for an upstream body does not consume that idle write budget.
+
 With `rgnix-extensions`, a fresh client HTTP/1 connection can be converted with
 `into_inline`. Its single owner submits a request with `start_request`, drives
 headers with `poll_response`, and continues polling the connection while reading

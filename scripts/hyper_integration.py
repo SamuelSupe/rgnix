@@ -196,9 +196,12 @@ location /inline-wrong-name {{ proxy_pass https://secure; proxy_ssl_name wrong.t
         with contextlib.closing(http.client.HTTPConnection("127.0.0.1",port,timeout=3)) as client:
             path="/uri%20encoded?q=a%2Fb&v=one"
             for target in [path,"http://example.test:9999"+path]:
-                client.request("GET",target,headers={"Host":"example.test"})
+                host = "example.test:9999" if target.startswith("http://") else "example.test"
+                client.request("GET",target,headers={"Host":host})
                 response=client.getresponse();value=json.loads(response.read())
                 check("ordinary H1 preserves origin-form path/query and configured Host for "+target,response.status==200 and value["path"]==path and {k.lower():v for k,v in value["headers"].items()}["host"]=="forwarded.example")
+        check("ordinary H1 rejects a port conflict before forwarding",
+              request(port,"http://example.test:9999/",headers={"Host":"example.test"})[0]==400)
         exercise_h1_pool(port,budget)
         status,_,body=request(port,"/inline-secure?q=tls")
         value=json.loads(body)

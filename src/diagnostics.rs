@@ -211,28 +211,9 @@ impl Admin {
             let Ok(_permit) = self.shared.simulations.try_acquire() else {
                 return (429, json!({"error":"simulation budget exhausted"}));
             };
-            if session.req_header().method != http::Method::POST {
-                return (405, json!({"error":"simulation requires POST"}));
-            }
-            session.set_read_timeout(Some(std::time::Duration::from_secs(5)));
-            let mut bytes = Vec::new();
-            loop {
-                match session.read_request_body().await {
-                    Ok(Some(chunk)) if bytes.len() + chunk.len() <= 1024 * 1024 => {
-                        bytes.extend_from_slice(&chunk)
-                    }
-                    Ok(None) => break,
-                    _ => {
-                        return (
-                            413,
-                            json!({"error":"simulation body unavailable or exceeds 1 MiB"}),
-                        );
-                    }
-                }
-            }
-            let input: Simulation = match serde_json::from_slice(&bytes) {
+            let input: Simulation = match read_json(session).await {
                 Ok(input) => input,
-                Err(e) => return (400, json!({"error":e.to_string()})),
+                Err(response) => return response,
             };
             let snapshot = self.shared.snapshot.load_full();
             if !principal.global() {

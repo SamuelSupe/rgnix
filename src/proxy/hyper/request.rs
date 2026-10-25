@@ -82,6 +82,8 @@ pub(super) async fn serve(
         io_failure: connection.failure.clone(),
         connection: Arc::downgrade(&connection),
         deadline: None,
+        error_deadline: None,
+        h2_deadline: None,
         upgrade: None,
     });
     let ctx = &mut guard.ctx;
@@ -151,6 +153,20 @@ pub(super) async fn serve(
     if let Some(status) = response.headers().get("grpc-status") {
         guard.ctx.grpc_status = Some(grpc_status(status));
     }
+    if guard.error.is_some()
+        && guard
+            .response_deadline()
+            .is_some_and(|at| at <= Instant::now())
+    {
+        // An expired operation still owes the client its error response. Bound
+        // that delivery by send_timeout instead of reusing the expired clock.
+        let timeout = guard
+            .ctx
+            .route
+            .as_ref()
+            .map_or(Duration::from_secs(60), |r| r.settings.send_timeout);
+        guard.error_deadline = Instant::now().checked_add(timeout);
+    }
     if guard.ctx.request.method == "HEAD" || [204, 304].contains(&guard.ctx.status) {
         *response.body_mut() = Payload::Full(Full::new(Bytes::new()));
     }
@@ -171,6 +187,13 @@ pub(super) async fn serve(
     .then(|| guard.upgrade.take())
     .flatten();
     if guard.version == http::Version::HTTP_2 {
+        if upgrade.is_none()
+            && let Some(at) = guard.response_deadline()
+        {
+            let deadline = hyper::ext::H2Deadline::new(at);
+            response.extensions_mut().insert(deadline.clone());
+            guard.h2_deadline = Some(deadline);
+        }
         response.extensions_mut().insert(hyper::ext::H2Timeouts {
             read: guard
                 .ctx
@@ -658,6 +681,9 @@ async fn route_request(
         body.set_mirror(ctx.mirror.take());
         request = Request::from_parts(header.as_owned_parts(), body);
     }
+    #[cfg(feature = "http3")]
+    let deadline = guard.response_deadline().map(super::h3::ResponseDeadline);
+    let ctx = &mut guard.ctx;
     if let Some(sender) = request
         .extensions_mut()
         .remove::<hyper::ext::SendInformational>()
@@ -672,6 +698,10 @@ async fn route_request(
             *interim.headers_mut() = response.headers().clone();
             strip_hop_headers(interim.headers_mut());
             interim.extensions_mut().insert(timeouts);
+            #[cfg(feature = "http3")]
+            if let Some(deadline) = deadline {
+                interim.extensions_mut().insert(deadline);
+            }
             let _ = sender.try_send(interim);
         });
     }

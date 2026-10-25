@@ -186,9 +186,26 @@ def h2_header_cases(port):
         peer.socket.close()
 
 
+def h3_connection(quic):
+    from aioquic.h3.connection import H3Connection, HeadersState
+    from aioquic.h3.events import HeadersReceived
+
+    class InterimConnection(H3Connection):
+        def _handle_request_or_push_frame(self, frame_type, frame_data, stream, stream_ended):
+            events = super()._handle_request_or_push_frame(frame_type, frame_data, stream, stream_ended)
+            # aioquic 1.3 treats a second response HEADERS as trailers. A 1xx
+            # section instead leaves the stream waiting for its final response.
+            for event in events:
+                if isinstance(event, HeadersReceived) and 100 <= int(dict(event.headers).get(b":status", b"200")) < 200:
+                    stream.headers_recv_state = HeadersState.INITIAL
+                    stream.content_length = 0
+            return events
+
+    return InterimConnection(quic)
+
+
 async def h3_cases(port, mtls, shared_tls, root, process, config):
     from aioquic.asyncio import connect, QuicConnectionProtocol
-    from aioquic.h3.connection import H3Connection, HeadersState
     from aioquic.h3.events import HeadersReceived, DataReceived as H3Data
     from aioquic.quic.configuration import QuicConfiguration
     from aioquic.quic.connection import QuicConnection
@@ -206,21 +223,10 @@ async def h3_cases(port, mtls, shared_tls, root, process, config):
     await asyncio.sleep(.25)
     check("invalid QUIC Initial cannot stop the server", process.poll() is None)
 
-    class InterimConnection(H3Connection):
-        def _handle_request_or_push_frame(self, frame_type, frame_data, stream, stream_ended):
-            events = super()._handle_request_or_push_frame(frame_type, frame_data, stream, stream_ended)
-            # aioquic 1.3 treats a second response HEADERS as trailers. A 1xx
-            # section instead leaves the stream waiting for its final response.
-            for event in events:
-                if isinstance(event, HeadersReceived) and 100 <= int(dict(event.headers).get(b":status", b"200")) < 200:
-                    stream.headers_recv_state = HeadersState.INITIAL
-                    stream.content_length = 0
-            return events
-
     class Client(QuicConnectionProtocol):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.http = InterimConnection(self._quic)
+            self.http = h3_connection(self._quic)
             self.responses = {}
             self.headers_ready = {}
             self.handshake = None
@@ -232,6 +238,9 @@ async def h3_cases(port, mtls, shared_tls, root, process, config):
                 self.handshake = event
             elif isinstance(event, StreamReset):
                 self.resets[event.stream_id] = event.error_code
+                if event.stream_id in self.responses and event.stream_id not in self.headers_ready:
+                    future = self.responses[event.stream_id][0]
+                    if not future.done(): future.set_exception(ConnectionResetError(event.error_code))
             elif isinstance(event, ConnectionTerminated):
                 for future, _, _ in self.responses.values():
                     if not future.done(): future.set_exception(ConnectionError(event.reason_phrase))
@@ -257,11 +266,12 @@ async def h3_cases(port, mtls, shared_tls, root, process, config):
                 if headers and not future.done():
                     future.set_result((dict(headers), bytes(data)))
 
-        async def get(self, path, data=None, content_length=None, authority="example.test"):
+        async def get(self, path, data=None, content_length=None, authority="example.test", extra=()):
             stream = self._quic.get_next_available_stream_id()
             future = asyncio.get_running_loop().create_future()
             self.responses[stream] = (future, [], bytearray())
             headers = [(b":method", b"POST" if data is not None else b"GET"), (b":scheme", b"https"), (b":authority", authority.encode()), (b":path", path.encode())]
+            headers += list(extra)
             if data is not None:
                 headers += [(b"content-length", str(len(data) if content_length is None else content_length).encode())]
             self.http.send_headers(stream, headers, end_stream=data is None)
@@ -313,6 +323,13 @@ async def h3_cases(port, mtls, shared_tls, root, process, config):
         headers, body = await client.get("/hints")
         check("HTTP/3 forwards interim responses before the final response", client.statuses[statuses_before:] == [b"103", b"102", b"200"] and headers[b":status"] == b"200" and body == b"hinted")
         check("HTTP/3 rejects truncated uploads", (await client.get("/proxy", b"short", content_length=10))[0][b":status"] == b"400")
+        try:
+            await client.get("/health", extra=[(b"host", b"private.test")])
+            raise AssertionError("HTTP/3 accepted a conflicting Host")
+        except ConnectionResetError as error:
+            assert error.args == (0x10E,), error  # H3_MESSAGE_ERROR
+        check("HTTP/3 rejects a conflicting Host without disrupting sibling streams",
+              (await client.get("/health"))[0][b":status"] == b"200")
         headers, body = await client.get("/body", b"route-more-than-prefix")
         check("HTTP/3 uses compiled RGL prefix body inspection", headers[b":status"] == b"201" and body == b"prefix")
         responses = await asyncio.gather(*(client.get("/proxy", bytes([i]) * 32768) for i in range(12)))
@@ -487,6 +504,14 @@ ssl_client_certificate {root}/ca.crt; ssl_verify_client on; return 200 private;
                 check("HTTP/1 CONNECT reaches only the configured endpoint", headers.startswith(b"HTTP/1.1 200"))
                 conn.sendall(b"tunnel"); check("CONNECT forwards both directions", conn.recv(6) == b"tunnel"); conn.close()
                 check("CONNECT rejects arbitrary destinations", request(port, "unconfigured.test:443", "CONNECT", {"Host": "example.test"})[0] == 403)
+                peer = H2Peer(port)
+                peer.connection.config.validate_outbound_headers = False
+                peer.connection.send_headers(1, [(":method", "GET"), (":scheme", "http"), (":authority", "example.test"), (":path", "/health"), ("host", "private.test")], end_stream=True)
+                peer.send(3, "/health")
+                peer.until(lambda events: sum(isinstance(e, ResponseReceived) for e in events) == 2)
+                check("HTTP/2 rejects a conflicting Host without disrupting sibling streams",
+                      {e.stream_id: dict(e.headers)[":status"] for e in peer.events if isinstance(e, ResponseReceived)} == {1: "400", 3: "200"})
+                peer.socket.close()
                 peer = H2Peer(port)
                 peer.until(lambda events: any(isinstance(e, RemoteSettingsChanged) and SettingCodes.ENABLE_CONNECT_PROTOCOL in e.changed_settings for e in events))
                 for stream in [1, 3]:

@@ -79,9 +79,28 @@ pub(super) struct RequestGuard {
     pub io_failure: Arc<AtomicU8>,
     pub connection: Weak<Connection>,
     pub deadline: Option<std::time::Instant>,
+    pub error_deadline: Option<std::time::Instant>,
+    pub h2_deadline: Option<hyper::ext::H2Deadline>,
     pub upgrade: Option<super::tunnel::Tunnel>,
 }
 impl RequestGuard {
+    pub fn response_deadline(&self) -> Option<std::time::Instant> {
+        if self.error_deadline.is_some() {
+            return self.error_deadline;
+        }
+        self.deadline
+            .into_iter()
+            .chain(
+                self.ctx
+                    .route
+                    .as_ref()
+                    .and_then(|r| r.settings.gateway.as_ref())
+                    .and_then(|p| p.timeouts.backend_request)
+                    .and_then(|d| self.ctx.upstream_started?.checked_add(d)),
+            )
+            .min()
+    }
+
     pub fn finish(&mut self, delivered: bool) {
         if self.finished {
             return;
@@ -93,10 +112,13 @@ impl RequestGuard {
             connection.finish_stream(self.keepalive);
         }
         let ctx = &mut self.ctx;
+        if self.error.is_none() && self.h2_deadline.as_ref().is_some_and(|d| d.is_expired()) {
+            self.error = Some(super::super::error(504, "request deadline exceeded"));
+        }
         if !delivered && self.error.is_none() {
             let kind = match self.io_failure.load(Ordering::Relaxed) {
                 1 => pingora::ErrorType::ReadTimedout,
-                2 => pingora::ErrorType::WriteTimedout,
+                2 | super::io::DELIVERY_TIMEOUT => pingora::ErrorType::WriteTimedout,
                 _ => pingora::ErrorType::ConnectionClosed,
             };
             self.error = Some(
@@ -413,10 +435,22 @@ impl ResponseGuard {
             Self::Plain(guard) => guard.route.settings.keepalive,
         }
     }
-    fn set_error(&mut self, error: Box<pingora::Error>) {
+    pub(super) fn set_error(&mut self, error: Box<pingora::Error>) {
         match self {
             Self::Full(guard) => guard.error = Some(error),
             Self::Plain(guard) => guard.error = Some(error),
+        }
+    }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        match self {
+            Self::Full(guard) => guard.response_deadline(),
+            Self::Plain(_) => None,
+        }
+    }
+    fn deadline_reset(&self) -> bool {
+        match self {
+            Self::Full(guard) => guard.h2_deadline.as_ref().is_some_and(|d| d.is_expired()),
+            Self::Plain(_) => false,
         }
     }
     pub(super) fn counts(&self) -> &Counters {
@@ -427,6 +461,16 @@ impl ResponseGuard {
     }
 }
 impl ResponseBody {
+    #[cfg(feature = "http3")]
+    pub fn response_deadline(&self) -> Option<std::time::Instant> {
+        self.guard.as_ref().and_then(ResponseGuard::deadline)
+    }
+    #[cfg(feature = "http3")]
+    pub fn fail_delivery(&mut self, error: Box<pingora::Error>) {
+        if let Some(guard) = &mut self.guard {
+            guard.set_error(error);
+        }
+    }
     #[cfg(feature = "http3")]
     pub fn settings(&self) -> Option<&crate::model::Settings> {
         match self.guard.as_ref()? {
@@ -443,18 +487,7 @@ impl ResponseBody {
     pub fn new(inner: Payload, guard: Box<RequestGuard>, connection: Arc<Connection>) -> Self {
         let done = inner.is_end_stream();
         let deadline = guard
-            .deadline
-            .into_iter()
-            .chain(
-                guard
-                    .ctx
-                    .route
-                    .as_ref()
-                    .and_then(|r| r.settings.gateway.as_ref())
-                    .and_then(|p| p.timeouts.backend_request)
-                    .and_then(|d| guard.ctx.upstream_started?.checked_add(d)),
-            )
-            .min()
+            .response_deadline()
             .map(|until| Box::pin(tokio::time::sleep_until(until.into())));
         let timeout = guard
             .ctx
@@ -580,6 +613,7 @@ impl Drop for ResponseBody {
         // A discarded body owns the permits until here and records cancellation once.
         if let Some(guard) = self.guard.take()
             && self.done
+            && !guard.deadline_reset()
             && guard.version() != http::Version::HTTP_3
         {
             self.connection.queue(guard);

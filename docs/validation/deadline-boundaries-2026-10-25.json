@@ -1,0 +1,1136 @@
+{
+  "date": "2026-10-25",
+  "base": {
+    "branch": "experiment/replace-pingora",
+    "head": "1bd974f",
+    "includes_existing_uncommitted_changes": true
+  },
+  "environment": {
+    "runtime": "OrbStack Ubuntu arm64",
+    "rust": "1.90.0",
+    "profile": "dev opt-level=1",
+    "features": [
+      "http3",
+      "jemalloc"
+    ],
+    "locked": true
+  },
+  "fixes": [
+    "Bound generated error responses with a separate immutable send_timeout delivery deadline after operation expiry, preserving complete 504 and healthy HTTP/2 siblings",
+    "Carry the original earlier Gateway deadline through HTTP/3 informational response writes and reset failed partial header sections",
+    "Use guarded tunnel completion-channel closure to cancel HTTP/3 bridge writes and discard pending bytes on expiry or failure"
+  ],
+  "checks": {
+    "regressions": {
+      "passed": 164,
+      "checks": [
+        "HTTP/2 TCP final flush releases permits at the absolute deadline",
+        "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+        "HTTP/2 TLS final flush releases permits at the absolute deadline",
+        "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+        "HTTP/1 TCP GET preserves the delayed-header response",
+        "HTTP/2 TCP GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after GET timeout",
+        "HTTP/1 TCP HEAD preserves the delayed-header response",
+        "HTTP/2 TCP HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after HEAD timeout",
+        "HTTP/1 TLS GET preserves the delayed-header response",
+        "HTTP/2 TLS GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after GET timeout",
+        "HTTP/1 TLS HEAD preserves the delayed-header response",
+        "HTTP/2 TLS HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after HEAD timeout",
+        "HTTP/2 TCP stalled 504 retains its permit during the bounded error delivery",
+        "HTTP/2 TCP stalled 504 releases permits at its send deadline",
+        "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+        "HTTP/3 blocked delivery leaves sibling streams independent",
+        "HTTP/3 send wait obeys the absolute deadline and releases permits",
+        "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+        "HTTP/3 connection remains usable after the affected stream ends",
+        "HTTP/3 GET /slow completes its response and preserves siblings",
+        "HTTP/3 HEAD /slow-empty completes its response and preserves siblings",
+        "HTTP/3 GET /hint-slow completes its response and preserves siblings",
+        "HTTP/3 blocked hints preserves sibling responses",
+        "HTTP/3 hints resets at the original deadline and releases permits",
+        "HTTP/3 expired hints sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after hints",
+        "HTTP/3 blocked connect preserves sibling responses",
+        "HTTP/3 connect resets at the original deadline and releases permits",
+        "HTTP/3 expired connect sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after connect",
+        "HTTP/3 blocked websocket preserves sibling responses",
+        "HTTP/3 websocket resets at the original deadline and releases permits",
+        "HTTP/3 expired websocket sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after websocket",
+        "HTTP/2 TCP final flush releases permits at the absolute deadline",
+        "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+        "HTTP/2 TLS final flush releases permits at the absolute deadline",
+        "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+        "HTTP/1 TCP GET preserves the delayed-header response",
+        "HTTP/2 TCP GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after GET timeout",
+        "HTTP/1 TCP HEAD preserves the delayed-header response",
+        "HTTP/2 TCP HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after HEAD timeout",
+        "HTTP/1 TLS GET preserves the delayed-header response",
+        "HTTP/2 TLS GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after GET timeout",
+        "HTTP/1 TLS HEAD preserves the delayed-header response",
+        "HTTP/2 TLS HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after HEAD timeout",
+        "HTTP/2 TCP stalled 504 retains its permit during the bounded error delivery",
+        "HTTP/2 TCP stalled 504 releases permits at its send deadline",
+        "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+        "HTTP/3 blocked delivery leaves sibling streams independent",
+        "HTTP/3 send wait obeys the absolute deadline and releases permits",
+        "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+        "HTTP/3 connection remains usable after the affected stream ends",
+        "HTTP/3 GET /slow completes its response and preserves siblings",
+        "HTTP/3 HEAD /slow-empty completes its response and preserves siblings",
+        "HTTP/3 GET /hint-slow completes its response and preserves siblings",
+        "HTTP/3 blocked hints preserves sibling responses",
+        "HTTP/3 hints resets at the original deadline and releases permits",
+        "HTTP/3 expired hints sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after hints",
+        "HTTP/3 blocked connect preserves sibling responses",
+        "HTTP/3 connect resets at the original deadline and releases permits",
+        "HTTP/3 expired connect sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after connect",
+        "HTTP/3 blocked websocket preserves sibling responses",
+        "HTTP/3 websocket resets at the original deadline and releases permits",
+        "HTTP/3 expired websocket sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after websocket",
+        "HTTP/2 TCP final flush releases permits at the absolute deadline",
+        "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+        "HTTP/2 TLS final flush releases permits at the absolute deadline",
+        "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+        "HTTP/1 TCP GET preserves the delayed-header response",
+        "HTTP/2 TCP GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after GET timeout",
+        "HTTP/1 TCP HEAD preserves the delayed-header response",
+        "HTTP/2 TCP HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after HEAD timeout",
+        "HTTP/1 TLS GET preserves the delayed-header response",
+        "HTTP/2 TLS GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after GET timeout",
+        "HTTP/1 TLS HEAD preserves the delayed-header response",
+        "HTTP/2 TLS HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after HEAD timeout",
+        "HTTP/2 TCP stalled 504 retains its permit during the bounded error delivery",
+        "HTTP/2 TCP stalled 504 releases permits at its send deadline",
+        "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+        "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+        "HTTP/3 blocked delivery leaves sibling streams independent",
+        "HTTP/3 send wait obeys the absolute deadline and releases permits",
+        "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+        "HTTP/3 connection remains usable after the affected stream ends",
+        "HTTP/3 GET /slow completes its response and preserves siblings",
+        "HTTP/3 HEAD /slow-empty completes its response and preserves siblings",
+        "HTTP/3 GET /hint-slow completes its response and preserves siblings",
+        "HTTP/3 blocked hints preserves sibling responses",
+        "HTTP/3 hints resets at the original deadline and releases permits",
+        "HTTP/3 expired hints sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after hints",
+        "HTTP/3 blocked connect preserves sibling responses",
+        "HTTP/3 connect resets at the original deadline and releases permits",
+        "HTTP/3 expired connect sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after connect",
+        "HTTP/3 blocked websocket preserves sibling responses",
+        "HTTP/3 websocket resets at the original deadline and releases permits",
+        "HTTP/3 expired websocket sends no more data after credit resumes",
+        "HTTP/3 accepts another stream after websocket",
+        "HTTP/2 TCP disabled deadlines retain stalled work",
+        "HTTP/2 TCP disabled deadlines allow delivery after reading resumes",
+        "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+        "HTTP/2 TLS disabled deadlines retain stalled work",
+        "HTTP/2 TLS disabled deadlines allow delivery after reading resumes",
+        "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+        "HTTP/1 TCP GET preserves the delayed-header response",
+        "HTTP/2 TCP GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after GET timeout",
+        "HTTP/1 TCP HEAD preserves the delayed-header response",
+        "HTTP/2 TCP HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TCP accepts another stream after HEAD timeout",
+        "HTTP/1 TLS GET preserves the delayed-header response",
+        "HTTP/2 TLS GET completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after GET timeout",
+        "HTTP/1 TLS HEAD preserves the delayed-header response",
+        "HTTP/2 TLS HEAD completes the timeout response and unexpired sibling",
+        "HTTP/2 TLS accepts another stream after HEAD timeout",
+        "HTTP/3 blocked delivery leaves sibling streams independent",
+        "HTTP/3 disabled deadlines keep blocked delivery active",
+        "HTTP/3 disabled deadlines allow complete delivery after credit resumes",
+        "HTTP/3 disabled absolute deadlines retain the independent send timeout",
+        "HTTP/3 connection remains usable after the affected stream ends",
+        "HTTP/3 GET /slow completes its response and preserves siblings",
+        "HTTP/3 HEAD /slow-empty completes its response and preserves siblings",
+        "HTTP/3 GET /hint-slow completes its response and preserves siblings",
+        "HTTP/3 blocked hints preserves sibling responses",
+        "HTTP/3 disabled deadlines retain blocked hints",
+        "HTTP/3 disabled deadlines allow hints to complete",
+        "HTTP/3 disabled absolute deadlines retain the hints send timeout",
+        "HTTP/3 accepts another stream after hints",
+        "HTTP/3 blocked connect preserves sibling responses",
+        "HTTP/3 disabled deadlines retain blocked connect",
+        "HTTP/3 disabled deadlines allow connect to complete",
+        "HTTP/3 disabled absolute deadlines retain the connect send timeout",
+        "HTTP/3 accepts another stream after connect",
+        "HTTP/3 blocked websocket preserves sibling responses",
+        "HTTP/3 disabled deadlines retain blocked websocket",
+        "HTTP/3 disabled deadlines allow websocket to complete",
+        "HTTP/3 disabled absolute deadlines retain the websocket send timeout",
+        "HTTP/3 accepts another stream after websocket"
+      ],
+      "measurements": [
+        {
+          "mode": "request",
+          "tcp": {
+            "seconds": 0.6587666339999032,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "tls": {
+            "seconds": 0.6577828800000134,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "error_flush": {
+            "seconds": 2.458661416000041,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "quic": {
+            "seconds": 0.6656896659999347,
+            "reset_seconds": 0.1514724189999015,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "bytes": 943,
+            "boundaries": [
+              {
+                "kind": "hints",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 0,
+                "bytes_after_resume": 0,
+                "reset_seconds": 0.1515858360000948
+              },
+              {
+                "kind": "connect",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 990,
+                "bytes_after_resume": 990,
+                "reset_seconds": 0.15238250700008393
+              },
+              {
+                "kind": "websocket",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 949,
+                "bytes_after_resume": 949,
+                "reset_seconds": 0.1521059219999188
+              }
+            ]
+          }
+        },
+        {
+          "mode": "backend",
+          "tcp": {
+            "seconds": 0.6562704560001293,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "tls": {
+            "seconds": 0.6600506820000192,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "error_flush": {
+            "seconds": 2.4535353080000277,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "quic": {
+            "seconds": 0.663021236999839,
+            "reset_seconds": 0.1547711429998344,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "bytes": 943,
+            "boundaries": [
+              {
+                "kind": "hints",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 0,
+                "bytes_after_resume": 0,
+                "reset_seconds": 0.15371492999997827
+              },
+              {
+                "kind": "connect",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 993,
+                "bytes_after_resume": 993,
+                "reset_seconds": 0.1524332989999948
+              },
+              {
+                "kind": "websocket",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 949,
+                "bytes_after_resume": 949,
+                "reset_seconds": 0.15309421799997835
+              }
+            ]
+          }
+        },
+        {
+          "mode": "earlier-backend",
+          "tcp": {
+            "seconds": 0.6571683340000618,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "tls": {
+            "seconds": 0.6547498649999852,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "error_flush": {
+            "seconds": 2.4584575399999267,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "connection_closed": true,
+            "small_completed": false
+          },
+          "quic": {
+            "seconds": 0.6625040680000893,
+            "reset_seconds": 0.15307792700014033,
+            "permits_before_resume": [
+              0.0,
+              0.0
+            ],
+            "bytes": 943,
+            "boundaries": [
+              {
+                "kind": "hints",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 0,
+                "bytes_after_resume": 0,
+                "reset_seconds": 0.1523467150000215
+              },
+              {
+                "kind": "connect",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 990,
+                "bytes_after_resume": 990,
+                "reset_seconds": 0.15632356700007222
+              },
+              {
+                "kind": "websocket",
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes_before_resume": 949,
+                "bytes_after_resume": 949,
+                "reset_seconds": 0.15338084499990146
+              }
+            ]
+          }
+        },
+        {
+          "mode": "disabled",
+          "tcp": {
+            "seconds": 0.6574504610000531,
+            "permits_before_resume": [
+              2.0,
+              2.0
+            ],
+            "connection_closed": false,
+            "small_completed": true
+          },
+          "tls": {
+            "seconds": 0.6634487809999428,
+            "permits_before_resume": [
+              2.0,
+              2.0
+            ],
+            "connection_closed": false,
+            "small_completed": true
+          },
+          "quic": {
+            "seconds": 3.1168333800001164,
+            "reset_seconds": null,
+            "permits_before_resume": [
+              1.0,
+              1.0
+            ],
+            "bytes": 16777216,
+            "boundaries": [
+              {
+                "kind": "hints",
+                "permits_before_resume": [
+                  1.0,
+                  1.0
+                ],
+                "bytes_before_resume": 0,
+                "bytes_after_resume": 32,
+                "reset_seconds": null
+              },
+              {
+                "kind": "connect",
+                "permits_before_resume": [
+                  1.0,
+                  1.0
+                ],
+                "bytes_before_resume": 990,
+                "bytes_after_resume": 16777334,
+                "reset_seconds": null
+              },
+              {
+                "kind": "websocket",
+                "permits_before_resume": [
+                  1.0,
+                  1.0
+                ],
+                "bytes_before_resume": 949,
+                "bytes_after_resume": 16777216,
+                "reset_seconds": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "h2_flow_control": {
+      "passed": 40,
+      "cases": [
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1507066889998896,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1524430729998585,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15177766900001188,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15135488600003555,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15097780900009639,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15267152800015538,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15287398199984636,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15087014400000953,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15126809499997762,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15161650499999269,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15176187799988838,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15197641500003556,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15690970000014204,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15336259900004734,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15196195799990164,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15199770699996407,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1535439699998733,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1521442460000344,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1547383649999574,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15095635099987703,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15276873400011937,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1517669620000106,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1531210610000926,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15174037900010262,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15204391499992198,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1512230539999564,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15248823899992203,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1535418450000634,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15263719499989747,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1521706619998895,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        }
+      ]
+    },
+    "check_script": {
+      "exit_code": 0,
+      "rust_passed": 38,
+      "rust_ignored": 1,
+      "http": 107,
+      "ingress_recovery": 57,
+      "otlp": 32,
+      "log_rotation": 20,
+      "product_features": 119,
+      "migration": 10
+    },
+    "hyper_integration": 84,
+    "extended_protocols_http3": 76,
+    "pingora_explicit_http": 107,
+    "clippy_all_targets_deny_warnings": "passed",
+    "default_features_compile": "passed",
+    "static_checks": [
+      "cargo fmt --check",
+      "git diff --check",
+      "Python AST"
+    ]
+  },
+  "negative_controls": [
+    {
+      "case": "504",
+      "returncode": 1,
+      "log": "negative-504.log",
+      "expected_failure_confirmed": true
+    },
+    {
+      "case": "hints",
+      "returncode": 1,
+      "log": "negative-hints.log",
+      "expected_failure_confirmed": true
+    },
+    {
+      "case": "connect",
+      "returncode": 1,
+      "log": "negative-connect.log",
+      "expected_failure_confirmed": true
+    }
+  ],
+  "observations": {
+    "finite_deadline_ms": 150,
+    "hints_tunnel_reset_seconds_min": 0.1515858360000948,
+    "hints_tunnel_reset_seconds_max": 0.15632356700007222,
+    "expired_tunnel_bytes_after_credit_resumes": "unchanged",
+    "disabled_deadline_tunnel_completion": "at least 16MiB",
+    "independent_send_timeout_seconds": 2
+  },
+  "test_client_notes": [
+    "Reused existing aioquic 1.3 informational-header adapter from hyper_protocols.py; its previous implementation was moved unchanged into a lazy factory",
+    "H3 delayed HEAD uses an empty resource to avoid aioquic 1.3 treating nonzero HEAD Content-Length as a missing body; H1/H2 HEAD retains nonzero resource size",
+    "Initial client-compatibility failures retained in regressions.log, quic-debug.log and regressions-final.log; final 164-check run is regressions-last.log"
+  ],
+  "preservation": {
+    "baseline_files": 1080,
+    "baseline_manifest_sha256": "c3ab600869791ea57509783be07e0e5b06974bcd7772304f587b91bc51a0ea80",
+    "changed_related_files": [
+      "CHANGELOG.md",
+      "docs/gateway-api.md",
+      "docs/hyper-experimental.md",
+      "docs/production-readiness.md",
+      "scripts/deadline_regressions.py",
+      "scripts/hyper_protocols.py",
+      "src/proxy/hyper/body.rs",
+      "src/proxy/hyper/h3.rs",
+      "src/proxy/hyper/request.rs"
+    ],
+    "unchanged_files": 1071,
+    "missing_files": [],
+    "new_files": [
+      "docs/validation-deadline-boundaries-2026-10-25.md",
+      "docs/validation/deadline-boundaries-2026-10-25.json"
+    ],
+    "existing_deletions_preserved": [
+      "scripts/global_rate_limit.py",
+      "src/traffic/global.rs"
+    ],
+    "staged_committed_reset_or_stashed": false,
+    "changed_file_hashes": {
+      "CHANGELOG.md": {
+        "before": "8d8b97a671c4d52ef8b30fbe38465654034cef6007262c67617330d8f5e1aaa7",
+        "after": "bbe9d0a864bdaaf7f00d85665d4b40ff7e5a146c0ea14167b4af817830789680"
+      },
+      "docs/gateway-api.md": {
+        "before": "a6a43131c0062cc4c650d5ae979dd718bb08c0a8f43e1ca13a056cf85e848f36",
+        "after": "a7c0531bf52966eb3de5e9671e5732ab825d558972b316112f0ceb011be037a0"
+      },
+      "docs/hyper-experimental.md": {
+        "before": "81b66850588acd3ce2b23063687e9b3ae31d848af410d2e4b72af1d26b54358a",
+        "after": "310ab159bdf0a700a91dee462544c3e2ecd13eff10f23864dae305594e418134"
+      },
+      "docs/production-readiness.md": {
+        "before": "149ee4ce7cd16de8cee430b0fefd9a8c6be7e409c4e7242e8d1f78d0dd6cc7b7",
+        "after": "e0ef39b92e1e0c7cdef935dab932a723cea7fbc47f109fe46d777734174d3784"
+      },
+      "scripts/deadline_regressions.py": {
+        "before": "29b14b4340f56212a2260d27f81dcf156e908a1e462352b3688773346fa20970",
+        "after": "4b8da064db9fc11c092bc2da21c3efc5ee064acdb3a5a29fe528dfea7260886c"
+      },
+      "scripts/hyper_protocols.py": {
+        "before": "406b6f631b40cb5ca3f289f530c80ebee892386ebf1a56e71e043b0e8bc415f3",
+        "after": "eca75dffe3344c6dddba5c504787a04990fd5d4b91b67a8c2f9055699a35e8cc"
+      },
+      "src/proxy/hyper/body.rs": {
+        "before": "9d0ab181d1f15fc842ce246767fb23ef13d20fa007f182c1d664ea1a3613ece9",
+        "after": "4243e3c32648caef2dfd247461b5c82cbfaaec7ca9ef0ea72adb02b48a6043b3"
+      },
+      "src/proxy/hyper/h3.rs": {
+        "before": "43d199682ee71a7de642c1a8e30a43428082b5d2f0acb2f4417ca797e9461cd7",
+        "after": "83c26fad135d1ee3fb3a97aabf2e2062123794710a86765d66e775955db3b190"
+      },
+      "src/proxy/hyper/request.rs": {
+        "before": "61ad2d86cd8a6edc85fd600dfa7c2d2c3d1da9483950e1977a86b7cb9d1a462b",
+        "after": "d24accf296a68edff93181cd33ceded4d061c57768bdf674c971b776b354879e"
+      }
+    }
+  },
+  "binaries_sha256": {
+    "rgnix-before": "8a6dfec749101c8615797e5946989424d42b8b971f3de5d9b8c783235c92d55a",
+    "rgnix-after": "1d88c8ce3da3876f672bbae747184375b5e316fa0f7debf005a7111cbb369b16",
+    "gateway-deadlines-before": "17a0101549ef1a3feeb5df2fe27076b21f552be347f7b87f67c346e7b841cecb",
+    "gateway-deadlines-after": "d62ac43963f611cc537bb2249eb21699533ec07ef557a31dcaa02927f4d3176f"
+  },
+  "logs": {
+    "regressions-last.log": {
+      "path": ".local/deadline-boundaries-20261025/regressions-last.log",
+      "sha256": "1ae3f55da2db25cc0825a14d9ea9a36581a33cab98885239445af1e9130f377e"
+    },
+    "negative-504.log": {
+      "path": ".local/deadline-boundaries-20261025/negative-504.log",
+      "sha256": "5220d8aeaef92363cdbbe45e0737241b755a0b703f88ef6943353f2c124644bf"
+    },
+    "negative-hints.log": {
+      "path": ".local/deadline-boundaries-20261025/negative-hints.log",
+      "sha256": "24fce68063c0a3f1749996c1bb085b9908d0054bcafc56f90fdbc37004f75104"
+    },
+    "negative-connect.log": {
+      "path": ".local/deadline-boundaries-20261025/negative-connect.log",
+      "sha256": "06da6e2c2478bf39009a23f18841ed41b6283cab9f757a9def85bec09ea43161"
+    },
+    "check.log": {
+      "path": ".local/deadline-boundaries-20261025/check.log",
+      "sha256": "a5df346c5c7cdb29ed88ae0bf98231eb0cf2b9cf9722c99a34010e8da113f888"
+    },
+    "clippy.log": {
+      "path": ".local/deadline-boundaries-20261025/clippy.log",
+      "sha256": "3214be1d5f9c884a47675ef122f5f91e656606e963325d1db508f71fabb52a27"
+    },
+    "default-features.log": {
+      "path": ".local/deadline-boundaries-20261025/default-features.log",
+      "sha256": "4b20df171d66cbe959ed7f5778b916b4413204428c9390db30d2bdceff5f70f0"
+    },
+    "hyper-integration.log": {
+      "path": ".local/deadline-boundaries-20261025/hyper-integration.log",
+      "sha256": "0a042f21af4b4d8252bf2a90e18cdb330e2443d7f61ebff9d3fd857721ad3290"
+    },
+    "protocols.log": {
+      "path": ".local/deadline-boundaries-20261025/protocols.log",
+      "sha256": "ab50b3cbe7bacdd53b63962162faae00caf6b2a4086bcc3c62c93a4e0ce36eaa"
+    },
+    "h2-flow.log": {
+      "path": ".local/deadline-boundaries-20261025/h2-flow.log",
+      "sha256": "f30626a3acff0ac3940b8b9467cd222b912b6667d21cd0eb3801ba372f1da29f"
+    },
+    "pingora-explicit.log": {
+      "path": ".local/deadline-boundaries-20261025/pingora-explicit.log",
+      "sha256": "fefa6c72a25d84b28cfe9d734fe94f8b1815df47aef69f2052cd592e18e0c302"
+    }
+  },
+  "not_executed": [
+    "Full live Kubernetes watch and multi-replica suite",
+    "amd64 and release build",
+    "long soak",
+    "XDP",
+    "production deployment",
+    "remote CI",
+    "performance qualification"
+  ],
+  "known_existing_warnings": "9 h3 dependency warnings; dependencies and vendor source unchanged"
+}

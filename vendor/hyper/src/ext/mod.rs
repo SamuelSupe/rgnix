@@ -55,6 +55,32 @@ pub struct H2Timeouts {
     pub write: std::time::Duration,
 }
 
+#[cfg(all(feature = "http2", feature = "rgnix-extensions"))]
+/// Absolute HTTP/2 response-body deadline, including blocked flow control.
+/// Expiry resets only this stream. Clones observe whether the deadline fired,
+/// so response completion can distinguish a reset from successful delivery.
+#[derive(Clone, Debug)]
+pub struct H2Deadline {
+    pub(crate) at: std::time::Instant,
+    pub(crate) expired: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+#[cfg(all(feature = "http2", feature = "rgnix-extensions"))]
+impl H2Deadline {
+    /// End the response body at `at`; body or send-window progress cannot extend it.
+    pub fn new(at: std::time::Instant) -> Self {
+        Self {
+            at,
+            expired: std::sync::Arc::default(),
+        }
+    }
+
+    /// Whether Hyper reset this stream after its absolute deadline elapsed.
+    pub fn is_expired(&self) -> bool {
+        self.expired.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use bytes::Bytes;
 #[cfg(any(

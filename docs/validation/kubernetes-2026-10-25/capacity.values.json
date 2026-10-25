@@ -1,0 +1,51 @@
+{
+  "mode": "gateway",
+  "gateway": {
+    "name": "gateway",
+    "className": "rgnix-capacity-qa",
+    "listeners": [
+      {
+        "name": "http",
+        "protocol": "HTTP",
+        "port": 80
+      }
+    ]
+  },
+  "image": {
+    "repository": "rgnix",
+    "tag": "production-qa-20261025"
+  },
+  "replicaCount": 2,
+  "requireMultipleNodes": true,
+  "watchNamespaces": [
+    "rgnix-capacity-qa"
+  ],
+  "service": {
+    "type": "ClusterIP"
+  },
+  "engine": "hyper",
+  "threads": 2,
+  "reportReplicas": true,
+  "shutdown": {
+    "enabled": true
+  },
+  "maxInflight": 4096,
+  "upstreamKeepalivePoolSize": 128,
+  "upstreamMaxFails": 0,
+  "experimentalHyper": {
+    "maxConnections": 16384,
+    "maxConnectionsPerIp": 16384,
+    "maxHandshakes": 4096,
+    "maxHandshakesPerIp": 4096
+  },
+  "resources": {
+    "requests": {
+      "cpu": "100m",
+      "memory": "128Mi"
+    },
+    "limits": {
+      "cpu": "2",
+      "memory": "512Mi"
+    }
+  }
+}

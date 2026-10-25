@@ -1,0 +1,1123 @@
+{
+  "date": "2026-10-25",
+  "base": {
+    "branch": "experiment/replace-pingora",
+    "head": "1bd974f",
+    "includes_existing_uncommitted_changes": true
+  },
+  "environment": {
+    "runtime": "OrbStack Ubuntu arm64",
+    "rust": "1.90.0",
+    "profile": "dev opt-level=1",
+    "features": [
+      "http3",
+      "jemalloc"
+    ],
+    "locked": true
+  },
+  "fixes": [
+    "Keep the original earliest Gateway deadline through final TCP/TLS flush; abort a blocked shared connection with zero linger, cancel pending delivery and release permits",
+    "Enforce the original earliest Gateway deadline across final HTTP/3 headers, DATA, trailers and finish; reset failed streams and preserve sibling streams"
+  ],
+  "cancellation_scope": {
+    "h2_flow_control": "Only the expired stream resets",
+    "h2_final_tcp_tls_flush": "Abort the shared blocked connection and discard queued socket output; siblings on that connection are cancelled",
+    "h3": "Reset affected stream with H3_REQUEST_CANCELLED; other streams and subsequent requests remain usable"
+  },
+  "checks": {
+    "check_script": {
+      "exit_code": 0,
+      "rust_passed": 38,
+      "rust_ignored": 1,
+      "http": 107,
+      "ingress_recovery": 57,
+      "otlp": 32,
+      "log_rotation": 20,
+      "product_features": 119,
+      "migration": 10
+    },
+    "new_deadline_regressions": {
+      "rounds": [
+        {
+          "passed": 41,
+          "checks": [
+            "HTTP/2 TCP final flush releases permits at the absolute deadline",
+            "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS final flush releases permits at the absolute deadline",
+            "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 send wait obeys the absolute deadline and releases permits",
+            "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+            "HTTP/3 connection remains usable after the affected stream ends",
+            "HTTP/2 TCP final flush releases permits at the absolute deadline",
+            "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS final flush releases permits at the absolute deadline",
+            "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 send wait obeys the absolute deadline and releases permits",
+            "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+            "HTTP/3 connection remains usable after the affected stream ends",
+            "HTTP/2 TCP final flush releases permits at the absolute deadline",
+            "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS final flush releases permits at the absolute deadline",
+            "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 send wait obeys the absolute deadline and releases permits",
+            "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+            "HTTP/3 connection remains usable after the affected stream ends",
+            "HTTP/2 TCP disabled deadlines retain stalled work",
+            "HTTP/2 TCP disabled deadlines allow delivery after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS disabled deadlines retain stalled work",
+            "HTTP/2 TLS disabled deadlines allow delivery after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 disabled deadlines keep blocked delivery active",
+            "HTTP/3 disabled deadlines allow complete delivery after credit resumes",
+            "HTTP/3 disabled absolute deadlines retain the independent send timeout",
+            "HTTP/3 connection remains usable after the affected stream ends"
+          ],
+          "measurements": [
+            {
+              "mode": "request",
+              "tcp": {
+                "seconds": 0.6571798349614255,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "tls": {
+                "seconds": 0.6591782569885254,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "quic": {
+                "seconds": 0.6669030300108716,
+                "reset_seconds": 0.15450557600706816,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes": 943
+              }
+            },
+            {
+              "mode": "backend",
+              "tcp": {
+                "seconds": 0.6536412829882465,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "tls": {
+                "seconds": 0.6567148749600165,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "quic": {
+                "seconds": 0.6668169460026547,
+                "reset_seconds": 0.15264636202482507,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes": 943
+              }
+            },
+            {
+              "mode": "earlier-backend",
+              "tcp": {
+                "seconds": 0.6552539950353093,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "tls": {
+                "seconds": 0.6561945410212502,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "quic": {
+                "seconds": 0.6631705189938657,
+                "reset_seconds": 0.15194873500149697,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes": 943
+              }
+            },
+            {
+              "mode": "disabled",
+              "tcp": {
+                "seconds": 0.6580506709869951,
+                "permits_before_resume": [
+                  2.0,
+                  2.0
+                ],
+                "connection_closed": false,
+                "small_completed": true
+              },
+              "tls": {
+                "seconds": 0.6592086739838123,
+                "permits_before_resume": [
+                  2.0,
+                  2.0
+                ],
+                "connection_closed": false,
+                "small_completed": true
+              },
+              "quic": {
+                "seconds": 3.168785582005512,
+                "reset_seconds": null,
+                "permits_before_resume": [
+                  1.0,
+                  1.0
+                ],
+                "bytes": 16777216
+              }
+            }
+          ]
+        },
+        {
+          "passed": 41,
+          "checks": [
+            "HTTP/2 TCP final flush releases permits at the absolute deadline",
+            "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS final flush releases permits at the absolute deadline",
+            "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 send wait obeys the absolute deadline and releases permits",
+            "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+            "HTTP/3 connection remains usable after the affected stream ends",
+            "HTTP/2 TCP final flush releases permits at the absolute deadline",
+            "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS final flush releases permits at the absolute deadline",
+            "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 send wait obeys the absolute deadline and releases permits",
+            "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+            "HTTP/3 connection remains usable after the affected stream ends",
+            "HTTP/2 TCP final flush releases permits at the absolute deadline",
+            "HTTP/2 TCP expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS final flush releases permits at the absolute deadline",
+            "HTTP/2 TLS expired output cannot finish successfully after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 send wait obeys the absolute deadline and releases permits",
+            "HTTP/3 timeout sends RESET_STREAM instead of successful FIN",
+            "HTTP/3 connection remains usable after the affected stream ends",
+            "HTTP/2 TCP disabled deadlines retain stalled work",
+            "HTTP/2 TCP disabled deadlines allow delivery after reading resumes",
+            "HTTP/2 TCP listener serves fresh connections after stalled delivery",
+            "HTTP/2 TLS disabled deadlines retain stalled work",
+            "HTTP/2 TLS disabled deadlines allow delivery after reading resumes",
+            "HTTP/2 TLS listener serves fresh connections after stalled delivery",
+            "HTTP/3 blocked delivery leaves sibling streams independent",
+            "HTTP/3 disabled deadlines keep blocked delivery active",
+            "HTTP/3 disabled deadlines allow complete delivery after credit resumes",
+            "HTTP/3 disabled absolute deadlines retain the independent send timeout",
+            "HTTP/3 connection remains usable after the affected stream ends"
+          ],
+          "measurements": [
+            {
+              "mode": "request",
+              "tcp": {
+                "seconds": 0.6551812890102156,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "tls": {
+                "seconds": 0.6583106140024029,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "quic": {
+                "seconds": 0.6660156139987521,
+                "reset_seconds": 0.15167367103276774,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes": 943
+              }
+            },
+            {
+              "mode": "backend",
+              "tcp": {
+                "seconds": 0.6550696210470051,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "tls": {
+                "seconds": 0.6577914840308949,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "quic": {
+                "seconds": 0.6664737020037137,
+                "reset_seconds": 0.15417249000165612,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes": 943
+              }
+            },
+            {
+              "mode": "earlier-backend",
+              "tcp": {
+                "seconds": 0.6549534120131284,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "tls": {
+                "seconds": 0.6551710389903747,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "connection_closed": true,
+                "small_completed": false
+              },
+              "quic": {
+                "seconds": 0.6652013550046831,
+                "reset_seconds": 0.15196442400338128,
+                "permits_before_resume": [
+                  0.0,
+                  0.0
+                ],
+                "bytes": 943
+              }
+            },
+            {
+              "mode": "disabled",
+              "tcp": {
+                "seconds": 0.662839871016331,
+                "permits_before_resume": [
+                  2.0,
+                  2.0
+                ],
+                "connection_closed": false,
+                "small_completed": true
+              },
+              "tls": {
+                "seconds": 0.6591313320095651,
+                "permits_before_resume": [
+                  2.0,
+                  2.0
+                ],
+                "connection_closed": false,
+                "small_completed": true
+              },
+              "quic": {
+                "seconds": 3.1581882229656912,
+                "reset_seconds": null,
+                "permits_before_resume": [
+                  1.0,
+                  1.0
+                ],
+                "bytes": 16777216
+              }
+            }
+          ]
+        }
+      ],
+      "checks_per_round": 41,
+      "quic_reset_min_seconds": 0.15167367103276774,
+      "quic_reset_max_seconds": 0.15450557600706816
+    },
+    "earlier_h2_flow_control": {
+      "cases": 40,
+      "details": [
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1531439779791981,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15344077302142978,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15216434304602444,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1517947560059838,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15204821701627225,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15196888300124556,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15395031997468323,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15392302902182564,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15143087698379532,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "request",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15396519599016756,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1531804790138267,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15181871398817748,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15081212000222877,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1516924630268477,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15189425699645653,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15421657299157232,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15425407397560775,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15242692996980622,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15173738001612946,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15327064704615623,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15213400998618454,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15364894300000742,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15193984098732471,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1517873799894005,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15063545102020726,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15256738901371136,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 0,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.1538313199998811,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.15307502000359818,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 1,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": 0.15169433795381337,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "earlier_backend",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": 0.1562398870009929,
+          "reset_code": 8,
+          "sibling_completed": true,
+          "bytes": 65535,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-small",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 32,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 0,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 1,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 0,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        },
+        {
+          "mode": "disabled",
+          "path": "/flow-large",
+          "window": 65535,
+          "repeat": 1,
+          "passed": true,
+          "reset_seconds": null,
+          "reset_code": null,
+          "sibling_completed": true,
+          "bytes": 1048576,
+          "permits_released_while_connection_open": true
+        }
+      ]
+    },
+    "earlier_gateway_transport": [
+      {
+        "mode": "request",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.1540791550069116
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15977242501685396
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.1658714910154231
+          }
+        ],
+        "request_and_backend_permits_released": true
+      },
+      {
+        "mode": "backend",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15490449802018702
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15709639602573588
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.1580177809810266
+          }
+        ],
+        "request_and_backend_permits_released": true
+      },
+      {
+        "mode": "earlier_backend",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15915378701174632
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.15868229599436745
+          },
+          {
+            "closed": true,
+            "echoes": 5,
+            "seconds": 0.1569330830243416
+          }
+        ],
+        "request_and_backend_permits_released": true
+      },
+      {
+        "mode": "disabled",
+        "authority_conflict_status": 400,
+        "private_status": 403,
+        "matching_status": 200,
+        "websocket": [
+          {
+            "closed": false,
+            "echoes": 19,
+            "seconds": 0.6094420700101182
+          },
+          {
+            "closed": false,
+            "echoes": 19,
+            "seconds": 0.6158164229709655
+          },
+          {
+            "closed": false,
+            "echoes": 19,
+            "seconds": 0.6058184349676594
+          }
+        ],
+        "request_and_backend_permits_released": true
+      }
+    ],
+    "hyper_integration": 84,
+    "extended_protocols_including_http3": 76,
+    "pingora_http": 107,
+    "clippy_all_targets_deny_warnings": "passed",
+    "python_syntax": "passed"
+  },
+  "negative_controls": {
+    "http2_frozen_before": "Fails final flush permit-release check",
+    "http3_frozen_before": "Fails send-wait absolute deadline and permit-release check",
+    "adapter": "Scratch CLI adapter maps fixture arguments to the frozen public-runtime probe; no production code was changed for this control"
+  },
+  "preservation": {
+    "baseline_files": 1076,
+    "changed_related_files": [
+      ".github/workflows/ci.yml",
+      "CHANGELOG.md",
+      "Cargo.toml",
+      "docs/gateway-api.md",
+      "docs/hyper-experimental.md",
+      "docs/production-readiness.md",
+      "src/proxy/hyper/body.rs",
+      "src/proxy/hyper/h3.rs",
+      "src/proxy/hyper/io.rs",
+      "src/proxy/hyper/tls.rs"
+    ],
+    "unchanged_files": 1066,
+    "missing_files": [],
+    "new_files": [
+      "examples/gateway_deadlines.rs",
+      "scripts/deadline_regressions.py",
+      "docs/validation-delivery-deadlines-2026-10-25.md",
+      "docs/validation/delivery-deadlines-2026-10-25.json"
+    ],
+    "existing_deletions_preserved": [
+      "scripts/global_rate_limit.py",
+      "src/traffic/global.rs"
+    ],
+    "staged_committed_reset_or_stashed": false,
+    "baseline_manifest_sha256": "6ce419dd59572429b3e2a0cfe23b33f29d42f7e5d3064c1ebff222f628fa3a5c",
+    "changed_file_hashes": {
+      ".github/workflows/ci.yml": {
+        "before": "2965f35167606368068a8201447f9e1a24744d191a540c2e6f7007378fc6ec78",
+        "after": "63278adb291ac892bf8ef96adc7d4975d14d2de113ee23fbab380522b3c306d0"
+      },
+      "CHANGELOG.md": {
+        "before": "95dba750109191365c212740c248eb9d2b4e829dbf8131b3248a36468e7e69c0",
+        "after": "8d8b97a671c4d52ef8b30fbe38465654034cef6007262c67617330d8f5e1aaa7"
+      },
+      "Cargo.toml": {
+        "before": "96687a55ea6c7c281ab8ca7c8576f2e5ba8e8d9731bf91ff2959d0bc6d5ea21a",
+        "after": "3080feacd6a8e9cf94fa532cab05841890a2830fdd95efe7b417b4c2312df134"
+      },
+      "docs/gateway-api.md": {
+        "before": "0b468cc38124569aaec4f78268bcd2e4565a881232790027a8e8f69713371527",
+        "after": "a6a43131c0062cc4c650d5ae979dd718bb08c0a8f43e1ca13a056cf85e848f36"
+      },
+      "docs/hyper-experimental.md": {
+        "before": "940d126d9fab5db79bbb40f8ee710b089aca8c7469f991f24d122208edbf6646",
+        "after": "81b66850588acd3ce2b23063687e9b3ae31d848af410d2e4b72af1d26b54358a"
+      },
+      "docs/production-readiness.md": {
+        "before": "1e1d02ae0158dba43ebf61d595a028068edbbd170b6c91313f68336f92c41249",
+        "after": "149ee4ce7cd16de8cee430b0fefd9a8c6be7e409c4e7242e8d1f78d0dd6cc7b7"
+      },
+      "src/proxy/hyper/body.rs": {
+        "before": "e0a14a868c3283c655dcc779537d2a5d8dd5efd94e31d9d8603a0b820a611549",
+        "after": "9d0ab181d1f15fc842ce246767fb23ef13d20fa007f182c1d664ea1a3613ece9"
+      },
+      "src/proxy/hyper/h3.rs": {
+        "before": "0ae45e3bb6a5099f1022eea6ab8530448434f70878d387459f23ef6ef4f13625",
+        "after": "43d199682ee71a7de642c1a8e30a43428082b5d2f0acb2f4417ca797e9461cd7"
+      },
+      "src/proxy/hyper/io.rs": {
+        "before": "f1a3a0efd678924782171da47b54f2a207503129f6a750383037ca0666658dd1",
+        "after": "82d35d012bec9a869c0c012d26cdf1d6fbe5490b511703cea5f9b8f8594a4fee"
+      },
+      "src/proxy/hyper/tls.rs": {
+        "before": "6624c0dd3bdd0c376b8a4ad2b727d947e22edb28c52301ef311f9d241e7a791a",
+        "after": "a1b681d2b6fd0aba48c700d61ecd8ed8b2ad9af8c3f000ec23c291d7e11fcdea"
+      }
+    },
+    "new_test_sources_sha256": {
+      "examples/gateway_deadlines.rs": "88f386f81dfdfe2d482559e3e7bc3f4e0c8a535a5075c183ad3903b93a3be99e",
+      "scripts/deadline_regressions.py": "29b14b4340f56212a2260d27f81dcf156e908a1e462352b3688773346fa20970"
+    }
+  },
+  "binaries_sha256": {
+    "rgnix-before": "8206cd9483c52bfde4b827cd3dfcb65c58f8b0739f63036a4b6440a54ba2d9a7",
+    "rgnix-after": "8a6dfec749101c8615797e5946989424d42b8b971f3de5d9b8c783235c92d55a",
+    "probe-before": "58a94e07b4dfc1d01ecdb95c22efd88c51aa136b8a3ded2443e098c83b7b1259",
+    "probe-after": "cc74a1596601eaf43efed25bf42c9c0036906665befb4e186776e3e6b3a6a854",
+    "gateway-deadlines-after": "17a0101549ef1a3feeb5df2fe27076b21f552be347f7b87f67c346e7b841cecb"
+  },
+  "logs": {
+    "check-final.log": {
+      "path": ".local/delivery-deadlines-20261025/check-final.log",
+      "sha256": "ff8e4083990ba954d920d606c95891adcf1ab5b138135458d63fe949ef04a300"
+    },
+    "clippy-final.log": {
+      "path": ".local/delivery-deadlines-20261025/clippy-final.log",
+      "sha256": "3b655b9a7e45da9239f467115bafb19d27fe977eea38e5729bd7b90cf8d1bb03"
+    },
+    "fixture-final.log": {
+      "path": ".local/delivery-deadlines-20261025/fixture-final.log",
+      "sha256": "df14b6e64f5a5f2228350e912e7f66931806806e7476489dc591ced7b2c96b78"
+    },
+    "fixture-verified.log": {
+      "path": ".local/delivery-deadlines-20261025/fixture-verified.log",
+      "sha256": "2fd4764b4b192ac1797d65537c9414d50bd0e30aeb23382a134838d8dbe5dd52"
+    },
+    "regressions-verified.log": {
+      "path": ".local/delivery-deadlines-20261025/regressions-verified.log",
+      "sha256": "4917025a5a8d8b9b250b1dda07fca48da721a9dcbe24edcbc8e695d50b4a71e6"
+    },
+    "regressions-repeat.log": {
+      "path": ".local/delivery-deadlines-20261025/regressions-repeat.log",
+      "sha256": "18c5acc8db0eed7296f2f8e49e14400680bc7ae2ec42d427e694c15a47ee5ae0"
+    },
+    "h2-flow-verified.log": {
+      "path": ".local/delivery-deadlines-20261025/h2-flow-verified.log",
+      "sha256": "944e43e8699182b3791845e61095e25531b922a95968d19eadb87b7f51b01514"
+    },
+    "gateway-transport.log": {
+      "path": ".local/delivery-deadlines-20261025/gateway-transport.log",
+      "sha256": "7a260d9344c3e2ea79a6b91c7ae28b1a4f90f33cdb586b2ce5ae7a29f62a7366"
+    },
+    "hyper-integration.log": {
+      "path": ".local/delivery-deadlines-20261025/hyper-integration.log",
+      "sha256": "0a042f21af4b4d8252bf2a90e18cdb330e2443d7f61ebff9d3fd857721ad3290"
+    },
+    "protocols.log": {
+      "path": ".local/delivery-deadlines-20261025/protocols.log",
+      "sha256": "ab50b3cbe7bacdd53b63962162faae00caf6b2a4086bcc3c62c93a4e0ce36eaa"
+    },
+    "pingora-integration.log": {
+      "path": ".local/delivery-deadlines-20261025/pingora-integration.log",
+      "sha256": "4e8f33adb20605a26f121ac0aff0ab810c8c37778ad331da7342b67b9134d326"
+    },
+    "tcp-before-final.log": {
+      "path": ".local/delivery-deadlines-20261025/tcp-before-final.log",
+      "sha256": "f563b62d0c33aefa514688df28f8010e2cedeb14fa99fbbfeea18334457416d8"
+    },
+    "quic-before-final.log": {
+      "path": ".local/delivery-deadlines-20261025/quic-before-final.log",
+      "sha256": "6ef9752de8f939e2a7df4816570435e980c00d5a0237d34ba7a2184a1f33a322"
+    }
+  },
+  "not_executed": [
+    "Full Kubernetes watch/multi-replica cluster suite",
+    "amd64",
+    "release build",
+    "long-duration soak",
+    "XDP acceptance",
+    "production deployment",
+    "remote CI",
+    "performance qualification"
+  ],
+  "known_existing_warnings": "9 h3 dependency warnings; no vendor source changes"
+}

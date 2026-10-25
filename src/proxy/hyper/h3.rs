@@ -1,6 +1,6 @@
 use super::{
     Listener as RequestListener,
-    body::{BoxError, Payload},
+    body::{BoxError, Payload, ResponseBody},
     io::Connection,
 };
 use crate::{
@@ -23,6 +23,10 @@ pub(crate) struct Listener {
     socket: Mutex<Option<std::net::UdpSocket>>,
     headers: Arc<tokio::sync::Semaphore>,
 }
+
+#[derive(Clone, Copy)]
+pub(super) struct ResponseDeadline(pub std::time::Instant);
+
 impl Listener {
     pub(crate) fn bind(
         shared: Arc<Shared>,
@@ -259,35 +263,73 @@ async fn handle(
             hint = std::future::poll_fn(|cx| hints.poll_recv(cx)), if hints_open => {
                 if let Some(hint) = hint {
                     let timeout = hint.extensions().get::<hyper::ext::H2Timeouts>().map_or(Duration::from_secs(60), |t| t.write);
-                    tokio::time::timeout(timeout, send.send_response(hint)).await??;
+                    let idle = std::time::Instant::now() + timeout;
+                    let deadline = hint.extensions().get::<ResponseDeadline>().map_or(idle, |d| idle.min(d.0));
+                    let result = tokio::time::timeout_at(deadline.into(), send.send_response(hint)).await
+                        .map_err(anyhow::Error::from).and_then(|r| r.map_err(Into::into));
+                    if let Err(error) = result {
+                        send.stop_stream(h3::error::Code::H3_REQUEST_CANCELLED);
+                        return Err(error);
+                    }
                 } else { hints_open = false; }
             }
             response = &mut response => break response.unwrap(),
         }
     };
     drop(hints);
+    deliver(response, &mut send).await
+}
+
+async fn deliver(
+    response: http::Response<ResponseBody>,
+    send: &mut h3::server::RequestStream<h3_quinn::SendStream<Bytes>, Bytes>,
+) -> Result<()> {
     let (parts, mut body) = response.into_parts();
     let settings = body.settings();
     let timeout = settings.map_or(Duration::from_secs(60), |s| s.send_timeout);
-    tokio::time::timeout(
-        timeout,
-        send.send_response(http::Response::from_parts(parts, ())),
-    )
-    .await??;
-    while let Some(frame) = body.frame().await {
-        let frame = frame.map_err(anyhow::Error::from_boxed)?;
-        match frame.into_data() {
-            Ok(data) => {
-                tokio::time::timeout(timeout, send.send_data(data)).await??;
-            }
-            Err(frame) => {
-                if let Ok(trailers) = frame.into_trailers() {
-                    tokio::time::timeout(timeout, send.send_trailers(trailers)).await??;
+    let deadline = body.response_deadline();
+    let delivery = async {
+        tokio::time::timeout(
+            timeout,
+            send.send_response(http::Response::from_parts(parts, ())),
+        )
+        .await??;
+        while let Some(frame) = body.frame().await {
+            let frame = frame.map_err(anyhow::Error::from_boxed)?;
+            match frame.into_data() {
+                Ok(data) => {
+                    tokio::time::timeout(timeout, send.send_data(data)).await??;
+                }
+                Err(frame) => {
+                    if let Ok(trailers) = frame.into_trailers() {
+                        tokio::time::timeout(timeout, send.send_trailers(trailers)).await??;
+                    }
                 }
             }
         }
+        tokio::time::timeout(timeout, send.finish()).await??;
+        Ok::<_, anyhow::Error>(())
+    };
+    let (result, expired) = match deadline {
+        Some(at) => match tokio::time::timeout_at(at.into(), delivery).await {
+            Ok(result) => (result, false),
+            Err(_) => (
+                Err(anyhow::anyhow!("response delivery deadline exceeded")),
+                true,
+            ),
+        },
+        None => (delivery.await, false),
+    };
+    if expired {
+        body.fail_delivery(super::super::error(
+            504,
+            "response delivery deadline exceeded",
+        ));
     }
-    tokio::time::timeout(timeout, send.finish()).await??;
+    if let Err(error) = result {
+        send.stop_stream(h3::error::Code::H3_REQUEST_CANCELLED);
+        return Err(error);
+    }
     body.delivered();
     Ok(())
 }
@@ -300,7 +342,7 @@ async fn handle_tunnel(
     state: Arc<Connection>,
 ) -> Result<()> {
     let (ready, upgrade) = tokio::sync::oneshot::channel();
-    let (delivered, delivery) = tokio::sync::oneshot::channel();
+    let (mut delivered, delivery) = tokio::sync::oneshot::channel();
     let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
     request
         .extensions_mut()
@@ -323,70 +365,71 @@ async fn handle_tunnel(
         .extensions()
         .get::<super::tunnel::H3Accepted>()
         .cloned();
-    let (parts, mut body) = response.into_parts();
     let (mut send, mut receive) = stream.split();
-    let timeout = accepted
-        .as_ref()
-        .map_or(Duration::from_secs(60), |s| s.write);
-    tokio::time::timeout(
-        timeout,
-        send.send_response(http::Response::from_parts(parts, ())),
-    )
-    .await??;
     let Some(settings) = accepted else {
-        while let Some(frame) = body.frame().await {
-            if let Ok(data) = frame.map_err(anyhow::Error::from_boxed)?.into_data() {
-                tokio::time::timeout(timeout, send.send_data(data)).await??;
-            }
-        }
-        tokio::time::timeout(timeout, send.finish()).await??;
-        body.delivered();
+        let result = deliver(response, &mut send).await;
         receive.stop_sending(h3::error::Code::H3_REQUEST_CANCELLED);
-        return Ok(());
+        return result;
     };
-    let (client, bridge) = tokio::io::duplex(65536);
-    ready
-        .send(client)
-        .map_err(|_| anyhow::anyhow!("HTTP/3 tunnel cancelled before acceptance"))?;
-    let (mut reader, mut writer) = tokio::io::split(bridge);
-    let incoming = async {
-        use tokio::io::AsyncWriteExt;
-        while let Some(mut data) =
-            tokio::time::timeout(settings.read, receive.recv_data()).await??
-        {
-            while data.has_remaining() {
-                let bytes = data.chunk();
-                tokio::time::timeout(settings.read, writer.write_all(bytes)).await??;
-                let n = bytes.len();
-                data.advance(n);
+    let transfer = async {
+        let (parts, _) = response.into_parts();
+        tokio::time::timeout(
+            settings.write,
+            send.send_response(http::Response::from_parts(parts, ())),
+        )
+        .await??;
+        let (client, bridge) = tokio::io::duplex(65536);
+        ready
+            .send(client)
+            .map_err(|_| anyhow::anyhow!("HTTP/3 tunnel cancelled before acceptance"))?;
+        let (mut reader, mut writer) = tokio::io::split(bridge);
+        let incoming = async {
+            use tokio::io::AsyncWriteExt;
+            while let Some(mut data) =
+                tokio::time::timeout(settings.read, receive.recv_data()).await??
+            {
+                while data.has_remaining() {
+                    let bytes = data.chunk();
+                    tokio::time::timeout(settings.read, writer.write_all(bytes)).await??;
+                    let n = bytes.len();
+                    data.advance(n);
+                }
             }
-        }
-        writer.shutdown().await?;
+            writer.shutdown().await?;
+            Ok::<_, anyhow::Error>(())
+        };
+        let outgoing = async {
+            use tokio::io::AsyncReadExt;
+            let mut buffer = vec![0; 16384];
+            loop {
+                let n = reader.read(&mut buffer).await?;
+                if n == 0 {
+                    break;
+                }
+                tokio::time::timeout(
+                    settings.write,
+                    send.send_data(Bytes::copy_from_slice(&buffer[..n])),
+                )
+                .await??;
+            }
+            // Dropping a failed duplex bridge also produces EOF. Only a completed
+            // upstream half-close is an orderly QUIC FIN; errors require RESET_STREAM.
+            if !closed.load(std::sync::atomic::Ordering::Acquire) {
+                anyhow::bail!("HTTP/3 tunnel transport failed");
+            }
+            tokio::time::timeout(settings.write, send.finish()).await??;
+            Ok::<_, anyhow::Error>(())
+        };
+        tokio::try_join!(incoming, outgoing)?;
         Ok::<_, anyhow::Error>(())
     };
-    let outgoing = async {
-        use tokio::io::AsyncReadExt;
-        let mut buffer = vec![0; 16384];
-        loop {
-            let n = reader.read(&mut buffer).await?;
-            if n == 0 {
-                break;
-            }
-            tokio::time::timeout(
-                settings.write,
-                send.send_data(Bytes::copy_from_slice(&buffer[..n])),
-            )
-            .await??;
-        }
-        // Dropping a failed duplex bridge also produces EOF. Only a completed
-        // upstream half-close is an orderly QUIC FIN; errors require RESET_STREAM.
-        if !closed.load(std::sync::atomic::Ordering::Acquire) {
-            anyhow::bail!("HTTP/3 tunnel transport failed");
-        }
-        tokio::time::timeout(settings.write, send.finish()).await??;
-        Ok::<_, anyhow::Error>(())
+    let result = tokio::select! {
+        biased;
+        // The guarded tunnel owns this receiver through final delivery. Its
+        // cancellation must interrupt QUIC writes, not just close the duplex.
+        _ = delivered.closed() => Err(anyhow::anyhow!("HTTP/3 tunnel cancelled")),
+        result = transfer => result,
     };
-    let result = tokio::try_join!(incoming, outgoing);
     if result.is_err() {
         send.stop_stream(h3::error::Code::H3_REQUEST_CANCELLED);
         receive.stop_sending(h3::error::Code::H3_REQUEST_CANCELLED);

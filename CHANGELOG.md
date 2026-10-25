@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Preserve generated 504 responses with a bounded error-delivery budget after Gateway operation deadlines expire; keep writable HTTP/2 sibling streams independent.
+- Apply original Gateway deadlines to HTTP/3 informational headers, and propagate CONNECT/WebSocket cancellation to blocked QUIC bridge writes so expired buffered data cannot resume.
+  See the [deadline-boundary validation](docs/validation-deadline-boundaries-2026-10-25.md) for socket regressions and frozen-binary failure controls.
+
+- Retain Gateway absolute deadlines through the final TCP/TLS flush; abort stalled connections, discard queued socket output and release pending request/backend permits on expiry.
+- Enforce the earlier Gateway request/backend deadline across ordinary HTTP/3 response delivery, including blocked QUIC writes; reset failed streams and preserve sibling streams.
+  See the [response-delivery validation](docs/validation-delivery-deadlines-2026-10-25.md) for regression coverage and cancellation scope.
+
+- Enforce Gateway absolute deadlines while HTTP/2 responses wait for downstream flow-control capacity, resetting only the expired stream and recording its timeout.
+- Bound authenticated simulation uploads by a 5-second total body deadline so slow uploads release the shared simulation slots; retain the 1 MiB limit and two-request concurrency cap.
+  See the [executed follow-up validation](docs/validation-review-followups-2026-10-25.md) for regressions and scope.
+
+- Reject conflicting absolute-form or HTTP/2/3 authority and Host values before routing, preventing Gateway forwarding from selecting a different upstream virtual host.
+- Preserve Gateway absolute request/backend deadlines after Hyper WebSocket upgrades; active traffic cannot renew them, and expiry releases tunnel resources.
+- Replace per-request rollout window scans and p95 sorting with incremental counts while preserving nearest-rank thresholds, expiry, capacity eviction and stage resets.
+  See the [executed review-fix validation](docs/validation-review-fixes-2026-10-25.md) for regression coverage and scope.
+
 - Assign distinct native metric producer slots across listeners, reclaim runtime-thread slots, use snapshot route positions without a request-time hash lookup and share final-header timestamps. Cache repeated HTTP/1 header names within a bounded connection cache; see the [follow-up record](docs/validation-hyper-instructions5-2026-10-24.md).
 
 - Construct ordinary Hyper upstream connection URIs only on pool misses and bypass percent decoding for literal paths. Matched user instructions fall a further 2.34% / 2.32% for 1 KiB / 16 KiB against the preceding optimized candidate; see the [instruction reduction record](docs/validation-hyper-instructions2-2026-10-24.md). Throughput and P99 were not requalified.

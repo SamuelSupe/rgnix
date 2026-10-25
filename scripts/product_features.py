@@ -806,6 +806,33 @@ location /proxy/ {{ proxy_pass http://127.0.0.1:{upstream.server_port}/base/; pr
             scoped=json.loads(request(admin,"/v1/config",headers=headers(bob))[2])
             check("Namespace-scoped identity cannot inspect standalone routes or history",scoped["routes"]==[] and scoped["backends"]=={} and request(admin,"/v1/history",headers=headers(bob))[0]==403)
             check("Scoped identity cannot simulate an unauthorized route",request(admin,"/v1/simulate","POST",headers(bob),b'{"path":"/"}')[0]==403)
+            slow=[]
+            try:
+                for _ in range(2):
+                    client=socket.create_connection(("127.0.0.1",admin),timeout=2)
+                    client.sendall(("POST /v1/simulate HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer "+bob+"\r\nContent-Length: 1000000\r\n\r\n{").encode())
+                    slow.append(client)
+                def occupied():
+                    metrics=request(admin,"/metrics")[2].decode()
+                    assert 'rgnix_budget_in_use{budget="simulation"}' in metrics
+                    return metric_value(metrics,"rgnix_budget_in_use",budget="simulation")
+                wait_for(occupied,2)
+                check("Simulation concurrency cap still rejects excess work",request(admin,"/v1/simulate","POST",headers(alice),b'{"path":"/"}')[0]==429)
+                started=time.monotonic()
+                while time.monotonic()-started<5.5:
+                    for client in slow:
+                        try: client.sendall(b' ')
+                        except (BrokenPipeError,ConnectionResetError): pass
+                    time.sleep(0.25)
+                responses=[]
+                for client in slow:
+                    response=http.client.HTTPResponse(client);response.begin()
+                    responses.append(response.status);response.read()
+                check("Trickling simulation uploads hit the total body deadline",responses==[408,408])
+                check("Timed-out uploads release simulation slots before clients close",occupied()==0 and request(admin,"/v1/simulate","POST",headers(alice),b'{"path":"/"}')[0]==200)
+            finally:
+                for client in slow: client.close()
+            check("Simulation rejects malformed and oversized JSON bodies",request(admin,"/v1/simulate","POST",headers(alice),b'{')[0]==400 and request(admin,"/v1/simulate","POST",headers(alice),b' '* (1024*1024+1))[0]==413)
             fixture={"config_path":str(candidate),"expected_version":1}
             response=request(admin,"/v1/validate","POST",headers(alice),json.dumps(fixture).encode())
             preview=json.loads(response[2])

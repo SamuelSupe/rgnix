@@ -17,6 +17,28 @@ pub(crate) struct BodyTimeout {
     duration: Duration,
     timer: Option<Pin<Box<Sleep>>>,
 }
+pub(crate) struct BodyDeadline {
+    policy: crate::ext::H2Deadline,
+    timer: Pin<Box<Sleep>>,
+}
+impl BodyDeadline {
+    pub(crate) fn new(policy: crate::ext::H2Deadline) -> Self {
+        Self {
+            timer: Box::pin(tokio::time::sleep_until(policy.at.into())),
+            policy,
+        }
+    }
+
+    pub(crate) fn expired(&mut self, cx: &mut Context<'_>) -> bool {
+        if self.timer.as_mut().poll(cx).is_pending() {
+            return false;
+        }
+        self.policy
+            .expired
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        true
+    }
+}
 impl HeaderTimeout {
     pub(crate) fn pair(policy: crate::ext::H2Timeouts) -> (Self, BodyTimeout) {
         let now = Instant::now();

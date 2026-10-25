@@ -20,7 +20,7 @@
 
 请求匹配使用 UTF-8、百分号解码、合并重复 `/`、消除 `.` 和 `..` 后的路径；无效编码、NUL、反斜线及逃逸根的路径返回 400。v0.1 不支持 NGINX 接受的任意非 UTF-8 路径字节。
 
-HTTP/1.1 必须有且仅有一个合法、非空的 Host；缺失、重复或非法值在路由前返回 400，绝对 URI 请求也会校验 Host。HTTP/2 支持 `:authority`，HTTP/1.0 可以省略 Host。合法但未配置的主机名仍使用默认虚拟主机。Pingora 会拒绝 Host 与请求目标 authority 不一致的请求；NGINX 对绝对 URI 使用目标主机并忽略不同的 Host，此处保留 Pingora 更严格的校验。
+HTTP/1.1 必须有且仅有一个合法、非空的 Host；缺失、重复或非法值在路由前返回 400，绝对 URI 请求也会校验 Host。HTTP/2 和 HTTP/3 支持 `:authority`，HTTP/1.0 可以省略 Host。合法但未配置的主机名仍使用默认虚拟主机。两种内核均在路由前拒绝绝对 URI 或 `:authority` 与 Host 的主机名/端口冲突，避免路由、认证与上游 Host 使用不同身份。Hyper 的 HTTP/1/2 校验忽略 ASCII 大小写，端口表示必须一致，冲突返回 400；HTTP/3 的矛盾字段由协议层以 `H3_MESSAGE_ERROR` 拒绝。NGINX 对绝对 URI 使用目标主机并忽略不同的 Host，此处采用更严格的校验。原始 CONNECT 的目标仍按已配置后端校验，其 Host 不作为上游 HTTP 头转发。
 
 ## 代理
 

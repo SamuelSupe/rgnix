@@ -157,6 +157,16 @@ fn clear_errors() {
     drop(openssl::error::ErrorStack::get());
 }
 impl Stream {
+    pub fn reset_on_drop(&self) {
+        let stream = match self {
+            Self::Plain(stream) => stream,
+            Self::Tls(stream) => stream.get_ref(),
+        };
+        // An expired final flush must discard queued bytes rather than let the
+        // kernel deliver them after close. No linger policy changes on success.
+        #[allow(deprecated)]
+        let _ = stream.set_linger(Some(std::time::Duration::ZERO));
+    }
     pub fn h2(&self) -> bool {
         matches!(self, Self::Tls(s) if s.ssl().selected_alpn_protocol() == Some(b"h2"))
     }

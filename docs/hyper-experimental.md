@@ -96,7 +96,13 @@ helm upgrade --install rgnix charts/rgnix --set image.repository=YOUR_REPOSITORY
 
 HTTP/3 使用 TLS 1.3、流式上传/响应、头与 trailers、RGL/body 检查、认证、快照和预算。首部限制 64 KiB，最多 128 双向流，QUIC 接收窗口每流 1 MiB/每连接 8 MiB；新连接占用全局连接预算，等待首部的流另受请求预算限制。QUIC 空闲期限为 75 秒；首部解析和 body/send 使用配置期限。为共享监听的 mTLS 主机请求可选客户端证书，握手使用 CA 联集，每个请求再按匹配主机当前 CA 和 required/optional 策略验证。
 
+Gateway 的绝对 request/backendRequest 期限覆盖 HTTP/3 的 102/103 提示、最终响应首部、DATA、trailers 和结束操作，等待 QUIC 发送容量时也持续计时；超时重置对应流并释放额度，同连接其他流可继续使用。已完成提示首部后仍可发送最终 504；未发完的提示首部超时则取消该流。HTTP/2 的逐流流控超时仍只重置该流；若完整响应已进入共享 TCP/TLS 输出队列而最终 flush 阻塞，绝对期限到达后会中止整个连接并丢弃尚未发送的 socket 数据，防止过期响应随后交付。期限关闭时保留原有 I/O 限制。
+
+操作期限耗尽后生成的错误响应另有一次、不可续期的 `send_timeout` 交付预算，覆盖响应体与最终 flush。它允许正常读取的客户端收到完整 504，不重启上游请求，也不因上游超时误断 HTTP/2 兄弟流；错误响应发送受阻仍会到期取消并释放额度。
+
 HTTP/3 宣告 Extended CONNECT，支持 [RFC 9220 WebSocket](https://www.rfc-editor.org/rfc/rfc9220.html) 和受限 TCP CONNECT。隧道通过 64 KiB 有界桥接缓冲流式转发，保留双向半关闭；取消、超时和失败重置对应 QUIC stream，不影响其他请求。CONNECT 不允许 Content-Length；未知扩展协议返回 501。RGL、认证及并发许可继续覆盖整个隧道生命周期。原始 TCP CONNECT 不自动添加 Alt-Svc，避免把目标上游端口误宣告为入口 QUIC 端口。
+
+隧道守卫的取消会通知 QUIC 桥接任务，包括等待接受响应首部、DATA 发送及结束操作的阶段。到期后中断正在等待的发送并丢弃桥接缓冲，客户端恢复流控额度也不会使这些过期数据继续发送。
 
 QUIC TLS 1.3 会话恢复使用每个监听器、每个安全代次独立的 512 条内存会话缓存。路由/插件变化可保留票据；证书、CA、SNI 归属或客户端认证策略变化使旧票据失效。恢复握手仍检查证书有效期和撤销状态；mTLS 恢复保留原客户端身份，每个请求按当前主机策略重新验证。0-RTT 保持关闭，避免重复执行有副作用的请求。
 

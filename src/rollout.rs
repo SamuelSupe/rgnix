@@ -156,8 +156,24 @@ pub struct State {
 #[derive(Default)]
 struct Window {
     samples: VecDeque<(Instant, bool, u64)>,
+    totals: Samples,
     rolled_back: bool,
     reason: String,
+}
+impl Window {
+    fn prune(&mut self, now: Instant, rule: &Rollback) {
+        while self
+            .samples
+            .front()
+            .is_some_and(|s| now.duration_since(s.0).as_secs() > rule.window_seconds)
+            || self.samples.len() > 10000
+        {
+            let (_, failed, elapsed) = self.samples.pop_front().unwrap();
+            self.totals.count -= 1;
+            self.totals.errors -= u64::from(failed);
+            self.totals.slow -= u64::from(rule.max_p95_ms.is_some_and(|limit| elapsed > limit));
+        }
+    }
 }
 impl Rollouts {
     pub fn active(&self) -> Vec<Arc<State>> {
@@ -294,29 +310,20 @@ impl State {
             return false;
         }
         let now = Instant::now();
-        window.samples.push_back((
-            now,
-            failed,
-            elapsed.as_millis().min(u64::MAX as u128) as u64,
-        ));
-        while window
-            .samples
-            .front()
-            .is_some_and(|s| now.duration_since(s.0).as_secs() > rule.window_seconds)
-            || window.samples.len() > 10000
-        {
-            window.samples.pop_front();
-        }
-        if window.samples.len() < rule.min_requests {
+        let elapsed = elapsed.as_millis().min(u64::MAX as u128) as u64;
+        window.samples.push_back((now, failed, elapsed));
+        window.totals.count += 1;
+        window.totals.errors += u64::from(failed);
+        window.totals.slow += u64::from(rule.max_p95_ms.is_some_and(|limit| elapsed > limit));
+        window.prune(now, rule);
+        let samples = window.totals;
+        if samples.count < rule.min_requests as u64 {
             return false;
         }
-        let errors = window.samples.iter().filter(|s| s.1).count();
-        let error_limit = errors * 100 >= window.samples.len() * rule.error_percent as usize;
-        let latency_limit = rule.max_p95_ms.is_some_and(|limit| {
-            let mut times: Vec<_> = window.samples.iter().map(|s| s.2).collect();
-            times.sort_unstable();
-            times[(times.len() * 95).div_ceil(100).saturating_sub(1)] > limit
-        });
+        let error_limit = samples.errors * 100 >= samples.count * u64::from(rule.error_percent);
+        // Nearest-rank p95 exceeds the limit exactly when more than floor(n/20)
+        // samples exceed it; retaining their count avoids sorting every request.
+        let latency_limit = rule.max_p95_ms.is_some() && samples.slow > samples.count / 20;
         if error_limit || latency_limit {
             window.rolled_back = true;
             window.reason = if error_limit {
@@ -337,3 +344,6 @@ impl State {
         result
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -723,6 +723,11 @@ function on_response() resp.set_header("x-partial", "must-not-escape") while tru
                 check("HTTPS upstream rejects hostname mismatch", request(port, "/wrong-host/hello")[0] == 502)
                 check("HTTPS upstream rejects untrusted certificate", request(port, "/untrusted/hello")[0] == 502)
                 check("Connection cannot remove framing or Host", request(port, "/api/a", headers={"Connection": "host"})[0] == 400)
+                check("absolute-form authority cannot forward a different Host or port",
+                      all(request(port, "http://example.test/api/a", headers={"Host": host})[0] == 400
+                          for host in ["private.test", "example.test:8081"]))
+                check("matching absolute-form authority retains normal forwarding",
+                      json.loads(request(port, "http://example.test/api/a")[2])["path"] == "/base/a")
                 check("inherited response header", request(port, "/api/a")[1].get("x-inherited") == "yes")
                 payload = b"rgnix-data" * 100000
                 reply = json.loads(request(port, "/api/upload", "POST", body=payload)[2])

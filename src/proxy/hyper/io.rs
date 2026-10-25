@@ -16,13 +16,16 @@ use tokio::{
     time::{Instant, Sleep},
 };
 
+pub(super) const DELIVERY_TIMEOUT: u8 = 3;
+
 pub(super) struct Connection {
     pub admission: Option<Arc<super::admission::Lease>>,
     pub tls: bool,
     pub proxy_address: Option<std::net::SocketAddr>,
     pub client_certificate: Option<Arc<dyn std::any::Any + Send + Sync>>,
     tunnel: Mutex<Vec<Tunnel>>,
-    pending: Mutex<VecDeque<ResponseGuard>>,
+    pending: Mutex<Pending>,
+    delivery_active: AtomicBool,
     pub failure: Arc<AtomicU8>,
     pub read_timeout_ms: AtomicU64,
     pub write_timeout_ms: AtomicU64,
@@ -30,6 +33,11 @@ pub(super) struct Connection {
     pub request_active: AtomicBool,
     active_streams: AtomicUsize,
     read_waker: futures::task::AtomicWaker,
+}
+#[derive(Default)]
+struct Pending {
+    requests: VecDeque<ResponseGuard>,
+    deadline: Option<Pin<Box<Sleep>>>,
 }
 impl Default for Connection {
     fn default() -> Self {
@@ -39,7 +47,8 @@ impl Default for Connection {
             proxy_address: None,
             client_certificate: None,
             tunnel: Mutex::new(Vec::new()),
-            pending: Mutex::new(VecDeque::new()),
+            pending: Mutex::new(Pending::default()),
+            delivery_active: AtomicBool::new(false),
             failure: Arc::new(AtomicU8::new(0)),
             read_timeout_ms: AtomicU64::new(60_000),
             write_timeout_ms: AtomicU64::new(60_000),
@@ -77,14 +86,62 @@ impl Connection {
         .await;
     }
     pub fn queue(&self, request: ResponseGuard) {
-        self.pending
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .push_back(request);
+        let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+        if self.failure.load(Ordering::Relaxed) != 0 {
+            return;
+        }
+        if let Some(at) = request.deadline() {
+            let at = Instant::from_std(at);
+            match &mut pending.deadline {
+                Some(timer) if at < timer.deadline() => timer.as_mut().reset(at),
+                None => pending.deadline = Some(Box::pin(tokio::time::sleep_until(at))),
+                _ => {}
+            }
+            self.delivery_active.store(true, Ordering::Release);
+            self.read_waker.wake();
+        }
+        pending.requests.push_back(request);
+    }
+    fn check_delivery(&self, cx: &mut Context<'_>) -> io::Result<()> {
+        if self.failure.load(Ordering::Relaxed) == DELIVERY_TIMEOUT {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        if !self.delivery_active.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+        if pending
+            .deadline
+            .as_mut()
+            .is_some_and(|d| d.as_mut().poll(cx).is_ready())
+        {
+            // These bytes have entered the shared TCP/TLS output queue. Closing
+            // the transport is the only way to stop an overdue final flush.
+            self.failure.store(DELIVERY_TIMEOUT, Ordering::Relaxed);
+            let now = std::time::Instant::now();
+            for request in &mut pending.requests {
+                if request.deadline().is_some_and(|d| d <= now) {
+                    request.set_error(super::super::error(
+                        504,
+                        "response delivery deadline exceeded",
+                    ));
+                }
+            }
+            pending.requests.clear();
+            pending.deadline = None;
+            self.delivery_active.store(false, Ordering::Release);
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "response delivery deadline exceeded",
+            ));
+        }
+        Ok(())
     }
     fn flushed(&self) {
         let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-        while let Some(mut request) = pending.pop_front() {
+        pending.deadline = None;
+        self.delivery_active.store(false, Ordering::Release);
+        while let Some(mut request) = pending.requests.pop_front() {
             if request.version() != http::Version::HTTP_2 {
                 self.read_timeout_ms.store(
                     request.keepalive().as_millis().min(u64::MAX as u128) as u64,
@@ -97,10 +154,10 @@ impl Connection {
         }
     }
     fn closed(&self) {
-        self.pending
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clear();
+        let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+        pending.requests.clear();
+        pending.deadline = None;
+        self.delivery_active.store(false, Ordering::Release);
     }
     #[cfg(target_os = "linux")]
     fn file_bytes(&self, length: usize) {
@@ -108,6 +165,7 @@ impl Connection {
             .pending
             .lock()
             .unwrap_or_else(|e| e.into_inner())
+            .requests
             .back()
         {
             guard
@@ -189,6 +247,7 @@ impl TrackedIo {
         }
     }
     fn poll_write_deadline(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.state.read_waker.register(cx.waker());
         if self.state.multiplexed.load(Ordering::Relaxed) {
             self.write.clear();
             return Poll::Pending;
@@ -203,6 +262,7 @@ impl AsyncRead for TrackedIo {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
+        self.state.check_delivery(cx)?;
         match Pin::new(&mut self.stream).poll_read(cx, buf) {
             Poll::Pending => {
                 self.state.read_waker.register(cx.waker());
@@ -239,6 +299,7 @@ impl AsyncWrite for TrackedIo {
         cx: &mut Context<'_>,
         bufs: &[io::IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
+        self.state.check_delivery(cx)?;
         match Pin::new(&mut self.stream).poll_write_vectored(cx, bufs) {
             Poll::Pending => match self.poll_write_deadline(cx) {
                 Poll::Ready(Err(error)) => {
@@ -258,6 +319,7 @@ impl AsyncWrite for TrackedIo {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
+        self.state.check_delivery(cx)?;
         match Pin::new(&mut self.stream).poll_write(cx, buf) {
             Poll::Pending => match self.poll_write_deadline(cx) {
                 Poll::Ready(Err(error)) => {
@@ -273,7 +335,11 @@ impl AsyncWrite for TrackedIo {
         }
     }
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.state.check_delivery(cx)?;
         let result = Pin::new(&mut self.stream).poll_flush(cx);
+        if result.is_pending() {
+            self.state.read_waker.register(cx.waker());
+        }
         if matches!(result, Poll::Ready(Ok(()))) {
             self.state.flushed();
         }
@@ -285,6 +351,9 @@ impl AsyncWrite for TrackedIo {
 }
 impl Drop for TrackedIo {
     fn drop(&mut self) {
+        if self.state.failure.load(Ordering::Relaxed) == DELIVERY_TIMEOUT {
+            self.stream.inner.reset_on_drop();
+        }
         self.state.closed();
     }
 }
@@ -335,6 +404,7 @@ impl hyper::rt::Write for TrackedIo {
         length: usize,
     ) -> Poll<io::Result<usize>> {
         use std::os::fd::AsRawFd;
+        self.state.check_delivery(cx)?;
         let super::tls::Stream::Plain(socket) = &self.stream.inner else {
             return Poll::Ready(Err(io::ErrorKind::Unsupported.into()));
         };

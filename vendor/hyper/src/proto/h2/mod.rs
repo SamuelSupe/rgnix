@@ -94,11 +94,13 @@ fn strip_connection_headers(headers: &mut HeaderMap, kind: MessageKind) {
 #[cfg(feature = "rgnix-extensions")]
 mod timeout;
 #[cfg(feature = "rgnix-extensions")]
-use timeout::{BodyTimeout, HeaderTimeout};
+use timeout::{BodyDeadline, BodyTimeout, HeaderTimeout};
 #[cfg(not(feature = "rgnix-extensions"))]
 type BodyTimeout = ();
 #[cfg(not(feature = "rgnix-extensions"))]
 type HeaderTimeout = ();
+#[cfg(not(feature = "rgnix-extensions"))]
+type BodyDeadline = ();
 
 pin_project! {
     pub(crate) struct PipeToSendStream<S>
@@ -108,6 +110,7 @@ pin_project! {
         body_tx: SendStream<SendBuf<S::Data>>,
         data_done: bool,
         timeout: Option<BodyTimeout>,
+        deadline: Option<BodyDeadline>,
         // A data chunk that has been polled from the body but is still waiting
         // for stream-level capacity before it can be shipped. Stored here so
         // it survives across `Poll::Pending` returns from `poll_capacity`; if
@@ -132,6 +135,7 @@ where
             body_tx: tx,
             data_done: false,
             timeout: None,
+            deadline: None,
             buffered_data: None,
             stream,
         }
@@ -140,6 +144,12 @@ where
     #[cfg(feature = "rgnix-extensions")]
     fn with_timeout(mut self, timeout: Option<BodyTimeout>) -> Self {
         self.timeout = timeout;
+        self
+    }
+
+    #[cfg(feature = "rgnix-extensions")]
+    fn with_deadline(mut self, deadline: Option<crate::ext::H2Deadline>) -> Self {
+        self.deadline = deadline.map(BodyDeadline::new);
         self
     }
 
@@ -159,6 +169,13 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
+            #[cfg(feature = "rgnix-extensions")]
+            if me.deadline.as_mut().is_some_and(|d| d.expired(cx)) {
+                me.body_tx.send_reset(h2::Reason::CANCEL);
+                return Poll::Ready(Err(crate::Error::new_body_write(std::io::Error::from(
+                    std::io::ErrorKind::TimedOut,
+                ))));
+            }
             // Register for RST_STREAM notification while we wait for the next
             // body chunk or for send capacity, so the task wakes up if the
             // peer resets the stream.
@@ -199,6 +216,24 @@ where
                     }
                 }
 
+                #[cfg(feature = "rgnix-extensions")]
+                if me.deadline.is_some() {
+                    let peeked = me.buffered_data.as_mut().expect("checked is_some above");
+                    let capacity = me.body_tx.capacity();
+                    if capacity < peeked.data.remaining() {
+                        // Keep unsendable bytes in this future, where its deadline
+                        // remains active, rather than buffering the final frame in h2.
+                        let part = peeked.data.copy_to_bytes(capacity);
+                        me.body_tx
+                            .send_data(SendBuf::Partial(part), false)
+                            .map_err(crate::Error::new_body_write)?;
+                        me.body_tx.reserve_capacity(peeked.data.remaining());
+                        if let Some(timeout) = me.timeout.as_mut() {
+                            timeout.progress();
+                        }
+                        continue;
+                    }
+                }
                 let peeked = me.buffered_data.take().expect("checked is_some above");
                 let buf = SendBuf::Buf(peeked.data);
                 me.body_tx
@@ -245,21 +280,16 @@ where
                             continue;
                         }
 
-                        // Reserve a minimal claim on the connection-level
-                        // flow-control window rather than the whole chunk. The
-                        // chunk is already in hand, so this still cannot pin
-                        // capacity against a body that never produces data
-                        // (#4003), and h2 raises the request to the buffered
-                        // length inside `send_data`, so the demand eventually
-                        // signalled to the peer is unchanged. Claiming the full
-                        // length up front instead makes every in-flight stream a
-                        // heavyweight claimant while it waits, which is costly
-                        // once the streams on a connection collectively demand
-                        // more than the window the peer advertises. Stash the
-                        // chunk in `self` so it survives the upcoming
-                        // `poll_capacity` wait even if it returns
-                        // `Poll::Pending`.
-                        me.body_tx.reserve_capacity(1);
+                        // Ordinary bodies claim minimal capacity and let h2
+                        // buffer the chunk. A deadline-bound response retains
+                        // unsendable bytes here, so it requests the chunk's
+                        // capacity itself. Neither path reserves before the
+                        // body produces data (#4003).
+                        #[cfg(feature = "rgnix-extensions")]
+                        let capacity = if me.deadline.is_some() { len } else { 1 };
+                        #[cfg(not(feature = "rgnix-extensions"))]
+                        let capacity = 1;
+                        me.body_tx.reserve_capacity(capacity);
                         *me.buffered_data = Some(Peeked {
                             data: chunk,
                             is_eos,
@@ -316,6 +346,8 @@ impl<B: Buf> SendStreamExt for SendStream<SendBuf<B>> {
 #[repr(usize)]
 enum SendBuf<B> {
     Buf(B),
+    #[cfg(feature = "rgnix-extensions")]
+    Partial(bytes::Bytes),
     Cursor(Cursor<Box<[u8]>>),
     None,
 }
@@ -325,6 +357,8 @@ impl<B: Buf> Buf for SendBuf<B> {
     fn remaining(&self) -> usize {
         match self {
             Self::Buf(b) => b.remaining(),
+            #[cfg(feature = "rgnix-extensions")]
+            Self::Partial(b) => b.remaining(),
             Self::Cursor(c) => Buf::remaining(c),
             Self::None => 0,
         }
@@ -334,6 +368,8 @@ impl<B: Buf> Buf for SendBuf<B> {
     fn chunk(&self) -> &[u8] {
         match self {
             Self::Buf(b) => b.chunk(),
+            #[cfg(feature = "rgnix-extensions")]
+            Self::Partial(b) => b.chunk(),
             Self::Cursor(c) => c.chunk(),
             Self::None => &[],
         }
@@ -343,6 +379,8 @@ impl<B: Buf> Buf for SendBuf<B> {
     fn advance(&mut self, cnt: usize) {
         match self {
             Self::Buf(b) => b.advance(cnt),
+            #[cfg(feature = "rgnix-extensions")]
+            Self::Partial(b) => b.advance(cnt),
             Self::Cursor(c) => c.advance(cnt),
             Self::None => {}
         }
@@ -351,6 +389,8 @@ impl<B: Buf> Buf for SendBuf<B> {
     fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
         match self {
             Self::Buf(b) => b.chunks_vectored(dst),
+            #[cfg(feature = "rgnix-extensions")]
+            Self::Partial(b) => b.chunks_vectored(dst),
             Self::Cursor(c) => c.chunks_vectored(dst),
             Self::None => 0,
         }

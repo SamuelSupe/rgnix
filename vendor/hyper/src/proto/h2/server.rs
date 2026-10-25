@@ -546,10 +546,12 @@ where
                             .extensions_mut()
                             .remove::<crate::ext::H2Timeouts>()
                             .map(|p| super::BodyTimeout::new(p.write));
+                        #[cfg(feature = "rgnix-extensions")]
+                        let deadline = res.extensions_mut().remove::<crate::ext::H2Deadline>();
                         let body_tx = reply!(me, res, false);
                         let pipe = PipeToSendStream::new(body, body_tx);
                         #[cfg(feature = "rgnix-extensions")]
-                        let pipe = pipe.with_timeout(timeout);
+                        let pipe = pipe.with_timeout(timeout).with_deadline(deadline);
                         H2StreamState::Body { pipe }
                     } else {
                         reply!(me, res, true);

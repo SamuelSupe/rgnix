@@ -688,8 +688,8 @@ fn request_host_parts<'a>(
         ))
     }
     let mut fields = headers.get_all(http::header::HOST).iter();
-    let host = fields
-        .next()
+    let field = fields.next();
+    let host = field
         .map(|value| {
             let value = value
                 .to_str()
@@ -699,6 +699,18 @@ fn request_host_parts<'a>(
         .transpose()?;
     if fields.next().is_some() || (version == http::Version::HTTP_11 && host.is_none()) {
         return Err(error(400, "HTTP/1.1 requires exactly one Host header"));
+    }
+    if let (Some(authority), Some(field)) = (uri.authority(), field)
+        && uri.scheme().is_some()
+    {
+        // Routing and Gateway forwarding must agree on the authority, including
+        // its port. Raw CONNECT forwards opaque TCP and has no HTTP Host egress.
+        if !field
+            .as_bytes()
+            .eq_ignore_ascii_case(authority.as_str().as_bytes())
+        {
+            return Err(error(400, "Host header differs from request authority"));
+        }
     }
     // HTTP/2 may supply :authority without an HTTP/1 Host header.
     Ok(uri
@@ -791,6 +803,49 @@ pub(crate) fn https_redirect(host: &str, uri: &str, port: u16) -> String {
 #[cfg(test)]
 mod request_validation_tests {
     use super::*;
+
+    #[test]
+    fn routing_rejects_conflicting_hosts_and_ports_before_forwarding() {
+        for version in [
+            http::Version::HTTP_11,
+            http::Version::HTTP_2,
+            http::Version::HTTP_3,
+        ] {
+            for (target, host, accepted) in [
+                ("http://public.test/", "private.test", false),
+                ("http://public.test:8080/", "public.test:8081", false),
+                ("http://public.test:8080/", "public.test", false),
+                ("http://Public.test:8080/", "PUBLIC.test:8080", true),
+                ("https://[2001:db8::1]:8443/", "[2001:DB8::1]:8443", true),
+                ("https://[2001:db8::1]:8443/", "[2001:db8::2]:8443", false),
+            ] {
+                let uri = target.parse().unwrap();
+                let mut headers = http::HeaderMap::new();
+                headers.insert(http::header::HOST, host.parse().unwrap());
+                assert_eq!(
+                    request_host_parts(&headers, &uri, version).is_ok(),
+                    accepted,
+                    "{version:?} {target} {host}"
+                );
+            }
+            let uri = "https://public.test/path".parse().unwrap();
+            assert_eq!(
+                request_host_parts(&http::HeaderMap::new(), &uri, version).is_ok(),
+                version != http::Version::HTTP_11
+            );
+        }
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::HOST, "proxy.test".parse().unwrap());
+        assert_eq!(
+            request_host_parts(
+                &headers,
+                &"public.test:443".parse().unwrap(),
+                http::Version::HTTP_11
+            )
+            .unwrap(),
+            "public.test"
+        );
+    }
 
     #[test]
     fn plain_and_encoded_paths_keep_normalization_and_rejection_boundaries() {

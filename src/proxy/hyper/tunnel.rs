@@ -61,6 +61,7 @@ trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 
 pub(super) async fn run(tunnel: Tunnel, mut guard: Box<RequestGuard>) {
+    let deadline = guard.response_deadline();
     let settings = &guard.ctx.route.as_ref().unwrap().settings;
     let (client_read, client_write, upstream_read, upstream_write) = (
         settings.client_body_timeout,
@@ -68,7 +69,7 @@ pub(super) async fn run(tunnel: Tunnel, mut guard: Box<RequestGuard>) {
         settings.read_timeout,
         settings.write_timeout,
     );
-    let result = async {
+    let transfer = async {
         #[cfg(feature = "http3")]
         let mut delivered = None;
         #[cfg(feature = "http3")]
@@ -117,8 +118,15 @@ pub(super) async fn run(tunnel: Tunnel, mut guard: Box<RequestGuard>) {
             return Err("HTTP/3 tunnel response was not delivered".into());
         }
         Ok::<_, super::body::BoxError>(())
-    }
-    .await;
+    };
+    let result = match deadline {
+        Some(deadline) => tokio::time::timeout_at(deadline.into(), transfer)
+            .await
+            .unwrap_or_else(|_| {
+                Err(io::Error::new(io::ErrorKind::TimedOut, "request deadline exceeded").into())
+            }),
+        None => transfer.await,
+    };
     if let Err(error) = &result {
         guard.error = Some(
             pingora::Error::explain(
